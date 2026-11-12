@@ -692,12 +692,16 @@ pub fn verify_signature(path: &Path, team: &str) -> Result<()> {
 /// Builds Redis in place with the system toolchain and keeps only the binaries and license.
 fn build_from_source(root: &Path, programs: &[&str]) -> Result<()> {
     let jobs = std::thread::available_parallelism().map(|n| n.get().min(8)).unwrap_or(4);
+    // Only the programs Stack runs, from `src/`: since Redis 8.10 the top-level make also builds
+    // modules (RediSearch, RedisJSON…) that need GNU Make 4, newer than macOS's.
     let status = Command::new("/usr/bin/make")
         .arg(format!("-j{jobs}"))
+        .args(["-C", "src"])
+        .args(programs)
         .args(["BUILD_TLS=no", "MALLOC=libc"])
         .current_dir(root)
         .env_clear()
-        .env("PATH", "/usr/bin:/bin")
+        .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()?;
