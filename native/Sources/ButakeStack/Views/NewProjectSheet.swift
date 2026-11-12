@@ -654,7 +654,8 @@ struct NewProjectSheet: View {
                     created.seconds = Date().timeIntervalSince(started)
                     savedParent = parent
                     if store.groups.contains(where: { $0.id == groupChoice }) { store.move(created.project.id, to: groupChoice) }
-                    if git && openInGit { ButakeGit.open(created.project.path) }
+                    // QA windows never drive the user's own Butake Git (its recents are theirs).
+                    if git && openInGit && !StackStore.qaWindow { ButakeGit.open(created.project.path) }
                     phase = .done(created)
                 case .failure(let failure):
                     phase = .failed(failure.message)
