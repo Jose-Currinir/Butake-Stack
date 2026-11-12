@@ -27,7 +27,7 @@ def package(runtime, output):
     manifest = json.loads(manifest_path.read_text())
     series = manifest["series"]
     version = manifest["version"]
-    if series not in ("8.2", "8.5") or not re.fullmatch(re.escape(series) + r"\.\d+", version) or manifest["architecture"] != "arm64":
+    if not re.fullmatch(r"8\.[1-9]", series) or not re.fullmatch(re.escape(series) + r"\.\d+", version) or manifest["architecture"] != "arm64":
         raise RuntimeError("unsupported_runtime")
     allowed = {"bin/php", "bin/php-fpm", "composer.phar", "cacert.pem", "xdebug.so"}
     required = allowed - {"xdebug.so"}

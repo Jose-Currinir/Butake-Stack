@@ -29,7 +29,11 @@ pub struct PhpRuntime {
     pub manifest: Option<PhpManifest>,
 }
 pub fn validate_series(series: &str) -> Result<()> {
-    ensure!(["8.2", "8.5"].contains(&series), "unsupported_php_series");
+    // PHP 8 lines with static builds (8.1 to 8.9): "8.<minor>".
+    ensure!(
+        series.len() == 3 && series.starts_with("8.") && series.as_bytes()[2].is_ascii_digit() && series != "8.0",
+        "unsupported_php_series"
+    );
     Ok(())
 }
 fn sha256(path: &Path) -> Result<String> {
@@ -94,9 +98,13 @@ pub fn manifest(store: &Store, series: &str) -> Result<PhpManifest> {
     Ok(manifest)
 }
 pub fn list(store: &Store) -> Vec<PhpRuntime> {
-    ["8.2", "8.5"]
+    // Every installed line, newest first (8.3, 8.4… appear as soon as they are installed).
+    let mut series: Vec<String> = fs::read_dir(store.root().join("runtimes/php"))
+        .map(|entries| entries.filter_map(|e| e.ok()?.file_name().into_string().ok()).filter(|s| validate_series(s).is_ok()).collect())
+        .unwrap_or_default();
+    series.sort_by(|a, b| b.cmp(a));
+    series
         .iter()
-        .filter(|series| store.root().join("runtimes/php").join(series).exists())
         .map(|series| {
             let installed = store.root().join("runtimes/php").join(series).exists();
             let manifest = manifest(store, series).ok();
