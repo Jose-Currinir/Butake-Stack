@@ -181,31 +181,53 @@ pub fn create_postgres_database(store: &Store, config: &StackConfig, name: &str)
     );
     let base = crate::services::engine_dir(store, config, "postgres").ok_or_else(|| anyhow::anyhow!("postgres_not_installed"))?;
     let port = port(config, "postgres");
-    let password: String = {
+    let secret = || -> anyhow::Result<String> {
         let mut bytes = [0u8; 24];
         fs::File::open("/dev/urandom").and_then(|mut f| std::io::Read::read_exact(&mut f, &mut bytes))?;
-        bytes.iter().map(|b| format!("{b:02x}")).collect()
+        Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
     };
-    let user = format!("{name}_app");
-    // Identifiers are validated above and the password is hex: nothing user-typed reaches SQL.
-    let sql = format!(
-        "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{user}') THEN CREATE ROLE {user} LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '{password}'; ELSE ALTER ROLE {user} PASSWORD '{password}'; END IF; END $$;"
-    );
+    let (app_password, owner_password) = (secret()?, secret()?);
+    // Two roles: the owner runs migrations (owns the schema, may create the roles migrations need);
+    // migrations may seed tables under forced RLS, so it bypasses RLS (never superuser). The app role
+    // only reads and writes rows, and row-level security always applies to it.
+    let (owner, user) = (format!("{name}_migration"), format!("{name}_app"));
+    // The SQL goes through stdin, never argv, so passwords don't show in the process list.
     let psql = |sql: &str, db: &str| -> anyhow::Result<String> {
-        let out = Command::new(base.join("bin/psql"))
-            .args(["-h", "127.0.0.1", "-p", &port.to_string(), "-U", "postgres", "-d", db, "-v", "ON_ERROR_STOP=1", "-tAc", sql])
+        let mut child = Command::new(base.join("bin/psql"))
+            .args(["-h", "127.0.0.1", "-p", &port.to_string(), "-U", "postgres", "-d", db, "-v", "ON_ERROR_STOP=1", "-tA", "-f", "-"])
             .env_clear()
-            .stdin(std::process::Stdio::null())
-            .output()?;
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()?;
+        std::io::Write::write_all(child.stdin.as_mut().ok_or_else(|| anyhow::anyhow!("postgres_command_failed"))?, sql.as_bytes())?;
+        drop(child.stdin.take());
+        let out = child.wait_with_output()?;
         anyhow::ensure!(out.status.success(), "postgres_command_failed");
         Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
     };
-    psql(&sql, "postgres")?;
-    if psql(&format!("SELECT 1 FROM pg_database WHERE datname = '{name}'"), "postgres")?.is_empty() {
-        psql(&format!("CREATE DATABASE {name} OWNER {user} ENCODING 'UTF8'"), "postgres")?;
+    let role = |role: &str, attributes: &str, password: &str| {
+        format!("DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{role}') THEN CREATE ROLE {role} {attributes} PASSWORD '{password}'; ELSE ALTER ROLE {role} {attributes} PASSWORD '{password}'; END IF; END $$;\n")
+    };
+    // Identifiers are validated above and passwords are hex: nothing user-typed reaches SQL.
+    psql(&(role(&owner, "LOGIN NOSUPERUSER NOCREATEDB CREATEROLE BYPASSRLS", &owner_password)
+        + &role(&user, "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS", &app_password)), "postgres")?;
+    if psql(&format!("SELECT 1 FROM pg_database WHERE datname = '{name}';"), "postgres")?.is_empty() {
+        psql(&format!("CREATE DATABASE {name} OWNER {owner} ENCODING 'UTF8';"), "postgres")?;
     }
+    psql(&format!(
+        "ALTER SCHEMA public OWNER TO {owner};\n\
+         REVOKE ALL ON DATABASE {name} FROM PUBLIC;\n\
+         GRANT CONNECT ON DATABASE {name} TO {user};\n\
+         GRANT USAGE ON SCHEMA public TO {user};\n\
+         ALTER DEFAULT PRIVILEGES FOR ROLE {owner} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {user};\n\
+         ALTER DEFAULT PRIVILEGES FOR ROLE {owner} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO {user};\n\
+         ALTER DEFAULT PRIVILEGES FOR ROLE {owner} IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO {user};\n"
+    ), name)?;
+    let jdbc = format!("jdbc:postgresql://127.0.0.1:{port}/{name}");
     Ok(serde_json::json!({
-        "host": "127.0.0.1", "port": port, "database": name, "user": user, "password": password,
-        "jdbc": format!("jdbc:postgresql://127.0.0.1:{port}/{name}"),
+        "host": "127.0.0.1", "port": port, "database": name, "jdbc": jdbc,
+        "user": user, "password": app_password,
+        "migrationUser": owner, "migrationPassword": owner_password,
     }))
 }

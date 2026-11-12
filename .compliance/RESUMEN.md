@@ -38,6 +38,17 @@ defecto y sin colas automáticas; `.env` atómico con permisos 600 y obligatorio
 nunca imprime valores; auditoría local sin valores; importación sin copias en claro; exportar sin
 secretos; borrado completo; procedimiento de incidentes; pruebas automáticas.
 
+## Revisión 2026-11-12 — backends KMP y bases en el PostgreSQL de Stack
+- **Variables del entorno activo al backend KMP:** el daemon lee el `.env` del sitio sólo en memoria al
+  arrancar el proceso; no lo copia ni lo registra, y el estado que recibe la app elimina el entorno de
+  los procesos. Cumple R6 (el motor nunca imprime valores).
+- **Crear base en PostgreSQL de Stack:** dos roles por base. El de la app sin superusuario, sin
+  `BYPASSRLS` ni `CREATEROLE` (el RLS del proyecto siempre aplica); el de migración, dueño del esquema,
+  con `BYPASSRLS` y `CREATEROLE` pero nunca superusuario. Contraseñas aleatorias de 192 bits generadas en
+  el Mac; el SQL viaja por la entrada estándar de `psql`, no por argumentos (no aparecen en la lista de
+  procesos); en la app pasan como secretos y se guardan en el Llavero al guardar el entorno (R1, R2).
+- Sin datos personales nuevos ni transferencias: la base vive en el Mac del usuario. La postura no cambia.
+
 ## Pendiente fuera del código
 - RUT de Butake SpA (sólo para el estado; no afecta los requisitos).
 - Recomendación organizativa: credenciales de Producción de sólo lectura en Macs de desarrollo.

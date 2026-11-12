@@ -314,24 +314,41 @@ struct EnvironmentsView: View {
         await store.envAudit(project.id, env: current.id, action: "copiar", key: row.key)
         store.notify(L("env.copied"))
     }
-    /// A database and its own role in the stack's PostgreSQL; the connection goes into this
-    /// environment (the password as a secret, kept in the Keychain on save).
+    /// A database in the stack's PostgreSQL with two roles (migrations and app); the connection goes
+    /// into this environment, passwords as secrets that land in the Keychain on save.
     private func createDatabase() async {
-        struct Created: Decodable { let jdbc: String; let user: String; let password: String; let host: String; let port: Int; let database: String }
+        struct Created: Decodable {
+            let jdbc: String; let host: String; let port: Int; let database: String
+            let user: String; let password: String; let migrationUser: String; let migrationPassword: String
+        }
         let name = project.id.replacingOccurrences(of: "-", with: "_")
         guard let created: Created = try? await store.call(["method": "createDatabase", "engine": "postgres", "name": name]) else {
             store.errorMessage = L("env.createDatabaseFailed"); return
         }
-        func upsert(_ key: String, _ value: String, secret: Bool) {
+        func upsert(_ key: String, _ value: String, secret: Bool = false) {
             if let i = draft.firstIndex(where: { $0.key == key }) {
                 if secret { draft[i].secret = true; draft[i].newSecret = value } else { draft[i].value = value }
             } else {
                 draft.append(Row(key: key, value: secret ? "" : value, secret: secret, newSecret: secret ? value : nil))
             }
         }
-        upsert("DATABASE_URL", created.jdbc, secret: false)
-        upsert("DATABASE_USER", created.user, secret: false)
-        upsert("DATABASE_PASSWORD", created.password, secret: true)
+        if draft.contains(where: { $0.key == "DB_CONNECTION" || $0.key == "DB_DATABASE" }) {
+            // Laravel-style: one connection that also runs the migrations, so it gets the owner role.
+            upsert("DB_CONNECTION", "pgsql")
+            upsert("DB_HOST", created.host)
+            upsert("DB_PORT", String(created.port))
+            upsert("DB_DATABASE", created.database)
+            upsert("DB_USERNAME", created.migrationUser)
+            upsert("DB_PASSWORD", created.migrationPassword, secret: true)
+        } else {
+            // JDBC style (KMP backends): the app role for runtime, the owner role for Flyway.
+            upsert("DATABASE_URL", created.jdbc)
+            upsert("DATABASE_USER", created.user)
+            upsert("DATABASE_PASSWORD", created.password, secret: true)
+            upsert("DATABASE_MIGRATION_URL", created.jdbc)
+            upsert("DATABASE_MIGRATION_USER", created.migrationUser)
+            upsert("DATABASE_MIGRATION_PASSWORD", created.migrationPassword, secret: true)
+        }
         dirty = true
         store.notify(String(format: L("env.databaseCreated"), created.database))
     }
