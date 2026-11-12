@@ -334,8 +334,15 @@ mod tests {
 /// `runtimes` of the project's repository. The catalog lists them; the user picks which to install.
 pub const RUNTIMES_RELEASE: &str = "https://github.com/Jose-Currinir/Butake-Stack/releases/download/runtimes";
 
+/// The catalog URL with a value that changes every 10 minutes: GitHub's download CDN can keep
+/// serving a replaced asset for a long time; the local cache keeps requests rare anyway.
+fn catalog_url() -> String {
+    let bucket = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 600).unwrap_or(0);
+    format!("{RUNTIMES_RELEASE}/catalog.json?t={bucket}")
+}
+
 pub fn php_catalog() -> Result<Vec<serde_json::Value>> {
-    let data = crate::tools::fetch(&format!("{RUNTIMES_RELEASE}/catalog.json"), 1_048_576)?;
+    let data = crate::tools::fetch(&catalog_url(), 1_048_576)?;
     let catalog: serde_json::Value = serde_json::from_slice(&data)?;
     Ok(catalog["entries"]
         .as_array()
@@ -353,7 +360,7 @@ pub fn download_php(store: &Store, version: &str) -> Result<PhpManifest> {
         !version.is_empty() && version.len() <= 20 && version.bytes().all(|c| c.is_ascii_digit() || c == b'.'),
         "invalid_version"
     );
-    let data = crate::tools::fetch(&format!("{RUNTIMES_RELEASE}/catalog.json"), 1_048_576)?;
+    let data = crate::tools::fetch(&catalog_url(), 1_048_576)?;
     let catalog: serde_json::Value = serde_json::from_slice(&data)?;
     let entry = catalog["entries"]
         .as_array()
