@@ -38,7 +38,7 @@ import Security
         return String(decoding: data, as: UTF8.self)
     }
 
-    static func has(site: String, env: String, key: String) -> Bool {
+    nonisolated static func has(site: String, env: String, key: String) -> Bool {
         var query = base(account(site, env, key))
         query[kSecReturnAttributes as String] = true
         return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess

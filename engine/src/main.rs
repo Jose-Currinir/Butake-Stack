@@ -91,6 +91,19 @@ fn dispatch(request: Value) -> Result<Value> {
             }
             Ok(serde_json::to_value(site)?)
         }
+        "envExport" => {
+            let secrets: std::collections::BTreeMap<String, String> =
+                serde_json::from_value(request["secrets"].clone()).unwrap_or_default();
+            envs::export(
+                &store,
+                id,
+                request["env"].as_str().unwrap_or(""),
+                &secrets,
+                std::path::Path::new(request["path"].as_str().unwrap_or("")),
+                request["actor"].as_str().unwrap_or(""),
+            )?;
+            Ok(json!(true))
+        }
         "envAudit" => {
             envs::audit(
                 &store,

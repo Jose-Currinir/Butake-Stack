@@ -1,5 +1,10 @@
 # Cumplimiento — Butake Stack
 
+## Cambios (2026-11-12, tarde)
+- **R9 revisado a pedido del titular:** se permite descargar `.env.<entorno>` con valores reales,
+  con autenticación, permisos 600, verificación de `.gitignore` y auditoría. Prueba automática en
+  `engine/src/envs.rs`. Los controles siguen en «cumple».
+
 ## Cambios vs última corrida (2026-11-12, diseño)
 - **Avance:** los 10 controles quedan en «cumple» tras implementar R1 a R12. Puntaje 0,30 → 1,00.
 - **Hallazgo corregido durante la implementación:** la autenticación reutilizaba un desbloqueo reciente

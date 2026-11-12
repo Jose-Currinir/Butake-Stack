@@ -79,6 +79,9 @@ struct EnvironmentsView: View {
     @State private var showAudit = false
     @State private var revealed: [String: String] = [:]
     @State private var editingSecret: Row?
+    /// Which secrets have a value in the Keychain, read once per load (not on every redraw: a long
+    /// .env made every keystroke query the Keychain dozens of times).
+    @State private var storedSecrets: Set<String> = []
 
     struct Row: Identifiable, Hashable {
         let id = UUID()
@@ -180,7 +183,7 @@ struct EnvironmentsView: View {
                         ForEach(Array(rows.enumerated()), id: \.element.wrappedValue.id) { index, row in
                             if index > 0 { Divider() }
                             EnvRowView(row: row, revealed: revealed[row.wrappedValue.key], hasSecret: hasSecret(row.wrappedValue),
-                                       changed: { dirty = true },
+                                       changed: { if !dirty { dirty = true } },
                                        reveal: { Task { await reveal(row.wrappedValue) } },
                                        copy: { Task { await copy(row.wrappedValue) } },
                                        edit: { editingSecret = row.wrappedValue },
@@ -234,9 +237,15 @@ struct EnvironmentsView: View {
             Spacer()
             if dirty { Text(L("env.unsaved")).font(.uiCaption).foregroundStyle(Brand.warning) }
             Button(L("env.save")) { Task { await save() } }.disabled(!dirty || store.busy != nil).accessibilityIdentifier("env.save")
+            if let current {
+                Button { Task { await store.downloadEnv(project, current) } } label: { Label(".env.\(current.id)", systemImage: "arrow.down.doc") }
+                    .help(String(format: L("env.downloadHelp"), current.title)).disabled(store.busy != nil || dirty)
+                    .accessibilityIdentifier("env.download")
+            }
             Menu {
                 Button { showAudit = true } label: { Label(L("env.audit"), systemImage: "clock.arrow.circlepath") }
                 if let current {
+                    Button { Task { await store.downloadEnv(project, current) } } label: { Label(String(format: L("env.downloadMenu"), current.id), systemImage: "arrow.down.doc") }
                     Button { Task { await store.exportTemplate(project, current) } } label: { Label(L("env.export"), systemImage: "square.and.arrow.up") }
                     Divider()
                     Button(role: .destructive) { confirmDelete = true } label: { Label(L("env.delete"), systemImage: "trash") }
@@ -265,14 +274,21 @@ struct EnvironmentsView: View {
         draft = (current?.entries ?? []).map { Row(key: $0.key, value: $0.value, secret: $0.secret, original: $0.key) }
         revealed = [:]
         dirty = false
+        Task { await loadStoredSecrets() }
     }
     private func set(_ id: UUID, _ change: (inout Row) -> Void) {
         guard let index = draft.firstIndex(where: { $0.id == id }) else { return }
         change(&draft[index])
     }
     private func hasSecret(_ row: Row) -> Bool {
-        guard let current, row.secret, row.original != nil else { return false }
-        return EnvVault.has(site: project.id, env: current.id, key: row.key)
+        row.secret && row.original != nil && storedSecrets.contains(row.key)
+    }
+    /// Keychain lookups off the main thread, once.
+    private func loadStoredSecrets() async {
+        guard let current else { storedSecrets = []; return }
+        let keys = current.entries.filter(\.secret).map(\.key)
+        let site = project.id, env = current.id
+        storedSecrets = await Task.detached { Set(keys.filter { EnvVault.has(site: site, env: env, key: $0) }) }.value
     }
     private func confirmDiscard() -> Bool {
         let alert = NSAlert()

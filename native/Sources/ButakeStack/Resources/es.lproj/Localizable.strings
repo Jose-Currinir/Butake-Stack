@@ -520,3 +520,11 @@
 "php.catalog" = "Más versiones";
 "php.catalogFooter" = "Compilaciones de Butake Stack con 67 extensiones, Composer y Xdebug, verificadas por SHA-256. Cada versión de PHP se instala aparte y cada sitio elige la suya.";
 "env.incident" = "¿Perdiste el Mac o se filtró un secreto?";
+"env.download" = "Descargar";
+"env.downloadMenu" = "Descargar .env.%@";
+"env.downloadHelp" = "Descarga el entorno %@ como archivo .env con sus valores reales (pide Touch ID).";
+"env.downloadMessage" = "El archivo de %@ incluye los valores secretos. Guárdalo en un lugar privado.";
+"env.downloadName" = "El nombre del archivo debe empezar con .env";
+"env.downloadNotIgnored" = "%@ quedaría dentro del repositorio sin estar en .gitignore: agrégalo a .gitignore o elige otra carpeta.";
+"env.authDownload" = "descargar el entorno %@ con sus secretos";
+"env.downloaded" = "Descargado %@ (permisos 600)";

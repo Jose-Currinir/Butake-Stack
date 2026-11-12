@@ -226,6 +226,48 @@ enum Route: Hashable {
         await loadEnvs(project.id); await refreshStatus()
         try? await Task.sleep(for: .seconds(2)); await refreshHealth()
     }
+    /// Downloads the environment as `.env.<id>` with its real values, where the user chooses (R9):
+    /// Touch ID or the Mac's password first (fresh for Production), mode 600, audited; inside a Git
+    /// repository only if the file is ignored.
+    func downloadEnv(_ project: Project, _ env: EnvEnvironment) async {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = ".env.\(env.id)"
+        panel.directoryURL = URL(fileURLWithPath: project.path)
+        panel.showsHiddenFiles = true
+        panel.canCreateDirectories = true
+        panel.message = String(format: L("env.downloadMessage"), env.title)
+        panel.prompt = L("env.download")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let folder = url.deletingLastPathComponent().path, name = url.lastPathComponent
+        guard name.hasPrefix(".env") else { errorMessage = L("env.downloadName"); return }
+        if Self.insideRepository(folder), !Self.ignored(folder, name) {
+            errorMessage = String(format: L("env.downloadNotIgnored"), name); return
+        }
+        guard await EnvVault.authenticate(String(format: L("env.authDownload"), env.title), fresh: env.kind == .production) else { return }
+        let keys = env.entries.filter(\.secret).map(\.key)
+        let site = project.id, envID = env.id
+        var secrets: [String: String] = await Task.detached {
+            Dictionary(uniqueKeysWithValues: keys.map { ($0, EnvVault.get(site: site, env: envID, key: $0) ?? "") })
+        }.value
+        await run(L("busy.saving")) {
+            let _: Bool = try await self.call(["method": "envExport", "id": project.id, "env": env.id, "secrets": secrets, "path": url.path, "actor": self.actor])
+            self.notify(String(format: L("env.downloaded"), name))
+        }
+        secrets.removeAll()
+    }
+    nonisolated static func git(_ folder: String, _ arguments: [String]) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["-C", folder] + arguments
+        process.environment = ["PATH": "/usr/bin:/bin", "GIT_OPTIONAL_LOCKS": "0"]
+        process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return false }
+        process.waitUntilExit()
+        return process.terminationStatus == 0
+    }
+    nonisolated static func insideRepository(_ folder: String) -> Bool { git(folder, ["rev-parse", "--is-inside-work-tree"]) }
+    nonisolated static func ignored(_ folder: String, _ name: String) -> Bool { git(folder, ["check-ignore", "-q", "--", name]) }
+
     /// A template without secret values, next to the project (R9).
     func exportTemplate(_ project: Project, _ env: EnvEnvironment) async {
         let text = "# Plantilla del entorno «\(env.title)» (sin valores secretos)\n" + env.entries.map { "\($0.key)=\($0.secret ? "" : $0.value)" }.joined(separator: "\n") + "\n"

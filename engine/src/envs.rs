@@ -269,6 +269,38 @@ pub fn activate(
     Ok(site)
 }
 
+/// Downloads an environment as a `.env` file chosen by the user (R9, as revised): explicit,
+/// authenticated by the app, written atomically with mode 600, never through a symlink, refused
+/// inside a Git repository unless the file is ignored, and audited (without values).
+pub fn export(store: &Store, id: &str, env_id: &str, secrets: &BTreeMap<String, String>, target: &std::path::Path, actor: &str) -> Result<()> {
+    let site = load(store, id)?;
+    let env = site.environments.iter().find(|e| e.id == env_id).ok_or_else(|| anyhow::anyhow!("unknown_environment"))?;
+    for key in secrets.keys() {
+        ensure!(env.entries.iter().any(|e| e.secret && &e.key == key), "unexpected_secret");
+    }
+    ensure!(target.is_absolute(), "invalid_path");
+    let name = target.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    ensure!(name.starts_with(".env") && !name.contains('/'), "invalid_path");
+    let parent = target.parent().ok_or_else(|| anyhow::anyhow!("invalid_path"))?.canonicalize()?;
+    ensure!(parent.is_dir(), "invalid_path");
+    let target = parent.join(name);
+    if let Ok(meta) = fs::symlink_metadata(&target) {
+        ensure!(!meta.file_type().is_symlink() && meta.is_file(), "unsafe_env_path");
+    }
+    // Inside a repository the file must be ignored, so it cannot be committed by accident.
+    let inside_repo = Command::new("/usr/bin/git").arg("-C").arg(&parent).args(["rev-parse", "--is-inside-work-tree"])
+        .env_clear().env("PATH", "/usr/bin:/bin").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
+        .status().is_ok_and(|s| s.success());
+    if inside_repo {
+        let ignored = Command::new("/usr/bin/git").arg("-C").arg(&parent).args(["check-ignore", "-q", "--"]).arg(name)
+            .env_clear().env("PATH", "/usr/bin:/bin").env("GIT_OPTIONAL_LOCKS", "0").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
+            .status().is_ok_and(|s| s.success());
+        ensure!(ignored, "export_not_ignored");
+    }
+    crate::services::write_private(&target, &render(env, secrets)?)?;
+    audit(store, id, env_id, "exportar", "", actor)
+}
+
 /// Appends one audit line (no values, ever) and keeps only the last 180 days (R7).
 pub fn audit(store: &Store, id: &str, env: &str, action: &str, key: &str, actor: &str) -> Result<()> {
     ensure!(
@@ -409,6 +441,14 @@ mod tests {
         fs::remove_file(env_path(&project)).unwrap();
         std::os::unix::fs::symlink("/tmp/otro", env_path(&project)).unwrap();
         assert!(activate(&store, "demo", "local", &secrets, false, "tester").is_err());
+        // Download: private file outside any repository, audited without the value.
+        let out = tempfile::tempdir().unwrap();
+        export(&store, "demo", "local", &secrets, &out.path().join(".env.local"), "tester").unwrap();
+        let file = out.path().join(".env.local");
+        assert!(fs::read_to_string(&file).unwrap().contains("DB_PASSWORD=valor-ficticio"));
+        assert_eq!(fs::metadata(&file).unwrap().permissions().mode() & 0o777, 0o600);
+        assert!(!fs::read_to_string(store.root().join("logs/env-audit.log")).unwrap().contains("valor-ficticio"));
+        assert!(export(&store, "demo", "local", &secrets, &out.path().join("otro.txt"), "tester").is_err());
     }
 
     #[test]
@@ -422,5 +462,9 @@ mod tests {
         assert!(activate(&store, "demo", "local", &secrets, false, "tester").is_err());
         let guard = git_guard(&project);
         assert!(guard.repository && guard.tracked);
+        // Downloading into the repository needs the file to be ignored.
+        assert!(export(&store, "demo", "local", &secrets, &project.path.join(".env.local"), "tester").is_err());
+        fs::write(project.path.join(".gitignore"), ".env.*\n").unwrap();
+        export(&store, "demo", "local", &secrets, &project.path.join(".env.local"), "tester").unwrap();
     }
 }

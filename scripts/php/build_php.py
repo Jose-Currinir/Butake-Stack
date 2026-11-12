@@ -152,6 +152,10 @@ def build(minor, home, build_root):
     ledger = []
     environment = {"HOME": str(work / "home"), "PATH": "/opt/homebrew/opt/bison/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin",
                    "LANG": "C", "MACOSX_DEPLOYMENT_TARGET": "14.0", "SPC_CONCURRENCY": "4", "HOMEBREW_NO_AUTO_UPDATE": "1", "HOMEBREW_NO_INSTALL_CLEANUP": "1"}
+    # static-php-cli asks GitHub's API for many sources; without a token the 60 calls/hour limit
+    # breaks the build. The token only reaches spc's own requests; logs are scrubbed by the caller.
+    if os.environ.get("GITHUB_TOKEN"):
+        environment["GITHUB_TOKEN"] = os.environ["GITHUB_TOKEN"]
     (work / "home").mkdir()
     try:
         preflight(environment)
@@ -168,7 +172,12 @@ def build(minor, home, build_root):
         extract(work / "source.download", work / "source")
         source = work / "source/static-php-cli-2.8.5"
         extract(work / "spc.download", source)
-        extract(work / "pkgconfig.download", source / "pkgroot/aarch64-darwin")
+        # The hosted archive nests everything under buildroot/; spc looks for pkgroot/<arch>/bin/pkg-config.
+        extract(work / "pkgconfig.download", work / "pkgconfig")
+        pkgroot = source / "pkgroot/aarch64-darwin"
+        pkgroot.mkdir(parents=True, exist_ok=True)
+        for item in (work / "pkgconfig/buildroot").iterdir():
+            shutil.move(str(item), str(pkgroot / item.name))
         spc = source / "spc"
         spc.chmod(0o700)
         # 'never' prevents SPC's noninteractive default from accepting repairs.
@@ -210,8 +219,9 @@ def build(minor, home, build_root):
             for name in ("php", "php-fpm"):
                 path = source / "buildroot/bin" / name
                 linked = subprocess.check_output(["/usr/bin/otool", "-L", str(path)], text=True, env=environment)
-                if "/opt/homebrew/" in linked or "/usr/local/" in linked or str(work) in linked:
-                    raise RuntimeError("nonportable_runtime_dependency")
+                bad = [l.strip() for l in linked.splitlines()[1:] if "/opt/homebrew/" in l or "/usr/local/" in l or str(work) in l]
+                if bad:
+                    raise RuntimeError("nonportable_runtime_dependency: " + name + ": " + "; ".join(bad))
                 shutil.copy2(path, staging / "bin" / name)
                 hashes["bin/" + name] = digest(path)
             shutil.copy2(work / "composer.download", staging / "composer.phar")
@@ -263,7 +273,8 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
     default_home = Path.home() / "Library/Application Support/Butake Stack"
     home = Path(os.environ.get("BUTAKE_STACK_HOME", str(default_home))).expanduser()
-    default_build = Path.home() / "Library/Caches/Butake Stack/php-build"
+    # static-php-cli does not quote paths in its shell commands: the build root must have no spaces.
+    default_build = Path.home() / "Library/Caches/butake-stack-php-build"
     build_root = Path(os.environ.get("BUTAKE_STACK_BUILD_ROOT", str(default_build))).expanduser()
     if not home.is_absolute() or not build_root.is_absolute():
         raise RuntimeError("absolute_path_required")
