@@ -169,6 +169,9 @@ private struct Sidebar: View {
     @State var search = ""
     @AppStorage("sidebar.collapsedGroups") var collapsedRaw = ""
     @AppStorage("sidebar.closedSections") var closedSectionsRaw = ""
+    // Live copies: changes to @State carry the animation (AppStorage writes don't); saved right after.
+    @State var collapsed: Set<String> = Set((UserDefaults.standard.string(forKey: "sidebar.collapsedGroups") ?? "").split(separator: ",").map(String.init))
+    @State var closedSections: Set<String> = Set((UserDefaults.standard.string(forKey: "sidebar.closedSections") ?? "").split(separator: ",").map(String.init))
     func matches(_ text: String) -> Bool { search.isEmpty || text.localizedCaseInsensitiveContains(search) }
     var body: some View {
         VStack(spacing: 0) {
@@ -196,6 +199,8 @@ private struct Sidebar: View {
                                     }
                                 } label: {
                                     GroupRow(store: store, group: group, members: store.projects(in: group), open: expanded(group.id).wrappedValue)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture { setExpanded(group.id, collapsed.contains(group.id)) }
                                         .dropDestination(for: String.self) { ids, _ in
                                             for id in ids where store.projects.contains(where: { $0.id == id }) { store.move(id, to: group.id) }
                                             setExpanded(group.id, true)
@@ -272,20 +277,20 @@ extension Sidebar {
         Binding(get: { !search.isEmpty || !collapsed.contains(id) }, set: { setExpanded(id, $0) })
     }
     func setExpanded(_ id: String, _ open: Bool) {
-        var set = collapsed
-        if open { set.remove(id) } else { set.insert(id) }
-        withAnimation(.snappy(duration: 0.25)) { collapsedRaw = set.sorted().joined(separator: ",") }
+        withAnimation(.snappy(duration: 0.28)) {
+            if open { collapsed.remove(id) } else { collapsed.insert(id) }
+        }
+        collapsedRaw = collapsed.sorted().joined(separator: ",")
     }
-    var collapsed: Set<String> { Set(collapsedRaw.split(separator: ",").map(String.init)) }
     /// Sidebar sections open unless the user closed them; all open while searching.
     func sectionOpen(_ id: String) -> Binding<Bool> {
         Binding(get: { !search.isEmpty || !closedSections.contains(id) }, set: { open in
-            var set = closedSections
-            if open { set.remove(id) } else { set.insert(id) }
-            withAnimation(.snappy(duration: 0.25)) { closedSectionsRaw = set.sorted().joined(separator: ",") }
+            withAnimation(.snappy(duration: 0.28)) {
+                if open { closedSections.remove(id) } else { closedSections.insert(id) }
+            }
+            closedSectionsRaw = closedSections.sorted().joined(separator: ",")
         })
     }
-    var closedSections: Set<String> { Set(closedSectionsRaw.split(separator: ",").map(String.init)) }
 }
 
 /// Search field aligned with the sidebar rows (the system one sits on its own inset). ⌘F focuses it,

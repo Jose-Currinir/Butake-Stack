@@ -37,7 +37,7 @@ cat > "$APP_PATH/Contents/Info.plist" <<'PLIST'
 <key>CFBundleDisplayName</key><string>Butake Stack</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>1.3.1</string>
-<key>CFBundleVersion</key><string>134</string>
+<key>CFBundleVersion</key><string>135</string>
 <key>LSMinimumSystemVersion</key><string>15.0</string>
 <key>LSUIElement</key><true/>
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>cl.butake.stack</string><key>CFBundleURLSchemes</key><array><string>butakestack</string></array></dict></array>
