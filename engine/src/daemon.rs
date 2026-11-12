@@ -88,6 +88,21 @@ fn real_home() -> String {
         .unwrap_or_else(|| "/tmp".into())
 }
 
+/// `shims/pnpm` and `shims/yarn`: two-line scripts that run them through corepack.
+fn package_manager_shims(store: &Store) -> Result<PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = store.directory("shims")?;
+    for tool in ["pnpm", "yarn"] {
+        let file = dir.join(tool);
+        let content = format!("#!/bin/sh\nexec corepack {tool} \"$@\"\n");
+        if std::fs::read_to_string(&file).ok().as_deref() != Some(content.as_str()) {
+            crate::services::write_private(&file, &content)?;
+            std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o700))?;
+        }
+    }
+    Ok(dir)
+}
+
 pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
     let config = store.config()?;
     // Only sites the user turned on are served and run their processes.
@@ -210,8 +225,12 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
         }
         if let Some(node) = &node_bin {
             path.push(node.to_string_lossy().into_owned());
+            // `pnpm` and `yarn` as commands (project scripts call them directly), through Node's corepack.
+            if let Ok(shims) = package_manager_shims(store) {
+                path.push(shims.to_string_lossy().into_owned());
+            }
         }
-        path.push("/usr/bin:/bin".into());
+        path.push("/usr/bin:/bin:/usr/sbin:/sbin".into());
         // `{port}` and `{domain}` in arguments and environment.
         let port = project.upstream.map(|p| p.to_string()).unwrap_or_default();
         let domain = project.domains.first().cloned().unwrap_or_default();
@@ -246,6 +265,8 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                     let mut environment: std::collections::BTreeMap<String, String> = project.env.iter().map(|(k, v)| (k.clone(), fill(v))).collect();
                     environment.insert("HOME".into(), home.clone());
                     environment.insert("PATH".into(), path.join(":"));
+                    // corepack downloads the pinned pnpm/yarn without asking (it would wait forever).
+                    environment.insert("COREPACK_ENABLE_DOWNLOAD_PROMPT".into(), "0".into());
                     // The binary's built-in php.ini path is the build machine's; point it at ours.
                     environment.insert("PHPRC".into(), store.root().join("config/php").join(&php_series).to_string_lossy().into_owned());
                     if let Some(java) = &java_home {

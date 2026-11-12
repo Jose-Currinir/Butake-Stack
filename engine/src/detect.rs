@@ -259,7 +259,7 @@ pub fn detect(path: &Path) -> Result<Detection> {
             autostart: true,
         });
         runtime.insert("node".into(), "22".into());
-    } else if !dev.is_empty() {
+    } else if !dev.is_empty() && !kind.proxied() {
         notes.push("dev_script_not_a_server".into());
     }
     let mut site_env = BTreeMap::new();
@@ -334,7 +334,8 @@ pub fn detect(path: &Path) -> Result<Detection> {
             name: folder,
             path,
             domains: vec![format!("{id}.test")],
-            https: false,
+            // Proxied sites get HTTPS (the URLs Stack passes them are https://<domain>).
+            https: kind.proxied(),
             kind,
             runtime,
             docroot,
