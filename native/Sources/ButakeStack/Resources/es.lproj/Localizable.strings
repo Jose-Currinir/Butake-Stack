@@ -775,12 +775,12 @@
 "profiles.question" = "¿Con qué trabajas?";
 "profiles.hint" = "Elige todo lo que usas: Stack te muestra qué necesita cada cosa y qué tienes ya en este Mac. Nada se instala sin preguntarte.";
 "profile.laravel" = "Laravel y PHP";
-"profile.web" = "Web (Astro, Next)";
-"profile.cloudflare" = "Cloudflare";
-"profile.python" = "Python";
+"profile.web" = "JavaScript (Astro, Next, Vite)";
+"profile.cloudflare" = "Cloudflare (Wrangler, túneles)";
+"profile.python" = "Python (Django, FastAPI)";
 "profile.rust" = "Rust";
 "profile.swift" = "Swift (Apple)";
-"profile.android" = "Android";
+"profile.android" = "Android (Kotlin)";
 "profile.kmp" = "Kotlin Multiplatform";
 "profile.react-native" = "React Native";
 "profile.github" = "GitHub";
@@ -844,7 +844,7 @@
 "tools.updatePython" = "Actualizar Python %1$@ a %2$@";
 "tools.installPython" = "Instalar Python %@";
 "new.group.python" = "Python";
-"new.group.native" = "Apps y sistemas";
+"new.group.native" = "Desarrollo nativo";
 "kind.swift" = "Swift";
 "kind.react-native" = "React Native";
 "new.needsTool" = "Este tipo necesita %@: instálalo en Preparar Butake Stack › Tu trabajo.";
@@ -904,3 +904,9 @@
 "error.cargo_not_installed" = "Falta Rust: instálalo en Preparar Butake Stack › Tu trabajo.";
 "error.clt_not_installed" = "Faltan las herramientas de línea de comandos de Apple.";
 "error.uv_not_installed" = "Falta uv: instálalo en Preparar Butake Stack › Tu trabajo.";
+"category.work.web" = "Desarrollo web";
+"category.work.native" = "Desarrollo nativo";
+"category.work.crossplatform" = "Desarrollo multiplataforma";
+"category.work.tools" = "Herramientas";
+"new.group.web" = "Desarrollo web";
+"new.group.crossplatform" = "Multiplataforma";

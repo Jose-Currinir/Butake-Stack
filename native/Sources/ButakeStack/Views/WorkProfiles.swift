@@ -45,19 +45,21 @@ struct PythonLine: Decodable, Sendable, Hashable, Identifiable {
 struct WorkProfile: Identifiable, Hashable {
     let id: String
     let logo: String
+    let category: String
     let tools: [String]
 
+    static let categories = ["web", "native", "crossplatform", "tools"]
     static let all: [WorkProfile] = [
-        WorkProfile(id: "laravel", logo: "laravel", tools: ["php", "node", "clt"]),
-        WorkProfile(id: "web", logo: "astro", tools: ["node", "clt"]),
-        WorkProfile(id: "cloudflare", logo: "emdash", tools: ["node", "wrangler", "cloudflared"]),
-        WorkProfile(id: "python", logo: "django", tools: ["uv", "python", "clt"]),
-        WorkProfile(id: "rust", logo: "rust", tools: ["rustup", "clt"]),
-        WorkProfile(id: "swift", logo: "swift", tools: ["xcode", "clt"]),
-        WorkProfile(id: "android", logo: "android", tools: ["jdk", "android-studio", "android-sdk"]),
-        WorkProfile(id: "kmp", logo: "kmp", tools: ["jdk", "android-studio", "android-sdk", "xcode"]),
-        WorkProfile(id: "react-native", logo: "react-native", tools: ["node", "watchman", "cocoapods", "xcode", "android-studio", "jdk"]),
-        WorkProfile(id: "github", logo: "github", tools: ["gh"]),
+        WorkProfile(id: "laravel", logo: "laravel", category: "web", tools: ["php", "node", "clt"]),
+        WorkProfile(id: "web", logo: "astro", category: "web", tools: ["node", "clt"]),
+        WorkProfile(id: "python", logo: "django", category: "web", tools: ["uv", "python", "clt"]),
+        WorkProfile(id: "swift", logo: "swift", category: "native", tools: ["xcode", "clt"]),
+        WorkProfile(id: "android", logo: "android", category: "native", tools: ["jdk", "android-studio", "android-sdk"]),
+        WorkProfile(id: "rust", logo: "rust", category: "native", tools: ["rustup", "clt"]),
+        WorkProfile(id: "kmp", logo: "kmp", category: "crossplatform", tools: ["jdk", "android-studio", "android-sdk", "xcode"]),
+        WorkProfile(id: "react-native", logo: "react-native", category: "crossplatform", tools: ["node", "watchman", "cocoapods", "xcode", "android-studio", "jdk"]),
+        WorkProfile(id: "github", logo: "github", category: "tools", tools: ["gh"]),
+        WorkProfile(id: "cloudflare", logo: "emdash", category: "tools", tools: ["node", "wrangler", "cloudflared"]),
     ]
 }
 
@@ -92,9 +94,17 @@ struct WorkProfilesSection: View {
         VStack(alignment: .leading, spacing: 14) {
             Text(L("profiles.question")).font(.ui(size: 13, weight: .semibold))
             Text(L("profiles.hint")).font(.uiCaption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
-                ForEach(WorkProfile.all) { profile in
-                    ProfileChip(profile: profile, selected: chosen.contains(profile.id)) { toggle(profile.id) }
+            // By category, each a row of its own: web, native, cross-platform, tools.
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(WorkProfile.categories, id: \.self) { category in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(L("category.work.\(category)")).font(.ui(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+                            ForEach(WorkProfile.all.filter { $0.category == category }) { profile in
+                                ProfileChip(profile: profile, selected: chosen.contains(profile.id)) { toggle(profile.id) }
+                            }
+                        }
+                    }
                 }
             }
             if !tools.isEmpty {

@@ -104,19 +104,23 @@ struct NewProjectSheet: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(L("new.sidebarTitle")).font(.ui(size: 15, weight: .bold)).padding(.horizontal, 10).padding(.bottom, 8)
-            ForEach(ProjectKindInfo.groups, id: \.self) { group in
-                Text(L("new.group.\(group)")).font(.ui(size: 10.5, weight: .semibold)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 3)
-                ForEach(ProjectKindInfo.all.filter { $0.group == group }) { item in
-                    SidebarRow(selected: selection == .kind(item.id)) {
-                        TechLogo(tech: .of(item.logo), size: 22)
-                    } label: {
-                        Text(L("kind.\(item.id)"))
-                    } action: { select(.kind(item.id)) }
-                    .accessibilityIdentifier("new.kind.\(item.id)")
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(ProjectKindInfo.groups, id: \.self) { group in
+                        Text(L("new.group.\(group)")).font(.ui(size: 10.5, weight: .semibold)).foregroundStyle(.secondary)
+                            .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 3)
+                        ForEach(ProjectKindInfo.all.filter { $0.group == group }) { item in
+                            SidebarRow(selected: selection == .kind(item.id)) {
+                                TechLogo(tech: .of(item.logo), size: 22)
+                            } label: {
+                                Text(L("kind.\(item.id)"))
+                            } action: { select(.kind(item.id)) }
+                            .accessibilityIdentifier("new.kind.\(item.id)")
+                        }
+                    }
                 }
             }
-            Spacer(minLength: 12)
+            Spacer(minLength: 8)
             Divider().padding(.bottom, 6)
             SidebarRow(selected: selection == .open) {
                 IconTile(symbol: "folder", size: 22)
@@ -770,22 +774,22 @@ struct ProjectKindInfo: Identifiable {
         }
     }
 
-    static let groups = ["php", "javascript", "python", "native", "other"]
+    static let groups = ["web", "native", "crossplatform"]
     static let all: [ProjectKindInfo] = [
-        ProjectKindInfo(id: "laravel", logo: "laravel", group: "php", generator: "laravel/laravel", needsPhp: true),
-        ProjectKindInfo(id: "php", logo: "php", group: "php", generator: "index.php"),
-        ProjectKindInfo(id: "astro", logo: "astro", group: "javascript", generator: "create-astro", needsNode: true, proxied: true),
-        ProjectKindInfo(id: "emdash", logo: "emdash", group: "javascript", generator: "create-emdash", needsNode: true, proxied: true),
-        ProjectKindInfo(id: "next", logo: "next", group: "javascript", generator: "create-next-app", needsNode: true, proxied: true),
-        ProjectKindInfo(id: "vite", logo: "vite", group: "javascript", generator: "create-vite", needsNode: true, proxied: true),
-        ProjectKindInfo(id: "node", logo: "node", group: "javascript", generator: "node:http", needsNode: true, proxied: true),
-        ProjectKindInfo(id: "django", logo: "django", group: "python", generator: "uv", proxied: true, needsTool: "uv"),
-        ProjectKindInfo(id: "fastapi", logo: "fastapi", group: "python", generator: "uv", proxied: true, needsTool: "uv"),
+        ProjectKindInfo(id: "laravel", logo: "laravel", group: "web", generator: "laravel/laravel", needsPhp: true),
+        ProjectKindInfo(id: "php", logo: "php", group: "web", generator: "index.php"),
+        ProjectKindInfo(id: "astro", logo: "astro", group: "web", generator: "create-astro", needsNode: true, proxied: true),
+        ProjectKindInfo(id: "emdash", logo: "emdash", group: "web", generator: "create-emdash", needsNode: true, proxied: true),
+        ProjectKindInfo(id: "next", logo: "next", group: "web", generator: "create-next-app", needsNode: true, proxied: true),
+        ProjectKindInfo(id: "vite", logo: "vite", group: "web", generator: "create-vite", needsNode: true, proxied: true),
+        ProjectKindInfo(id: "node", logo: "node", group: "web", generator: "node:http", needsNode: true, proxied: true),
+        ProjectKindInfo(id: "django", logo: "django", group: "web", generator: "uv", proxied: true, needsTool: "uv"),
+        ProjectKindInfo(id: "fastapi", logo: "fastapi", group: "web", generator: "uv", proxied: true, needsTool: "uv"),
         ProjectKindInfo(id: "rust", logo: "rust", group: "native", generator: "cargo", proxied: true, needsTool: "rustup"),
         ProjectKindInfo(id: "swift", logo: "swift", group: "native", generator: "swift package", needsTool: "clt", app: true),
-        ProjectKindInfo(id: "react-native", logo: "react-native", group: "native", generator: "create-expo-app", needsNode: true, app: true),
-        ProjectKindInfo(id: "kmp", logo: "kmp", group: "native", generator: "kmp.jetbrains.com", proxied: true, wizard: true),
-        ProjectKindInfo(id: "static", logo: "static", group: "other", generator: "index.html"),
+        ProjectKindInfo(id: "react-native", logo: "react-native", group: "crossplatform", generator: "create-expo-app", needsNode: true, app: true),
+        ProjectKindInfo(id: "kmp", logo: "kmp", group: "crossplatform", generator: "kmp.jetbrains.com", proxied: true, wizard: true),
+        ProjectKindInfo(id: "static", logo: "static", group: "web", generator: "index.html"),
     ]
     static func of(_ id: String) -> ProjectKindInfo { all.first { $0.id == id } ?? all[0] }
 
