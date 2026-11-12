@@ -10,6 +10,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
             ThemeStore.shared.applyAppearance()
+            if StackStore.qaWindow {
+                // QA and screenshots: a bare debug executable must still come to the front.
+                NSApp.setActivationPolicy(.regular)
+                NSApp.activate(ignoringOtherApps: true)
+            }
             // A new Mac: what is missing is asked for in "Preparar Butake Stack".
             Task { await StackStore.shared.checkSetupAtLaunch() }
         }
@@ -41,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .id(themes.theme.signature)
         }
         .defaultSize(width: 1180, height: 740)
-        .defaultLaunchBehavior(.suppressed)
+        .defaultLaunchBehavior(StackStore.qaWindow ? .presented : .suppressed)
         // butakestack://site/<id> and butakestack://open?path=… (from Butake Git) open this window.
         .handlesExternalEvents(matching: ["butakestack"])
         .commands {

@@ -160,10 +160,19 @@ enum Route: Hashable {
         }
         await refreshRuntimes(); await reloadStack()
     }
+    /// QA and screenshots only (debug builds): open the window at launch.
+    static var qaWindow: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["BUTAKE_QA_WINDOW"] != nil
+        #else
+        false
+        #endif
+    }
     /// At launch: when something essential is missing, the window opens on the setup sheet.
     func checkSetupAtLaunch() async {
         await refresh(); await refreshRuntimes(); await refreshAppleTools()
-        if !setupComplete { NSWorkspace.shared.open(URL(string: "butakestack://setup")!) }
+        // A separate data folder (QA) must not open the installed app through the URL scheme.
+        if !setupComplete, ProcessInfo.processInfo.environment["BUTAKE_STACK_HOME"] == nil { NSWorkspace.shared.open(URL(string: "butakestack://setup")!) }
     }
 
     // MARK: Links from other apps (butakestack://site/<id>, butakestack://open?path=…)

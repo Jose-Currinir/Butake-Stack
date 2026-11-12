@@ -54,6 +54,7 @@ struct CommandPalette: View {
         }
         list.append(Command(id: "new", section: L("palette.actions"), title: L("new.menu"), detail: "", tech: .of("laravel"), run: { store.showNewProject = true }))
         list.append(Command(id: "add", section: L("palette.actions"), title: L("sites.addExisting"), detail: "", tech: nil, symbol: "folder.badge.plus", run: { store.chooseFolder() }))
+        list.append(Command(id: "setup", section: L("palette.actions"), title: L("setup.title"), detail: "", tech: nil, symbol: "checklist", run: { store.showSetup = true }))
         list.append(Command(id: "restart", section: L("palette.actions"), title: L("menu.restartAll"), detail: "", tech: nil, symbol: "arrow.clockwise", run: { Task { await store.reloadStack() } }))
         let words = query.lowercased().split(separator: " ")
         return words.isEmpty ? list : list.filter { command in

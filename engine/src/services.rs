@@ -107,8 +107,10 @@ pub fn caddyfile(
                 .collect();
             out.push_str(&format!("{} {{\n", hosts.join(", ")));
             if !project.enabled {
-                // Off sites answer at once instead of leaving the browser waiting.
-                out.push_str(&format!("\tbind {bind}\n"));
+                // Off sites answer at once instead of leaving the browser waiting. Protocols are
+                // explicit: a TCP descriptor cannot carry HTTP/3, which Caddy would otherwise try.
+                let protocols = if scheme == "https" { "h1 h2" } else { "h1" };
+                out.push_str(&format!("\tbind {bind} {{\n\t\tprotocols {protocols}\n\t}}\n"));
                 if scheme == "https" {
                     out.push_str("\ttls internal\n");
                 }
@@ -276,6 +278,12 @@ mod tests {
         assert!(file.contains("https://demo.test {\n\tbind fd/4 {\n\t\tprotocols h1 h2\n"));
         assert!(file.contains("\tbind fdgram/5 {\n\t\tprotocols h3\n\t}\n\ttls internal"));
         assert!(file.contains("My Site/public\""));
+        // An off site never asks for HTTP/3 on a TCP descriptor.
+        let mut off = project.clone();
+        off.enabled = false;
+        let file_off = caddyfile(&store, &[off], &config, true).unwrap();
+        assert!(file_off.contains("https://demo.test {\n\tbind fd/4 {\n\t\tprotocols h1 h2\n\t}\n\ttls internal"));
+        assert!(!file_off.contains("fdgram"));
         assert!(file.contains("php_fastcgi \"unix/"));
         let evil = temp.path().join("x}\nimport");
         fs::create_dir_all(&evil).unwrap();
