@@ -66,7 +66,8 @@ struct HomePage: View {
     var services: [String] { ["web"] + Route.allEngines.filter { store.engineVersion($0) != nil } }
     var online: Int { store.projects.filter { store.sitePhase($0) == .running }.count }
     private func siteGrid(_ sites: [Project], add: Bool) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 230, maximum: 320), spacing: 18)], spacing: 18) {
+        // Cards share the row: as many columns as fit, each stretching to fill (full screen included).
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 270), spacing: 18)], spacing: 18) {
             ForEach(sites) { project in
                 HomeSiteCard(store: store, project: project, previews: previews)
                     .draggable(project.id)
@@ -102,14 +103,23 @@ struct HomePage: View {
                 hero
                 if !store.missingSites.isEmpty { missing }
                 if !store.projects.isEmpty {
-                    SectionHeading(title: L("route.sites"), detail: String(format: L("sites.online"), online))
+                    HStack(alignment: .firstTextBaseline) {
+                        SectionHeading(title: L("route.sites"), detail: String(format: L("sites.online"), online))
+                        Spacer()
+                        Button { store.showNewProject = true } label: { Label(L("sites.addEllipsis"), systemImage: "plus") }
+                            .buttonStyle(.bordered).controlSize(.small).accessibilityIdentifier("home.newProject")
+                    }
                     // Each folder as its own group of cards; sites without a folder after them.
                     ForEach(store.groups) { group in
                         let members = store.projects(in: group)
                         if !members.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
-                                Label(group.name, systemImage: "folder.fill")
-                                    .font(.ui(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                                HStack(spacing: 8) {
+                                    Label(group.name, systemImage: "folder.fill")
+                                        .font(.ui(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                                    Text("\(members.count)").font(.ui(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                                        .padding(.horizontal, 6).padding(.vertical, 1).background(Color.primary.opacity(0.07), in: Capsule())
+                                }
                                 siteGrid(members, add: false)
                             }
                             .transition(.opacity.combined(with: .move(edge: .top)))
@@ -121,18 +131,18 @@ struct HomePage: View {
                             Label(L("groups.loose"), systemImage: "square.grid.2x2")
                                 .font(.ui(size: 13, weight: .semibold)).foregroundStyle(.secondary)
                         }
-                        siteGrid(loose, add: true)
+                        siteGrid(loose, add: false)
                     }
                 } else {
                     AddSiteCard { store.showNewProject = true }.frame(maxWidth: 320)
                 }
                 SectionHeading(title: L("sidebar.services"), detail: String(format: L("status.engines"), store.runningEngines, store.engineCount))
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 220, maximum: 300), spacing: 14)], spacing: 14) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 14)], spacing: 14) {
                     ForEach(services, id: \.self) { name in ServiceTile(store: store, name: name) }
                 }
             }
             .padding(28)
-            .frame(maxWidth: 1200, alignment: .leading)
+            .frame(maxWidth: 1680, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .background(Brand.background)
@@ -187,7 +197,7 @@ private struct HomeSiteCard: View {
         // The card opens the site; the switch sits on top of it so it never triggers the card.
         Button { withAnimation(.smooth(duration: 0.3)) { store.openSite(project.id) } } label: {
             VStack(alignment: .leading, spacing: 0) {
-                SitePreview(project: project, previews: previews, height: 140)
+                SitePreview(project: project, previews: previews, height: 150)
                     .clipShape(UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16, style: .continuous))
                     .overlay(alignment: .topLeading) {
                         if let info = store.git[project.id] { GitChip(info: info).padding(8) }
@@ -231,7 +241,11 @@ struct GitChip: View {
         HStack(spacing: 4) {
             Image(systemName: "arrow.triangle.branch").font(.system(size: 9, weight: .bold))
             Text(info.branch.isEmpty ? L("git.detached") : info.branch).lineLimit(1)
-            if info.changes > 0 { Text("· \(info.changes)").foregroundStyle(Brand.warning) }
+            if info.changes > 0 {
+                Text("\(info.changes)").foregroundStyle(.black.opacity(0.8))
+                    .padding(.horizontal, 5).background(Brand.warning, in: Capsule())
+                    .help(String(format: L("git.pendingChanges"), info.changes))
+            }
             if info.ahead > 0 { Text("↑\(info.ahead)") }
             if info.behind > 0 { Text("↓\(info.behind)") }
         }

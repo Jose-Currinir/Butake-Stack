@@ -168,6 +168,7 @@ private struct Sidebar: View {
     @Bindable var store: StackStore
     @State var search = ""
     @AppStorage("sidebar.collapsedGroups") var collapsedRaw = ""
+    @AppStorage("sidebar.closedSections") var closedSectionsRaw = ""
     func matches(_ text: String) -> Bool { search.isEmpty || text.localizedCaseInsensitiveContains(search) }
     var body: some View {
         VStack(spacing: 0) {
@@ -175,14 +176,16 @@ private struct Sidebar: View {
                 BrandMark(size: 32)
                 Text("Stack").font(.system(size: 21, weight: .bold, design: .rounded))
                 Spacer(minLength: 0)
-            }.padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 10)
+            }.padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 12)
+            SidebarSearch(text: $search)
+                .padding(.horizontal, 10).padding(.bottom, 8)
             List(selection: Binding(get: { store.route }, set: { if let route = $0 { store.route = route; if case .site(let id) = route { store.selectedSite = id } } })) {
                 if search.isEmpty {
-                    Label(L("route.home"), systemImage: "house").tag(Route.home).accessibilityIdentifier("route.home")
+                    Label(L("route.home"), systemImage: "house").tag(Route.home).sidebarSelected(store.route == .home).accessibilityIdentifier("route.home")
                 }
                 let sites = store.projects.filter { matches($0.title) || matches($0.domain) }
                 if !sites.isEmpty || (search.isEmpty && !store.groups.isEmpty) {
-                    Section {
+                    Section(isExpanded: sectionOpen("sites")) {
                         ForEach(store.groups) { group in
                             let members = store.projects(in: group).filter { matches($0.title) || matches($0.domain) || matches(group.name) }
                             if search.isEmpty || !members.isEmpty {
@@ -204,35 +207,35 @@ private struct Sidebar: View {
                         }
                         ForEach(store.ungroupedProjects.filter { matches($0.title) || matches($0.domain) }) { siteRow($0, in: nil) }
                     } header: {
-                        SitesHeader(store: store)
+                        SitesHeader(store: store, open: sectionOpen("sites"))
                     }
                 }
                 let services = Route.services.filter { matches(Tech.of($0).title) || Route.engines(in: $0).contains { matches(Tech.of($0).title) } }
                 if !services.isEmpty {
-                    Section(L("sidebar.services")) {
+                    Section(isExpanded: sectionOpen("services")) {
                         ForEach(services, id: \.self) { name in
                             // Only what is installed shows a state; the rest has nothing to report.
-                            SidebarTech(tech: .of(name), phase: store.categoryInstalled(name) ? store.categoryPhase(name) : nil).tag(Route.service(name))
+                            SidebarTech(tech: .of(name), phase: store.categoryInstalled(name) ? store.categoryPhase(name) : nil).tag(Route.service(name)).sidebarSelected(store.route == .service(name))
                                 .accessibilityIdentifier("route.service.\(name)")
                         }
-                    }
+                    } header: { SectionToggle(title: L("sidebar.services"), open: sectionOpen("services")) }
                 }
                 let languages = Route.languages.filter { matches(Tech.of($0).title) }
                 if !languages.isEmpty {
-                    Section(L("sidebar.languages")) {
+                    Section(isExpanded: sectionOpen("languages")) {
                         ForEach(languages, id: \.self) { name in
-                            SidebarTech(tech: .of(name), phase: nil).tag(Route.language(name)).accessibilityIdentifier("route.language.\(name)")
+                            SidebarTech(tech: .of(name), phase: nil).tag(Route.language(name)).sidebarSelected(store.route == .language(name)).accessibilityIdentifier("route.language.\(name)")
                         }
-                    }
+                    } header: { SectionToggle(title: L("sidebar.languages"), open: sectionOpen("languages")) }
                 }
                 if search.isEmpty || matches(L("route.general")) {
-                    Section(L("sidebar.system")) {
-                        Label(L("route.general"), systemImage: "gearshape.2").tag(Route.general).accessibilityIdentifier("route.general")
-                    }
+                    Section(isExpanded: sectionOpen("system")) {
+                        Label(L("route.general"), systemImage: "gearshape.2").tag(Route.general).sidebarSelected(store.route == .general).accessibilityIdentifier("route.general")
+                    } header: { SectionToggle(title: L("sidebar.system"), open: sectionOpen("system")) }
                 }
             }
             .listStyle(.sidebar).themedScroll()
-            .searchable(text: $search, placement: .sidebar, prompt: L("sidebar.search"))
+            .background(PlainSidebarSelection())
             HStack(spacing: 12) {
                 VersionBadge(updates: UpdateService.shared).lineLimit(1).fixedSize()
                 Spacer()
@@ -252,7 +255,7 @@ extension Sidebar {
         Label {
             HStack { Text(project.title).lineLimit(1); Spacer(); StatusRing(phase: store.sitePhase(project), size: 10) }
         } icon: { TechLogo(tech: project.tech, size: 18) }
-            .tag(Route.site(project.id)).accessibilityIdentifier("route.site.\(project.id)")
+            .tag(Route.site(project.id)).sidebarSelected(store.route == .site(project.id)).accessibilityIdentifier("route.site.\(project.id)")
             .contextMenu { SiteMenuItems(store: store, project: project) }
             .draggable(project.id) {
                 Label(project.title, systemImage: "globe").padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
@@ -274,11 +277,64 @@ extension Sidebar {
         withAnimation(.snappy(duration: 0.25)) { collapsedRaw = set.sorted().joined(separator: ",") }
     }
     var collapsed: Set<String> { Set(collapsedRaw.split(separator: ",").map(String.init)) }
+    /// Sidebar sections open unless the user closed them; all open while searching.
+    func sectionOpen(_ id: String) -> Binding<Bool> {
+        Binding(get: { !search.isEmpty || !closedSections.contains(id) }, set: { open in
+            var set = closedSections
+            if open { set.remove(id) } else { set.insert(id) }
+            withAnimation(.snappy(duration: 0.25)) { closedSectionsRaw = set.sorted().joined(separator: ",") }
+        })
+    }
+    var closedSections: Set<String> { Set(closedSectionsRaw.split(separator: ",").map(String.init)) }
+}
+
+/// Search field aligned with the sidebar rows (the system one sits on its own inset). ⌘F focuses it,
+/// Esc clears it.
+private struct SidebarSearch: View {
+    @Binding var text: String
+    @FocusState private var focused: Bool
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").font(.ui(size: 12, weight: .medium)).foregroundStyle(.secondary)
+            TextField(L("sidebar.search"), text: $text)
+                .textFieldStyle(.plain).font(.ui(size: 13))
+                .focused($focused)
+                .onExitCommand { text = ""; focused = false }
+                .accessibilityIdentifier("sidebar.search")
+            if !text.isEmpty {
+                Button { text = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .buttonStyle(.plain).transition(.opacity.combined(with: .scale))
+            }
+        }
+        .padding(.horizontal, 9).frame(height: 28)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(focused ? Brand.accent.opacity(0.6) : .clear, lineWidth: 1.5))
+        .animation(.easeOut(duration: 0.15), value: text.isEmpty)
+        .animation(.easeOut(duration: 0.15), value: focused)
+        .background { Button("") { focused = true }.keyboardShortcut("f").hidden() }
+        // macOS hands the first text field of a new window the focus; the sidebar shouldn't start typing.
+        .task { try? await Task.sleep(for: .milliseconds(250)); focused = false; NSApp.keyWindow?.makeFirstResponder(nil) }
+    }
+}
+
+/// A sidebar section title that opens or closes the section when clicked anywhere, not only on its
+/// chevron (the chevron still works).
+private struct SectionToggle: View {
+    let title: String
+    @Binding var open: Bool
+    var body: some View {
+        Text(title)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture { open.toggle() }
+            .accessibilityAddTraits(.isButton)
+    }
 }
 
 /// "Sitios" with a button for a new folder; dropping a site here takes it out of its folder.
 private struct SitesHeader: View {
     let store: StackStore
+    @Binding var open: Bool
     @State private var targeted = false
     var body: some View {
         // The trailing edge belongs to the sidebar's own show/hide control.
@@ -286,6 +342,8 @@ private struct SitesHeader: View {
             .padding(.vertical, 2).padding(.horizontal, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.15) : .clear))
+            .contentShape(Rectangle())
+            .onTapGesture { open.toggle() }
             .contextMenu { Button { store.groupNaming = .new(sites: []) } label: { Label(L("groups.new"), systemImage: "folder.badge.plus") } }
         .dropDestination(for: String.self) { ids, _ in
             for id in ids { store.move(id, to: nil) }
@@ -566,4 +624,46 @@ private struct FullScreenCapable: NSViewRepresentable {
             window.collectionBehavior.insert(.fullScreenPrimary)
         }
     }
+}
+
+/// The sidebar selection in the theme's accent instead of the system's (blue by default): the system
+/// highlight is turned off on the sidebar's outline view, keeping its keyboard navigation, and each
+/// row draws its own tinted pill.
+private struct PlainSidebarSelection: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { Probe() }
+    func updateNSView(_ view: NSView, context: Context) { DispatchQueue.main.async { (view as? Probe)?.apply() } }
+    final class Probe: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            DispatchQueue.main.async { [weak self] in self?.apply() }
+        }
+        func apply() {
+            guard let root = window?.contentView else { return }
+            for outline in Self.outlines(in: root) where outline.selectionHighlightStyle != .none {
+                outline.selectionHighlightStyle = .none
+            }
+        }
+        static func outlines(in view: NSView) -> [NSOutlineView] {
+            (view as? NSOutlineView).map { [$0] } ?? view.subviews.flatMap(outlines)
+        }
+    }
+}
+
+private struct SidebarSelected: ViewModifier {
+    let selected: Bool
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(selected ? Brand.accent : .primary)
+            .fontWeight(selected ? .semibold : .regular)
+            .listRowBackground(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(selected ? Brand.accent.opacity(0.16) : .clear)
+                    .padding(.horizontal, 10)
+                    .animation(.easeOut(duration: 0.15), value: selected)
+            )
+    }
+}
+
+extension View {
+    func sidebarSelected(_ selected: Bool) -> some View { modifier(SidebarSelected(selected: selected)) }
 }

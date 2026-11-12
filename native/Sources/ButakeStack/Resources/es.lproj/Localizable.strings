@@ -732,3 +732,4 @@
 "new.groupDetail" = "Dónde aparece el sitio en la barra lateral y en Inicio.";
 "new.groupNone" = "Ninguna";
 "groups.empty" = "Arrastra sitios aquí";
+"git.pendingChanges" = "%d cambios sin commit";
