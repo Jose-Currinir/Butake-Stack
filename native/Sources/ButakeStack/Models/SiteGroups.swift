@@ -70,14 +70,16 @@ extension StackStore {
     func deleteGroup(_ id: String) {
         updateGroups { $0.removeAll { $0.id == id } }
     }
-    /// Moves a site into a folder (nil: out of any folder).
-    func move(_ site: String, to group: String?) {
+    /// Moves a site into a folder (nil: out of any folder), at the end or right before another of its sites.
+    func move(_ site: String, to group: String?, before other: String? = nil) {
         updateGroups { groups in
             for index in groups.indices { groups[index].sites.removeAll { $0 == site } }
-            if let group, let index = groups.firstIndex(where: { $0.id == group }) { groups[index].sites.append(site) }
+            guard let group, let index = groups.firstIndex(where: { $0.id == group }) else { return }
+            if let other, let position = groups[index].sites.firstIndex(of: other) {
+                groups[index].sites.insert(site, at: position)
+            } else {
+                groups[index].sites.append(site)
+            }
         }
-    }
-    func moveGroup(from source: IndexSet, to destination: Int) {
-        updateGroups { $0.move(fromOffsets: source, toOffset: destination) }
     }
 }

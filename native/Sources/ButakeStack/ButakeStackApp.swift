@@ -187,7 +187,7 @@ private struct Sidebar: View {
                             let members = store.projects(in: group).filter { matches($0.title) || matches($0.domain) || matches(group.name) }
                             if search.isEmpty || !members.isEmpty {
                                 DisclosureGroup(isExpanded: expanded(group.id)) {
-                                    ForEach(members) { siteRow($0) }
+                                    ForEach(members) { siteRow($0, in: group.id) }
                                     if members.isEmpty && search.isEmpty {
                                         Text(L("groups.empty")).font(.uiCaption).foregroundStyle(.tertiary).selectionDisabled()
                                     }
@@ -202,8 +202,7 @@ private struct Sidebar: View {
                                 .accessibilityIdentifier("sidebar.group.\(group.id)")
                             }
                         }
-                        .onMove { store.moveGroup(from: $0, to: $1) }
-                        ForEach(store.ungroupedProjects.filter { matches($0.title) || matches($0.domain) }) { siteRow($0) }
+                        ForEach(store.ungroupedProjects.filter { matches($0.title) || matches($0.domain) }) { siteRow($0, in: nil) }
                     } header: {
                         SitesHeader(store: store)
                     }
@@ -247,7 +246,9 @@ private struct Sidebar: View {
 }
 
 extension Sidebar {
-    func siteRow(_ project: Project) -> some View {
+    /// A site in the sidebar. Dropping another site on it puts that one right before it, in the same folder
+    /// (or out of any folder).
+    func siteRow(_ project: Project, in group: String?) -> some View {
         Label {
             HStack { Text(project.title).lineLimit(1); Spacer(); StatusRing(phase: store.sitePhase(project), size: 10) }
         } icon: { TechLogo(tech: project.tech, size: 18) }
@@ -255,6 +256,12 @@ extension Sidebar {
             .contextMenu { SiteMenuItems(store: store, project: project) }
             .draggable(project.id) {
                 Label(project.title, systemImage: "globe").padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+            }
+            .dropDestination(for: String.self) { ids, _ in
+                for id in ids where id != project.id && store.projects.contains(where: { $0.id == id }) {
+                    store.move(id, to: group, before: group == nil ? nil : project.id)
+                }
+                return true
             }
     }
     /// Folders open unless the user closed them; all open while searching.
