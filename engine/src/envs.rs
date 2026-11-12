@@ -343,6 +343,31 @@ pub fn audit_lines(store: &Store, id: &str) -> Result<Vec<serde_json::Value>> {
         .collect())
 }
 
+/// Values of a `.env` (the site's own file, mode 600), for a backend's process environment.
+/// Never logged or returned; a missing, oversized or symlinked file gives nothing.
+pub fn read_dotenv(path: &std::path::Path) -> BTreeMap<String, String> {
+    let ok = fs::symlink_metadata(path).is_ok_and(|m| m.is_file() && m.len() <= 1_048_576);
+    let text = if ok { fs::read_to_string(path).unwrap_or_default() } else { String::new() };
+    let mut out = BTreeMap::new();
+    for raw in text.lines() {
+        let line = raw.trim().trim_start_matches("export ").trim();
+        if line.starts_with('#') { continue; }
+        let Some((key, value)) = line.split_once('=') else { continue };
+        let key = key.trim();
+        if validate_key(key).is_err() { continue; }
+        let value = value.trim();
+        let value = if let Some(inner) = value.strip_prefix('"').and_then(|v| v.strip_suffix('"')) {
+            inner.replace("\\\"", "\"").replace("\\$", "$").replace("\\\\", "\\")
+        } else if let Some(inner) = value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')) {
+            inner.to_string()
+        } else {
+            value.split(" #").next().unwrap_or("").trim().to_string()
+        };
+        out.insert(key.to_string(), value);
+    }
+    out
+}
+
 /// Keys declared in the site's `.env.example` (names only), to spot missing ones.
 pub fn example_keys(project: &Project) -> Vec<String> {
     let file = project.path.join(".env.example");
@@ -449,6 +474,12 @@ mod tests {
         assert_eq!(fs::metadata(&file).unwrap().permissions().mode() & 0o777, 0o600);
         assert!(!fs::read_to_string(store.root().join("logs/env-audit.log")).unwrap().contains("valor-ficticio"));
         assert!(export(&store, "demo", "local", &secrets, &out.path().join("otro.txt"), "tester").is_err());
+        // What activation writes is what a backend reads back.
+        let read = read_dotenv(&file);
+        assert_eq!(read.get("DB_PASSWORD").map(String::as_str), Some("valor-ficticio"));
+        fs::write(out.path().join(".env.q"), "A=\"con \\\"comillas\\\"\"\nB='pa$$'\nC=x # nota\n# D=no\n").unwrap();
+        let q = read_dotenv(&out.path().join(".env.q"));
+        assert_eq!((q["A"].as_str(), q["B"].as_str(), q["C"].as_str(), q.contains_key("D")), ("con \"comillas\"", "pa$$", "x", false));
     }
 
     #[test]

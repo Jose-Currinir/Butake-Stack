@@ -156,7 +156,12 @@ impl Supervisor {
     pub async fn status(&self) -> Vec<Value> {
         let mut states = vec![];
         for entry in self.entries.values() {
-            states.push(json!({"spec":entry.spec,"status":entry.state.lock().await.clone()}));
+            // The environment can carry the site's secrets (from its .env): it never leaves the daemon.
+            let mut spec = serde_json::to_value(&entry.spec).unwrap_or_default();
+            if let Some(object) = spec.as_object_mut() {
+                object.remove("environment");
+            }
+            states.push(json!({"spec":spec,"status":entry.state.lock().await.clone()}));
         }
         states
     }

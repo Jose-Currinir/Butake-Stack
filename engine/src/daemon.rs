@@ -262,7 +262,14 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                 autostart: process.autostart && available && !held,
                 restart_on_exit: true,
                 environment: {
-                    let mut environment: std::collections::BTreeMap<String, String> = project.env.iter().map(|(k, v)| (k.clone(), fill(v))).collect();
+                    // Backends that read their configuration from the process (KMP servers…) get the
+                    // site's .env, the file the active environment writes; Stack's own values win.
+                    let mut environment: std::collections::BTreeMap<String, String> = if project.kind == crate::model::ProjectKind::Kmp {
+                        crate::envs::read_dotenv(&project.path.join(".env"))
+                    } else {
+                        Default::default()
+                    };
+                    environment.extend(project.env.iter().map(|(k, v)| (k.clone(), fill(v))));
                     environment.insert("HOME".into(), home.clone());
                     environment.insert("PATH".into(), path.join(":"));
                     // corepack downloads the pinned pnpm/yarn without asking (it would wait forever).
