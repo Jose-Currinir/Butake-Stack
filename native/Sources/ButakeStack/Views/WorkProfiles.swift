@@ -7,6 +7,40 @@ struct DevToolStatus: Decodable, Sendable, Hashable {
     var broken: Bool? = nil
 }
 
+/// Any JSON value, when only success matters.
+struct JSONAny: Decodable, Sendable { init(from decoder: Decoder) throws {} }
+
+struct ToolUpdate: Decodable, Sendable, Hashable {
+    let installed: String
+    let latest: String
+    let update: Bool
+}
+/// `devToolUpdates`: each tool against its newest version, and each Python line uv manages.
+struct DevUpdates: Decodable, Sendable {
+    var tools: [String: ToolUpdate] = [:]
+    var python: [String: ToolUpdate] = [:]
+    init() {}
+    private struct Key: CodingKey {
+        var stringValue: String; var intValue: Int? { nil }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: Key.self)
+        for key in container.allKeys {
+            if key.stringValue == "python" { python = (try? container.decode([String: ToolUpdate].self, forKey: key)) ?? [:] }
+            else if let update = try? container.decode(ToolUpdate.self, forKey: key) { tools[key.stringValue] = update }
+        }
+    }
+}
+/// A supported Python line (endoflife.date).
+struct PythonLine: Decodable, Sendable, Hashable, Identifiable {
+    let version: String
+    let latest: String?
+    let eol: String?
+    var id: String { version }
+}
+
 /// What someone works on, and what each kind of work needs on the Mac.
 struct WorkProfile: Identifiable, Hashable {
     let id: String
@@ -17,7 +51,7 @@ struct WorkProfile: Identifiable, Hashable {
         WorkProfile(id: "laravel", logo: "laravel", tools: ["php", "node", "clt"]),
         WorkProfile(id: "web", logo: "astro", tools: ["node", "clt"]),
         WorkProfile(id: "cloudflare", logo: "emdash", tools: ["node", "wrangler", "cloudflared"]),
-        WorkProfile(id: "python", logo: "django", tools: ["uv", "clt"]),
+        WorkProfile(id: "python", logo: "django", tools: ["uv", "python", "clt"]),
         WorkProfile(id: "rust", logo: "rust", tools: ["rustup", "clt"]),
         WorkProfile(id: "swift", logo: "swift", tools: ["xcode", "clt"]),
         WorkProfile(id: "android", logo: "android", tools: ["jdk", "android-studio", "android-sdk"]),
@@ -113,10 +147,29 @@ private struct ProfileChip: View {
     }
 }
 
+/// Tools Stack installs itself from their official source (verified), and what that means.
+enum DevToolInstaller {
+    static let automatic: Set<String> = ["rustup", "uv", "python", "gh", "cloudflared", "wrangler", "android-sdk"]
+}
+
 private struct ToolRow: View {
     @Bindable var store: StackStore
     let tool: String
-    var status: DevToolStatus? { tool == "clt" ? DevToolStatus(installed: store.appleTools, version: nil) : store.devTools[tool] }
+    @State private var confirming = false
+    @State private var pythonVersion = ""
+    var status: DevToolStatus? {
+        switch tool {
+        case "clt": DevToolStatus(installed: store.appleTools, version: nil)
+        case "python": store.devUpdates.python.isEmpty ? nil : DevToolStatus(installed: true, version: store.devUpdates.python.keys.sorted { $0.compare($1, options: .numeric) == .orderedDescending }.joined(separator: " · "))
+        default: store.devTools[tool]
+        }
+    }
+    var update: ToolUpdate? {
+        if tool == "python" { return store.devUpdates.python.values.first { $0.update } }
+        return store.devUpdates.tools[tool].flatMap { $0.update ? $0 : nil }
+    }
+    var busy: Bool { store.busy != nil }
+
     var body: some View {
         HStack(spacing: 10) {
             TechLogo(tech: .of(tool == "jdk" ? "java" : tool), size: 24)
@@ -125,8 +178,16 @@ private struct ToolRow: View {
                 Text(L("toolDetail.\(tool)")).font(.uiCaption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 10)
+            if tool == "python" { pythonPicker }
             if let status, status.installed, status.broken != true {
-                Label(status.version ?? L("setup.ready"), systemImage: "checkmark.circle.fill").font(.uiCaption.weight(.medium)).foregroundStyle(Brand.success)
+                if let update {
+                    Button { confirming = true } label: { Label(String(format: L("tools.updateTo"), update.latest), systemImage: "arrow.down.circle") }
+                        .controlSize(.small).buttonStyle(.borderedProminent).disabled(busy)
+                        .help(String(format: L("tools.installedVersion"), update.installed))
+                }
+                if tool != "python" || update == nil {
+                    Label(status.version ?? L("setup.ready"), systemImage: "checkmark.circle.fill").font(.uiCaption.weight(.medium)).foregroundStyle(Brand.success).lineLimit(1)
+                }
             } else {
                 if status?.broken == true {
                     Label(L("tools.broken"), systemImage: "exclamationmark.triangle.fill").font(.uiCaption.weight(.medium)).foregroundStyle(Brand.warning)
@@ -136,6 +197,38 @@ private struct ToolRow: View {
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
+        .confirmationDialog(confirmTitle, isPresented: $confirming) {
+            if tool == "android-sdk" {
+                Button(L("tools.acceptAndInstall")) { Task { await store.installDevTool(tool, acceptLicenses: true) } }
+            } else if tool == "python" {
+                Button(L("setup.install")) { Task { await store.installDevTool(tool, version: chosenPython) } }
+            } else {
+                Button(L("tools.installWithPath")) { Task { await store.installDevTool(tool, shellPath: true) } }
+                Button(L("tools.installOnly")) { Task { await store.installDevTool(tool, shellPath: false) } }
+            }
+        } message: {
+            Text(L("toolSource.\(tool)") + "\n\n" + L(tool == "android-sdk" ? "tools.licenses" : (tool == "python" ? "tools.pythonWhere" : "tools.where")))
+        }
+    }
+
+    var chosenPython: String {
+        if let line = update.map({ $0.latest.split(separator: ".").prefix(2).joined(separator: ".") }), pythonVersion.isEmpty { return line }
+        return pythonVersion.isEmpty ? (store.pythonLines.first?.version ?? "") : pythonVersion
+    }
+    var confirmTitle: String {
+        let verb = (status?.installed == true && status?.broken != true) ? L("tools.update") : L("setup.install")
+        return "\(verb) \(L("tool.\(tool)"))" + (tool == "python" ? " \(chosenPython)" : "")
+    }
+
+    @ViewBuilder private var pythonPicker: some View {
+        if !store.pythonLines.isEmpty {
+            Picker("", selection: Binding(get: { chosenPython }, set: { pythonVersion = $0 })) {
+                ForEach(store.pythonLines) { line in Text("Python \(line.latest ?? line.version)").tag(line.version) }
+            }
+            .labelsHidden().fixedSize().controlSize(.small)
+            Button(L("setup.install")) { confirming = true }.controlSize(.small).disabled(busy || store.devTools["uv"]?.installed != true)
+                .help(store.devTools["uv"]?.installed == true ? "" : L("tools.needsUv"))
+        }
     }
 
     @ViewBuilder private var action: some View {
@@ -145,6 +238,12 @@ private struct ToolRow: View {
                 .controlSize(.small).buttonStyle(.borderedProminent)
         case "clt":
             Button(L("setup.install")) { store.installAppleTools() }.controlSize(.small).buttonStyle(.borderedProminent)
+        case "python":
+            EmptyView()
+        case let id where DevToolInstaller.automatic.contains(id):
+            Button(L("setup.install")) { confirming = true }
+                .controlSize(.small).buttonStyle(.borderedProminent).disabled(busy)
+                .accessibilityIdentifier("tool.install.\(id)")
         default:
             if let page = DevToolSource.pages[tool], let url = URL(string: page) {
                 Button { NSWorkspace.shared.open(url) } label: { Label(L("tools.official"), systemImage: "arrow.up.right.square") }

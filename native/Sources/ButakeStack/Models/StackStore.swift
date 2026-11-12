@@ -304,8 +304,21 @@ enum Route: Hashable {
     var appleTools = true
     /// Developer tools on this Mac for the work profiles (`devTools`).
     var devTools: [String: DevToolStatus] = [:]
-    func refreshDevTools() async {
+    var devUpdates = DevUpdates()
+    var pythonLines: [PythonLine] = []
+    func refreshDevTools(refresh: Bool = false) async {
         if let tools: [String: DevToolStatus] = try? await call(["method": "devTools"]) { devTools = tools }
+        if let updates: DevUpdates = try? await call(["method": "devToolUpdates", "refresh": refresh]) { devUpdates = updates }
+        if pythonLines.isEmpty, let lines: [PythonLine] = try? await call(["method": "pythonVersions"]) { pythonLines = lines }
+    }
+    /// Installs or updates a developer tool from its official source (the app asked first).
+    func installDevTool(_ tool: String, version: String = "", shellPath: Bool = true, acceptLicenses: Bool = false) async {
+        let title = L("tool.\(tool)")
+        await run(String(format: L("tools.installing"), title)) {
+            let _: JSONAny = try await self.call(["method": "installDevTool", "tool": tool, "version": version, "shellPath": shellPath, "acceptLicenses": acceptLicenses, "confirmed": true])
+        }
+        await refreshDevTools(refresh: true)
+        if devTools[tool == "python" ? "uv" : tool]?.installed == true { notify(String(format: L("tools.installed"), title)) }
     }
     var phpReady: Bool { phpRuntimes.contains(where: \.verified) }
     var caddyReady: Bool { !(installedTools["caddy"] ?? []).isEmpty }

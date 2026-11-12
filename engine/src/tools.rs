@@ -92,6 +92,11 @@ pub fn download(url: &str, target: &Path) -> Result<()> {
     Ok(())
 }
 
+/// SHA-256 of a file, hex.
+pub fn sha256_file(path: &Path) -> Result<String> {
+    digest::<Sha256>(path)
+}
+
 fn digest<D: Digest>(path: &Path) -> Result<String> {
     let mut file = fs::File::open(path)?;
     let mut hash = D::new();

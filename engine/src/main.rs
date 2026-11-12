@@ -1,3 +1,4 @@
+mod devtools;
 mod agent;
 mod cache;
 mod daemon;
@@ -192,6 +193,20 @@ fn dispatch(request: Value) -> Result<Value> {
         }
         "stepLog" => Ok(serde_json::to_value(scaffold::log_tail(&store, request["name"].as_str().unwrap_or(""))?)?),
         "devTools" => tools::dev_tools(&store),
+        "installDevTool" => {
+            anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
+            devtools::install(&store, &devtools::Options {
+                tool: request["tool"].as_str().unwrap_or("").into(),
+                version: request["version"].as_str().unwrap_or("").into(),
+                shell_path: request["shellPath"].as_bool().unwrap_or(false),
+                accept_licenses: request["acceptLicenses"] == true,
+            })
+        }
+        "devToolUpdates" => {
+            let latest = cache::cached(&store, "devtools-latest", 6 * 3600, request["refresh"] == true, devtools::latest)?;
+            devtools::updates(&store, &latest)
+        }
+        "pythonVersions" => cache::cached(&store, "python-versions", 24 * 3600, request["refresh"] == true, devtools::python_versions),
         "scanFolder" => {
             let path = std::path::PathBuf::from(request["path"].as_str().unwrap_or(""));
             anyhow::ensure!(path.is_absolute(), "invalid_path");
@@ -348,6 +363,8 @@ const PUBLIC_ERRORS: &[&str] = &[
     "folder_exists", "site_exists", "invalid_name", "node_not_installed", "php_not_installed",
     "scaffold_step_failed", "kmp_use_wizard", "unknown_template", "domain_in_use",
     "postgres_not_installed", "postgres_command_failed", "no_free_port", "invalid_group_name",
+    "checksum_mismatch", "checksum_not_found", "devtool_step_failed", "licenses_not_accepted", "jdk_not_installed",
+    "uv_not_installed", "download_failed", "signature_invalid",
 ];
 
 #[tokio::main]
