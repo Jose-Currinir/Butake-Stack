@@ -231,3 +231,24 @@ pub fn create_postgres_database(store: &Store, config: &StackConfig, name: &str)
         "migrationUser": owner, "migrationPassword": owner_password,
     }))
 }
+
+/// A database in the stack's MySQL (root has no password on 127.0.0.1, as initialized). The name is
+/// validated, so nothing user-typed reaches SQL.
+pub fn create_mysql_database(store: &Store, config: &StackConfig, name: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        !name.is_empty() && name.len() <= 40 && name.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_')
+            && !name.as_bytes()[0].is_ascii_digit(),
+        "invalid_database_name"
+    );
+    let base = crate::services::engine_dir(store, config, "mysql").ok_or_else(|| anyhow::anyhow!("mysql_not_installed"))?;
+    let status = Command::new(base.join("bin/mysql"))
+        .args(["-h", "127.0.0.1", "-P", &port(config, "mysql").to_string(), "-u", "root", "-e"])
+        .arg(format!("CREATE DATABASE IF NOT EXISTS `{name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
+        .env_clear()
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()?;
+    anyhow::ensure!(status.success(), "mysql_command_failed");
+    Ok(())
+}

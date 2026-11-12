@@ -51,6 +51,8 @@ enum Route: Hashable {
     var projects: [Project] = []
     /// Sites whose folder isn't there (deleted, moved or on a disconnected drive).
     var missingSites: [MissingSite] = []
+    /// Current framework and generator versions (npm and Packagist), cached by the engine.
+    var projectVersions: [String: String] = [:]
     var status: StackStatus?
     var daemonRunning = false
     var agent: AgentStatus?
@@ -360,18 +362,23 @@ enum Route: Hashable {
     var selectedProject: Project? { projects.first { $0.id == selectedSite } }
     func openSite(_ id: String) { selectedSite = id; route = .site(id) }
     /// Creates a Laravel project and opens its page; returns false on failure.
-    /// Creates a project of any kind (`kind`, `name`, `parent` and that kind's options) and opens it.
-    func createProject(_ request: [String: Any]) async -> Bool {
-        var ok = false
+    func loadProjectVersions() async {
+        if let versions: [String: String] = try? await call(["method": "projectVersions"]) { projectVersions = versions }
+    }
+    /// Creates a project of any kind (`kind`, `name`, `parent` and that kind's options). The sheet
+    /// shows progress, the result and what's next, so this doesn't navigate or toast by itself.
+    func createProject(_ request: [String: Any]) async -> Result<CreatedProject, CreateFailure> {
         var payload = request
         payload["method"] = "createProject"
-        await run(L("new.creating"), refresh: true) {
-            let project: Project = try await self.call(payload)
-            self.openSite(project.id)
-            ok = true
+        do {
+            let created: CreatedProject = try await call(payload)
+            await refresh()
+            return .success(created)
+        } catch let failure as EngineFailure {
+            return .failure(CreateFailure(message: failure.errorDescription ?? L("engine.requestFailed")))
+        } catch {
+            return .failure(CreateFailure(message: L("engine.requestFailed")))
         }
-        if ok { notify(L("new.done")) }
-        return ok
     }
     /// Turns a site on (served, processes running) or off.
     func setSite(_ project: Project, enabled: Bool) async {
@@ -623,3 +630,5 @@ struct MissingSite: Codable, Identifiable, Sendable, Hashable {
     let id: String
     let path: String
 }
+
+struct CreateFailure: Error { let message: String }

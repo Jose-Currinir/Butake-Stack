@@ -66,7 +66,7 @@ pub fn env_summary(project: &Path) -> (BTreeMap<String, String>, Vec<String>) {
     (values, keys)
 }
 
-fn sanitize_id(name: &str) -> String {
+pub(crate) fn sanitize_id(name: &str) -> String {
     let mut id: String = name
         .to_ascii_lowercase()
         .chars()
@@ -210,8 +210,9 @@ pub fn detect(path: &Path) -> Result<Detection> {
         Some("pgsql") => services.push("postgres".into()),
         _ => {}
     }
-    let uses_redis = env.contains_key("REDIS_HOST")
-        || ["CACHE_STORE", "QUEUE_CONNECTION", "SESSION_DRIVER"]
+    // Laravel's .env always carries REDIS_HOST; it uses Redis only when a driver says so.
+    let uses_redis = (!laravel && env.contains_key("REDIS_HOST"))
+        || ["CACHE_STORE", "QUEUE_CONNECTION", "SESSION_DRIVER", "BROADCAST_CONNECTION"]
             .iter()
             .any(|k| env.get(*k).is_some_and(|v| v == "redis"));
     if uses_redis {
@@ -250,15 +251,21 @@ pub fn detect(path: &Path) -> Result<Detection> {
             });
         }
     }
+    // Node line from .nvmrc (24.13.0 -> 24), else 24.
+    let node_line = read_small(&path.join(".nvmrc"), 64)
+        .and_then(|t| t.trim().trim_start_matches('v').split('.').next().filter(|m| m.parse::<u32>().is_ok()).map(str::to_string))
+        .unwrap_or_else(|| "24".into());
     let dev = package["scripts"]["dev"].as_str().unwrap_or("");
-    if matches!(kind, ProjectKind::Laravel | ProjectKind::Php) && dev.split_whitespace().next() == Some("vite") {
+    // Vite, or Vite+ (`vp dev`, Laravel's current starter kits).
+    let vite_dev = matches!(dev.split_whitespace().next(), Some("vite") | Some("vp"));
+    if matches!(kind, ProjectKind::Laravel | ProjectKind::Php) && vite_dev {
         processes.push(ProjectProcess {
             name: "vite".into(),
             program: "npm".into(),
             args: vec!["run".into(), "dev".into()],
             autostart: true,
         });
-        runtime.insert("node".into(), "22".into());
+        runtime.insert("node".into(), node_line.clone());
     } else if !dev.is_empty() && !kind.proxied() {
         notes.push("dev_script_not_a_server".into());
     }
@@ -283,10 +290,6 @@ pub fn detect(path: &Path) -> Result<Detection> {
     let mut push = |name: &str, (program, args): (String, Vec<String>), autostart: bool| {
         processes.push(ProjectProcess { name: name.into(), program, args, autostart });
     };
-    // Node line from .nvmrc (24.13.0 -> 24), else 24.
-    let node_line = read_small(&path.join(".nvmrc"), 64)
-        .and_then(|t| t.trim().trim_start_matches('v').split('.').next().filter(|m| m.parse::<u32>().is_ok()).map(str::to_string))
-        .unwrap_or_else(|| "24".into());
     match kind {
         ProjectKind::Astro => {
             push("dev", script("dev", &["--host", "127.0.0.1", "--port", "{port}"]), true);
@@ -318,7 +321,7 @@ pub fn detect(path: &Path) -> Result<Detection> {
             match name {
                 Some(name) => {
                     let command = package["scripts"][name].as_str().unwrap_or("");
-                    let vite = command.split_whitespace().next() == Some("vite");
+                    let vite = matches!(command.split_whitespace().next(), Some("vite") | Some("vp"));
                     let extra: &[&str] = if vite { &["--host", "127.0.0.1", "--port", "{port}", "--strictPort"] } else { &[] };
                     push(name, script(name, extra), true);
                 }

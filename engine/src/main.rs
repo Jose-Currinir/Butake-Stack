@@ -156,9 +156,9 @@ fn dispatch(request: Value) -> Result<Value> {
                 git: request["git"].as_bool().unwrap_or(true),
             };
             anyhow::ensure!(options.parent.is_absolute(), "invalid_path");
-            let project = scaffold::create(&store, &options)?;
+            let (project, notes) = scaffold::create(&store, &options)?;
             let _ = daemon::request_sync(&store, "reload", json!({}), false);
-            Ok(serde_json::to_value(project)?)
+            Ok(json!({"project": project, "notes": notes}))
         }
         "gitStatus" => {
             // Branch and pending changes of every site that is a Git repository.
@@ -217,6 +217,7 @@ fn dispatch(request: Value) -> Result<Value> {
             }
             Ok(serde_json::Value::Object(out))
         }
+        "projectVersions" => cache::cached(&store, "project-versions", 12 * 3600, request["refresh"] == true, scaffold::versions),
         "lifecycle" => {
             let tool = request["tool"].as_str().unwrap_or("");
             tools::validate_tool(tool)?;
@@ -326,6 +327,13 @@ fn dispatch(request: Value) -> Result<Value> {
         _ => bail!("unknown_method"),
     }
 }
+/// Error codes the app may show with their own message.
+const PUBLIC_ERRORS: &[&str] = &[
+    "folder_exists", "site_exists", "invalid_name", "node_not_installed", "php_not_installed",
+    "scaffold_step_failed", "kmp_use_wizard", "unknown_template", "domain_in_use",
+    "postgres_not_installed", "postgres_command_failed", "no_free_port",
+];
+
 #[tokio::main]
 async fn main() {
     if std::env::args().nth(1).as_deref() == Some("daemon") {
@@ -365,7 +373,14 @@ async fn main() {
             if std::env::var_os("BUTAKE_STACK_DEBUG").is_some() {
                 eprintln!("{error:#}");
             }
-            json!({"ok":false,"error":{"code":"invalid_request","messageKey":"engine.requestFailed"}})
+            // Known codes are fixed strings of this engine (never request data or paths), so the
+            // app can say what happened; anything else stays generic.
+            let code = error.to_string();
+            if PUBLIC_ERRORS.contains(&code.as_str()) {
+                json!({"ok":false,"error":{"code":code,"messageKey":format!("error.{code}")}})
+            } else {
+                json!({"ok":false,"error":{"code":"invalid_request","messageKey":"engine.requestFailed"}})
+            }
         }
     };
     println!("{response}");

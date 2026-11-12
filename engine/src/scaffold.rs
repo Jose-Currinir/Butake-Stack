@@ -69,6 +69,8 @@ impl Runner {
             .env("PHPRC", &self.phprc)
             .env("LANG", "en_US.UTF-8")
             .env("COMPOSER_NO_INTERACTION", "1")
+            .env("COREPACK_ENABLE_DOWNLOAD_PROMPT", "0")
+            .env("CI", "1")
             .stdin(Stdio::null())
             .stdout(log.try_clone()?)
             .stderr(log)
@@ -101,11 +103,27 @@ impl Toolchain {
         let node_bin = tools::resolve(store, "node", wanted)
             .or_else(|| tools::resolve(store, "node", ""))
             .map(|d| d.join("bin"));
-        let mut path = vec![php_root.join("bin").to_string_lossy().into_owned()];
+        // Commands that project scripts call by name (Laravel's `install:features` runs `composer`
+        // and `npm`; lockfiles may ask for pnpm or yarn): small launchers onto the stack's own.
+        let bin = store.directory("run")?.join("toolchain");
+        fs::create_dir_all(&bin)?;
+        let quote = |p: &Path| format!("'{}'", p.to_string_lossy().replace('\'', "'\\''"));
+        let mut launchers = vec![("composer", format!("exec {} {} \"$@\"", quote(&php_root.join("bin/php")), quote(&php_root.join("composer.phar"))))];
+        if let Some(node) = &node_bin {
+            for tool in ["pnpm", "yarn"] {
+                launchers.push((tool, format!("exec {} {tool} \"$@\"", quote(&node.join("corepack")))));
+            }
+        }
+        for (name, line) in launchers {
+            let file = bin.join(name);
+            fs::write(&file, format!("#!/bin/sh\n{line}\n"))?;
+            fs::set_permissions(&file, std::os::unix::fs::PermissionsExt::from_mode(0o755))?;
+        }
+        let mut path = vec![bin.to_string_lossy().into_owned(), php_root.join("bin").to_string_lossy().into_owned()];
         if let Some(node) = &node_bin {
             path.push(node.to_string_lossy().into_owned());
         }
-        path.push("/usr/bin:/bin".into());
+        path.push("/usr/bin:/bin:/usr/sbin:/sbin".into());
         let log = store.directory("logs")?.join(format!("{log_name}.log"));
         let _ = fs::remove_file(&log);
         let phprc = store.root().join("config/php").join(&series).to_string_lossy().into_owned();
@@ -132,8 +150,30 @@ pub fn log_tail(store: &Store, log_name: &str) -> Result<Vec<String>> {
     );
     let path = store.directory("logs")?.join(format!("{log_name}.log"));
     let text = fs::read_to_string(path).unwrap_or_default();
-    let lines: Vec<String> = text.lines().map(str::to_string).collect();
+    // Tools draw spinners and colors: keep only the text, last frame of each line.
+    let lines: Vec<String> = text.lines().map(|l| strip_ansi(l.rsplit('\r').next().unwrap_or(l))).collect();
     Ok(lines[lines.len().saturating_sub(200)..].to_vec())
+}
+
+fn strip_ansi(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                // CSI: parameters until a final byte in @..~
+                for c in chars.by_ref() {
+                    if ('@'..='~').contains(&c) { break; }
+                }
+            } else {
+                chars.next();
+            }
+        } else if !c.is_control() || c == '\t' {
+            out.push(c);
+        }
+    }
+    out
 }
 
 fn set_env(file: &Path, values: &[(&str, String)]) -> Result<()> {
@@ -194,25 +234,84 @@ fn node_major(node_bin: &Path) -> Option<String> {
     node_bin.parent()?.file_name()?.to_str()?.split('.').next().map(str::to_string)
 }
 
-fn git_init(runner: &Runner, target: &Path) -> Result<()> {
+/// A repository with the first commit (signed if the user signs commits). Never fatal: without
+/// the Command Line Tools, or if the commit can't be made, the project is still created.
+fn git_init(runner: &Runner, target: &Path, notes: &mut Vec<String>) {
     if target.join(".git").exists() {
-        return Ok(());
+        return;
+    }
+    if !git_available() {
+        notes.push("git_unavailable".into());
+        return;
     }
     let git = Path::new("/usr/bin/git");
-    runner.run(target, git, &["init", "-q"])?;
-    runner.run(target, git, &["add", "-A"])?;
-    let _ = runner.run(target, git, &["commit", "-q", "-m", "Proyecto inicial"]);
+    if runner.run(target, git, &["init", "-q", "-b", "main"]).is_err() || runner.run(target, git, &["add", "-A"]).is_err() {
+        notes.push("git_failed".into());
+        return;
+    }
+    if runner.run(target, git, &["commit", "-q", "-m", "Proyecto inicial"]).is_err() {
+        notes.push("git_no_commit".into());
+    }
+}
+
+/// What a new project needs before anything is downloaded, checked up front so a failure never
+/// leaves half a project behind: a free name (folder and site), and the runtime of its kind.
+fn preflight(store: &Store, options: &Options) -> Result<()> {
+    ensure!(
+        ["laravel", "php", "static", "node", "astro", "emdash", "next", "vite", "kmp"].contains(&options.kind.as_str()),
+        "unknown_kind"
+    );
+    ensure!(options.kind != "kmp", "kmp_use_wizard");
+    let (_, target) = target_of(options)?;
+    let _ = target;
+    // The site id comes from the folder name; an existing site (even one whose folder is missing)
+    // must never be overwritten by a new project.
+    let id = detect::sanitize_id(&options.name);
+    ensure!(!store.list()?.iter().any(|p| p.id == id) && !store.missing()?.iter().any(|(m, _)| *m == id), "site_exists");
+    let config = store.config()?;
+    let needs_php = matches!(options.kind.as_str(), "laravel");
+    let needs_node = matches!(options.kind.as_str(), "astro" | "emdash" | "next" | "vite" | "node")
+        || (options.kind == "laravel" && options.kit != "none");
+    if needs_php {
+        let series = config.versions.get("php").cloned().unwrap_or_else(|| "8.2".into());
+        ensure!(crate::runtimes::manifest(store, &series).is_ok(), "php_not_installed");
+    }
+    if needs_node {
+        ensure!(tools::resolve(store, "node", "").is_some(), "node_not_installed");
+    }
     Ok(())
 }
 
-pub fn create(store: &Store, options: &Options) -> Result<Project> {
+/// Git from the Command Line Tools: `/usr/bin/git` is only a shim that offers to install them.
+fn git_available() -> bool {
+    Command::new("/usr/bin/xcode-select")
+        .arg("-p")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+/// Creates the project and registers it (off). Returns the site and notes for the next steps.
+/// If any step fails, the half-made folder is removed: it did not exist before this call.
+pub fn create(store: &Store, options: &Options) -> Result<(Project, Vec<String>)> {
     validate_name(&options.name)?;
-    match options.kind.as_str() {
-        "laravel" => create_laravel(store, options),
-        "php" | "static" | "node" => create_basic(store, options),
-        "astro" | "emdash" | "next" | "vite" => create_javascript(store, options),
-        "kmp" => anyhow::bail!("kmp_use_wizard"),
-        _ => anyhow::bail!("unknown_kind"),
+    preflight(store, options)?;
+    let (_, target) = target_of(options)?;
+    let mut notes = vec![];
+    let result = match options.kind.as_str() {
+        "laravel" => create_laravel(store, options, &mut notes),
+        "php" | "static" | "node" => create_basic(store, options, &mut notes),
+        _ => create_javascript(store, options, &mut notes),
+    };
+    match result {
+        Ok(project) => Ok((project, notes)),
+        Err(error) => {
+            if target.is_dir() {
+                let _ = fs::remove_dir_all(&target);
+            }
+            Err(error)
+        }
     }
 }
 
@@ -229,7 +328,7 @@ fn register(store: &Store, target: &Path) -> Result<Project> {
     store.save(detect::detect(target)?.project)
 }
 
-fn create_javascript(store: &Store, options: &Options) -> Result<Project> {
+fn create_javascript(store: &Store, options: &Options, notes: &mut Vec<String>) -> Result<Project> {
     let template = template(&options.kind, &options.template)?;
     let (parent, target) = target_of(options)?;
     let (node_bin, runner) = node_runner(store, &format!("create-{}", options.name))?;
@@ -262,13 +361,13 @@ fn create_javascript(store: &Store, options: &Options) -> Result<Project> {
         }
     }
     if options.git {
-        git_init(&runner, &target)?;
+        git_init(&runner, &target, notes);
     }
     register(store, &target)
 }
 
 /// PHP, Node (node:http, no dependencies) and static sites: a small, working starting point.
-fn create_basic(store: &Store, options: &Options) -> Result<Project> {
+fn create_basic(store: &Store, options: &Options, notes: &mut Vec<String>) -> Result<Project> {
     let (_, target) = target_of(options)?;
     let title = escape_html(&options.name);
     fs::create_dir_all(&target)?;
@@ -302,7 +401,7 @@ fn create_basic(store: &Store, options: &Options) -> Result<Project> {
             phprc: String::new(),
             log: store.directory("logs")?.join(format!("create-{}.log", options.name)),
         };
-        git_init(&runner, &target)?;
+        git_init(&runner, &target, notes);
     }
     register(store, &target)
 }
@@ -311,7 +410,7 @@ fn escape_html(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
 }
 
-fn create_laravel(store: &Store, options: &Options) -> Result<Project> {
+fn create_laravel(store: &Store, options: &Options, notes: &mut Vec<String>) -> Result<Project> {
     let package = package(&options.kit)?;
     ensure!(["pest", "phpunit"].contains(&options.testing.as_str()), "invalid_testing");
     ensure!(["sqlite", "mysql", "pgsql"].contains(&options.database.as_str()), "invalid_database");
@@ -323,51 +422,111 @@ fn create_laravel(store: &Store, options: &Options) -> Result<Project> {
     let composer_arg = chain.composer.clone();
 
     // 1. Skeleton (Composer runs its post-create scripts: .env, key, SQLite file).
-    runner.run(&parent, php, &[&composer_arg, "create-project", package, &options.name, "--prefer-dist", "--no-interaction"])?;
+    // Starter kits come from their main branch, like the official installer (`--stability=dev`):
+    // some have no stable tag, and the tagged ones lag behind.
+    let mut args = vec![composer_arg.as_str(), "create-project", package, &options.name, "--prefer-dist", "--no-interaction"];
+    if options.kit != "none" {
+        args.push("--stability=dev");
+    }
+    runner.run(&parent, php, &args)?;
     let artisan = |args: &[&str]| -> Result<()> {
         let mut all = vec!["artisan"];
         all.extend_from_slice(args);
         runner.run(&target, php, &all)
     };
-    // 2. Database.
     let env = target.join(".env");
-    match options.database.as_str() {
-        "mysql" => set_env(&env, &[("DB_CONNECTION", "mysql".into()), ("DB_HOST", "127.0.0.1".into()), ("DB_PORT", crate::engines::port(&config, "mysql").to_string()), ("DB_DATABASE", options.name.replace('-', "_")), ("DB_USERNAME", "root".into()), ("DB_PASSWORD", String::new())])?,
-        "pgsql" => set_env(&env, &[("DB_CONNECTION", "pgsql".into()), ("DB_HOST", "127.0.0.1".into()), ("DB_PORT", crate::engines::port(&config, "postgres").to_string()), ("DB_DATABASE", options.name.replace('-', "_")), ("DB_USERNAME", "postgres".into()), ("DB_PASSWORD", String::new())])?,
-        _ => {}
-    }
     set_env(&env, &[("APP_URL", format!("http://{}.test", options.name.to_ascii_lowercase()))])?;
-    // 3. Tests: Pest replaces PHPUnit as the runner, like the official installer.
-    if options.testing == "pest" {
+    // 2. Tests: Pest replaces PHPUnit as the runner, like the official installer. Starter kits
+    //    already ship with Pest; there it stays (the installer can't turn a kit into PHPUnit).
+    let composer: serde_json::Value = fs::read_to_string(target.join("composer.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    let has_pest = composer["require-dev"].get("pestphp/pest").is_some();
+    if options.testing == "pest" && !has_pest {
         runner.run(&target, php, &[&composer_arg, "remove", "phpunit/phpunit", "--dev", "--no-update"])?;
         runner.run(&target, php, &[&composer_arg, "require", "pestphp/pest", "pestphp/pest-plugin-laravel", "--dev", "--with-all-dependencies", "--no-interaction"])?;
         runner.run(&target, php, &["vendor/bin/pest", "--init"])?;
+    } else if options.testing == "phpunit" && has_pest {
+        notes.push("kit_uses_pest".into());
     }
-    // 4. Front-end assets for starter kits (Vite).
+    // 3. Front-end assets (Vite).
     if target.join("package.json").exists() {
         if let Some(node) = node_bin {
             runner.run(&target, &node.join("npm"), &["install", "--no-audit", "--no-fund"])?;
             runner.run(&target, &node.join("npm"), &["run", "build"])?;
+            if let Some(major) = node_major(node) {
+                if !target.join(".nvmrc").exists() {
+                    fs::write(target.join(".nvmrc"), format!("{major}\n"))?;
+                }
+            }
+        } else {
+            notes.push("frontend_needs_node".into());
         }
     }
-    // 5. SQLite migrates right away; server databases migrate once their engine is on.
-    if options.database == "sqlite" {
-        let _ = artisan(&["migrate", "--force", "--no-interaction"]);
+    // 4. Database: SQLite migrates right away. MySQL and PostgreSQL get their own database (and,
+    //    on PostgreSQL, their own role) when the engine is running, then migrate; otherwise the
+    //    .env is ready and the note says what's left.
+    let database = database_name(&options.name);
+    match options.database.as_str() {
+        "sqlite" => artisan(&["migrate", "--force", "--no-interaction"])?,
+        engine => {
+            let engine = if engine == "pgsql" { "postgres" } else { "mysql" };
+            let port = crate::engines::port(&config, engine);
+            let mut values = vec![
+                ("DB_CONNECTION", options.database.clone()),
+                ("DB_HOST", "127.0.0.1".into()),
+                ("DB_PORT", port.to_string()),
+                ("DB_DATABASE", database.clone()),
+            ];
+            let running = std::net::TcpStream::connect_timeout(&([127, 0, 0, 1], port).into(), std::time::Duration::from_millis(500)).is_ok();
+            let ready = running && match engine {
+                "postgres" => match crate::engines::create_postgres_database(store, &config, &database) {
+                    Ok(created) => {
+                        values.push(("DB_USERNAME", created["migrationUser"].as_str().unwrap_or("").to_string()));
+                        values.push(("DB_PASSWORD", created["migrationPassword"].as_str().unwrap_or("").to_string()));
+                        true
+                    }
+                    Err(_) => false,
+                },
+                _ => {
+                    values.push(("DB_USERNAME", "root".into()));
+                    values.push(("DB_PASSWORD", String::new()));
+                    crate::engines::create_mysql_database(store, &config, &database).is_ok()
+                }
+            };
+            if !ready {
+                if engine == "postgres" {
+                    values.push(("DB_USERNAME", "postgres".into()));
+                    values.push(("DB_PASSWORD", String::new()));
+                }
+                notes.push(format!("database_pending_{engine}"));
+            }
+            set_env(&env, &values)?;
+            // The .env now may hold a password: owner-only, like the environments manager writes it.
+            let _ = fs::set_permissions(&env, std::os::unix::fs::PermissionsExt::from_mode(0o600));
+            if ready {
+                artisan(&["migrate", "--force", "--no-interaction"])?;
+            }
+        }
     }
-    // 6. Git.
+    // 5. Git.
     if options.git {
-        git_init(runner, &target)?;
+        git_init(runner, &target, notes);
     }
-    // 7. Register the site (off, like every site, until the user turns it on).
+    // 6. Register the site (off, like every site, until the user turns it on).
     let mut project = detect::detect(&target)?.project;
     project.runtime.insert("php".into(), series);
-    if project.services.is_empty() || options.database != "sqlite" {
-        let service = if options.database == "pgsql" { "postgres" } else { "mysql" };
-        if options.database != "sqlite" && !project.services.contains(&service.to_string()) {
+    let service = match options.database.as_str() { "pgsql" => Some("postgres"), "mysql" => Some("mysql"), _ => None };
+    if let Some(service) = service {
+        if !project.services.iter().any(|s| s == service) {
             project.services.push(service.into());
         }
     }
     store.save(project)
+}
+
+/// Database name for a project: lowercase letters, digits and underscores, starting with a letter.
+fn database_name(name: &str) -> String {
+    let base: String = name.to_ascii_lowercase().chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
+    if base.starts_with(|c: char| c.is_ascii_digit()) { format!("db_{base}") } else { base }
 }
 
 #[cfg(test)]
@@ -387,4 +546,37 @@ mod tests {
         let text = fs::read_to_string(&env).unwrap();
         assert!(text.contains("DB_CONNECTION=mysql\nDB_HOST=127.0.0.1\nAPP_NAME=x\nDB_DATABASE=demo"));
     }
+}
+
+/// Current versions of each kind's framework and generator, for the assistant to show what it will
+/// install: npm's `latest` tags and Packagist's newest stable release. Requests run in parallel.
+pub fn versions() -> Result<serde_json::Value> {
+    let npm = ["astro", "create-astro", "emdash", "create-emdash", "next", "create-next-app", "vite", "create-vite", "react", "vue", "svelte"];
+    let packagist = ["laravel/framework", "laravel/laravel", "pestphp/pest", "livewire/livewire"];
+    let handles: Vec<_> = npm
+        .iter()
+        .map(|name| (name.to_string(), format!("https://registry.npmjs.org/{name}/latest"), false))
+        .chain(packagist.iter().map(|name| (name.to_string(), format!("https://repo.packagist.org/p2/{name}.json"), true)))
+        .map(|(name, url, composer)| {
+            std::thread::spawn(move || -> Option<(String, String)> {
+                let body: serde_json::Value = serde_json::from_slice(&tools::fetch(&url, 8_000_000).ok()?).ok()?;
+                let version = if composer {
+                    body["packages"][&name].as_array()?.iter().filter_map(|v| v["version"].as_str())
+                        .find(|v| !v.contains("dev") && !v.contains("RC") && !v.contains("beta") && !v.contains("alpha"))?
+                        .trim_start_matches('v').to_string()
+                } else {
+                    body["version"].as_str()?.to_string()
+                };
+                Some((name, version))
+            })
+        })
+        .collect();
+    let mut out = serde_json::Map::new();
+    for handle in handles {
+        if let Ok(Some((name, version))) = handle.join() {
+            out.insert(name, serde_json::Value::String(version));
+        }
+    }
+    ensure!(!out.is_empty(), "offline");
+    Ok(serde_json::Value::Object(out))
 }
