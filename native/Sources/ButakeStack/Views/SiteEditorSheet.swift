@@ -41,7 +41,7 @@ struct SiteEditorSheet: View {
                     TextField(L("site.domain"), text: $domain).accessibilityIdentifier("editor.domain")
                     LabeledContent(L("site.folder")) { Text(project.path).font(.callout.monospaced()).lineLimit(1).truncationMode(.middle) }
                     Picker(L("site.kind"), selection: $project.kind) {
-                        ForEach(["laravel", "php", "static"], id: \.self) { Text(L("kind.\($0)")).tag($0) }
+                        ForEach(["laravel", "php", "astro", "emdash", "next", "kmp", "node", "static"], id: \.self) { Text(L("kind.\($0)")).tag($0) }
                     }.accessibilityIdentifier("editor.kind")
                     TextField(L("site.docroot"), text: $project.docroot).accessibilityIdentifier("editor.docroot")
                     Toggle(L("site.https"), isOn: $project.https).accessibilityIdentifier("editor.https")

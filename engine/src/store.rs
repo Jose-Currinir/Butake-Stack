@@ -125,8 +125,28 @@ impl Store {
         projects.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(projects)
     }
+    /// A free port for a proxied site: 4400-4999 for web dev servers, 18100-18999 for backends;
+    /// never one another site, an engine or another program already uses.
+    fn free_port(&self, project: &Project, config: &StackConfig) -> Result<u16> {
+        let taken: std::collections::HashSet<u16> = self
+            .list()?
+            .iter()
+            .filter(|p| p.id != project.id)
+            .filter_map(|p| p.upstream)
+            .chain(config.engines.keys().map(|e| crate::engines::port(config, e)))
+            .collect();
+        let range = if project.kind == crate::model::ProjectKind::Kmp { 18100..19000 } else { 4400..5000 };
+        range
+            .filter(|p| !taken.contains(p))
+            .find(|p| crate::listeners::port_owner(*p, false).is_none())
+            .ok_or_else(|| anyhow::anyhow!("no_free_port"))
+    }
     pub fn save(&self, mut project: Project) -> Result<Project> {
-        project.validate(&self.config()?)?;
+        let config = self.config()?;
+        if project.kind.proxied() && project.upstream.is_none() {
+            project.upstream = Some(self.free_port(&project, &config)?);
+        }
+        project.validate(&config)?;
         for other in self.list()? {
             ensure!(
                 other.id == project.id
@@ -173,4 +193,16 @@ mod tests {
             0o700
         );
     }
+    #[test]
+    fn proxied_sites_get_distinct_free_ports() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = Store::new(temp.path().join("store")).unwrap();
+        let mk = |id: &str| -> Project { serde_json::from_value(serde_json::json!({"id":id,"name":id,"path":temp.path(),"domains":[format!("{id}.test")],"https":true,"kind":"astro","runtime":{},"docroot":".","services":[],"databases":[],"processes":[]})).unwrap() };
+        let a = store.save(mk("uno")).unwrap();
+        let b = store.save(mk("dos")).unwrap();
+        let (pa, pb) = (a.upstream.unwrap(), b.upstream.unwrap());
+        assert!(pa != pb && (4400..5000).contains(&pa) && (4400..5000).contains(&pb));
+        assert_eq!(store.save(a.clone()).unwrap().upstream, Some(pa), "an assigned port is kept");
+    }
+
 }

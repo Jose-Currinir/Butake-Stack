@@ -195,11 +195,24 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
             .cloned()
             .unwrap_or_default();
         let node_bin = crate::tools::resolve(store, "node", &node_wanted).map(|d| d.join("bin"));
+        // JDK for Kotlin projects: JAVA_HOME and its bin first on PATH.
+        let java_home = (project.kind == crate::model::ProjectKind::Kmp || project.runtime.contains_key("jdk"))
+            .then(|| crate::tools::resolve(store, "jdk", project.runtime.get("jdk").map(String::as_str).unwrap_or(""))
+                .or_else(|| crate::tools::resolve(store, "jdk", "")))
+            .flatten()
+            .map(|root| root.join("Contents/Home"));
         let mut path = vec![php_bin.to_string_lossy().into_owned()];
+        if let Some(java) = &java_home {
+            path.insert(0, java.join("bin").to_string_lossy().into_owned());
+        }
         if let Some(node) = &node_bin {
             path.push(node.to_string_lossy().into_owned());
         }
         path.push("/usr/bin:/bin".into());
+        // `{port}` and `{domain}` in arguments and environment.
+        let port = project.upstream.map(|p| p.to_string()).unwrap_or_default();
+        let domain = project.domains.first().cloned().unwrap_or_default();
+        let fill = |text: &str| text.replace("{port}", &port).replace("{domain}", &domain);
         for process in project.processes {
             let (executable, mut args) = match process.program.as_str() {
                 "php" => (Some(php_bin.join("php")), vec![]),
@@ -213,10 +226,11 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                         .to_string_lossy()
                         .into_owned()],
                 ),
+                "gradlew" => (Some(project.path.join("gradlew")), vec![]),
                 program => (node_bin.as_ref().map(|b| b.join(program)), vec![]),
             };
             let available = executable.as_ref().is_some_and(|e| e.exists());
-            args.extend(process.args);
+            args.extend(process.args.iter().map(|a| fill(a)));
             specs.push(ProcessSpec {
                 id: format!("{}.{}", project.id, process.name),
                 executable: executable.unwrap_or_else(|| PathBuf::from("/nonexistent")),
@@ -225,13 +239,17 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                 // A missing runtime never blocks the rest of the stack; the UI shows it stopped.
                 autostart: process.autostart && available && !held,
                 restart_on_exit: true,
-                environment: [
-                    ("HOME".into(), home.clone()),
-                    ("PATH".into(), path.join(":")),
+                environment: {
+                    let mut environment: std::collections::BTreeMap<String, String> = project.env.iter().map(|(k, v)| (k.clone(), fill(v))).collect();
+                    environment.insert("HOME".into(), home.clone());
+                    environment.insert("PATH".into(), path.join(":"));
                     // The binary's built-in php.ini path is the build machine's; point it at ours.
-                    ("PHPRC".into(), store.root().join("config/php").join(&php_series).to_string_lossy().into_owned()),
-                ]
-                .into(),
+                    environment.insert("PHPRC".into(), store.root().join("config/php").join(&php_series).to_string_lossy().into_owned());
+                    if let Some(java) = &java_home {
+                        environment.insert("JAVA_HOME".into(), java.to_string_lossy().into_owned());
+                    }
+                    environment.into_iter().collect()
+                },
                 inherit: vec![],
                 stop_timeout: 10,
             });

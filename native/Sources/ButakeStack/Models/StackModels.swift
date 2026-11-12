@@ -14,6 +14,10 @@ struct Project: Codable, Identifiable, Hashable, Sendable {
     var databases: [String]
     var processes: [ProjectProcess]
     var enabled: Bool
+    /// Port of the site's own server that Caddy proxies to (Astro, EmDash, Next, KMP).
+    var upstream: Int?
+    /// Environment of the site's processes (`{port}` and `{domain}` filled in by the engine).
+    var env: [String: String]?
 
     var domain: String { domains.first ?? "" }
     /// What the UI shows: the site's name; the `.test` address only appears as its URL.

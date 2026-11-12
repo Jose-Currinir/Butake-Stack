@@ -38,7 +38,7 @@ enum Route: Hashable {
     static func category(of engine: String) -> String {
         services.first { engines(in: $0).contains(engine) } ?? "web"
     }
-    static let languages = ["php", "node"]
+    static let languages = ["php", "node", "java"]
 }
 
 /// Everything the window shows. All engine calls go through `StackEngine` (JSON over stdin/stdout).
@@ -445,7 +445,7 @@ enum Route: Hashable {
     func refreshRuntimes() async {
         phpRuntimes = (try? await call(["method": "listPhpRuntimes"])) ?? []
         recipes = (try? await call(["method": "engineRecipes"])) ?? recipes
-        for tool in ["node", "caddy"] + Route.allEngines {
+        for tool in ["node", "jdk", "caddy"] + Route.allEngines {
             installedTools[tool] = (try? await call(["method": "installedTools", "tool": tool])) ?? []
         }
     }

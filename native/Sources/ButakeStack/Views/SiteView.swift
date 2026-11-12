@@ -99,6 +99,10 @@ struct SiteView: View {
                 InfoRow(symbol: "folder", title: L("site.folder"), value: project.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                 Divider()
                 InfoRow(symbol: "doc.richtext", title: L("site.docroot"), value: project.docroot)
+                if let upstream = project.upstream {
+                    Divider()
+                    InfoRow(symbol: "arrow.left.arrow.right", title: L("site.upstream"), value: "127.0.0.1:\(upstream)")
+                }
             }
             if let info = store.git[project.id] { gitCard(info) }
             CardSection(title: L("site.services")) {

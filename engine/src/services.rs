@@ -74,6 +74,13 @@ fn quoted(value: &str) -> Result<String> {
     Ok(format!("\"{value}\""))
 }
 
+enum Backend {
+    Php(std::path::PathBuf),
+    /// Port, and whether the Host header must be rewritten (Vite's allowed hosts).
+    Proxy(u16, bool),
+    Files,
+}
+
 /// HTML entities for text placed in the off page.
 fn html(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
@@ -120,11 +127,16 @@ pub fn caddyfile(
         quoted(&data.to_string_lossy())?
     );
     for project in projects {
-        let Some(series) = php_series(project, config) else {
-            continue;
+        let series = php_series(project, config);
+        // Served: PHP sites through php-fpm, proxied sites (Astro, EmDash, Next, KMP…) through
+        // their own server, static sites as files.
+        let backend = match (&series, project.upstream) {
+            (Some(series), _) => Backend::Php(fpm_socket(store, series)?),
+            (None, Some(port)) if project.kind.proxied() => Backend::Proxy(port, project.kind == crate::model::ProjectKind::Astro),
+            (None, _) if project.kind == crate::model::ProjectKind::Static => Backend::Files,
+            _ => continue,
         };
         let root = project.path.join(&project.docroot);
-        let socket = fpm_socket(store, &series)?;
         let mut schemes = vec![("http", "fd/3")];
         if project.https {
             schemes.push(("https", "fd/4"));
@@ -159,11 +171,23 @@ pub fn caddyfile(
             } else {
                 out.push_str(&format!("\tbind {bind} {{\n\t\tprotocols h1\n\t}}\n"));
             }
-            out.push_str(&format!(
-                "\troot * {}\n\tencode zstd gzip\n\tphp_fastcgi {}\n\tfile_server\n}}\n\n",
-                quoted(&root.to_string_lossy())?,
-                quoted(&format!("unix/{}", socket.to_string_lossy()))?
-            ));
+            match &backend {
+                Backend::Php(socket) => out.push_str(&format!(
+                    "\troot * {}\n\tencode zstd gzip\n\tphp_fastcgi {}\n\tfile_server\n}}\n\n",
+                    quoted(&root.to_string_lossy())?,
+                    quoted(&format!("unix/{}", socket.to_string_lossy()))?
+                )),
+                // Vite (Astro) only answers its own host unless configured otherwise: the dev server
+                // sees localhost; WebSockets (HMR) pass through.
+                Backend::Proxy(port, rewrite_host) => out.push_str(&format!(
+                    "\treverse_proxy 127.0.0.1:{port}{}\n}}\n\n",
+                    if *rewrite_host { format!(" {{\n\t\theader_up Host localhost:{port}\n\t}}") } else { String::new() }
+                )),
+                Backend::Files => out.push_str(&format!(
+                    "\troot * {}\n\tencode zstd gzip\n\tfile_server\n}}\n\n",
+                    quoted(&root.to_string_lossy())?
+                )),
+            }
         }
     }
     Ok(out)
@@ -325,7 +349,14 @@ mod tests {
         assert!(off_page(&evil_name).contains("&lt;script&gt;") && !off_page(&evil_name).contains('\n'));
         // With a real Caddy available (CADDY_BIN), the generated file must adapt cleanly.
         if let Some(caddy) = std::env::var_os("CADDY_BIN") {
-            let both = caddyfile(&store, &[evil_name.clone(), project.clone()], &config, true).unwrap();
+            let mut astro = project.clone();
+            astro.id = "astro".into();
+            astro.domains = vec!["astro.test".into()];
+            astro.kind = crate::model::ProjectKind::Astro;
+            astro.runtime.clear();
+            astro.upstream = Some(4401);
+            let both = caddyfile(&store, &[evil_name.clone(), project.clone(), astro], &config, true).unwrap();
+            assert!(both.contains("reverse_proxy 127.0.0.1:4401") && both.contains("header_up Host localhost:4401"));
             let path = temp.path().join("Caddyfile");
             fs::write(&path, both).unwrap();
             let out = std::process::Command::new(caddy).args(["adapt", "--adapter", "caddyfile", "--config"]).arg(&path).output().unwrap();

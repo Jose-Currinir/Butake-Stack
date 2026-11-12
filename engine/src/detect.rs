@@ -148,6 +148,19 @@ fn supervisor_processes(path: &Path, queue_connection: Option<&str>) -> Vec<Proj
     out
 }
 
+fn has_dep(package: &Value, name: &str) -> bool {
+    package["dependencies"].get(name).is_some() || package["devDependencies"].get(name).is_some()
+}
+
+/// The runnable server module of a Kotlin Multiplatform build (`:server` or `:backend`).
+fn kmp_server(path: &Path) -> Option<&'static str> {
+    let settings = read_small(&path.join("settings.gradle.kts"), 262_144).or_else(|| read_small(&path.join("settings.gradle"), 262_144))?;
+    if !path.join("gradlew").is_file() {
+        return None;
+    }
+    [":server", ":backend"].into_iter().find(|m| settings.contains(&format!("\"{m}\"")) || settings.contains(&format!("'{m}'")))
+}
+
 pub fn detect(path: &Path) -> Result<Detection> {
     let path = path.canonicalize()?;
     ensure!(path.is_dir(), "invalid_path");
@@ -169,6 +182,14 @@ pub fn detect(path: &Path) -> Result<Detection> {
         (ProjectKind::Laravel, PathBuf::from("public"))
     } else if path.join("index.php").is_file() || composer.is_object() {
         (ProjectKind::Php, PathBuf::from("."))
+    } else if kmp_server(&path).is_some() {
+        (ProjectKind::Kmp, PathBuf::from("."))
+    } else if has_dep(&package, "emdash") {
+        (ProjectKind::Emdash, PathBuf::from("."))
+    } else if has_dep(&package, "astro") || ["astro.config.mjs", "astro.config.ts", "astro.config.js"].iter().any(|f| path.join(f).is_file()) {
+        (ProjectKind::Astro, PathBuf::from("."))
+    } else if has_dep(&package, "next") {
+        (ProjectKind::Next, PathBuf::from("."))
     } else if package.is_object() {
         (ProjectKind::Node, PathBuf::from("."))
     } else {
@@ -241,6 +262,63 @@ pub fn detect(path: &Path) -> Result<Detection> {
     } else if !dev.is_empty() {
         notes.push("dev_script_not_a_server".into());
     }
+    let mut site_env = BTreeMap::new();
+    // npm, or pnpm through corepack (Node's own) when the project declares or locks pnpm.
+    let pnpm = path.join("pnpm-lock.yaml").is_file() || package["packageManager"].as_str().is_some_and(|p| p.starts_with("pnpm"));
+    let script = |name: &str, extra: &[&str]| -> (String, Vec<String>) {
+        if pnpm {
+            let mut args = vec!["pnpm".to_string(), "run".into(), name.into()];
+            args.extend(extra.iter().map(|s| s.to_string()));
+            ("corepack".into(), args)
+        } else {
+            let mut args = vec!["run".to_string(), name.into()];
+            if !extra.is_empty() {
+                args.push("--".into());
+                args.extend(extra.iter().map(|s| s.to_string()));
+            }
+            ("npm".into(), args)
+        }
+    };
+    let has_script = |name: &str| package["scripts"][name].is_string();
+    let mut push = |name: &str, (program, args): (String, Vec<String>), autostart: bool| {
+        processes.push(ProjectProcess { name: name.into(), program, args, autostart });
+    };
+    match kind {
+        ProjectKind::Astro => {
+            push("dev", script("dev", &["--host", "127.0.0.1", "--port", "{port}"]), true);
+            site_env.insert("PORT".into(), "{port}".into());
+            runtime.insert("node".into(), "24".into());
+        }
+        ProjectKind::Next => {
+            push("dev", script("dev", &["-H", "127.0.0.1", "-p", "{port}"]), true);
+            site_env.insert("PORT".into(), "{port}".into());
+            runtime.insert("node".into(), "24".into());
+        }
+        ProjectKind::Emdash => {
+            // Build + `wrangler dev` on the port Stack assigns, with the .test address as the site URL.
+            push("dev", script("dev", &[]), true);
+            if has_script("dev:setup") { push("setup", script("dev:setup", &[]), false); }
+            if has_script("dev:reset") { push("reset", script("dev:reset", &[]), false); }
+            for (k, v) in [("PORT", "{port}"), ("PUBLIC_SITE_URL", "https://{domain}"), ("BUTAKE_DEV_ALLOWED_HOSTS", "{domain}"), ("EMDASH_URL", "http://127.0.0.1:{port}")] {
+                site_env.insert(k.into(), v.into());
+            }
+            runtime.insert("node".into(), "24".into());
+            notes.push("emdash_secrets_in_dev_vars".into());
+        }
+        ProjectKind::Kmp => {
+            if let Some(module) = kmp_server(&path) {
+                push("server", ("gradlew".into(), vec![format!("{module}:run")]), true);
+            }
+            // Backends read one of these; all point at the port Stack assigns.
+            for k in ["PORT", "SERVER_PORT", "HTTP_PORT"] {
+                site_env.insert(k.into(), "{port}".into());
+            }
+            site_env.insert("APP_HOST".into(), "127.0.0.1".into());
+            runtime.insert("jdk".into(), "21".into());
+            notes.push("kmp_database_external".into());
+        }
+        _ => {}
+    }
     if let Some(url) = env.get("APP_URL") {
         if !url.contains(&format!("{id}.test")) {
             notes.push("app_url_differs".into());
@@ -260,6 +338,8 @@ pub fn detect(path: &Path) -> Result<Detection> {
             databases: vec![],
             processes,
             enabled: false,
+            upstream: None,
+            env: site_env,
         },
         env_keys,
         notes,
@@ -311,4 +391,29 @@ mod tests {
         assert_eq!(d.project.domains, vec!["legacy.test"]);
         assert!(d.project.processes.is_empty());
     }
+    #[test]
+    fn detects_astro_emdash_next_and_kmp_with_their_processes() {
+        let temp = tempfile::tempdir().unwrap();
+        let make = |name: &str, files: &[(&str, &str)]| {
+            let dir = temp.path().join(name);
+            fs::create_dir_all(&dir).unwrap();
+            for (file, text) in files { fs::write(dir.join(file), text).unwrap(); }
+            detect(&dir).unwrap().project
+        };
+        let astro = make("web", &[("package.json", r#"{"scripts":{"dev":"astro dev"},"dependencies":{"astro":"7.4.1"}}"#)]);
+        assert_eq!(astro.kind, ProjectKind::Astro);
+        assert_eq!(astro.processes[0].args, ["run", "dev", "--", "--host", "127.0.0.1", "--port", "{port}"]);
+        let emdash = make("cms", &[("package.json", r#"{"packageManager":"pnpm@10.34.9","scripts":{"dev":"node x","dev:setup":"y","dev:reset":"z"},"dependencies":{"emdash":"1.3.1","astro":"7"}}"#)]);
+        assert_eq!(emdash.kind, ProjectKind::Emdash);
+        assert_eq!((emdash.processes[0].program.as_str(), emdash.processes.len()), ("corepack", 3));
+        assert_eq!(emdash.env.get("PUBLIC_SITE_URL").unwrap(), "https://{domain}");
+        let kmp = make("app", &[("settings.gradle.kts", r#"include(":core")
+include(":server")"#), ("gradlew", "#!/bin/sh")]);
+        assert_eq!(kmp.kind, ProjectKind::Kmp);
+        assert_eq!((kmp.processes[0].program.as_str(), kmp.processes[0].args[0].as_str()), ("gradlew", ":server:run"));
+        assert_eq!(kmp.runtime.get("jdk").unwrap(), "21");
+        let next = make("next", &[("package.json", r#"{"dependencies":{"next":"15"}}"#)]);
+        assert_eq!(next.kind, ProjectKind::Next);
+    }
+
 }

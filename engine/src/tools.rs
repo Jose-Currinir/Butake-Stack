@@ -12,7 +12,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-pub const TOOLS: [&str; 9] = ["node", "caddy", "mysql", "redis", "postgres", "mongodb", "valkey", "meilisearch", "typesense"];
+pub const TOOLS: [&str; 10] = ["node", "jdk", "caddy", "mysql", "redis", "postgres", "mongodb", "valkey", "meilisearch", "typesense"];
 pub const TOOLS_EXTRA: [&str; 1] = ["rustfs"];
 
 /// Oracle signs and notarizes its macOS MySQL binaries; this is its Apple Team ID.
@@ -44,7 +44,7 @@ pub fn validate_tool(tool: &str) -> Result<()> {
 pub fn validate_version(version: &str) -> Result<()> {
     let parts: Vec<_> = version.split('.').collect();
     ensure!(
-        (2..=3).contains(&parts.len())
+        (2..=4).contains(&parts.len())
             && parts
                 .iter()
                 .all(|p| !p.is_empty() && p.len() <= 6 && p.bytes().all(|c| c.is_ascii_digit())),
@@ -113,6 +113,36 @@ fn digest<D: Digest>(path: &Path) -> Result<String> {
 pub fn available(tool: &str) -> Result<Vec<Available>> {
     validate_tool(tool)?;
     match tool {
+        "jdk" => {
+            // Eclipse Temurin GA builds for Apple Silicon: the LTS lines and the newest one, three
+            // versions each; stored as "major.minor.security.build" (21.0.5+11 -> 21.0.5.11).
+            let base = "https://api.adoptium.net/v3/info";
+            let info: serde_json::Value = serde_json::from_slice(&fetch(&format!("{base}/available_releases"), 200_000)?)?;
+            let newest = info["most_recent_feature_release"].as_u64().unwrap_or(25);
+            let lts: Vec<u64> = info["available_lts_releases"].as_array().into_iter().flatten().filter_map(|v| v.as_u64()).filter(|m| *m >= 17).collect();
+            let mut majors: Vec<u64> = lts.clone();
+            if !majors.contains(&newest) { majors.push(newest); }
+            majors.sort_by(|a, b| b.cmp(a));
+            let mut out = vec![];
+            for major in majors {
+                let url = format!("{base}/release_versions?architecture=aarch64&os=mac&image_type=jdk&vendor=eclipse&release_type=ga&page_size=10&sort_order=DESC&project=jdk&version=%5B{major}%2C{}%29", major + 1);
+                let data: serde_json::Value = serde_json::from_slice(&fetch(&url, 500_000)?)?;
+                let mut count = 0;
+                for v in data["versions"].as_array().into_iter().flatten() {
+                    let (Some(m), Some(minor), Some(security), Some(build)) = (v["major"].as_u64(), v["minor"].as_u64(), v["security"].as_u64(), v["build"].as_u64()) else { continue };
+                    if m != major || v["patch"].as_u64().is_some_and(|p| p > 0) || count >= 3 {
+                        continue;
+                    }
+                    count += 1;
+                    out.push(Available {
+                        version: format!("{major}.{minor}.{security}.{build}"),
+                        label: Some(if lts.contains(&major) { format!("LTS · Java {major}") } else { format!("Java {major}") }),
+                        date: None,
+                    });
+                }
+            }
+            Ok(out)
+        }
         "node" => {
             let index: serde_json::Value =
                 serde_json::from_slice(&fetch("https://nodejs.org/dist/index.json", 8_000_000)?)?;
@@ -303,6 +333,7 @@ enum Verify {
 pub fn lifecycle(tool: &str) -> Result<serde_json::Value> {
     let product = match tool {
         "node" => "nodejs",
+        "jdk" => "eclipse-temurin",
         "postgres" => "postgresql",
         "mysql" | "redis" | "mongodb" | "valkey" | "php" | "caddy" | "meilisearch" => tool,
         _ => return Ok(serde_json::json!([])),
@@ -354,6 +385,22 @@ enum Build {
 
 fn source(tool: &str, version: &str) -> Source {
     match tool {
+        "jdk" => {
+            // 21.0.5.11 -> release jdk-21.0.5+11, file OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.5_11.tar.gz
+            let parts: Vec<&str> = version.split('.').collect();
+            let (major, semver, build) = (parts[0], parts[..3].join("."), parts.get(3).copied().unwrap_or("0"));
+            let archive = format!("OpenJDK{major}U-jdk_aarch64_mac_hotspot_{semver}_{build}.tar.gz");
+            let url = format!("https://github.com/adoptium/temurin{major}-binaries/releases/download/jdk-{semver}%2B{build}/{archive}");
+            Source {
+                checksum_url: format!("{url}.sha256.txt"),
+                url,
+                archive,
+                verify: Verify::Sha256,
+                strip: true,
+                build: Build::None,
+                layout: Layout::Tar,
+            }
+        }
         "node" => {
             let archive = format!("node-v{version}-darwin-arm64.tar.gz");
             Source {
@@ -464,6 +511,7 @@ fn source(tool: &str, version: &str) -> Source {
 pub fn executables(tool: &str) -> &'static [&'static str] {
     match tool {
         "node" => &["bin/node", "bin/npm", "bin/npx"],
+        "jdk" => &["Contents/Home/bin/java", "Contents/Home/bin/javac"],
         "mysql" => &["bin/mysqld", "bin/mysql", "bin/mysqldump"],
         "redis" => &["bin/redis-server", "bin/redis-cli"],
         "postgres" => &["bin/postgres", "bin/initdb", "bin/psql", "bin/pg_dump", "bin/pg_isready"],
@@ -843,7 +891,7 @@ mod tests {
             validate_version(v).unwrap();
         }
         validate_version("17.11").unwrap();
-        for v in ["22", "1.2.3.4", "1.2.x", "../1.2.3", "1.2.3; rm", "17."] {
+        for v in ["22", "1.2.3.4.5", "1.2.x", "../1.2.3", "1.2.3; rm", "17."] {
             assert!(validate_version(v).is_err(), "{v}");
         }
         assert!(validate_tool("php").is_err());

@@ -141,6 +141,21 @@ pub enum ProjectKind {
     Node,
     Static,
     Proxy,
+    /// Astro site: its dev server behind Caddy.
+    Astro,
+    /// EmDash (Astro + Cloudflare): build + `wrangler dev` behind Caddy.
+    Emdash,
+    /// Next.js: `next dev` behind Caddy.
+    Next,
+    /// Kotlin Multiplatform: the server module (`./gradlew :server:run`) behind Caddy.
+    Kmp,
+}
+
+impl ProjectKind {
+    /// Kinds served by proxying to a process of their own (a port Stack assigns).
+    pub fn proxied(&self) -> bool {
+        matches!(self, Self::Astro | Self::Emdash | Self::Next | Self::Kmp | Self::Node | Self::Proxy)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -169,6 +184,14 @@ pub struct Project {
     /// Sites start off; the user turns each one on (served and its processes running).
     #[serde(default)]
     pub enabled: bool,
+    /// Port of the site's own server (dev server, backend) that Caddy proxies to; Stack assigns
+    /// a free one so projects that all default to 4321 or 8080 never collide.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upstream: Option<u16>,
+    /// Environment for the site's processes (no secrets: those stay in the project's own files).
+    /// `{port}` and `{domain}` are replaced when a process starts.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub env: BTreeMap<String, String>,
 }
 
 impl Project {
@@ -215,7 +238,7 @@ impl Project {
         ensure!(
             self.runtime
                 .iter()
-                .all(|(key, value)| ["php", "node"].contains(&key.as_str())
+                .all(|(key, value)| ["php", "node", "jdk"].contains(&key.as_str())
                     && !value.is_empty()
                     && value.bytes().all(|c| c.is_ascii_digit() || c == b'.')),
             "invalid_runtime"
@@ -232,12 +255,25 @@ impl Project {
                 && s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')),
             "invalid_database"
         );
+        ensure!(self.upstream.is_none_or(|p| p >= 1024), "invalid_port");
+        ensure!(
+            self.env.len() <= 64
+                && self.env.iter().all(|(k, v)| {
+                    !k.is_empty() && k.len() <= 128 && k.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_') && !k.as_bytes()[0].is_ascii_digit()
+                        && v.len() <= 4096 && !v.contains('\0') && !v.contains('\n')
+                }),
+            "invalid_env"
+        );
+        if self.processes.iter().any(|p| p.program == "gradlew") {
+            let gradlew = self.path.join("gradlew");
+            ensure!(gradlew.is_file() && !std::fs::symlink_metadata(&gradlew)?.file_type().is_symlink(), "gradlew_missing");
+        }
         let mut names = std::collections::HashSet::new();
         for process in &self.processes {
             validate_id(&process.name)?;
             ensure!(names.insert(&process.name), "duplicate_process");
             ensure!(
-                ["php", "node", "npm", "composer"].contains(&process.program.as_str()),
+                ["php", "node", "npm", "npx", "corepack", "composer", "gradlew"].contains(&process.program.as_str()),
                 "invalid_program"
             );
             ensure!(
@@ -275,6 +311,8 @@ mod tests {
                 autostart: false,
             }],
             enabled: false,
+            upstream: None,
+            env: BTreeMap::new(),
         }
     }
     #[test]

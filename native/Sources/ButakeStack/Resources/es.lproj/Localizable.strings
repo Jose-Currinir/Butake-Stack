@@ -69,6 +69,10 @@
 "kind.node" = "Node";
 "kind.static" = "Estático";
 "kind.proxy" = "Proxy";
+"kind.astro" = "Astro";
+"kind.emdash" = "EmDash (Cloudflare)";
+"kind.next" = "Next.js";
+"kind.kmp" = "Kotlin Multiplatform";
 
 "process.autostart" = "Inicio automático";
 "process.logs" = "Ver registro";
@@ -528,3 +532,5 @@
 "env.downloadNotIgnored" = "%@ quedaría dentro del repositorio sin estar en .gitignore: agrégalo a .gitignore o elige otra carpeta.";
 "env.authDownload" = "descargar el entorno %@ con sus secretos";
 "env.downloaded" = "Descargado %@ (permisos 600)";
+"site.upstream" = "Servidor del sitio";
+"language.java.summary" = "JDK (Eclipse Temurin) para proyectos Kotlin y Java: Stack exporta JAVA_HOME a sus procesos.";

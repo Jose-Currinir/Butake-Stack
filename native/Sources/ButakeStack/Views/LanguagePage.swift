@@ -32,14 +32,14 @@ struct LanguagePage: View {
                     }
                     PhpCatalogSection(store: store)
                 } else {
-                    VersionsSection(store: store, info: ToolInfo.of(name))
+                    VersionsSection(store: store, info: ToolInfo.of(name == "java" ? "jdk" : name))
                 }
                 CardBlock(title: L("engine.sites"), symbol: "globe") {
-                    let users = store.projects.filter { name == "php" ? $0.php != nil : $0.node != nil }
+                    let users = store.projects.filter { name == "php" ? $0.php != nil : (name == "java" ? $0.runtime["jdk"] != nil : $0.node != nil) }
                     if users.isEmpty { Text(L("engine.noSites")).foregroundStyle(.secondary) }
                     ForEach(Array(users.enumerated()), id: \.element.id) { index, project in
                         if index > 0 { Divider() }
-                        SiteLinkRow(project: project, detail: "\(tech.title) \((name == "php" ? project.php : project.node) ?? "")") { store.openSite(project.id) }
+                        SiteLinkRow(project: project, detail: "\(tech.title) \((name == "php" ? project.php : (name == "java" ? project.runtime["jdk"] : project.node)) ?? "")") { store.openSite(project.id) }
                     }
                 }
             }
@@ -107,6 +107,7 @@ struct ToolInfo: Identifiable, Hashable {
         case "typesense": ToolInfo(id: id, title: "Typesense", source: "dl.typesense.org", verification: L("verify.httpsOnly"))
         case "rustfs": ToolInfo(id: id, title: "RustFS", source: "github.com/rustfs", verification: L("verify.sha256"))
         case "caddy": ToolInfo(id: "caddy", title: "Caddy", source: "github.com/caddyserver", verification: L("verify.sha512"))
+        case "java", "jdk": ToolInfo(id: "jdk", title: "JDK", source: "adoptium.net (Eclipse Temurin)", verification: L("verify.sha256"))
         default: ToolInfo(id: id, title: Tech.of(id).title, source: L("verify.official"), verification: L("verify.checksum"))
         }
     }
