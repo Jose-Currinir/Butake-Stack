@@ -23,8 +23,12 @@ pub struct Options {
     pub testing: String,
     pub database: String,
     pub git: bool,
-    /// Python line for Django and FastAPI (empty: uv's default, the newest installed).
+    /// Python line for Django and FastAPI (empty: the global one, else the newest installed).
     pub python: String,
+    /// Package manager for Django and FastAPI: `pip` (venv + pip, with CPython) or `uv`.
+    pub manager: String,
+    /// PHP line for Laravel (empty: the global one).
+    pub php: String,
 }
 
 fn package(kit: &str) -> Result<&'static str> {
@@ -50,7 +54,9 @@ pub fn validate_name(name: &str) -> Result<()> {
 }
 
 pub struct Runner {
-    path: String,
+    pub path: String,
+    /// More environment for every step (uv's interpreter, for instance).
+    pub extra: Vec<(String, String)>,
     home: String,
     /// Folder of the stack's php.ini for this PHP line (the binary's built-in path is the build machine's).
     phprc: String,
@@ -73,6 +79,7 @@ impl Runner {
             .env("COMPOSER_NO_INTERACTION", "1")
             .env("COREPACK_ENABLE_DOWNLOAD_PROMPT", "0")
             .env("CI", "1")
+            .envs(self.extra.iter().map(|(k, v)| (k.as_str(), v.as_str())))
             .stdin(Stdio::null())
             .stdout(log.try_clone()?)
             .stderr(log)
@@ -106,24 +113,20 @@ impl Toolchain {
             .or_else(|| tools::resolve(store, "node", ""))
             .map(|d| d.join("bin"));
         // Commands that project scripts call by name (Laravel's `install:features` runs `composer`
-        // and `npm`; lockfiles may ask for pnpm or yarn): small launchers onto the stack's own.
-        let bin = store.directory("run")?.join("toolchain");
+        // and `npm`; lockfiles may ask for pnpm or yarn): links to the real programs, no wrappers.
+        let bin = store.directory("run")?.join("toolchain").join(&series);
         fs::create_dir_all(&bin)?;
-        let quote = |p: &Path| format!("'{}'", p.to_string_lossy().replace('\'', "'\\''"));
-        let mut launchers = vec![("composer", format!("exec {} {} \"$@\"", quote(&php_root.join("bin/php")), quote(&php_root.join("composer.phar"))))];
-        if let Some(node) = &node_bin {
-            for tool in ["pnpm", "yarn"] {
-                launchers.push((tool, format!("exec {} {tool} \"$@\"", quote(&node.join("corepack")))));
-            }
-        }
-        for (name, line) in launchers {
-            let file = bin.join(name);
-            fs::write(&file, format!("#!/bin/sh\n{line}\n"))?;
-            fs::set_permissions(&file, std::os::unix::fs::PermissionsExt::from_mode(0o755))?;
-        }
+        let phar = php_root.join("composer.phar");
+        // composer.phar runs as a program (#!/usr/bin/env php, the PHP first on this PATH).
+        fs::set_permissions(&phar, std::os::unix::fs::PermissionsExt::from_mode(0o755))?;
+        crate::toolchains::replace_link(&phar, &bin.join("composer"))?;
+        let corepack = node_bin.as_deref().and_then(|node| crate::toolchains::corepack_dir(store, node));
         let mut path = vec![bin.to_string_lossy().into_owned(), php_root.join("bin").to_string_lossy().into_owned()];
         if let Some(node) = &node_bin {
             path.push(node.to_string_lossy().into_owned());
+        }
+        if let Some(dir) = corepack {
+            path.push(dir.to_string_lossy().into_owned());
         }
         path.push("/usr/bin:/bin:/usr/sbin:/sbin".into());
         let log = store.directory("logs")?.join(format!("{log_name}.log"));
@@ -135,6 +138,7 @@ impl Toolchain {
             series,
             node_bin,
             runner: Runner {
+                extra: vec![],
                 phprc,
                 path: path.join(":"),
                 home: dirs::home_dir().map(|h| h.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -223,6 +227,7 @@ fn node_runner(store: &Store, log_name: &str) -> Result<(PathBuf, Runner)> {
     let log = store.directory("logs")?.join(format!("{log_name}.log"));
     let _ = fs::remove_file(&log);
     let runner = Runner {
+        extra: vec![],
         path: format!("{}:/usr/bin:/bin:/usr/sbin:/sbin", node_bin.to_string_lossy()),
         home: dirs::home_dir().map(|h| h.to_string_lossy().into_owned()).unwrap_or_default(),
         phprc: String::new(),
@@ -275,14 +280,19 @@ fn preflight(store: &Store, options: &Options) -> Result<()> {
     let needs_node = matches!(options.kind.as_str(), "astro" | "emdash" | "next" | "vite" | "node")
         || (options.kind == "laravel" && options.kit != "none");
     if needs_php {
-        let series = config.versions.get("php").cloned().unwrap_or_else(|| "8.2".into());
+        let series = if options.php.is_empty() { config.versions.get("php").cloned().unwrap_or_else(|| "8.2".into()) } else { options.php.clone() };
         ensure!(crate::runtimes::manifest(store, &series).is_ok(), "php_not_installed");
     }
     if needs_node || options.kind == "react-native" {
         ensure!(tools::resolve(store, "node", "").is_some(), "node_not_installed");
     }
     match options.kind.as_str() {
-        "django" | "fastapi" => ensure!(tools::user_tool("uv").is_some(), "uv_not_installed"),
+        "django" | "fastapi" => {
+            ensure!(options.python.is_empty() || crate::python::validate_line(&options.python).is_ok(), "invalid_version");
+            ensure!(crate::python::resolve(store, &options.python).is_some(), "python_not_installed");
+            ensure!(["pip", "uv", ""].contains(&options.manager.as_str()), "invalid_manager");
+            ensure!(options.manager != "uv" || tools::user_tool("uv").is_some(), "uv_not_installed");
+        }
         "rust" => ensure!(tools::user_tool("cargo").is_some(), "cargo_not_installed"),
         "swift" => ensure!(git_available(), "clt_not_installed"),
         _ => {}
@@ -343,7 +353,7 @@ fn user_runner(store: &Store, options: &Options, node_bin: Option<&Path>) -> Res
     path.push("/usr/bin:/bin:/usr/sbin:/sbin".into());
     let log = store.directory("logs")?.join(format!("create-{}.log", options.name));
     let _ = fs::remove_file(&log);
-    Ok(Runner { path: path.join(":"), home: home.to_string_lossy().into_owned(), phprc: String::new(), log })
+    Ok(Runner { path: path.join(":"), home: home.to_string_lossy().into_owned(), phprc: String::new(), log, extra: vec![] })
 }
 
 fn pascal(name: &str) -> String {
@@ -355,24 +365,39 @@ fn pascal(name: &str) -> String {
         .to_string()
 }
 
-/// Django or FastAPI with uv: a project of its own (pyproject, lock, pinned Python).
+/// Django or FastAPI with the Python chosen (Stack's own CPython): `.venv` made with venv and pip,
+/// or with uv when chosen (then a uv project: pyproject and lock). `.python-version` keeps the line.
 fn create_python(store: &Store, options: &Options, notes: &mut Vec<String>) -> Result<Project> {
     let (parent, target) = target_of(options)?;
-    let uv = tools::user_tool("uv").ok_or_else(|| anyhow::anyhow!("uv_not_installed"))?;
-    let runner = user_runner(store, options, None)?;
-    let mut init = vec!["init", options.name.as_str(), "--app", "--vcs", "none", "--no-workspace"];
-    if !options.python.is_empty() {
-        ensure!(options.python.len() <= 10 && options.python.bytes().all(|c| c.is_ascii_digit() || c == b'.'), "invalid_version");
-        init.extend(["--python", options.python.as_str()]);
-    }
-    runner.run(&parent, &uv, &init)?;
-    let _ = fs::remove_file(target.join("main.py"));
-    if options.kind == "django" {
-        runner.run(&target, &uv, &["add", "django"])?;
-        runner.run(&target, &uv, &["run", "django-admin", "startproject", "config", "."])?;
-        runner.run(&target, &uv, &["run", "python", "manage.py", "migrate", "--noinput"])?;
+    let python = crate::python::resolve(store, &options.python).ok_or_else(|| anyhow::anyhow!("python_not_installed"))?;
+    let line = python.parent().and_then(Path::parent).and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut runner = user_runner(store, options, None)?;
+    let venv_bin = target.join(".venv/bin");
+    runner.path = format!("{}:{}:{}", venv_bin.display(), python.parent().unwrap().display(), runner.path);
+    let package = if options.kind == "django" { "django" } else { "fastapi[standard]" };
+    if options.manager == "uv" {
+        let uv = tools::user_tool("uv").ok_or_else(|| anyhow::anyhow!("uv_not_installed"))?;
+        let python_arg = python.to_string_lossy().into_owned();
+        // uv uses this interpreter and never downloads one of its own.
+        runner.extra = vec![("UV_PYTHON".into(), python_arg.clone()), ("UV_PYTHON_DOWNLOADS".into(), "never".into())];
+        runner.run(&parent, &uv, &["init", options.name.as_str(), "--app", "--vcs", "none", "--no-workspace", "--python", &python_arg])?;
+        let _ = fs::remove_file(target.join("main.py"));
+        runner.run(&target, &uv, &["add", package])?;
     } else {
-        runner.run(&target, &uv, &["add", "fastapi[standard]"])?;
+        fs::create_dir_all(&target)?;
+        runner.run(&target, &python, &["-m", "venv", ".venv"])?;
+        fs::write(target.join("requirements.txt"), format!("{package}\n"))?;
+        runner.run(&target, &venv_bin.join("python"), &["-m", "pip", "install", "--disable-pip-version-check", "-r", "requirements.txt"])?;
+        // Pin what was installed, so the project installs the same versions elsewhere.
+        let freeze = Command::new(venv_bin.join("python")).args(["-m", "pip", "freeze", "--disable-pip-version-check"]).current_dir(&target).env_clear().output()?;
+        if freeze.status.success() && !freeze.stdout.is_empty() { fs::write(target.join("requirements.txt"), &freeze.stdout)?; }
+    }
+    fs::write(target.join(".python-version"), format!("{line}\n"))?;
+    let python_bin = venv_bin.join("python");
+    if options.kind == "django" {
+        runner.run(&target, &venv_bin.join("django-admin"), &["startproject", "config", "."])?;
+        runner.run(&target, &python_bin, &["manage.py", "migrate", "--noinput"])?;
+    } else {
         let title = options.name.replace('"', "");
         fs::write(target.join("main.py"), format!("from fastapi import FastAPI\n\napp = FastAPI(title=\"{title}\")\n\n\n@app.get(\"/\")\ndef inicio():\n    return {{\"mensaje\": \"Hola desde FastAPI y Butake Stack\"}}\n\n\n@app.get(\"/salud\")\ndef salud():\n    return {{\"estado\": \"ok\"}}\n"))?;
     }
@@ -380,7 +405,9 @@ fn create_python(store: &Store, options: &Options, notes: &mut Vec<String>) -> R
         fs::write(target.join(".gitignore"), ".venv/\n__pycache__/\n*.pyc\ndb.sqlite3\n.env\n")?;
     }
     if options.git { git_init(&runner, &target, notes); }
-    register(store, &target)
+    let mut project = register(store, &target)?;
+    project.runtime.insert("python".into(), line);
+    store.save(project)
 }
 
 /// Rust with cargo: a web server (axum, reading PORT and HOST from Stack) or a command-line tool.
@@ -519,6 +546,7 @@ fn create_basic(store: &Store, options: &Options, notes: &mut Vec<String>) -> Re
     }
     if options.git {
         let runner = Runner {
+            extra: vec![],
             path: "/usr/bin:/bin".into(),
             home: dirs::home_dir().map(|h| h.to_string_lossy().into_owned()).unwrap_or_default(),
             phprc: String::new(),
@@ -540,7 +568,7 @@ fn create_laravel(store: &Store, options: &Options, notes: &mut Vec<String>) -> 
     let (parent, target) = target_of(options)?;
 
     let config = store.config()?;
-    let chain = Toolchain::new(store, None, None, &format!("create-{}", options.name))?;
+    let chain = Toolchain::new(store, (!options.php.is_empty()).then_some(options.php.as_str()), None, &format!("create-{}", options.name))?;
     let (php, runner, node_bin, series) = (&chain.php, &chain.runner, &chain.node_bin, chain.series.clone());
     let composer_arg = chain.composer.clone();
 

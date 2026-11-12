@@ -22,7 +22,7 @@ pub struct Options {
 }
 
 /// The user's home; tests (and QA) point it elsewhere with BUTAKE_DEVTOOLS_HOME.
-fn home() -> Result<PathBuf> {
+pub fn home() -> Result<PathBuf> {
     std::env::var_os("BUTAKE_DEVTOOLS_HOME").map(PathBuf::from).or_else(dirs::home_dir).ok_or_else(|| anyhow::anyhow!("no_home"))
 }
 fn arm() -> bool {
@@ -129,13 +129,24 @@ fn unzip(archive: &Path, into: &Path) -> Result<()> {
     Ok(())
 }
 
-/// `~/.local/bin` and `~/.cargo/bin` on the terminal's PATH, once, in a marked block of ~/.zprofile.
-fn shell_path() -> Result<()> {
+/// `~/.local/bin`, `~/.cargo/bin` and `~/.swiftly/bin` on the terminal's PATH, and `PHPRC` for the
+/// terminal's `php` (Stack's php.ini of the global version), in a marked block of ~/.zprofile that
+/// is rewritten in place when it changes.
+pub fn shell_path(store: &Store) -> Result<()> {
     let file = home()?.join(".zprofile");
     let text = fs::read_to_string(&file).unwrap_or_default();
-    if text.contains("# >>> Butake Stack >>>") { return Ok(()); }
-    let block = "\n# >>> Butake Stack >>>\n# Herramientas instaladas por Butake Stack (uv, gh, cloudflared, Wrangler, Rust).\nexport PATH=\"$HOME/.local/bin:$HOME/.cargo/bin:$PATH\"\n# <<< Butake Stack <<<\n";
-    fs::write(&file, text + block)?;
+    let phprc = store.root().join("config/php/current");
+    let phprc = phprc.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"").replace('$', "\\$").replace('`', "\\`");
+    let block = format!("# >>> Butake Stack >>>\n# Herramientas y lenguajes de Butake Stack (enlaces a los binarios reales).\nexport PATH=\"$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.swiftly/bin:$PATH\"\n[ -f \"{phprc}/php.ini\" ] && export PHPRC=\"{phprc}\"\n# <<< Butake Stack <<<\n");
+    let updated = match (text.find("# >>> Butake Stack >>>"), text.find("# <<< Butake Stack <<<")) {
+        (Some(start), Some(end)) if end > start => {
+            let end = end + "# <<< Butake Stack <<<".len();
+            let end = if text[end..].starts_with('\n') { end + 1 } else { end };
+            format!("{}{}{}", &text[..start], block, &text[end..])
+        }
+        _ => format!("{text}\n{block}"),
+    };
+    if updated != text { fs::write(&file, updated)?; }
     Ok(())
 }
 
@@ -177,13 +188,9 @@ pub fn install(store: &Store, options: &Options) -> Result<Value> {
             json!({"version": release["tag_name"], "path": home.join(".local/bin/uv")})
         }
         "python" => {
-            ensure!(!options.version.is_empty() && options.version.len() <= 10 && options.version.bytes().all(|c| c.is_ascii_digit() || c == b'.'), "invalid_version");
-            let uv = home.join(".local/bin/uv").is_file().then(|| home.join(".local/bin/uv")).or_else(|| tools::user_tool("uv")).context("uv_not_installed")?;
-            // A line already installed moves to its newest patch; otherwise it's installed.
-            let installed = managed_pythons(&uv)?.iter().any(|v| v.starts_with(&format!("{}.", options.version)));
-            let action = if installed { "upgrade" } else { "install" };
-            run(store, tool, &uv, &["python", action, &options.version], &[], &[], false)?;
-            json!({"version": options.version})
+            // Python is a Stack language now: CPython from python-build-standalone, in runtimes/python.
+            let manifest = crate::python::install(store, &options.version)?;
+            json!({"version": manifest.version})
         }
         "gh" => {
             let release = latest_release("cli/cli")?;
@@ -223,10 +230,12 @@ pub fn install(store: &Store, options: &Options) -> Result<Value> {
             let prefix = home.join(".local/share/butake-stack/npm");
             fs::create_dir_all(&prefix)?;
             run(store, tool, &node.join("npm"), &["install", "--global", "--no-fund", "--no-audit", "--prefix", &prefix.to_string_lossy(), "wrangler@latest"], &[node.clone()], &[], false)?;
+            // Wrangler's own entry point (#!/usr/bin/env node), linked; Node comes from the terminal's
+            // global Node (Stack links it when asked) or the site's.
             let launcher = home.join(".local/bin/wrangler");
             fs::create_dir_all(launcher.parent().unwrap())?;
-            fs::write(&launcher, format!("#!/bin/sh\n# Butake Stack: Wrangler con el Node de Stack.\nPATH=\"{}:$PATH\" exec \"{}\" \"$@\"\n", node.display(), prefix.join("bin/wrangler").display()))?;
-            fs::set_permissions(&launcher, std::os::unix::fs::PermissionsExt::from_mode(0o755))?;
+            if fs::symlink_metadata(&launcher).is_ok_and(|m| m.is_file() || m.file_type().is_symlink()) { fs::remove_file(&launcher)?; }
+            crate::toolchains::replace_link(&prefix.join("bin/wrangler"), &launcher)?;
             json!({"path": launcher})
         }
         "android-sdk" => {
@@ -267,20 +276,9 @@ pub fn install(store: &Store, options: &Options) -> Result<Value> {
         _ => unreachable!(),
     };
     if options.shell_path && tool != "android-sdk" && tool != "python" {
-        shell_path()?;
+        shell_path(store)?;
     }
     Ok(result)
-}
-
-/// Python versions uv manages (its own installs, not the system's or Homebrew's).
-fn managed_pythons(uv: &Path) -> Result<Vec<String>> {
-    let out = Command::new(uv).args(["python", "list", "--only-installed", "--output-format", "json"])
-        .env_clear().env("HOME", home()?).env("PATH", "/usr/bin:/bin").stderr(Stdio::null()).output()?;
-    let list: Value = serde_json::from_slice(&out.stdout).unwrap_or(Value::Null);
-    Ok(list.as_array().cloned().unwrap_or_default().into_iter()
-        .filter(|p| p["path"].as_str().is_some_and(|path| path.contains("/.local/share/uv/python/")))
-        .filter_map(|p| p["version"].as_str().map(str::to_string))
-        .collect())
 }
 
 /// Newest version of each tool at its source: GitHub releases (uv, gh, cloudflared), npm (Wrangler),
@@ -324,30 +322,24 @@ pub fn updates(store: &Store, latest: &Value) -> Result<Value> {
             out.insert(id.into(), json!({"installed": installed, "latest": newest, "update": newer(newest, installed)}));
         }
     }
-    // Python: each line uv manages, against that line's newest patch.
-    if let Some(uv) = tools::user_tool("uv") {
-        let mut lines = serde_json::Map::new();
-        for version in managed_pythons(&uv).unwrap_or_default() {
-            let line = version.split('.').take(2).collect::<Vec<_>>().join(".");
-            if let Some(newest) = latest["python"][&line].as_str() {
-                let entry = lines.entry(line.clone()).or_insert(json!({"installed": version, "latest": newest}));
-                if newer(&version, entry["installed"].as_str().unwrap_or("")) { entry["installed"] = json!(version); }
-                let installed = entry["installed"].as_str().unwrap_or("").to_string();
-                entry["update"] = json!(newer(newest, &installed));
-            }
+    // Python: each line Stack has, against that line's newest patch.
+    let mut lines = serde_json::Map::new();
+    for manifest in crate::python::installed(store) {
+        if let Some(newest) = latest["python"][&manifest.line].as_str() {
+            lines.insert(manifest.line.clone(), json!({"installed": manifest.version, "latest": newest, "update": newer(newest, &manifest.version)}));
         }
-        out.insert("python".into(), Value::Object(lines));
     }
+    out.insert("python".into(), Value::Object(lines));
     Ok(Value::Object(out))
 }
 
-/// Supported Python versions (endoflife.date), newest first, for uv to install.
+/// Python lines Stack can install (python-build-standalone's newest release) that are still
+/// supported, newest first: {version: line, latest: patch, eol}.
 pub fn python_versions() -> Result<Value> {
-    let data: Value = serde_json::from_slice(&tools::fetch("https://endoflife.date/api/python.json", 2_000_000)?)?;
     let today = chrono_today();
-    let list: Vec<Value> = data.as_array().cloned().unwrap_or_default().into_iter()
-        .filter(|c| c["eol"].as_str().is_some_and(|eol| eol > today.as_str()))
-        .map(|c| json!({"version": c["cycle"], "latest": c["latest"], "eol": c["eol"]}))
+    let list: Vec<Value> = crate::python::catalog()?.as_array().cloned().unwrap_or_default().into_iter()
+        .filter(|c| c["eol"].as_str().is_none_or(|eol| eol > today.as_str()))
+        .map(|c| json!({"version": c["line"], "latest": c["version"], "eol": c["eol"], "support": c["support"]}))
         .collect();
     Ok(Value::Array(list))
 }
@@ -369,11 +361,7 @@ mod tests {
     }
 }
 
-/// Python lines uv manages here ("3.13"…), for the environment backup.
-pub fn installed_pythons() -> Vec<String> {
-    let Some(uv) = tools::user_tool("uv") else { return vec![] };
-    let mut lines: Vec<String> = managed_pythons(&uv).unwrap_or_default().into_iter()
-        .map(|v| v.split('.').take(2).collect::<Vec<_>>().join(".")).collect();
-    lines.sort(); lines.dedup();
-    lines
+/// Python lines Stack has installed ("3.13"…), for the environment backup.
+pub fn installed_pythons(store: &Store) -> Vec<String> {
+    crate::python::installed(store).into_iter().map(|m| m.line).collect()
 }

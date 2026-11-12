@@ -174,7 +174,12 @@ impl Supervisor {
         if entry.task.as_ref().is_some_and(|task| !task.is_finished()) {
             return Ok(());
         }
-        let executable = entry.spec.executable.canonicalize()?;
+        // The folder is resolved, not the program: `.venv/bin/python` is a link and Python finds its
+        // virtual environment from the path it was started with.
+        let executable = match (entry.spec.executable.parent(), entry.spec.executable.file_name()) {
+            (Some(dir), Some(name)) => dir.canonicalize()?.join(name),
+            _ => anyhow::bail!("invalid_executable"),
+        };
         ensure!(executable.is_file(), "invalid_executable");
         let cwd = entry.spec.cwd.canonicalize()?;
         ensure!(cwd.is_dir(), "invalid_path");

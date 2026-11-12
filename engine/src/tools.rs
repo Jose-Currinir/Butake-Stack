@@ -340,7 +340,7 @@ pub fn lifecycle(tool: &str) -> Result<serde_json::Value> {
         "node" => "nodejs",
         "jdk" => "eclipse-temurin",
         "postgres" => "postgresql",
-        "mysql" | "redis" | "mongodb" | "valkey" | "php" | "caddy" | "meilisearch" => tool,
+        "mysql" | "redis" | "mongodb" | "valkey" | "php" | "caddy" | "meilisearch" | "python" | "rust" => tool,
         _ => return Ok(serde_json::json!([])),
     };
     let data: serde_json::Value = serde_json::from_slice(&fetch(&format!("https://endoflife.date/api/{product}.json"), 2_000_000)?)?;
@@ -543,7 +543,7 @@ fn tool_root(store: &Store, tool: &str) -> Result<PathBuf> {
     Ok(root)
 }
 
-fn check_tree(root: &Path) -> Result<()> {
+pub fn check_tree(root: &Path) -> Result<()> {
     let base = root.canonicalize()?;
     let mut pending = vec![base.clone()];
     while let Some(dir) = pending.pop() {
@@ -676,7 +676,7 @@ pub fn install(store: &Store, tool: &str, version: &str) -> Result<ToolManifest>
 }
 
 /// `codesign` checks the signature chain up to Apple and that the leaf belongs to `team`.
-fn verify_signature(path: &Path, team: &str) -> Result<()> {
+pub fn verify_signature(path: &Path, team: &str) -> Result<()> {
     let requirement = format!("=anchor apple generic and certificate leaf[subject.OU] = \"{team}\"");
     let status = Command::new("/usr/bin/codesign")
         .args(["--verify", "--strict", "-R", &requirement])
@@ -1007,6 +1007,10 @@ pub fn dev_tools(store: &Store) -> Result<serde_json::Value> {
         let newest = versions.iter().map(|m| m.version.clone()).max_by(|a, b| compare_versions(a, b));
         tools.insert(id.into(), serde_json::json!({"installed": newest.is_some(), "version": newest, "path": null}));
     }
+    let python = crate::python::installed(store);
+    tools.insert("python".into(), serde_json::json!({"installed": !python.is_empty(), "version": python.first().map(|m| m.version.clone()), "path": null}));
+    let swiftly = crate::devtools::home().map(|h| h.join(".swiftly/bin/swiftly")).ok().filter(|p| p.is_file());
+    tools.insert("swiftly".into(), serde_json::json!({"installed": swiftly.is_some(), "version": null, "path": swiftly}));
     let php = crate::runtimes::list(store);
     let newest_php = php.iter().filter(|r| r.installed).map(|r| r.series.clone()).max_by(|a, b| compare_versions(a, b));
     tools.insert("php".into(), serde_json::json!({"installed": newest_php.is_some(), "version": newest_php, "path": null}));

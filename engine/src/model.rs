@@ -149,9 +149,9 @@ pub enum ProjectKind {
     Next,
     /// Kotlin Multiplatform: the server module (`./gradlew :server:run`) behind Caddy.
     Kmp,
-    /// Django: `manage.py runserver` through uv, behind Caddy.
+    /// Django: `manage.py runserver` with the project's `.venv/bin/python`, behind Caddy.
     Django,
-    /// FastAPI: uvicorn through uv, behind Caddy.
+    /// FastAPI: uvicorn with the project's `.venv/bin/python`, behind Caddy.
     Fastapi,
     /// Rust web server (axum, actix-web, rocket…): `cargo run` behind Caddy.
     Rust,
@@ -279,7 +279,7 @@ impl Project {
             validate_id(&process.name)?;
             ensure!(names.insert(&process.name), "duplicate_process");
             ensure!(
-                ["php", "node", "npm", "npx", "corepack", "composer", "gradlew", "uv", "cargo"].contains(&process.program.as_str()),
+                ["php", "node", "npm", "npx", "corepack", "composer", "gradlew", "uv", "cargo", "python"].contains(&process.program.as_str()),
                 "invalid_program"
             );
             ensure!(

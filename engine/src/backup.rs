@@ -48,7 +48,7 @@ pub fn export(store: &Store, profiles: Vec<String>) -> Result<Value> {
             environments.insert(id.into(), serde_json::to_value(envs)?);
         }
     }
-    let python = crate::devtools::installed_pythons();
+    let python = crate::devtools::installed_pythons(store);
     Ok(json!({
         "format": FORMAT, "version": 1,
         "stackVersion": env!("CARGO_PKG_VERSION"),
@@ -86,7 +86,7 @@ pub fn plan(store: &Store, data: &Value) -> Result<Value> {
     }
     let dev = tools::dev_tools(store)?;
     let devtools: Vec<&Value> = data["devtools"].as_array().map(|a| a.iter().filter(|id| id.as_str().is_some_and(|id| dev[id]["installed"] != true)).collect()).unwrap_or_default();
-    let have_python = crate::devtools::installed_pythons();
+    let have_python = crate::devtools::installed_pythons(store);
     let python: Vec<&Value> = data["python"].as_array().map(|a| a.iter().filter(|v| v.as_str().is_some_and(|line| !have_python.iter().any(|h| h == line))).collect()).unwrap_or_default();
     let registered: Vec<String> = store.list()?.into_iter().map(|p| p.id).chain(store.missing()?.into_iter().map(|(id, _)| id)).collect();
     let sites: Vec<Value> = data["sites"].as_array().into_iter().flatten().map(|site| {

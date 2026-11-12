@@ -88,21 +88,6 @@ fn real_home() -> String {
         .unwrap_or_else(|| "/tmp".into())
 }
 
-/// `shims/pnpm` and `shims/yarn`: two-line scripts that run them through corepack.
-fn package_manager_shims(store: &Store) -> Result<PathBuf> {
-    use std::os::unix::fs::PermissionsExt;
-    let dir = store.directory("shims")?;
-    for tool in ["pnpm", "yarn"] {
-        let file = dir.join(tool);
-        let content = format!("#!/bin/sh\nexec corepack {tool} \"$@\"\n");
-        if std::fs::read_to_string(&file).ok().as_deref() != Some(content.as_str()) {
-            crate::services::write_private(&file, &content)?;
-            std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o700))?;
-        }
-    }
-    Ok(dir)
-}
-
 pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
     let config = store.config()?;
     // Only sites the user turned on are served and run their processes.
@@ -219,15 +204,22 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                 .or_else(|| crate::tools::resolve(store, "jdk", "")))
             .flatten()
             .map(|root| root.join("Contents/Home"));
+        // Python sites: the project's virtual environment first (its scripts, its interpreter).
+        let venv = project.path.join(".venv");
+        let python_site = matches!(project.kind, crate::model::ProjectKind::Django | crate::model::ProjectKind::Fastapi);
         let mut path = vec![php_bin.to_string_lossy().into_owned()];
+        if python_site {
+            path.insert(0, venv.join("bin").to_string_lossy().into_owned());
+        }
         if let Some(java) = &java_home {
             path.insert(0, java.join("bin").to_string_lossy().into_owned());
         }
         if let Some(node) = &node_bin {
             path.push(node.to_string_lossy().into_owned());
-            // `pnpm` and `yarn` as commands (project scripts call them directly), through Node's corepack.
-            if let Ok(shims) = package_manager_shims(store) {
-                path.push(shims.to_string_lossy().into_owned());
+            // `pnpm` and `yarn` as commands (project scripts call them directly): corepack's own
+            // links for this Node (`corepack enable --install-directory`), made once per version.
+            if let Some(dir) = crate::toolchains::corepack_dir(store, node) {
+                path.push(dir.to_string_lossy().into_owned());
             }
         }
         // rustup's and uv's own folders, for Rust and Python projects (and the scripts they run).
@@ -256,6 +248,8 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                 ),
                 "gradlew" => (Some(project.path.join("gradlew")), vec![]),
                 "uv" | "cargo" => (crate::tools::user_tool(&process.program), vec![]),
+                // Stack makes `.venv` with the Python the site asks for; without it the site stays stopped.
+                "python" => (Some(venv.join("bin/python")), vec![]),
                 program => (node_bin.as_ref().map(|b| b.join(program)), vec![]),
             };
             let available = executable.as_ref().is_some_and(|e| e.exists());
@@ -286,6 +280,10 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                     environment.insert("PHPRC".into(), store.root().join("config/php").join(&php_series).to_string_lossy().into_owned());
                     if let Some(java) = &java_home {
                         environment.insert("JAVA_HOME".into(), java.to_string_lossy().into_owned());
+                    }
+                    if python_site {
+                        environment.insert("VIRTUAL_ENV".into(), venv.to_string_lossy().into_owned());
+                        environment.insert("PYTHONUNBUFFERED".into(), "1".into());
                     }
                     environment.into_iter().collect()
                 },

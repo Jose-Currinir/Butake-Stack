@@ -169,13 +169,6 @@ fn python_dependencies(path: &Path) -> String {
     }
     text.to_lowercase()
 }
-/// A requirements file for uv when the project has no pyproject (uv then installs from it).
-fn requirements_file(path: &Path) -> Option<String> {
-    (!path.join("pyproject.toml").is_file())
-        .then(|| ["requirements.txt", "requirements/dev.txt", "requirements/base.txt"].into_iter().find(|f| path.join(f).is_file()))
-        .flatten()
-        .map(str::to_string)
-}
 /// The module that creates the FastAPI app (`main`, `app.main`…).
 fn fastapi_module(path: &Path) -> String {
     for (file, module) in [("main.py", "main"), ("app/main.py", "app.main"), ("src/main.py", "src.main"), ("app.py", "app"), ("api/main.py", "api.main")] {
@@ -399,18 +392,15 @@ pub fn detect(path: &Path) -> Result<Detection> {
             runtime.insert("node".into(), node_line.clone());
         }
         ProjectKind::Django | ProjectKind::Fastapi => {
-            // uv runs it in the project's own environment (and Python version), installing what's missing.
-            let mut args = vec!["run".to_string()];
-            if let Some(requirements) = requirements_file(&path) {
-                args.extend(["--with-requirements".into(), requirements]);
-            }
-            if kind == ProjectKind::Django {
-                args.extend(["python", "manage.py", "runserver", "127.0.0.1:{port}"].map(String::from));
+            // The project's own interpreter (`.venv/bin/python`, made by Stack with the Python the
+            // project asks for), run directly: no uv or other launcher in between.
+            let args: Vec<String> = if kind == ProjectKind::Django {
+                ["manage.py", "runserver", "127.0.0.1:{port}"].map(String::from).to_vec()
             } else {
                 let module = fastapi_module(&path);
-                args.extend(["--with".into(), "uvicorn".into(), "uvicorn".into(), format!("{module}:app"), "--host".into(), "127.0.0.1".into(), "--port".into(), "{port}".into(), "--reload".into()]);
-            }
-            push("server", ("uv".into(), args), true);
+                vec!["-m".into(), "uvicorn".into(), format!("{module}:app"), "--host".into(), "127.0.0.1".into(), "--port".into(), "{port}".into(), "--reload".into()]
+            };
+            push("server", ("python".into(), args), true);
             site_env.insert("PORT".into(), "{port}".into());
             // `.python-version` (uv, pyenv): only a plain version number is kept.
             if let Some(version) = read_small(&path.join(".python-version"), 64).map(|v| v.trim().to_string())
@@ -654,8 +644,8 @@ include(":server")"#), ("gradlew", "#!/bin/sh")]);
         let django = make("tienda", &[("manage.py", ""), ("requirements.txt", "Django==5.2\n"), (".python-version", "3.12\n")]);
         let d = detect(&django).unwrap().project;
         assert_eq!(d.kind, ProjectKind::Django);
-        assert_eq!(d.processes[0].program, "uv");
-        assert!(d.processes[0].args.join(" ").contains("--with-requirements requirements.txt python manage.py runserver 127.0.0.1:{port}"));
+        assert_eq!(d.processes[0].program, "python");
+        assert_eq!(d.processes[0].args.join(" "), "manage.py runserver 127.0.0.1:{port}");
         assert_eq!(d.runtime.get("python").map(String::as_str), Some("3.12"));
         let api = make("api", &[("pyproject.toml", "[project]\ndependencies = [\"fastapi>=0.115\"]\n"), ("app/main.py", "app = FastAPI()\n")]);
         let a = detect(&api).unwrap().project;

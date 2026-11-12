@@ -12,6 +12,8 @@ mod dns;
 mod listeners;
 mod services;
 mod tools;
+mod python;
+mod toolchains;
 mod logs;
 mod model;
 mod runtimes;
@@ -159,6 +161,8 @@ fn dispatch(request: Value) -> Result<Value> {
                 database: request["database"].as_str().unwrap_or("sqlite").into(),
                 git: request["git"].as_bool().unwrap_or(true),
                 python: request["python"].as_str().unwrap_or("").into(),
+                manager: request["manager"].as_str().unwrap_or("pip").into(),
+                php: request["php"].as_str().unwrap_or("").into(),
             };
             anyhow::ensure!(options.parent.is_absolute(), "invalid_path");
             let created = scaffold::create(&store, &options)?;
@@ -260,7 +264,7 @@ fn dispatch(request: Value) -> Result<Value> {
         "projectVersions" => cache::cached(&store, "project-versions", 12 * 3600, request["refresh"] == true, scaffold::versions),
         "lifecycle" => {
             let tool = request["tool"].as_str().unwrap_or("");
-            tools::validate_tool(tool)?;
+            anyhow::ensure!(tools::validate_tool(tool).is_ok() || ["php", "python", "rust"].contains(&tool), "unknown_tool");
             cache::cached(&store, &format!("lifecycle-{tool}"), 24 * 3600, request["refresh"] == true, || tools::lifecycle(tool))
         }
         "installedTools" => {
@@ -325,6 +329,102 @@ fn dispatch(request: Value) -> Result<Value> {
             services::import_engine_data(&store, engine, &path)?;
             Ok(json!(true))
         }
+        // ---- Python (python-build-standalone) and versions per language ----
+        "pythonCatalog" => cache::cached(&store, "python-catalog", 6 * 3600, request["refresh"] == true, python::catalog),
+        "listPythonRuntimes" => Ok(serde_json::to_value(python::installed(&store))?),
+        "installPython" => {
+            anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
+            let manifest = python::install(&store, request["line"].as_str().unwrap_or(""))?;
+            let _ = daemon::request_sync(&store, "reload", json!({}), false);
+            Ok(serde_json::to_value(manifest)?)
+        }
+        "removePython" => {
+            anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
+            python::remove(&store, request["line"].as_str().unwrap_or(""))?;
+            let _ = daemon::request_sync(&store, "reload", json!({}), false);
+            Ok(json!(true))
+        }
+        "preparePython" => {
+            let project = store.get(id)?;
+            let log = store.directory("logs")?.join(format!("python-{id}.log"));
+            let _ = std::fs::remove_file(&log);
+            let result = python::prepare(&store, &project, request["manager"].as_str().unwrap_or("pip"), request["recreate"] == true, &log)?;
+            let _ = daemon::request_sync(&store, "reload", json!({}), false);
+            for process in &project.processes {
+                let _ = daemon::request_sync(&store, "restart", json!({"id": format!("{}.{}", id, process.name)}), false);
+            }
+            Ok(result)
+        }
+        "frameworkRequirement" => {
+            let framework = request["framework"].as_str().unwrap_or("");
+            anyhow::ensure!(["django", "fastapi", "laravel"].contains(&framework), "unknown_framework");
+            let mut info = cache::cached(&store, &format!("requires-{framework}"), 12 * 3600, request["refresh"] == true, || python::framework_requirement(framework))?;
+            let requirement = info["requirement"].as_str().unwrap_or("").to_string();
+            // Lines Stack offers for that language, compatible or not.
+            let lines: Vec<String> = if info["language"] == "python" {
+                let catalog = cache::cached(&store, "python-catalog", 6 * 3600, false, python::catalog).unwrap_or(json!([]));
+                let mut lines: Vec<String> = catalog.as_array().into_iter().flatten().filter_map(|c| c["line"].as_str().map(str::to_string)).collect();
+                lines.extend(python::installed(&store).into_iter().map(|m| m.line));
+                lines
+            } else {
+                let catalog = cache::cached(&store, "php-catalog", 6 * 3600, false, || Ok(json!(runtimes::php_catalog()?))).unwrap_or(json!([]));
+                let mut lines: Vec<String> = catalog.as_array().into_iter().flatten().filter_map(|c| c["series"].as_str().map(str::to_string)).collect();
+                lines.extend(runtimes::list(&store).into_iter().filter(|r| r.installed).map(|r| r.series));
+                lines
+            };
+            let mut lines: Vec<String> = lines.into_iter().collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+            lines.sort_by_key(|l| std::cmp::Reverse(l.split('.').map(|p| p.parse::<u32>().unwrap_or(0)).collect::<Vec<_>>()));
+            let compatible: Vec<&String> = lines.iter().filter(|l| python::satisfies(&requirement, l)).collect();
+            info["lines"] = json!(lines);
+            info["compatible"] = json!(compatible);
+            Ok(info)
+        }
+        "setGlobalVersion" => {
+            let language = request["language"].as_str().unwrap_or("");
+            anyhow::ensure!(["php", "node", "jdk", "python"].contains(&language), "unknown_language");
+            let version = request["version"].as_str().unwrap_or("");
+            let mut config = store.config()?;
+            if version.is_empty() { config.versions.remove(language); } else { config.versions.insert(language.into(), version.into()); }
+            store.save_config(&config)?;
+            // The terminal follows the global version when the user linked that language.
+            if toolchains::terminal_status(&store).get(language).is_some() && !version.is_empty() {
+                toolchains::link_terminal(&store, language, version)?;
+            }
+            let _ = daemon::request_sync(&store, "reload", json!({}), false);
+            Ok(serde_json::to_value(config)?)
+        }
+        "terminalStatus" => Ok(toolchains::terminal_status(&store)),
+        "terminalPlan" => toolchains::terminal_plan(&store, request["language"].as_str().unwrap_or(""), request["version"].as_str().unwrap_or("")),
+        "linkTerminal" => {
+            anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
+            toolchains::link_terminal(&store, request["language"].as_str().unwrap_or(""), request["version"].as_str().unwrap_or(""))
+        }
+        "unlinkTerminal" => {
+            anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
+            toolchains::unlink_terminal(&store, request["language"].as_str().unwrap_or(""))
+        }
+        "setSiteVersion" => {
+            let project = toolchains::set_site_version(&store, id, request["language"].as_str().unwrap_or(""), request["version"].as_str().unwrap_or(""))?;
+            let _ = daemon::request_sync(&store, "reload", json!({}), false);
+            Ok(serde_json::to_value(project)?)
+        }
+        "siteVersionFiles" => Ok(toolchains::site_files(&store.get(id)?.path)),
+        "rustToolchains" => toolchains::rust_toolchains(),
+        "rustToolchain" => {
+            let action = request["action"].as_str().unwrap_or("");
+            anyhow::ensure!(action == "default" || request["confirmed"] == true, "confirmation_required");
+            toolchains::rust_action(action, request["toolchain"].as_str().unwrap_or(""))
+        }
+        "swiftToolchains" => toolchains::swift_toolchains(request["available"] == true),
+        "swiftToolchain" => {
+            let action = request["action"].as_str().unwrap_or("");
+            anyhow::ensure!(action == "default" || request["confirmed"] == true, "confirmation_required");
+            toolchains::swift_action(action, request["version"].as_str().unwrap_or(""))
+        }
+        "installSwiftly" => {
+            anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
+            toolchains::install_swiftly(&store)
+        }
         "stackStatus" => daemon::request_sync(&store, "stackStatus", json!({}), false),
         "reloadStack" => daemon::request_sync(&store, "reload", json!({}), false),
         "listPhpRuntimes" => Ok(serde_json::to_value(runtimes::list(&store))?),
@@ -381,7 +481,7 @@ const PUBLIC_ERRORS: &[&str] = &[
     "scaffold_step_failed", "kmp_use_wizard", "unknown_template", "domain_in_use",
     "postgres_not_installed", "postgres_command_failed", "no_free_port", "invalid_group_name",
     "checksum_mismatch", "checksum_not_found", "devtool_step_failed", "licenses_not_accepted", "jdk_not_installed",
-    "uv_not_installed", "download_failed", "signature_invalid", "cargo_not_installed", "clt_not_installed", "invalid_backup", "clone_failed", "invalid_remote",
+    "uv_not_installed", "python_not_installed", "swiftly_not_installed", "version_not_in_catalog", "download_failed", "signature_invalid", "cargo_not_installed", "clt_not_installed", "invalid_backup", "clone_failed", "invalid_remote",
 ];
 
 #[tokio::main]
