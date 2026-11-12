@@ -161,6 +161,66 @@ fn kmp_server(path: &Path) -> Option<&'static str> {
     [":server", ":backend"].into_iter().find(|m| settings.contains(&format!("\"{m}\"")) || settings.contains(&format!("'{m}'")))
 }
 
+/// Lowercased text of a Python project's dependency files (pyproject, requirements*.txt).
+fn python_dependencies(path: &Path) -> String {
+    let mut text = read_small(&path.join("pyproject.toml"), 1_048_576).unwrap_or_default();
+    for name in ["requirements.txt", "requirements/base.txt", "requirements/dev.txt", "requirements-dev.txt"] {
+        text.push_str(&read_small(&path.join(name), 1_048_576).unwrap_or_default());
+    }
+    text.to_lowercase()
+}
+/// A requirements file for uv when the project has no pyproject (uv then installs from it).
+fn requirements_file(path: &Path) -> Option<String> {
+    (!path.join("pyproject.toml").is_file())
+        .then(|| ["requirements.txt", "requirements/dev.txt", "requirements/base.txt"].into_iter().find(|f| path.join(f).is_file()))
+        .flatten()
+        .map(str::to_string)
+}
+/// The module that creates the FastAPI app (`main`, `app.main`…).
+fn fastapi_module(path: &Path) -> String {
+    for (file, module) in [("main.py", "main"), ("app/main.py", "app.main"), ("src/main.py", "src.main"), ("app.py", "app"), ("api/main.py", "api.main")] {
+        if read_small(&path.join(file), 1_048_576).is_some_and(|t| t.contains("FastAPI(")) {
+            return module.into();
+        }
+    }
+    "main".into()
+}
+const RUST_WEB: [&str; 9] = ["axum", "actix-web", "rocket", "warp", "poem", "salvo", "tide", "loco-rs", "hyper"];
+fn rust_web(path: &Path) -> bool {
+    read_small(&path.join("Cargo.toml"), 1_048_576).is_some_and(|toml| {
+        let deps = toml.split("[dependencies]").nth(1).unwrap_or("");
+        RUST_WEB.iter().any(|crate_name| deps.lines().any(|l| l.trim_start().starts_with(&format!("{crate_name} ")) || l.trim_start().starts_with(&format!("{crate_name}="))))
+    })
+}
+/// What a project is built with, also for projects Stack doesn't serve (apps, libraries, CLIs):
+/// shown when importing a folder of projects.
+pub fn technology(path: &Path) -> Option<&'static str> {
+    let package: Value = read_small(&path.join("package.json"), 1_048_576).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+    let gradle = ["build.gradle.kts", "build.gradle", "settings.gradle.kts", "settings.gradle"]
+        .iter()
+        .filter_map(|f| read_small(&path.join(f), 1_048_576))
+        .collect::<String>();
+    let xcode = std::fs::read_dir(path).ok().is_some_and(|entries| entries.flatten().any(|e| {
+        let name = e.file_name().to_string_lossy().into_owned();
+        name.ends_with(".xcodeproj") || name.ends_with(".xcworkspace")
+    }));
+    Some(if has_dep(&package, "react-native") || has_dep(&package, "expo") {
+        "react-native"
+    } else if path.join("Cargo.toml").is_file() {
+        "rust"
+    } else if path.join("manage.py").is_file() || path.join("pyproject.toml").is_file() || path.join("requirements.txt").is_file() {
+        "python"
+    } else if path.join("Package.swift").is_file() || xcode {
+        "swift"
+    } else if gradle.contains("multiplatform") || path.join("composeApp").is_dir() || path.join("shared").is_dir() && !gradle.is_empty() {
+        "kmp"
+    } else if gradle.contains("com.android.application") || path.join("app/src/main/AndroidManifest.xml").is_file() {
+        "android"
+    } else {
+        return None;
+    })
+}
+
 pub fn detect(path: &Path) -> Result<Detection> {
     let path = path.canonicalize()?;
     ensure!(path.is_dir(), "invalid_path");
@@ -182,6 +242,12 @@ pub fn detect(path: &Path) -> Result<Detection> {
         (ProjectKind::Laravel, PathBuf::from("public"))
     } else if path.join("index.php").is_file() || composer.is_object() {
         (ProjectKind::Php, PathBuf::from("."))
+    } else if path.join("manage.py").is_file() && python_dependencies(&path).contains("django") {
+        (ProjectKind::Django, PathBuf::from("."))
+    } else if python_dependencies(&path).contains("fastapi") {
+        (ProjectKind::Fastapi, PathBuf::from("."))
+    } else if rust_web(&path) {
+        (ProjectKind::Rust, PathBuf::from("."))
     } else if kmp_server(&path).is_some() {
         (ProjectKind::Kmp, PathBuf::from("."))
     } else if has_dep(&package, "emdash") {
@@ -190,7 +256,7 @@ pub fn detect(path: &Path) -> Result<Detection> {
         (ProjectKind::Astro, PathBuf::from("."))
     } else if has_dep(&package, "next") {
         (ProjectKind::Next, PathBuf::from("."))
-    } else if package.is_object() {
+    } else if package.is_object() && !has_dep(&package, "react-native") && !has_dep(&package, "expo") {
         (ProjectKind::Node, PathBuf::from("."))
     } else {
         (ProjectKind::Static, PathBuf::from("."))
@@ -332,6 +398,34 @@ pub fn detect(path: &Path) -> Result<Detection> {
             }
             runtime.insert("node".into(), node_line.clone());
         }
+        ProjectKind::Django | ProjectKind::Fastapi => {
+            // uv runs it in the project's own environment (and Python version), installing what's missing.
+            let mut args = vec!["run".to_string()];
+            if let Some(requirements) = requirements_file(&path) {
+                args.extend(["--with-requirements".into(), requirements]);
+            }
+            if kind == ProjectKind::Django {
+                args.extend(["python", "manage.py", "runserver", "127.0.0.1:{port}"].map(String::from));
+            } else {
+                let module = fastapi_module(&path);
+                args.extend(["--with".into(), "uvicorn".into(), "uvicorn".into(), format!("{module}:app"), "--host".into(), "127.0.0.1".into(), "--port".into(), "{port}".into(), "--reload".into()]);
+            }
+            push("server", ("uv".into(), args), true);
+            site_env.insert("PORT".into(), "{port}".into());
+            // `.python-version` (uv, pyenv): only a plain version number is kept.
+            if let Some(version) = read_small(&path.join(".python-version"), 64).map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty() && v.bytes().all(|c| c.is_ascii_digit() || c == b'.')) {
+                runtime.insert("python".into(), version);
+            }
+        }
+        ProjectKind::Rust => {
+            push("server", ("cargo".into(), vec!["run".into()]), true);
+            // The usual ways Rust servers read their address; a hard-coded port needs editing the code.
+            for (k, v) in [("PORT", "{port}"), ("HOST", "127.0.0.1"), ("ROCKET_PORT", "{port}"), ("ROCKET_ADDRESS", "127.0.0.1"), ("BIND_ADDRESS", "127.0.0.1:{port}")] {
+                site_env.insert(k.into(), v.into());
+            }
+            notes.push("rust_port".into());
+        }
         ProjectKind::Kmp => {
             if let Some(module) = kmp_server(&path) {
                 push("server", ("gradlew".into(), vec![format!("{module}:run")]), true);
@@ -375,9 +469,10 @@ pub fn detect(path: &Path) -> Result<Detection> {
 }
 
 /// Files that mark a folder as a project (any of them).
-const PROJECT_MARKERS: [&str; 11] = [
+const PROJECT_MARKERS: [&str; 16] = [
     "composer.json", "package.json", "artisan", "index.php", "index.html", "gradlew",
     "settings.gradle.kts", "settings.gradle", ".git", "public/index.php", "astro.config.mjs",
+    "Cargo.toml", "pyproject.toml", "manage.py", "requirements.txt", "Package.swift",
 ];
 const SKIP: [&str; 6] = ["node_modules", "vendor", "build", "dist", "target", "Library"];
 
@@ -412,7 +507,7 @@ pub fn scan(root: &Path) -> Result<serde_json::Value> {
         if let Ok(detection) = detect(path) {
             // Something a browser can show: a kind with a server, or a static site with its index.html.
             let web = detection.project.kind != ProjectKind::Static || path.join("index.html").is_file();
-            found.push(serde_json::json!({"group": group, "web": web, "detection": detection}));
+            found.push(serde_json::json!({"group": group, "web": web, "tech": technology(path), "detection": detection}));
         }
     };
     for child in children(&root) {
@@ -542,6 +637,40 @@ include(":server")"#), ("gradlew", "#!/bin/sh")]);
             .collect();
         assert_eq!(found, vec![("Apps".into(), "api".into()), ("Apps".into(), "web".into()), ("".into(), "blog".into())]);
         assert_eq!(result["rootIsProject"], false);
+    }
+
+    #[test]
+    fn detects_python_and_rust_servers_and_other_technologies() {
+        let temp = tempfile::tempdir().unwrap();
+        let make = |dir: &str, files: &[(&str, &str)]| {
+            let root = temp.path().join(dir);
+            for (file, body) in files {
+                let path = root.join(file);
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(path, body).unwrap();
+            }
+            root
+        };
+        let django = make("tienda", &[("manage.py", ""), ("requirements.txt", "Django==5.2\n"), (".python-version", "3.12\n")]);
+        let d = detect(&django).unwrap().project;
+        assert_eq!(d.kind, ProjectKind::Django);
+        assert_eq!(d.processes[0].program, "uv");
+        assert!(d.processes[0].args.join(" ").contains("--with-requirements requirements.txt python manage.py runserver 127.0.0.1:{port}"));
+        assert_eq!(d.runtime.get("python").map(String::as_str), Some("3.12"));
+        let api = make("api", &[("pyproject.toml", "[project]\ndependencies = [\"fastapi>=0.115\"]\n"), ("app/main.py", "app = FastAPI()\n")]);
+        let a = detect(&api).unwrap().project;
+        assert_eq!(a.kind, ProjectKind::Fastapi);
+        assert!(a.processes[0].args.join(" ").contains("uvicorn app.main:app --host 127.0.0.1 --port {port}"));
+        let server = make("servidor", &[("Cargo.toml", "[package]\nname = \"s\"\n\n[dependencies]\naxum = \"0.8\"\n")]);
+        assert_eq!(detect(&server).unwrap().project.kind, ProjectKind::Rust);
+        let cli = make("cli", &[("Cargo.toml", "[package]\nname = \"c\"\n\n[dependencies]\nclap = \"4\"\n")]);
+        assert_eq!(detect(&cli).unwrap().project.kind, ProjectKind::Static);
+        assert_eq!(technology(&cli), Some("rust"));
+        let mobile = make("movil", &[("package.json", "{\"dependencies\":{\"react-native\":\"0.80\"}}")]);
+        assert_eq!(detect(&mobile).unwrap().project.kind, ProjectKind::Static);
+        assert_eq!(technology(&mobile), Some("react-native"));
+        let swift = make("app", &[("Package.swift", "// swift-tools-version:6.0")]);
+        assert_eq!(technology(&swift), Some("swift"));
     }
 
 }

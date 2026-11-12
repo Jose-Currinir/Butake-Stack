@@ -16,6 +16,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.activate(ignoringOtherApps: true)
             }
             #if DEBUG
+            if StackStore.qaWindow, ProcessInfo.processInfo.environment["BUTAKE_QA_SETUP"] != nil {
+                Task { try? await Task.sleep(for: .seconds(2)); StackStore.shared.showSetup = true }
+            }
             if StackStore.qaWindow, let folder = ProcessInfo.processInfo.environment["BUTAKE_QA_OPEN_FOLDER"] {
                 Task { try? await Task.sleep(for: .seconds(2)); await StackStore.shared.openFolder(folder, scan: true) }
             }

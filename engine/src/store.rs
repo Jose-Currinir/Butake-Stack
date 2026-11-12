@@ -156,7 +156,8 @@ impl Store {
             .filter_map(|p| p.upstream)
             .chain(config.engines.keys().map(|e| crate::engines::port(config, e)))
             .collect();
-        let range = if project.kind == crate::model::ProjectKind::Kmp { 18100..19000 } else { 4400..5000 };
+        use crate::model::ProjectKind as K;
+        let range = if matches!(project.kind, K::Kmp | K::Django | K::Fastapi | K::Rust) { 18100..19000 } else { 4400..5000 };
         range
             .filter(|p| !taken.contains(p))
             .find(|p| crate::listeners::port_owner(*p, false).is_none())

@@ -12,6 +12,8 @@ struct FolderScan: Decodable, Sendable, Identifiable {
 struct ScannedProject: Decodable, Sendable, Identifiable {
     let group: String
     let web: Bool
+    /// What it's built with when Stack doesn't serve it (swift, android, react-native, rust…).
+    let tech: String?
     let detection: Detection
     var id: String { detection.project.path }
 }
@@ -135,15 +137,15 @@ struct ImportFolderSheet: View {
                 withAnimation(.snappy(duration: 0.15)) { if on { selected.insert(item.id) } else { selected.remove(item.id) } }
             }))
             .toggleStyle(.checkbox).labelsHidden().disabled(already)
-            TechLogo(tech: project.tech, size: 24).opacity(item.web || already ? 1 : 0.5)
+            TechLogo(tech: !item.web && item.tech != nil ? .of(item.tech!) : project.tech, size: 24).opacity(item.web || already ? 1 : 0.6)
             VStack(alignment: .leading, spacing: 1) {
                 Text(URL(fileURLWithPath: project.path).lastPathComponent).font(.uiCallout.weight(.medium)).foregroundStyle(already ? .secondary : .primary)
-                Text("\(project.tech.title) · \(taken ? uniqueID(project.id) : project.id).test").font(.uiCaption).foregroundStyle(.secondary)
+                Text(!item.web && item.tech != nil ? L("tech.\(item.tech!)") : "\(project.tech.title) · \(taken ? uniqueID(project.id) : project.id).test").font(.uiCaption).foregroundStyle(.secondary)
             }
             Spacer()
             if already { Chip(text: L("import.already"), symbol: "checkmark", tint: Brand.success) }
             else if taken { Chip(text: L("import.renamed"), symbol: "arrow.triangle.swap", tint: Brand.warning).help(String(format: L("import.renamedHelp"), project.id, uniqueID(project.id))) }
-            else if !item.web { Chip(text: L("import.notWeb"), symbol: "questionmark.circle") }
+            else if !item.web { Chip(text: L(item.tech == nil ? "import.notWeb" : "import.notSite"), symbol: item.tech == nil ? "questionmark.circle" : "hammer") }
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())

@@ -149,12 +149,18 @@ pub enum ProjectKind {
     Next,
     /// Kotlin Multiplatform: the server module (`./gradlew :server:run`) behind Caddy.
     Kmp,
+    /// Django: `manage.py runserver` through uv, behind Caddy.
+    Django,
+    /// FastAPI: uvicorn through uv, behind Caddy.
+    Fastapi,
+    /// Rust web server (axum, actix-web, rocket…): `cargo run` behind Caddy.
+    Rust,
 }
 
 impl ProjectKind {
     /// Kinds served by proxying to a process of their own (a port Stack assigns).
     pub fn proxied(&self) -> bool {
-        matches!(self, Self::Astro | Self::Emdash | Self::Next | Self::Kmp | Self::Node | Self::Proxy)
+        matches!(self, Self::Astro | Self::Emdash | Self::Next | Self::Kmp | Self::Node | Self::Proxy | Self::Django | Self::Fastapi | Self::Rust)
     }
 }
 
@@ -238,7 +244,7 @@ impl Project {
         ensure!(
             self.runtime
                 .iter()
-                .all(|(key, value)| ["php", "node", "jdk"].contains(&key.as_str())
+                .all(|(key, value)| ["php", "node", "jdk", "python"].contains(&key.as_str())
                     && !value.is_empty()
                     && value.bytes().all(|c| c.is_ascii_digit() || c == b'.')),
             "invalid_runtime"
@@ -273,7 +279,7 @@ impl Project {
             validate_id(&process.name)?;
             ensure!(names.insert(&process.name), "duplicate_process");
             ensure!(
-                ["php", "node", "npm", "npx", "corepack", "composer", "gradlew"].contains(&process.program.as_str()),
+                ["php", "node", "npm", "npx", "corepack", "composer", "gradlew", "uv", "cargo"].contains(&process.program.as_str()),
                 "invalid_program"
             );
             ensure!(

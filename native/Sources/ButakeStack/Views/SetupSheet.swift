@@ -40,6 +40,9 @@ struct SetupSheet: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    CardBlock(title: L("profiles.title"), symbol: "person.crop.rectangle.stack") {
+                        WorkProfilesSection(store: store)
+                    }
                     CardBlock(title: L("setup.required"), symbol: "checkmark.seal") {
                         step(tech: .of("php"), title: "PHP", detail: store.phpCatalogFailed ? L("setup.phpOffline") : L("setup.php"), done: store.phpReady) {
                             Picker("", selection: $phpVersion) {
@@ -107,7 +110,7 @@ struct SetupSheet: View {
             }
             .padding(14)
         }
-        .frame(width: 640, height: 640)
+        .frame(width: 720, height: 760)
         .task {
             await store.refreshAppleTools()
             if store.phpCatalog.isEmpty { await store.loadPhpCatalog() }

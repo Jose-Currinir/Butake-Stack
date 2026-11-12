@@ -132,7 +132,7 @@ pub fn caddyfile(
         // their own server, static sites as files.
         let backend = match (&series, project.upstream) {
             (Some(series), _) => Backend::Php(fpm_socket(store, series)?),
-            (None, Some(port)) if project.kind.proxied() => Backend::Proxy(port, project.kind == crate::model::ProjectKind::Astro),
+            (None, Some(port)) if project.kind.proxied() => Backend::Proxy(port, matches!(project.kind, crate::model::ProjectKind::Astro | crate::model::ProjectKind::Django)),
             (None, _) if project.kind == crate::model::ProjectKind::Static => Backend::Files,
             _ => continue,
         };

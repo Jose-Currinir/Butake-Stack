@@ -230,6 +230,12 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                 path.push(shims.to_string_lossy().into_owned());
             }
         }
+        // rustup's and uv's own folders, for Rust and Python projects (and the scripts they run).
+        if let Some(home) = dirs::home_dir() {
+            for dir in [home.join(".cargo/bin"), home.join(".local/bin")] {
+                if dir.is_dir() { path.push(dir.to_string_lossy().into_owned()); }
+            }
+        }
         path.push("/usr/bin:/bin:/usr/sbin:/sbin".into());
         // `{port}` and `{domain}` in arguments and environment.
         let port = project.upstream.map(|p| p.to_string()).unwrap_or_default();
@@ -249,6 +255,7 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                         .into_owned()],
                 ),
                 "gradlew" => (Some(project.path.join("gradlew")), vec![]),
+                "uv" | "cargo" => (crate::tools::user_tool(&process.program), vec![]),
                 program => (node_bin.as_ref().map(|b| b.join(program)), vec![]),
             };
             let available = executable.as_ref().is_some_and(|e| e.exists());
@@ -264,7 +271,8 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                 environment: {
                     // Backends that read their configuration from the process (KMP servers…) get the
                     // site's .env, the file the active environment writes; Stack's own values win.
-                    let mut environment: std::collections::BTreeMap<String, String> = if project.kind == crate::model::ProjectKind::Kmp {
+                    use crate::model::ProjectKind as K;
+                    let mut environment: std::collections::BTreeMap<String, String> = if matches!(project.kind, K::Kmp | K::Django | K::Fastapi | K::Rust) {
                         crate::envs::read_dotenv(&project.path.join(".env"))
                     } else {
                         Default::default()

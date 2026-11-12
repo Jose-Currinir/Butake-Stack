@@ -302,6 +302,11 @@ enum Route: Hashable {
     var phpCatalog: [PhpCatalogEntry] = []
     /// Apple's command line tools (Git, compiler): needed for new projects and engines built from source.
     var appleTools = true
+    /// Developer tools on this Mac for the work profiles (`devTools`).
+    var devTools: [String: DevToolStatus] = [:]
+    func refreshDevTools() async {
+        if let tools: [String: DevToolStatus] = try? await call(["method": "devTools"]) { devTools = tools }
+    }
     var phpReady: Bool { phpRuntimes.contains(where: \.verified) }
     var caddyReady: Bool { !(installedTools["caddy"] ?? []).isEmpty }
     var agentReady: Bool { agent?.loaded == true }

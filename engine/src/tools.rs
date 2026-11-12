@@ -925,3 +925,90 @@ mod tests {
         assert!(remove(&store, "node", "../x").is_err());
     }
 }
+
+/// A developer tool installed by its official installer in the user's home (rustup's `~/.cargo/bin`,
+/// uv's `~/.local/bin`) or, failing that, in the usual system places.
+pub fn user_tool(name: &str) -> Option<PathBuf> {
+    let home = dirs::home_dir()?;
+    [home.join(".cargo/bin"), home.join(".local/bin"), PathBuf::from("/opt/homebrew/bin"), PathBuf::from("/usr/local/bin")]
+        .into_iter()
+        .map(|dir| dir.join(name))
+        .find(|path| path.is_file())
+}
+
+/// Developer tools for the work profiles, as installed on this Mac: where and which version. Only
+/// paths and `--version` are read (each with a time limit); nothing is installed or changed.
+pub fn dev_tools(store: &Store) -> Result<serde_json::Value> {
+    let home = dirs::home_dir().unwrap_or_default();
+    let sdk = std::env::var_os("ANDROID_HOME").map(PathBuf::from).unwrap_or_else(|| home.join("Library/Android/sdk"));
+    // Apps' Info.plist may be binary: plutil reads both forms.
+    let app_version = |app: &str| -> Option<String> {
+        let out = Command::new("/usr/bin/plutil")
+            .args(["-extract", "CFBundleShortVersionString", "raw", "-o", "-"])
+            .arg(PathBuf::from(app).join("Contents/Info.plist"))
+            .stderr(Stdio::null())
+            .output()
+            .ok()?;
+        out.status.success().then(|| String::from_utf8_lossy(&out.stdout).trim().to_string()).filter(|v| !v.is_empty())
+    };
+    // (id, executable or app, version arguments)
+    let checks: Vec<(&str, Option<PathBuf>, &[&str])> = vec![
+        ("rustup", user_tool("rustc"), &["--version"]),
+        ("uv", user_tool("uv"), &["--version"]),
+        ("cloudflared", user_tool("cloudflared"), &["--version"]),
+        ("wrangler", user_tool("wrangler").or_else(|| resolve(store, "node", "").map(|d| d.join("bin/wrangler")).filter(|p| p.is_file())), &["--version"]),
+        ("gh", user_tool("gh"), &["--version"]),
+        ("cocoapods", user_tool("pod"), &["--version"]),
+        ("watchman", user_tool("watchman"), &["--version"]),
+        ("adb", Some(sdk.join("platform-tools/adb")).filter(|p| p.is_file()), &["--version"]),
+    ];
+    let handles: Vec<_> = checks
+        .into_iter()
+        .map(|(id, path, args)| {
+            let args: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+            std::thread::spawn(move || {
+                let version = path.as_ref().and_then(|p| {
+                    let mut child = Command::new(p).args(&args).stdout(Stdio::piped()).stderr(Stdio::null()).stdin(Stdio::null()).spawn().ok()?;
+                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+                    while child.try_wait().ok()?.is_none() {
+                        if std::time::Instant::now() > deadline { let _ = child.kill(); return None; }
+                        std::thread::sleep(std::time::Duration::from_millis(30));
+                    }
+                    let mut out = String::new();
+                    std::io::Read::read_to_string(child.stdout.as_mut()?, &mut out).ok()?;
+                    out.split_whitespace().find(|w| w.chars().next().is_some_and(|c| c.is_ascii_digit())).map(|v| v.trim_end_matches(',').to_string())
+                });
+                (id, path, version)
+            })
+        })
+        .collect();
+    let mut tools = serde_json::Map::new();
+    for handle in handles {
+        if let Ok((id, path, version)) = handle.join() {
+            // Installed but its `--version` fails: there, but broken (a gem conflict, a missing library…).
+            let broken = path.is_some() && version.is_none();
+            tools.insert(id.into(), serde_json::json!({"installed": path.is_some(), "version": version, "path": path, "broken": broken}));
+        }
+    }
+    let xcode = PathBuf::from("/Applications/Xcode.app");
+    tools.insert("xcode".into(), serde_json::json!({"installed": xcode.is_dir(), "version": app_version("/Applications/Xcode.app"), "path": xcode.is_dir().then_some(xcode)}));
+    let clt = Command::new("/usr/bin/xcode-select").arg("-p").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success());
+    tools.insert("clt".into(), serde_json::json!({"installed": clt, "version": null, "path": null}));
+    let studio = "/Applications/Android Studio.app";
+    tools.insert("android-studio".into(), serde_json::json!({"installed": PathBuf::from(studio).is_dir(), "version": app_version(studio), "path": PathBuf::from(studio).is_dir().then_some(studio)}));
+    tools.insert("android-sdk".into(), serde_json::json!({"installed": sdk.join("platform-tools").is_dir(), "version": null, "path": sdk.is_dir().then_some(&sdk)}));
+    for (id, tool) in [("jdk", "jdk"), ("node", "node")] {
+        let versions = installed(store, tool).unwrap_or_default();
+        let newest = versions.iter().map(|m| m.version.clone()).max_by(|a, b| compare_versions(a, b));
+        tools.insert(id.into(), serde_json::json!({"installed": newest.is_some(), "version": newest, "path": null}));
+    }
+    let php = crate::runtimes::list(store);
+    let newest_php = php.iter().filter(|r| r.installed).map(|r| r.series.clone()).max_by(|a, b| compare_versions(a, b));
+    tools.insert("php".into(), serde_json::json!({"installed": newest_php.is_some(), "version": newest_php, "path": null}));
+    Ok(serde_json::Value::Object(tools))
+}
+
+fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
+    let parse = |v: &str| v.split('.').map(|p| p.parse::<u64>().unwrap_or(0)).collect::<Vec<_>>();
+    parse(a).cmp(&parse(b))
+}

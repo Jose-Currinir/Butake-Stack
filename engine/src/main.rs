@@ -191,6 +191,7 @@ fn dispatch(request: Value) -> Result<Value> {
             Ok(json!(true))
         }
         "stepLog" => Ok(serde_json::to_value(scaffold::log_tail(&store, request["name"].as_str().unwrap_or(""))?)?),
+        "devTools" => tools::dev_tools(&store),
         "scanFolder" => {
             let path = std::path::PathBuf::from(request["path"].as_str().unwrap_or(""));
             anyhow::ensure!(path.is_absolute(), "invalid_path");
