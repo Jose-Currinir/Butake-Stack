@@ -1,5 +1,7 @@
-//! New Laravel projects, with the same choices as the official installer (starter kit, tests,
-//! database, Git), run with the stack's own PHP, Composer and Node: nothing global is installed.
+//! New projects of every kind the stack serves, each with its official generator (Laravel's
+//! installer choices, create-astro, create-emdash, create-next-app, create-vite) run with the stack's
+//! own PHP, Composer and Node: nothing global is installed. The result goes through the same
+//! detection as an opened folder, so a created project and an opened one are configured alike.
 use crate::{detect, model::Project, store::Store, tools};
 use anyhow::{ensure, Result};
 use std::{
@@ -9,6 +11,12 @@ use std::{
 };
 
 pub struct Options {
+    /// laravel, php, astro, emdash, next, vite, node or static.
+    pub kind: String,
+    /// Generator template (Astro, EmDash, Next.js and Vite); empty means the generator's default.
+    pub template: String,
+    /// EmDash only: cloudflare or node.
+    pub platform: String,
     pub name: String,
     pub parent: PathBuf,
     pub kit: String,
@@ -147,15 +155,167 @@ fn set_env(file: &Path, values: &[(&str, String)]) -> Result<()> {
     Ok(())
 }
 
+/// Allowed templates per generator: only these strings ever reach a command line.
+fn template(kind: &str, wanted: &str) -> Result<&'static str> {
+    let list: &[&'static str] = match kind {
+        "astro" => &["minimal", "basics", "blog", "portfolio", "starlight"],
+        "emdash" => &["blog", "starter", "marketing", "portfolio"],
+        "next" => &["app", "api", "empty"],
+        "vite" => &["react-ts", "vue-ts", "svelte-ts", "solid-ts", "preact-ts", "lit-ts", "vanilla-ts", "react", "vue", "svelte", "vanilla"],
+        _ => &[""],
+    };
+    if wanted.is_empty() {
+        return Ok(list[0]);
+    }
+    list.iter().copied().find(|t| *t == wanted).ok_or_else(|| anyhow::anyhow!("unknown_template"))
+}
+
+/// Runner with only the stack's Node on the PATH (JavaScript generators need no PHP).
+fn node_runner(store: &Store, log_name: &str) -> Result<(PathBuf, Runner)> {
+    let config = store.config()?;
+    let wanted = config.versions.get("node").map(String::as_str).unwrap_or("");
+    let node_bin = tools::resolve(store, "node", wanted)
+        .or_else(|| tools::resolve(store, "node", ""))
+        .map(|d| d.join("bin"))
+        .ok_or_else(|| anyhow::anyhow!("node_not_installed"))?;
+    let log = store.directory("logs")?.join(format!("{log_name}.log"));
+    let _ = fs::remove_file(&log);
+    let runner = Runner {
+        path: format!("{}:/usr/bin:/bin:/usr/sbin:/sbin", node_bin.to_string_lossy()),
+        home: dirs::home_dir().map(|h| h.to_string_lossy().into_owned()).unwrap_or_default(),
+        phprc: String::new(),
+        log,
+    };
+    Ok((node_bin, runner))
+}
+
+/// Node major of a bin folder (…/node/24.13.0/bin -> 24), written to .nvmrc so the site keeps it.
+fn node_major(node_bin: &Path) -> Option<String> {
+    node_bin.parent()?.file_name()?.to_str()?.split('.').next().map(str::to_string)
+}
+
+fn git_init(runner: &Runner, target: &Path) -> Result<()> {
+    if target.join(".git").exists() {
+        return Ok(());
+    }
+    let git = Path::new("/usr/bin/git");
+    runner.run(target, git, &["init", "-q"])?;
+    runner.run(target, git, &["add", "-A"])?;
+    let _ = runner.run(target, git, &["commit", "-q", "-m", "Proyecto inicial"]);
+    Ok(())
+}
+
 pub fn create(store: &Store, options: &Options) -> Result<Project> {
     validate_name(&options.name)?;
-    let package = package(&options.kit)?;
-    ensure!(["pest", "phpunit"].contains(&options.testing.as_str()), "invalid_testing");
-    ensure!(["sqlite", "mysql", "pgsql"].contains(&options.database.as_str()), "invalid_database");
+    match options.kind.as_str() {
+        "laravel" => create_laravel(store, options),
+        "php" | "static" | "node" => create_basic(store, options),
+        "astro" | "emdash" | "next" | "vite" => create_javascript(store, options),
+        "kmp" => anyhow::bail!("kmp_use_wizard"),
+        _ => anyhow::bail!("unknown_kind"),
+    }
+}
+
+fn target_of(options: &Options) -> Result<(PathBuf, PathBuf)> {
     let parent = options.parent.canonicalize()?;
     ensure!(parent.is_dir(), "invalid_path");
     let target = parent.join(&options.name);
     ensure!(!target.exists(), "folder_exists");
+    Ok((parent, target))
+}
+
+/// Registers what detection makes of the new folder (off, like every site).
+fn register(store: &Store, target: &Path) -> Result<Project> {
+    store.save(detect::detect(target)?.project)
+}
+
+fn create_javascript(store: &Store, options: &Options) -> Result<Project> {
+    let template = template(&options.kind, &options.template)?;
+    let (parent, target) = target_of(options)?;
+    let (node_bin, runner) = node_runner(store, &format!("create-{}", options.name))?;
+    let npx = node_bin.join("npx");
+    let name = options.name.as_str();
+    match options.kind.as_str() {
+        "astro" => runner.run(&parent, &npx, &["--yes", "create-astro@latest", name, "--template", template, "--install", "--no-git", "--skip-houston", "--yes"])?,
+        "emdash" => {
+            let platform = if options.platform == "node" { "node" } else { "cloudflare" };
+            runner.run(&parent, &npx, &["--yes", "create-emdash@latest", name, "--template", template, "--platform", platform, "--pm", "npm", "--install", "--yes"])?
+        }
+        "next" => {
+            let mut args = vec!["--yes", "create-next-app@latest", name, "--ts", "--tailwind", "--eslint", "--app", "--use-npm", "--disable-git", "--no-agent-feedback", "--yes"];
+            match template {
+                "api" => args.push("--api"),
+                "empty" => args.push("--empty"),
+                _ => {}
+            }
+            runner.run(&parent, &npx, &args)?
+        }
+        _ => {
+            runner.run(&parent, &npx, &["--yes", "create-vite@latest", name, "--template", template, "--no-interactive", "--no-immediate"])?;
+            runner.run(&target, &node_bin.join("npm"), &["install", "--no-audit", "--no-fund"])?;
+        }
+    }
+    ensure!(target.is_dir(), "scaffold_step_failed");
+    if !target.join(".nvmrc").exists() {
+        if let Some(major) = node_major(&node_bin) {
+            fs::write(target.join(".nvmrc"), format!("{major}\n"))?;
+        }
+    }
+    if options.git {
+        git_init(&runner, &target)?;
+    }
+    register(store, &target)
+}
+
+/// PHP, Node (node:http, no dependencies) and static sites: a small, working starting point.
+fn create_basic(store: &Store, options: &Options) -> Result<Project> {
+    let (_, target) = target_of(options)?;
+    let title = escape_html(&options.name);
+    fs::create_dir_all(&target)?;
+    let style = "body{font:16px/1.5 -apple-system,system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1rem;color:#111;background:#fff}@media(prefers-color-scheme:dark){body{color:#eee;background:#111}}";
+    match options.kind.as_str() {
+        "php" => {
+            fs::write(target.join("index.php"), format!("<?php\n$title = '{title}';\n?><!doctype html>\n<html lang=\"es\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title><?= htmlspecialchars($title) ?></title><style>{style}</style></head>\n<body><h1><?= htmlspecialchars($title) ?></h1><p>PHP <?= PHP_VERSION ?> desde Butake Stack.</p></body>\n</html>\n"))?;
+            fs::write(target.join(".gitignore"), "/vendor/\n.env\n")?;
+        }
+        "node" => {
+            let package = serde_json::json!({
+                "name": options.name.to_ascii_lowercase(), "private": true, "type": "module",
+                "scripts": {"dev": "node --watch server.js", "start": "node server.js"},
+            });
+            fs::write(target.join("package.json"), serde_json::to_string_pretty(&package)? + "\n")?;
+            fs::write(target.join("server.js"), format!("import {{ createServer }} from 'node:http'\n\n// Butake Stack assigns PORT and HOST; the .test address points here.\nconst port = Number(process.env.PORT ?? 3000)\nconst host = process.env.HOST ?? '127.0.0.1'\n\ncreateServer((request, response) => {{\n  response.writeHead(200, {{ 'content-type': 'text/html; charset=utf-8' }})\n  response.end(`<!doctype html><title>{title}</title><style>{style}</style><h1>{title}</h1><p>Node ${{process.version}} desde Butake Stack.</p>`)\n}}).listen(port, host, () => console.log(`http://${{host}}:${{port}}`))\n"))?;
+            fs::write(target.join(".gitignore"), "node_modules/\n.env\n")?;
+            let (node_bin, _) = node_runner(store, &format!("create-{}", options.name))?;
+            if let Some(major) = node_major(&node_bin) {
+                fs::write(target.join(".nvmrc"), format!("{major}\n"))?;
+            }
+        }
+        _ => {
+            fs::write(target.join("index.html"), format!("<!doctype html>\n<html lang=\"es\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>{title}</title><style>{style}</style></head>\n<body><h1>{title}</h1><p>Sitio estático servido por Butake Stack.</p></body>\n</html>\n"))?;
+        }
+    }
+    if options.git {
+        let runner = Runner {
+            path: "/usr/bin:/bin".into(),
+            home: dirs::home_dir().map(|h| h.to_string_lossy().into_owned()).unwrap_or_default(),
+            phprc: String::new(),
+            log: store.directory("logs")?.join(format!("create-{}.log", options.name)),
+        };
+        git_init(&runner, &target)?;
+    }
+    register(store, &target)
+}
+
+fn escape_html(text: &str) -> String {
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
+}
+
+fn create_laravel(store: &Store, options: &Options) -> Result<Project> {
+    let package = package(&options.kit)?;
+    ensure!(["pest", "phpunit"].contains(&options.testing.as_str()), "invalid_testing");
+    ensure!(["sqlite", "mysql", "pgsql"].contains(&options.database.as_str()), "invalid_database");
+    let (parent, target) = target_of(options)?;
 
     let config = store.config()?;
     let chain = Toolchain::new(store, None, None, &format!("create-{}", options.name))?;
@@ -195,10 +355,8 @@ pub fn create(store: &Store, options: &Options) -> Result<Project> {
         let _ = artisan(&["migrate", "--force", "--no-interaction"]);
     }
     // 6. Git.
-    if options.git && !target.join(".git").exists() {
-        runner.run(&target, Path::new("/usr/bin/git"), &["init", "-q"])?;
-        runner.run(&target, Path::new("/usr/bin/git"), &["add", "-A"])?;
-        let _ = runner.run(&target, Path::new("/usr/bin/git"), &["commit", "-q", "-m", "Proyecto inicial"]);
+    if options.git {
+        git_init(runner, &target)?;
     }
     // 7. Register the site (off, like every site, until the user turns it on).
     let mut project = detect::detect(&target)?.project;

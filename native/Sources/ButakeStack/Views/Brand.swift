@@ -161,6 +161,7 @@ struct Tech: Hashable {
         case "astro": Tech(id: id, title: "Astro", simple: "astro", color: 0xBC52EE)
         case "emdash": Tech(id: id, title: "EmDash", simple: "cloudflare", color: 0xF38020)
         case "next": Tech(id: id, title: "Next.js", simple: "nextdotjs", color: 0x111111)
+        case "vite": Tech(id: id, title: "Vite", symbol: "bolt.fill", color: 0x646CFF)
         case "kmp": Tech(id: id, title: "Kotlin Multiplatform", simple: "kotlin", color: 0x7F52FF)
         case "java", "jdk": Tech(id: "java", title: "Java", simple: "openjdk", color: 0xE76F00)
         case "vue": Tech(id: id, title: "Vue", svg: "vue", color: 0x42B883)

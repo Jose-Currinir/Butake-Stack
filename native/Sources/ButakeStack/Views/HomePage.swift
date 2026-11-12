@@ -65,10 +65,32 @@ struct HomePage: View {
     @State private var previews = SitePreviews.shared
     var services: [String] { ["web"] + Route.allEngines.filter { store.engineVersion($0) != nil } }
     var online: Int { store.projects.filter { store.sitePhase($0) == .running }.count }
+    /// Sites whose folder went away: shown so they don't vanish silently; they come back with the folder.
+    private var missing: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(L("missing.title"), systemImage: "folder.badge.questionmark").font(.ui(size: 14, weight: .semibold)).foregroundStyle(Brand.warning)
+            Text(L("missing.detail")).font(.uiCaption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            ForEach(store.missingSites) { site in
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(site.id).font(.uiCallout.weight(.medium))
+                        Text(site.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")).font(.uiCaption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    }
+                    Spacer()
+                    Button(L("missing.forget")) { Task { await store.forget(site) } }.controlSize(.small)
+                        .accessibilityIdentifier("missing.forget.\(site.id)")
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Brand.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
                 hero
+                if !store.missingSites.isEmpty { missing }
                 if !store.projects.isEmpty {
                     SectionHeading(title: L("route.sites"), detail: String(format: L("sites.online"), online))
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 230, maximum: 320), spacing: 18)], spacing: 18) {

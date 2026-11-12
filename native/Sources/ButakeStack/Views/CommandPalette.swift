@@ -60,7 +60,7 @@ struct CommandPalette: View {
         for (id, route, tech, symbol) in pages {
             list.append(Command(id: "page.\(id)", section: L("palette.pages"), title: route.title, detail: "", tech: tech, symbol: symbol, run: { store.route = route }))
         }
-        list.append(Command(id: "new", section: L("palette.actions"), title: L("new.menu"), detail: "", tech: .of("laravel"), run: { store.showNewProject = true }))
+        list.append(Command(id: "new", section: L("palette.actions"), title: L("new.menu"), detail: "", tech: .of("static"), run: { store.showNewProject = true }))
         list.append(Command(id: "add", section: L("palette.actions"), title: L("sites.addExisting"), detail: "", tech: nil, symbol: "folder.badge.plus", run: { store.chooseFolder() }))
         list.append(Command(id: "setup", section: L("palette.actions"), title: L("setup.title"), detail: "", tech: nil, symbol: "checklist", run: { store.showSetup = true }))
         list.append(Command(id: "restart", section: L("palette.actions"), title: L("menu.restartAll"), detail: "", tech: nil, symbol: "arrow.clockwise", run: { Task { await store.reloadStack() } }))

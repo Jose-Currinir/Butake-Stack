@@ -108,22 +108,43 @@ impl Store {
         project.validate(&self.config()?)?;
         Ok(project)
     }
+    /// Every site whose folder is there. One whose folder went away (deleted, moved, a drive that
+    /// is not connected) is left out without touching its record, so it never takes the whole list
+    /// (and the daemon) down, and comes back when the folder does; `missing` names them.
     pub fn list(&self) -> Result<Vec<Project>> {
         let mut projects = Vec::new();
-        for entry in fs::read_dir(self.directory("projects")?)? {
-            let path = entry?.path();
-            if path.extension().is_some_and(|ext| ext == "json") {
-                projects.push(
-                    self.get(
-                        path.file_stem()
-                            .and_then(|s| s.to_str())
-                            .ok_or_else(|| anyhow::anyhow!("invalid_id"))?,
-                    )?,
-                );
+        for id in self.ids()? {
+            if let Ok(project) = self.get(&id) {
+                projects.push(project);
             }
         }
         projects.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(projects)
+    }
+    /// Sites left out of `list` because their folder is not there: id and the path it had.
+    pub fn missing(&self) -> Result<Vec<(String, std::path::PathBuf)>> {
+        let mut out = vec![];
+        for id in self.ids()? {
+            if self.get(&id).is_err() {
+                if let Ok(project) = self.read::<Project>(&self.project_path(&id)?) {
+                    out.push((id, project.path));
+                }
+            }
+        }
+        out.sort();
+        Ok(out)
+    }
+    fn ids(&self) -> Result<Vec<String>> {
+        let mut ids = vec![];
+        for entry in fs::read_dir(self.directory("projects")?)? {
+            let path = entry?.path();
+            if path.extension().is_some_and(|ext| ext == "json") {
+                if let Some(id) = path.file_stem().and_then(|s| s.to_str()) {
+                    ids.push(id.to_string());
+                }
+            }
+        }
+        Ok(ids)
     }
     /// A free port for a proxied site: 4400-4999 for web dev servers, 18100-18999 for backends;
     /// never one another site, an engine or another program already uses.
@@ -166,6 +187,21 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_missing_folder_never_breaks_the_list() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = Store::new(temp.path().join("store")).unwrap();
+        let folder = temp.path().join("gone");
+        fs::create_dir_all(&folder).unwrap();
+        let p: Project = serde_json::from_value(serde_json::json!({"id":"gone","name":"Gone","path":folder,"domains":["gone.test"],"https":false,"kind":"static","runtime":{},"docroot":".","services":[],"databases":[],"processes":[]})).unwrap();
+        store.save(p).unwrap();
+        fs::remove_dir(&folder).unwrap();
+        assert!(store.list().unwrap().is_empty());
+        assert_eq!(store.missing().unwrap().len(), 1);
+        fs::create_dir_all(&folder).unwrap();
+        assert_eq!(store.list().unwrap().len(), 1);
+        assert!(store.missing().unwrap().is_empty());
+    }
     #[test]
     fn round_trip_and_reject_symlinks() {
         let temp = tempfile::tempdir().unwrap();

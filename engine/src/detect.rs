@@ -251,7 +251,7 @@ pub fn detect(path: &Path) -> Result<Detection> {
         }
     }
     let dev = package["scripts"]["dev"].as_str().unwrap_or("");
-    if dev.split_whitespace().next() == Some("vite") {
+    if matches!(kind, ProjectKind::Laravel | ProjectKind::Php) && dev.split_whitespace().next() == Some("vite") {
         processes.push(ProjectProcess {
             name: "vite".into(),
             program: "npm".into(),
@@ -299,8 +299,10 @@ pub fn detect(path: &Path) -> Result<Detection> {
             runtime.insert("node".into(), node_line.clone());
         }
         ProjectKind::Emdash => {
-            // Build + `wrangler dev` on the port Stack assigns, with the .test address as the site URL.
-            push("dev", script("dev", &[]), true);
+            // Build + `wrangler dev` on the port Stack assigns (PORT), with the .test address as the
+            // site URL. On the Node platform `dev` is `astro dev`, which takes the port as flags.
+            let astro_dev = dev.split_whitespace().next() == Some("astro");
+            push("dev", script("dev", if astro_dev { &["--host", "127.0.0.1", "--port", "{port}"] } else { &[] }), true);
             if has_script("dev:setup") { push("setup", script("dev:setup", &[]), false); }
             if has_script("dev:reset") { push("reset", script("dev:reset", &[]), false); }
             for (k, v) in [("PORT", "{port}"), ("PUBLIC_SITE_URL", "https://{domain}"), ("BUTAKE_DEV_ALLOWED_HOSTS", "{domain}"), ("EMDASH_URL", "http://127.0.0.1:{port}")] {
@@ -308,6 +310,24 @@ pub fn detect(path: &Path) -> Result<Detection> {
             }
             runtime.insert("node".into(), node_line.clone());
             notes.push("emdash_secrets_in_dev_vars".into());
+        }
+        ProjectKind::Node => {
+            // Any Node server: `dev` if there is one, else `start`. Vite-based tools (Vite, SvelteKit,
+            // Remix on Vite) take the port as flags; Nuxt, Express and the rest read PORT and HOST.
+            let name = ["dev", "start"].into_iter().find(|n| has_script(n));
+            match name {
+                Some(name) => {
+                    let command = package["scripts"][name].as_str().unwrap_or("");
+                    let vite = command.split_whitespace().next() == Some("vite");
+                    let extra: &[&str] = if vite { &["--host", "127.0.0.1", "--port", "{port}", "--strictPort"] } else { &[] };
+                    push(name, script(name, extra), true);
+                }
+                None => notes.push("node_no_script".into()),
+            }
+            for (k, v) in [("PORT", "{port}"), ("HOST", "127.0.0.1"), ("NITRO_PORT", "{port}"), ("NITRO_HOST", "127.0.0.1")] {
+                site_env.insert(k.into(), v.into());
+            }
+            runtime.insert("node".into(), node_line.clone());
         }
         ProjectKind::Kmp => {
             if let Some(module) = kmp_server(&path) {
@@ -419,6 +439,29 @@ include(":server")"#), ("gradlew", "#!/bin/sh")]);
         assert_eq!(kmp.runtime.get("jdk").unwrap(), "21");
         let next = make("next", &[("package.json", r#"{"dependencies":{"next":"15"}}"#)]);
         assert_eq!(next.kind, ProjectKind::Next);
+    }
+
+    #[test]
+    fn node_projects_get_a_server_process_and_port() {
+        let temp = tempfile::tempdir().unwrap();
+        let vite = temp.path().join("spa");
+        fs::create_dir_all(&vite).unwrap();
+        fs::write(vite.join("package.json"), r#"{"scripts":{"dev":"vite","build":"vite build"}}"#).unwrap();
+        let d = detect(&vite).unwrap();
+        assert_eq!(d.project.kind, ProjectKind::Node);
+        let p = &d.project.processes[0];
+        assert_eq!((p.name.as_str(), p.program.as_str()), ("dev", "npm"));
+        assert!(p.args.ends_with(&["--".into(), "--host".into(), "127.0.0.1".into(), "--port".into(), "{port}".into(), "--strictPort".into()]));
+        let api = temp.path().join("api");
+        fs::create_dir_all(&api).unwrap();
+        fs::write(api.join("package.json"), r#"{"scripts":{"start":"node server.js"}}"#).unwrap();
+        let d = detect(&api).unwrap();
+        assert_eq!(d.project.processes[0].args, vec!["run".to_string(), "start".into()]);
+        assert_eq!(d.project.env.get("PORT").map(String::as_str), Some("{port}"));
+        let bare = temp.path().join("bare");
+        fs::create_dir_all(&bare).unwrap();
+        fs::write(bare.join("package.json"), "{}").unwrap();
+        assert!(detect(&bare).unwrap().notes.contains(&"node_no_script".to_string()));
     }
 
 }

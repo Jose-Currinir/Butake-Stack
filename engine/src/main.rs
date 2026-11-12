@@ -138,8 +138,16 @@ fn dispatch(request: Value) -> Result<Value> {
             let _ = daemon::request_sync(&store, "reload", json!({}), false);
             Ok(serde_json::to_value(manifest)?)
         }
-        "createLaravel" => {
+        "missingProjects" => Ok(json!(store
+            .missing()?
+            .into_iter()
+            .map(|(id, path)| json!({"id": id, "path": path}))
+            .collect::<Vec<_>>())),
+        "createProject" | "createLaravel" => {
             let options = scaffold::Options {
+                kind: request["kind"].as_str().unwrap_or("laravel").into(),
+                template: request["template"].as_str().unwrap_or("").into(),
+                platform: request["platform"].as_str().unwrap_or("").into(),
                 name: request["name"].as_str().unwrap_or("").into(),
                 parent: std::path::PathBuf::from(request["parent"].as_str().unwrap_or("")),
                 kit: request["kit"].as_str().unwrap_or("none").into(),

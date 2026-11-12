@@ -49,6 +49,8 @@ enum Route: Hashable {
     var route: Route = .home
     var selectedSite: Project.ID?
     var projects: [Project] = []
+    /// Sites whose folder isn't there (deleted, moved or on a disconnected drive).
+    var missingSites: [MissingSite] = []
     var status: StackStatus?
     var daemonRunning = false
     var agent: AgentStatus?
@@ -358,10 +360,13 @@ enum Route: Hashable {
     var selectedProject: Project? { projects.first { $0.id == selectedSite } }
     func openSite(_ id: String) { selectedSite = id; route = .site(id) }
     /// Creates a Laravel project and opens its page; returns false on failure.
-    func createLaravel(name: String, parent: String, kit: String, testing: String, database: String, git: Bool) async -> Bool {
+    /// Creates a project of any kind (`kind`, `name`, `parent` and that kind's options) and opens it.
+    func createProject(_ request: [String: Any]) async -> Bool {
         var ok = false
+        var payload = request
+        payload["method"] = "createProject"
         await run(L("new.creating"), refresh: true) {
-            let project: Project = try await self.call(["method": "createLaravel", "name": name, "parent": parent, "kit": kit, "testing": testing, "database": database, "git": git])
+            let project: Project = try await self.call(payload)
             self.openSite(project.id)
             ok = true
         }
@@ -429,6 +434,7 @@ enum Route: Hashable {
 
     func refresh() async {
         do { projects = try await call(["method": "listProjects"]) } catch { report(error) }
+        missingSites = (try? await call(["method": "missingProjects"])) ?? []
         config = try? await call(["method": "stackConfig"])
         await loadAllEnvs()
         await refreshStatus()
@@ -545,6 +551,13 @@ enum Route: Hashable {
             self.route = .home
         }
     }
+    /// Removes a site whose folder is gone: its record, environments and Keychain secrets.
+    func forget(_ site: MissingSite) async {
+        await run(L("busy.saving"), refresh: true) {
+            let _: Bool = try await self.call(["method": "deleteProject", "id": site.id])
+            EnvVault.deleteAll(site: site.id)
+        }
+    }
     func chooseFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
@@ -604,4 +617,9 @@ enum Route: Hashable {
         await run(L("busy.agent")) { let _: [String: Bool] = try await self.call(["method": "uninstallAgent", "confirmed": true]) }
         await refresh(); await refreshPorts()
     }
+}
+
+struct MissingSite: Codable, Identifiable, Sendable, Hashable {
+    let id: String
+    let path: String
 }
