@@ -1,15 +1,16 @@
 // Textos de la página. Un solo idioma por ahora; todo texto visible vive aquí.
 export const repo = 'https://github.com/Jose-Currinir/Butake-Stack'
 export const descarga = `${repo}/releases/latest/download/Butake-Stack.dmg`
+export const version = '1.3.1'
 
 export const t = {
   titulo: 'Butake Stack · Desarrollo local nativo para Mac',
-  descripcion: 'Sitios .test con HTTPS y HTTP/3, PHP, Node y motores como MySQL, PostgreSQL y Redis corriendo directo en tu Mac, desde la barra de menús. Sin Homebrew, sin Docker, en español.',
+  descripcion: 'Sitios .test con HTTPS y HTTP/3; PHP, Node, Python, Java, Rust y Swift con varias versiones a la vez; MySQL, PostgreSQL y Redis corriendo directo en tu Mac, desde la barra de menús. Sin Homebrew, sin Docker, en español.',
   nav: { funciones: 'Funciones', seguridad: 'Seguridad', instalar: 'Instalar', github: 'GitHub', descargar: 'Descargar' },
   hero: {
-    etiqueta: 'Gratis y de código abierto · Apache 2.0',
+    etiqueta: 'Versión 1.3.1 · Gratis y de código abierto · Apache 2.0',
     titulo: 'Tu entorno de desarrollo local, nativo y en la barra de menús',
-    texto: 'Sirve tus sitios en .test con HTTPS y HTTP/3, elige la versión de PHP, Node y cada motor, y enciende sólo lo que usas. Sin Homebrew, sin Docker y sin tocar el sistema.',
+    texto: 'Sirve tus sitios en .test con HTTPS y HTTP/3, crea proyectos de cualquier tipo, elige la versión de cada lenguaje por proyecto y enciende sólo lo que usas. Sin Homebrew, sin Docker y sin tocar el sistema.',
     descargar: 'Descargar para Mac',
     github: 'Ver en GitHub',
     requisitos: 'macOS 15 o superior · Mac con Apple Silicon',
@@ -19,16 +20,17 @@ export const t = {
   menu: { abrir: 'Abrir menú', cerrar: 'Cerrar menú' },
   recorrido: {
     titulo: 'Recorre la app',
-    texto: 'Sitios, servicios y versiones, cada cosa en su lugar y a un clic.',
+    texto: 'Sitios, lenguajes, servicios y proyectos nuevos, cada cosa en su lugar y a un clic.',
     pausar: 'Pausar recorrido',
     reanudar: 'Reanudar recorrido',
     pestanas: [
       { id: 'inicio', icono: 'home-5-line', titulo: 'Inicio', texto: 'Tus sitios con su vista previa y su rama, y los servicios encendidos.', imagen: 'inicio.png' },
       { id: 'sitio', icono: 'global-line', titulo: 'Sitio', texto: 'Dirección, carpeta, Git y worktrees; procesos, registros y entorno por sitio.', imagen: 'sitio.png' },
       { id: 'motores', icono: 'database-2-line', titulo: 'Motores', texto: 'Cada motor con su estado, su puerto, los sitios que lo usan y sus versiones.', imagen: 'bases-de-datos.png' },
-      { id: 'versiones', icono: 'stack-line', titulo: 'Versiones', texto: 'Líneas LTS, activas y en mantenimiento; instalas la que eliges.', imagen: 'versiones.png' },
+      { id: 'lenguajes', icono: 'code-s-slash-line', titulo: 'Lenguajes', texto: 'Varias versiones de cada lenguaje, una global y la de cada proyecto, con su ciclo de soporte.', imagen: 'lenguajes.png' },
       { id: 'web', icono: 'server-line', titulo: 'Servidor web', texto: 'Caddy con HTTP/1.1, HTTP/2 y HTTP/3 en los puertos que entrega macOS.', imagen: 'servidor-web.png' },
-      { id: 'nuevo', icono: 'add-box-line', titulo: 'Nuevo proyecto', texto: 'Laravel con starter kit, pruebas, base de datos y Git, sin instalar nada global.', imagen: 'nuevo-proyecto.png' },
+      { id: 'nuevo', icono: 'add-box-line', titulo: 'Nuevo proyecto', texto: 'Laravel, Astro, Next.js, Django, FastAPI, Rust, Swift y más, con la versión del framework compatible.', imagen: 'nuevo-proyecto.png' },
+      { id: 'bienvenida', icono: 'sparkling-line', titulo: 'Bienvenida', texto: 'Al abrirla por primera vez, un recorrido animado que termina preparando tu Mac.', imagen: 'bienvenida.png' },
     ],
   },
   faq: {
@@ -37,9 +39,10 @@ export const t = {
       { p: '¿Es gratis?', r: 'Sí. Butake Stack es de código abierto bajo licencia Apache 2.0. Puedes usarlo, estudiarlo y proponer mejoras.' },
       { p: '¿En qué Mac funciona?', r: 'En Mac con Apple Silicon y macOS 15 o superior.' },
       { p: '¿Es segura de instalar?', r: 'Sí. Está firmada con el certificado Developer ID de Butake SpA y notarizada por Apple, así que macOS la abre sin advertencias. La suma SHA-256 se publica junto a cada versión.' },
-      { p: '¿Necesito Homebrew o Docker?', r: 'No. PHP, Node, Caddy y los motores se descargan de su fuente oficial a la carpeta de Butake Stack y corren directo en el Mac. Nada global, nada en /usr/local.' },
+      { p: '¿Necesito Homebrew o Docker?', r: 'No. PHP, Node, Python, Java, Caddy y los motores se descargan de su fuente oficial a la carpeta de Butake Stack y corren directo en el Mac. Rust, swiftly, gh y Wrangler se instalan en tu carpeta personal con sus instaladores oficiales, verificados. Nada en /usr/local y sin sudo.' },
+      { p: '¿Puedo tener varias versiones de un lenguaje?', r: 'Sí. Instalas las que quieras de PHP, Node, Java y Python, eliges una global y cada proyecto guarda la suya en su archivo estándar: .nvmrc, .java-version, .python-version o rust-toolchain.toml. Rust y Swift usan rustup y swiftly. Si quieres, la versión global queda en la terminal como enlace al binario real.' },
       { p: '¿Pide mi contraseña o cambia /etc?', r: 'No. macOS entrega los puertos 53, 80 y 443 al agente de sesión de Butake Stack; el DNS de .test es interno. Activarlo pide tu confirmación, no tu contraseña.' },
-      { p: '¿Qué pasa al instalarla en un Mac nuevo?', r: 'Se abre «Preparar Butake Stack» con lo que falta: PHP, Caddy y el agente; Node y las herramientas de Apple como recomendados. Eliges cada versión y confirmas antes de descargar.' },
+      { p: '¿Qué pasa al instalarla en un Mac nuevo?', r: 'Te recibe una presentación breve y luego «Preparar Butake Stack»: marcas con qué trabajas (web, nativo, multiplataforma, herramientas) y te muestra sólo lo que eso necesita. Eliges cada versión y confirmas antes de descargar. «Mi entorno» restaura tu configuración de otro Mac, sin secretos.' },
       { p: '¿Cómo se actualiza?', r: 'La app busca versiones nuevas en GitHub y se actualiza sola tras verificar la suma SHA-256, la firma de Butake SpA y la notarización de Apple.' },
       { p: '¿Puedo contribuir?', r: 'Sí: haz un fork y abre un pull request hacia develop. El equipo lo revisa antes de integrarlo. Para cambios grandes, abre antes un issue.' },
     ],
@@ -64,17 +67,22 @@ export const t = {
     ],
   },
   funciones: [
-    { id: 'sitios', icono: 'global-line', etiqueta: 'Sitios', titulo: 'Cada sitio en su .test, encendido cuando lo necesitas', texto: 'Los sitios parten apagados y se encienden con un interruptor: Caddy los sirve con HTTPS y sus procesos (colas, Reverb, Vite) arrancan solos. Vista previa, registros en vivo y entorno por sitio.', puntos: ['HTTPS, HTTP/2 y HTTP/3', 'PHP y Node por sitio', 'Procesos y registros en vivo'], imagen: 'sitio.png', alt: 'Página de un sitio con vista previa, Git y worktrees' },
+    { id: 'sitios', icono: 'global-line', etiqueta: 'Sitios', titulo: 'Cada sitio en su .test, encendido cuando lo necesitas', texto: 'Los sitios parten apagados y se encienden con un interruptor: Caddy los sirve con HTTPS y sus procesos (colas, Reverb, Vite) arrancan solos. Vista previa, registros en vivo y entorno por sitio.', puntos: ['HTTPS, HTTP/2 y HTTP/3', 'La versión de cada lenguaje por sitio', 'Procesos y registros en vivo'], imagen: 'sitio.png', alt: 'Página de un sitio con vista previa, Git y worktrees' },
     { id: 'motores', icono: 'database-2-line', etiqueta: 'Motores', titulo: 'Bases de datos y caché, directo en el Mac', texto: 'MySQL, PostgreSQL, MongoDB, Redis, Valkey, Meilisearch, Typesense y RustFS agrupados por tipo. Cada uno con su puerto, sus datos y los sitios que lo usan; se enciende o apaga con un clic.', puntos: ['Sin Homebrew ni Docker', 'Varias versiones lado a lado', 'Datos existentes importados por clon APFS'], imagen: 'bases-de-datos.png', alt: 'Bases de datos con MySQL en ejecución y PostgreSQL por instalar' },
-    { id: 'versiones', icono: 'stack-line', etiqueta: 'Versiones', titulo: 'Eliges la versión, sabes cuánto dura', texto: 'Las versiones se agrupan por línea con su ciclo de vida: LTS, activa, mantenimiento o sin soporte. Ves lo instalado, actualizas con un clic y las líneas antiguas esperan en «Más versiones».', puntos: ['Ciclo de vida de endoflife.date', 'SHA-256, firma o compilación verificada', 'Nada se descarga sin confirmar'], imagen: 'versiones.png', alt: 'Versiones de Redis con su ciclo de vida' },
+    { id: 'versiones', icono: 'stack-line', etiqueta: 'Lenguajes', titulo: 'Cada proyecto con su versión, y una global', texto: 'PHP, Node, Java y Python con varias versiones a la vez y su ciclo de soporte. Cada proyecto guarda la suya en el archivo estándar del ecosistema y la global puede quedar en la terminal como enlace al binario real. Rust y Swift, con rustup y swiftly.', puntos: ['Python propio, con .venv por proyecto', '.nvmrc, .java-version, .python-version', 'Ciclo de vida de endoflife.date'], imagen: 'lenguajes.png', alt: 'Python con dos versiones instaladas, la global y el catálogo verificado' },
+    { id: 'proyectos', icono: 'add-box-line', etiqueta: 'Proyectos', titulo: 'Un proyecto nuevo, con la versión que corresponde', texto: 'El asistente crea proyectos de Laravel, Astro, Next.js, Vite, EmDash, Django, FastAPI, Rust, Swift y React Native con sus generadores oficiales. Muestra las versiones del framework con soporte y sólo deja elegir las que corren con tu Python o PHP.', puntos: ['Django 5.2 LTS o 6, Laravel 12 o 13', 'pip + venv, o uv', 'Git y su primer commit'], imagen: 'nuevo-proyecto.png', alt: 'Nuevo proyecto Django con la versión del framework según Python' },
     { id: 'git', icono: 'git-branch-line', etiqueta: 'Butake Git', titulo: 'Tu rama, tus cambios y tus worktrees, junto al sitio', texto: 'Cada sitio muestra su rama y sus cambios pendientes. Un worktree se sirve como su propio sitio, <rama>.<sitio>.test, y al cambiar de rama Stack te avisa si hay dependencias o migraciones nuevas.', puntos: ['Abrir en Butake Git con un clic', 'Worktrees como sitios propios', 'composer install, npm install o migrar'], imagen: 'sitio.png', alt: 'Tarjeta Git de un sitio con su worktree' },
-    { id: 'preparar', icono: 'checkbox-multiple-line', etiqueta: 'Preparar', titulo: 'Un Mac nuevo, listo en minutos', texto: 'Al instalar, Butake Stack revisa qué falta y lo pide: PHP, Caddy y el agente de sesión; Node y las herramientas de Apple como recomendados. Eliges cada versión y confirmas antes de descargar.', puntos: ['PHP con Composer y Xdebug', 'Herramientas de Apple sin Xcode completo', 'Se vuelve a abrir desde General'], imagen: 'preparar.png', alt: 'Preparar Butake Stack con los requisitos listos' },
+    { id: 'preparar', icono: 'checkbox-multiple-line', etiqueta: 'Preparar', titulo: 'Un Mac nuevo, listo en minutos', texto: 'Marcas con qué trabajas —web, nativo, multiplataforma o herramientas— y Butake Stack te muestra sólo lo que eso necesita y qué ya tienes. Eliges cada versión y confirmas antes de descargar.', puntos: ['Perfiles de trabajo', 'rustup, swiftly, gh, Wrangler y SDK de Android verificados', 'Exportar y restaurar «Mi entorno»'], imagen: 'preparar.png', alt: 'Preparar Butake Stack con los requisitos listos' },
   ],
   funcionaCon: {
     titulo: 'Corre directo en tu Mac',
     items: [
       { icono: 'code-s-slash-line', texto: 'PHP' },
       { icono: 'javascript-line', texto: 'Node.js' },
+      { icono: 'terminal-box-line', texto: 'Python' },
+      { icono: 'cup-line', texto: 'Java' },
+      { icono: 'settings-5-line', texto: 'Rust' },
+      { icono: 'apple-line', texto: 'Swift' },
       { icono: 'server-line', texto: 'Caddy' },
       { icono: 'database-2-line', texto: 'MySQL' },
       { icono: 'database-line', texto: 'PostgreSQL' },
@@ -92,9 +100,9 @@ export const t = {
     lista: [
       { icono: 'global-line', titulo: 'Sitios', ancla: '#sitios', items: ['Dominios .test con HTTPS', 'Encendido manual', 'Vista previa', 'Procesos y registros'] },
       { icono: 'database-2-line', titulo: 'Motores', ancla: '#motores', items: ['Bases de datos y caché', 'Búsqueda y almacenamiento', 'Puerto y datos propios', 'Varias versiones'] },
-      { icono: 'stack-line', titulo: 'Versiones', ancla: '#versiones', items: ['LTS y mantenimiento', 'Actualizar con un clic', 'Fuente oficial', 'Verificación'] },
+      { icono: 'stack-line', titulo: 'Lenguajes', ancla: '#versiones', items: ['Versión por proyecto', 'Global y en la terminal', 'LTS y mantenimiento', 'Fuente oficial verificada'] },
       { icono: 'git-branch-line', titulo: 'Git', ancla: '#git', items: ['Rama y cambios', 'Worktrees como sitios', 'Aviso al cambiar de rama', 'Abrir en Butake Git'] },
-      { icono: 'add-box-line', titulo: 'Proyectos', ancla: '#instalar', items: ['Laravel con starter kit', 'Pest o PHPUnit', 'SQLite, MySQL o PostgreSQL', 'Arrastrar una carpeta'] },
+      { icono: 'add-box-line', titulo: 'Proyectos', ancla: '#proyectos', items: ['Web, nativo y multiplataforma', 'Versión del framework compatible', 'Importar una carpeta de proyectos', 'Carpetas de sitios'] },
       { icono: 'checkbox-multiple-line', titulo: 'Preparar', ancla: '#preparar', items: ['Requisitos detectados', 'Versión a elegir', 'Confirmación previa', 'Actualizaciones verificadas'] },
     ],
   },

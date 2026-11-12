@@ -41,6 +41,8 @@ import WebKit
         for project in projects where images[project.id] == nil {
             images[project.id] = NSImage(contentsOf: folder.appendingPathComponent("\(project.id).png"))
         }
+        // Screenshots of a separate data folder keep the captures prepared for them.
+        if StackStore.qaWindow && ProcessInfo.processInfo.environment["BUTAKE_QA_KEEP_PREVIEWS"] != nil { return }
         for project in projects where project.enabled && !refreshed.contains(project.id) { refresh(project) }
     }
 

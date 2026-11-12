@@ -33,6 +33,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if StackStore.qaWindow, let language = ProcessInfo.processInfo.environment["BUTAKE_QA_LANGUAGE"] {
                 Task { try? await Task.sleep(for: .seconds(1)); StackStore.shared.route = .language(language) }
             }
+            // Screenshots: "site:<id>", "service:<name>", "language:<name>" or "general".
+            if StackStore.qaWindow, let target = ProcessInfo.processInfo.environment["BUTAKE_QA_ROUTE"] {
+                Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    let parts = target.split(separator: ":", maxSplits: 1).map(String.init)
+                    let value = parts.count > 1 ? parts[1] : ""
+                    switch parts[0] {
+                    case "site": StackStore.shared.openSite(value)
+                    case "service": StackStore.shared.route = .service(value)
+                    case "language": StackStore.shared.route = .language(value)
+                    case "general": StackStore.shared.route = .general
+                    default: break
+                    }
+                }
+            }
             if StackStore.qaWindow, let folder = ProcessInfo.processInfo.environment["BUTAKE_QA_OPEN_FOLDER"] {
                 Task { try? await Task.sleep(for: .seconds(2)); await StackStore.shared.openFolder(folder, scan: true) }
             }
