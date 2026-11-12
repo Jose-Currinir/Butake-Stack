@@ -138,6 +138,8 @@ fn dispatch(request: Value) -> Result<Value> {
             let _ = daemon::request_sync(&store, "reload", json!({}), false);
             Ok(serde_json::to_value(manifest)?)
         }
+        "siteGroups" => Ok(serde_json::to_value(store.groups()?)?),
+        "saveSiteGroups" => Ok(serde_json::to_value(store.save_groups(serde_json::from_value(request["groups"].clone())?)?)?),
         "missingProjects" => Ok(json!(store
             .missing()?
             .into_iter()
@@ -313,6 +315,14 @@ fn dispatch(request: Value) -> Result<Value> {
         }
         "deleteProject" => {
             store.delete(id)?;
+            // Out of its folder too.
+            let mut groups = store.groups().unwrap_or_default();
+            if groups.iter().any(|g| g.sites.iter().any(|s| s == id)) {
+                for group in &mut groups {
+                    group.sites.retain(|s| s != id);
+                }
+                let _ = store.save_groups(groups);
+            }
             // Its environments go too (R10); the app removes their Keychain secrets.
             let _ = std::fs::remove_file(store.directory("envs")?.join(format!("{id}.json")));
             let _ = daemon::request_sync(&store, "reload", json!({}), false);
@@ -331,7 +341,7 @@ fn dispatch(request: Value) -> Result<Value> {
 const PUBLIC_ERRORS: &[&str] = &[
     "folder_exists", "site_exists", "invalid_name", "node_not_installed", "php_not_installed",
     "scaffold_step_failed", "kmp_use_wizard", "unknown_template", "domain_in_use",
-    "postgres_not_installed", "postgres_command_failed", "no_free_port",
+    "postgres_not_installed", "postgres_command_failed", "no_free_port", "invalid_group_name",
 ];
 
 #[tokio::main]

@@ -184,9 +184,69 @@ impl Store {
     }
 }
 
+/// Folders that group sites in the app. Kept with the stack's data so they survive reinstalls; a
+/// site id may stay listed while its folder is missing, so it comes back in its place.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SiteGroup {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub sites: Vec<String>,
+}
+
+impl Store {
+    pub fn groups(&self) -> Result<Vec<SiteGroup>> {
+        let file = self.root.join("groups.json");
+        if !file.exists() {
+            return Ok(vec![]);
+        }
+        self.read(&file)
+    }
+    /// Validates and saves the folders: short printable names, valid ids, each site in one folder.
+    pub fn save_groups(&self, groups: Vec<SiteGroup>) -> Result<Vec<SiteGroup>> {
+        ensure!(groups.len() <= 200, "too_many_groups");
+        let mut ids = std::collections::HashSet::new();
+        let mut placed = std::collections::HashSet::new();
+        let mut clean = Vec::with_capacity(groups.len());
+        for mut group in groups {
+            crate::model::validate_id(&group.id)?;
+            ensure!(ids.insert(group.id.clone()), "duplicate_group");
+            group.name = group.name.trim().to_string();
+            ensure!(!group.name.is_empty() && group.name.chars().count() <= 60 && !group.name.chars().any(char::is_control), "invalid_group_name");
+            let mut sites = vec![];
+            for site in group.sites {
+                crate::model::validate_id(&site)?;
+                if placed.insert(site.clone()) {
+                    sites.push(site);
+                }
+            }
+            group.sites = sites;
+            clean.push(group);
+        }
+        self.write(&self.root.join("groups.json"), &clean)?;
+        Ok(clean)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn groups_are_validated_and_each_site_is_in_one() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = Store::new(temp.path().join("store")).unwrap();
+        assert!(store.groups().unwrap().is_empty());
+        let saved = store.save_groups(vec![
+            SiteGroup { id: "clientes".into(), name: "  Clientes ".into(), sites: vec!["one".into(), "crew".into()] },
+            SiteGroup { id: "internos".into(), name: "Internos".into(), sites: vec!["crew".into(), "gestion".into()] },
+        ]).unwrap();
+        assert_eq!(saved[0].name, "Clientes");
+        assert_eq!(saved[1].sites, vec!["gestion".to_string()]);
+        assert_eq!(store.groups().unwrap(), saved);
+        assert!(store.save_groups(vec![SiteGroup { id: "x".into(), name: "".into(), sites: vec![] }]).is_err());
+        assert!(store.save_groups(vec![SiteGroup { id: "../x".into(), name: "X".into(), sites: vec![] }]).is_err());
+        assert!(store.save_groups(vec![SiteGroup { id: "x".into(), name: "X".into(), sites: vec!["a b".into()] }]).is_err());
+    }
     #[test]
     fn a_missing_folder_never_breaks_the_list() {
         let temp = tempfile::tempdir().unwrap();

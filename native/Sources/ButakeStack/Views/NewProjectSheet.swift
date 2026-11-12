@@ -20,6 +20,7 @@ struct NewProjectSheet: View {
     @State private var templates: [String: String] = [:]
     @State private var platform = "cloudflare"
     @State private var git = true
+    @AppStorage("newProject.group") private var groupChoice = ""
     @State private var openInGit = ButakeGit.installed
     @State private var phase: Phase = .form
     @State private var log: [String] = []
@@ -234,6 +235,23 @@ struct NewProjectSheet: View {
                 options
                 section(L("new.sectionAfter")) {
                     VStack(spacing: 0) {
+                        if !store.groups.isEmpty {
+                            HStack(spacing: 10) {
+                                Image(systemName: "folder").foregroundStyle(.secondary).frame(width: 18)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(L("new.group")).font(.uiCallout)
+                                    Text(L("new.groupDetail")).font(.uiCaption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Picker("", selection: $groupChoice) {
+                                    Text(L("new.groupNone")).tag("")
+                                    ForEach(store.groups) { Text($0.name).tag($0.id) }
+                                }
+                                .labelsHidden().fixedSize().accessibilityIdentifier("new.groupPicker")
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 9)
+                            Divider().padding(.leading, 34)
+                        }
                         ToggleRow(symbol: "arrow.triangle.branch", title: L("new.git"), detail: store.appleTools ? L("new.gitDetail") : L("new.gitMissing"), isOn: $git)
                         if git && ButakeGit.installed {
                             Divider().padding(.leading, 34)
@@ -635,6 +653,7 @@ struct NewProjectSheet: View {
                 case .success(var created):
                     created.seconds = Date().timeIntervalSince(started)
                     savedParent = parent
+                    if store.groups.contains(where: { $0.id == groupChoice }) { store.move(created.project.id, to: groupChoice) }
                     if git && openInGit { ButakeGit.open(created.project.path) }
                     phase = .done(created)
                 case .failure(let failure):

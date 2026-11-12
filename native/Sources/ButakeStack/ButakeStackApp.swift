@@ -147,6 +147,7 @@ struct RootView: View {
             SiteEditorSheet(store: store, project: box.detection.project, notes: box.detection.notes, isNew: true).themedSheet()
         }
         .sheet(isPresented: $store.showNewProject) { NewProjectSheet(store: store).themedSheet() }
+        .sheet(item: $store.groupNaming) { naming in GroupNameSheet(store: store, naming: naming).themedSheet() }
         .sheet(isPresented: $store.showPalette) { CommandPalette(store: store).themedSheet() }
         .sheet(isPresented: $updates.showingSheet) { UpdateSheet(updates: updates).themedSheet() }
         .sheet(isPresented: $store.showSetup) { SetupSheet(store: store).themedSheet() }
@@ -165,7 +166,8 @@ private struct DetectionBox: Identifiable {
 
 private struct Sidebar: View {
     @Bindable var store: StackStore
-    @State private var search = ""
+    @State var search = ""
+    @AppStorage("sidebar.collapsedGroups") var collapsedRaw = ""
     func matches(_ text: String) -> Bool { search.isEmpty || text.localizedCaseInsensitiveContains(search) }
     var body: some View {
         VStack(spacing: 0) {
@@ -179,15 +181,31 @@ private struct Sidebar: View {
                     Label(L("route.home"), systemImage: "house").tag(Route.home).accessibilityIdentifier("route.home")
                 }
                 let sites = store.projects.filter { matches($0.title) || matches($0.domain) }
-                if !sites.isEmpty {
-                    Section(L("route.sites")) {
-                        ForEach(sites) { project in
-                            Label {
-                                HStack { Text(project.title).lineLimit(1); Spacer(); StatusRing(phase: store.sitePhase(project), size: 10) }
-                            } icon: { TechLogo(tech: project.tech, size: 18) }
-                                .tag(Route.site(project.id)).accessibilityIdentifier("route.site.\(project.id)")
-                                .contextMenu { SiteMenuItems(store: store, project: project) }
+                if !sites.isEmpty || (search.isEmpty && !store.groups.isEmpty) {
+                    Section {
+                        ForEach(store.groups) { group in
+                            let members = store.projects(in: group).filter { matches($0.title) || matches($0.domain) || matches(group.name) }
+                            if search.isEmpty || !members.isEmpty {
+                                DisclosureGroup(isExpanded: expanded(group.id)) {
+                                    ForEach(members) { siteRow($0) }
+                                    if members.isEmpty && search.isEmpty {
+                                        Text(L("groups.empty")).font(.uiCaption).foregroundStyle(.tertiary).selectionDisabled()
+                                    }
+                                } label: {
+                                    GroupRow(store: store, group: group, members: store.projects(in: group), open: expanded(group.id).wrappedValue)
+                                        .dropDestination(for: String.self) { ids, _ in
+                                            for id in ids where store.projects.contains(where: { $0.id == id }) { store.move(id, to: group.id) }
+                                            setExpanded(group.id, true)
+                                            return true
+                                        }
+                                }
+                                .accessibilityIdentifier("sidebar.group.\(group.id)")
+                            }
                         }
+                        .onMove { store.moveGroup(from: $0, to: $1) }
+                        ForEach(store.ungroupedProjects.filter { matches($0.title) || matches($0.domain) }) { siteRow($0) }
+                    } header: {
+                        SitesHeader(store: store)
                     }
                 }
                 let services = Route.services.filter { matches(Tech.of($0).title) || Route.engines(in: $0).contains { matches(Tech.of($0).title) } }
@@ -216,13 +234,150 @@ private struct Sidebar: View {
             }
             .listStyle(.sidebar).themedScroll()
             .searchable(text: $search, placement: .sidebar, prompt: L("sidebar.search"))
-            HStack {
-                VersionBadge(updates: UpdateService.shared)
+            HStack(spacing: 12) {
+                VersionBadge(updates: UpdateService.shared).lineLimit(1).fixedSize()
                 Spacer()
+                Button { store.groupNaming = .new(sites: []) } label: { Image(systemName: "folder.badge.plus").font(.ui(size: 13)) }
+                    .buttonStyle(.borderless).help(L("groups.new")).accessibilityIdentifier("sidebar.newGroup")
                 SettingsLink { Image(systemName: "gearshape").font(.ui(size: 13)) }.buttonStyle(.borderless).help(L("settings.title")).accessibilityIdentifier("sidebar.settings")
             }.padding(.horizontal, 16).padding(.vertical, 10)
         }
         .background { if Brand.customBackgrounds { (Brand.theme.sidebar?.color ?? Brand.background).ignoresSafeArea() } }
+    }
+}
+
+extension Sidebar {
+    func siteRow(_ project: Project) -> some View {
+        Label {
+            HStack { Text(project.title).lineLimit(1); Spacer(); StatusRing(phase: store.sitePhase(project), size: 10) }
+        } icon: { TechLogo(tech: project.tech, size: 18) }
+            .tag(Route.site(project.id)).accessibilityIdentifier("route.site.\(project.id)")
+            .contextMenu { SiteMenuItems(store: store, project: project) }
+            .draggable(project.id) {
+                Label(project.title, systemImage: "globe").padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+            }
+    }
+    /// Folders open unless the user closed them; all open while searching.
+    func expanded(_ id: String) -> Binding<Bool> {
+        Binding(get: { !search.isEmpty || !collapsed.contains(id) }, set: { setExpanded(id, $0) })
+    }
+    func setExpanded(_ id: String, _ open: Bool) {
+        var set = collapsed
+        if open { set.remove(id) } else { set.insert(id) }
+        withAnimation(.snappy(duration: 0.25)) { collapsedRaw = set.sorted().joined(separator: ",") }
+    }
+    var collapsed: Set<String> { Set(collapsedRaw.split(separator: ",").map(String.init)) }
+}
+
+/// "Sitios" with a button for a new folder; dropping a site here takes it out of its folder.
+private struct SitesHeader: View {
+    let store: StackStore
+    @State private var targeted = false
+    var body: some View {
+        // The trailing edge belongs to the sidebar's own show/hide control.
+        Text(L("route.sites"))
+            .padding(.vertical, 2).padding(.horizontal, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.15) : .clear))
+            .contextMenu { Button { store.groupNaming = .new(sites: []) } label: { Label(L("groups.new"), systemImage: "folder.badge.plus") } }
+        .dropDestination(for: String.self) { ids, _ in
+            for id in ids { store.move(id, to: nil) }
+            return true
+        } isTargeted: { targeted = $0 }
+        .animation(.easeOut(duration: 0.15), value: targeted)
+    }
+}
+
+/// A folder in the sidebar: name, how many of its sites are on, and its actions.
+private struct GroupRow: View {
+    let store: StackStore
+    let group: SiteGroup
+    let members: [Project]
+    let open: Bool
+    @State private var targeted = false
+    var running: Int { members.filter { store.sitePhase($0) == .running }.count }
+    var body: some View {
+        Label {
+            HStack(spacing: 6) {
+                Text(group.name).lineLimit(1)
+                Spacer()
+                if running > 0 {
+                    Text("\(running)").font(.ui(size: 10, weight: .bold)).foregroundStyle(Brand.success)
+                        .padding(.horizontal, 5).padding(.vertical, 1).background(Brand.success.opacity(0.14), in: Capsule())
+                        .help(String(format: L("groups.running"), running))
+                }
+                Text("\(members.count)").font(.ui(size: 11, weight: .medium)).foregroundStyle(.secondary).monospacedDigit()
+            }
+        } icon: {
+            Image(systemName: open ? "folder.fill" : "folder").foregroundStyle(Brand.accent)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .padding(.vertical, 1)
+        .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.18) : .clear).padding(.horizontal, -6))
+        .scaleEffect(targeted ? 1.02 : 1)
+        .animation(.spring(duration: 0.25), value: targeted)
+        .dropDestination(for: String.self) { ids, _ in
+            for id in ids { store.move(id, to: group.id) }
+            return true
+        } isTargeted: { targeted = $0 }
+        .contextMenu {
+            Button { Task { for project in members where !project.enabled { await store.setSite(project, enabled: true) } } } label: {
+                Label(L("groups.startAll"), systemImage: "power")
+            }.disabled(members.allSatisfy(\.enabled))
+            Button { Task { for project in members where project.enabled { await store.setSite(project, enabled: false) } } } label: {
+                Label(L("groups.stopAll"), systemImage: "poweroff")
+            }.disabled(!members.contains(where: \.enabled))
+            Divider()
+            Button { store.groupNaming = .rename(group.id) } label: { Label(L("groups.rename"), systemImage: "pencil") }
+            Button(role: .destructive) { store.deleteGroup(group.id) } label: { Label(L("groups.delete"), systemImage: "folder.badge.minus") }
+        }
+    }
+}
+
+/// Name prompt for a new or renamed folder.
+struct GroupNameSheet: View {
+    let store: StackStore
+    let naming: GroupNaming
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @FocusState private var focused: Bool
+    var isNew: Bool { if case .new = naming { true } else { false } }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                IconTile(symbol: isNew ? "folder.badge.plus" : "folder", size: 38)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(isNew ? L("groups.new") : L("groups.rename")).font(.ui(size: 15, weight: .semibold))
+                    Text(L("groups.hint")).font(.uiCaption).foregroundStyle(.secondary)
+                }
+            }
+            TextField(L("groups.namePlaceholder"), text: $name)
+                .textFieldStyle(.roundedBorder).focused($focused)
+                .onSubmit(save)
+                .accessibilityIdentifier("groups.name")
+            HStack {
+                Spacer()
+                Button(L("action.cancel")) { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(isNew ? L("groups.create") : L("groups.save"), action: save)
+                    .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 380)
+        .onAppear {
+            if case .rename(let id) = naming { name = store.groups.first { $0.id == id }?.name ?? "" }
+            focused = true
+        }
+    }
+    func save() {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        switch naming {
+        case .new(let sites): store.createGroup(named: clean, with: sites)
+        case .rename(let id): store.renameGroup(id, to: clean)
+        }
+        dismiss()
     }
 }
 

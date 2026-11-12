@@ -65,6 +65,16 @@ struct HomePage: View {
     @State private var previews = SitePreviews.shared
     var services: [String] { ["web"] + Route.allEngines.filter { store.engineVersion($0) != nil } }
     var online: Int { store.projects.filter { store.sitePhase($0) == .running }.count }
+    private func siteGrid(_ sites: [Project], add: Bool) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 230, maximum: 320), spacing: 18)], spacing: 18) {
+            ForEach(sites) { project in
+                HomeSiteCard(store: store, project: project, previews: previews)
+                    .draggable(project.id)
+            }
+            if add { AddSiteCard { store.showNewProject = true } }
+        }
+        .animation(.snappy(duration: 0.3), value: sites.map(\.id))
+    }
     /// Sites whose folder went away: shown so they don't vanish silently; they come back with the folder.
     private var missing: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -93,11 +103,25 @@ struct HomePage: View {
                 if !store.missingSites.isEmpty { missing }
                 if !store.projects.isEmpty {
                     SectionHeading(title: L("route.sites"), detail: String(format: L("sites.online"), online))
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 230, maximum: 320), spacing: 18)], spacing: 18) {
-                        ForEach(store.projects) { project in
-                            HomeSiteCard(store: store, project: project, previews: previews)
+                    // Each folder as its own group of cards; sites without a folder after them.
+                    ForEach(store.groups) { group in
+                        let members = store.projects(in: group)
+                        if !members.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label(group.name, systemImage: "folder.fill")
+                                    .font(.ui(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                                siteGrid(members, add: false)
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
-                        AddSiteCard { store.showNewProject = true }
+                    }
+                    let loose = store.ungroupedProjects
+                    VStack(alignment: .leading, spacing: 12) {
+                        if !store.groups.isEmpty && !loose.isEmpty {
+                            Label(L("groups.loose"), systemImage: "square.grid.2x2")
+                                .font(.ui(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                        }
+                        siteGrid(loose, add: true)
                     }
                 } else {
                     AddSiteCard { store.showNewProject = true }.frame(maxWidth: 320)
@@ -240,6 +264,20 @@ struct SiteMenuItems: View {
                 }
             } label: { Label(L("env.switch"), systemImage: "arrow.triangle.2.circlepath") }
         }
+        Menu {
+            let current = store.group(of: project.id)?.id
+            ForEach(store.groups) { group in
+                Button { store.move(project.id, to: group.id) } label: {
+                    Label(group.name, systemImage: current == group.id ? "checkmark" : "folder")
+                }
+                .disabled(current == group.id)
+            }
+            if !store.groups.isEmpty { Divider() }
+            Button { store.groupNaming = .new(sites: [project.id]) } label: { Label(L("groups.newWithSite"), systemImage: "folder.badge.plus") }
+            if current != nil {
+                Button { store.move(project.id, to: nil) } label: { Label(L("groups.removeFrom"), systemImage: "folder.badge.minus") }
+            }
+        } label: { Label(L("groups.moveTo"), systemImage: "folder") }
         Divider()
         Button { if let url = project.url { NSWorkspace.shared.open(url) } } label: { Label(L("site.browser"), systemImage: "safari") }
         Button { Editor.open(project.path) } label: { Label(L("site.editor"), systemImage: "chevron.left.forwardslash.chevron.right") }

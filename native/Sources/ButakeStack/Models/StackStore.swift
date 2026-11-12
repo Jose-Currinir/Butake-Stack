@@ -51,6 +51,10 @@ enum Route: Hashable {
     var projects: [Project] = []
     /// Sites whose folder isn't there (deleted, moved or on a disconnected drive).
     var missingSites: [MissingSite] = []
+    /// Folders that group sites (sidebar and Home).
+    var groups: [SiteGroup] = []
+    /// A folder being named (new or renamed); the sidebar shows the prompt.
+    var groupNaming: GroupNaming?
     /// Current framework and generator versions (npm and Packagist), cached by the engine.
     var projectVersions: [String: String] = [:]
     var status: StackStatus?
@@ -442,6 +446,7 @@ enum Route: Hashable {
     func refresh() async {
         do { projects = try await call(["method": "listProjects"]) } catch { report(error) }
         missingSites = (try? await call(["method": "missingProjects"])) ?? []
+        groups = (try? await call(["method": "siteGroups"])) ?? groups
         config = try? await call(["method": "stackConfig"])
         await loadAllEnvs()
         await refreshStatus()
