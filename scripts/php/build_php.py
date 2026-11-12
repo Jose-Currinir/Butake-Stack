@@ -196,7 +196,9 @@ def build(minor, home, build_root):
                 if child.wait() != 0:
                     raise RuntimeError("spc_command_failed")
             run(["doctor", "--auto-fix=never", "--no-interaction"])
-            run(["download", "--for-extensions=" + ",".join(EXTENSIONS + ["mbregex", "xdebug"]), "--with-php=" + minor, "--custom-url=xdebug:" + PINS["xdebug"]["url"], "--custom-url=onig:" + PINS["onig"]["url"], "--debug", "--no-interaction", "--preserve-log"])
+            # imap left PHP's core in 8.4 (now in PECL): from 8.4 on it is not built.
+            extensions = [e for e in EXTENSIONS if not (e == "imap" and tuple(map(int, minor.split("."))) >= (8, 4))]
+            run(["download", "--for-extensions=" + ",".join(extensions + ["mbregex", "xdebug"]), "--with-php=" + minor, "--custom-url=xdebug:" + PINS["xdebug"]["url"], "--custom-url=onig:" + PINS["onig"]["url"], "--debug", "--no-interaction", "--preserve-log"])
             source_lock = json.loads((source / "downloads/.lock.json").read_text())
             xdebug_source = source / "downloads" / source_lock["xdebug"]["filename"]
             if digest(xdebug_source) != PINS["xdebug"]["sha256"]:
@@ -204,7 +206,7 @@ def build(minor, home, build_root):
             onig_source = source / "downloads" / source_lock["onig"]["filename"]
             if digest(onig_source) != PINS["onig"]["sha256"]:
                 raise RuntimeError("onig_hash_mismatch")
-            run(["build", ",".join(EXTENSIONS + ["mbregex"]), "--build-cli", "--build-fpm", "--with-libs=onig", "--build-shared=xdebug", "--with-config-file-path=" + str(home / "config/php" / minor),
+            run(["build", ",".join(extensions + ["mbregex"]), "--build-cli", "--build-fpm", "--with-libs=onig", "--build-shared=xdebug", "--with-config-file-path=" + str(home / "config/php" / minor),
                  "--with-config-file-scan-dir=" + str(home / "config/php" / minor / "conf.d"), "--debug", "--no-interaction", "--preserve-log"])
         runtime_parent = private_directory(home, "runtimes/php")
         destination = runtime_parent / minor
