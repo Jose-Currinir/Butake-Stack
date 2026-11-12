@@ -330,6 +330,8 @@ pub async fn run() -> Result<()> {
         let tlds = Arc::new(store.config()?.tld);
         tokio::spawn(crate::dns::serve_tcp(listener, tlds));
     }
+    let _ = crate::supervisor::PID_DIR.set(store.directory("run")?.join("pids"));
+    crate::supervisor::reap_orphans().await;
     let mut supervisor = Supervisor::new(store.directory("logs")?);
     supervisor.reload(specs(&store, listeners.fds())?).await?;
     let supervisor = Arc::new(Mutex::new(supervisor));

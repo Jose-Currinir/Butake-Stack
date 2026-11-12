@@ -247,6 +247,57 @@ async fn transition(
     }
     let _ = events.send(json!({"event":"process.state","value":state.clone()}));
 }
+/// Where the daemon notes the processes it started (`run/pids/<id>`: pid and executable image).
+/// If the daemon dies without stopping them (launchd's SIGKILL on restart or update), the next one
+/// finds them here and stops them before starting its own, so no stale MySQL, Caddy or php-fpm
+/// keeps a port or a datadir.
+pub static PID_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+fn image(pid: u32) -> Option<String> {
+    let mut buffer = vec![0u8; 4096];
+    let length = unsafe { libc::proc_pidpath(pid as i32, buffer.as_mut_ptr().cast(), buffer.len() as u32) };
+    (length > 0).then(|| String::from_utf8_lossy(&buffer[..length as usize]).into_owned())
+}
+fn alive(pid: u32) -> bool {
+    unsafe { libc::kill(pid as i32, 0) == 0 }
+}
+fn record(id: &str, pid: u32) {
+    if let (Some(dir), Some(image)) = (PID_DIR.get(), image(pid)) {
+        let _ = std::fs::create_dir_all(dir);
+        let _ = std::fs::write(dir.join(id), format!("{pid}\n{image}\n"));
+    }
+}
+fn forget(id: &str) {
+    if let Some(dir) = PID_DIR.get() {
+        let _ = std::fs::remove_file(dir.join(id));
+    }
+}
+/// Stops what a previous daemon left running. A pid only counts if it still runs the same image,
+/// so a recycled pid of an unrelated program is never touched.
+pub async fn reap_orphans() {
+    let Some(dir) = PID_DIR.get() else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let mut orphans = vec![];
+    for entry in entries.flatten() {
+        let text = std::fs::read_to_string(entry.path()).unwrap_or_default();
+        let mut lines = text.lines();
+        if let (Some(Ok(pid)), Some(recorded)) = (lines.next().map(str::parse::<u32>), lines.next()) {
+            if pid > 1 && alive(pid) && image(pid).as_deref() == Some(recorded) {
+                kill_group(pid, libc::SIGTERM);
+                orphans.push(pid);
+            }
+        }
+        let _ = std::fs::remove_file(entry.path());
+    }
+    // Databases flush on SIGTERM; give them the same grace as a normal stop.
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while orphans.iter().any(|pid| alive(*pid)) && Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    for pid in orphans {
+        kill_group(pid, libc::SIGKILL);
+    }
+}
 fn kill_group(pid: u32, signal: i32) {
     unsafe {
         libc::kill(-(pid as i32), signal);
@@ -316,6 +367,7 @@ async fn supervise(
         }
         if let Ok(mut child) = command.spawn() {
             let pid = child.id().unwrap();
+            record(&spec.id, pid);
             transition(&state, &events, "running", Some(pid)).await;
             let out = tokio::spawn(logs::capture(
                 child.stdout.take().unwrap(),
@@ -339,6 +391,7 @@ async fn supervise(
             } else {
                 kill_group(pid, libc::SIGKILL);
             }
+            forget(&spec.id);
             let _ = out.await;
             let _ = err.await;
             if stopping {
