@@ -24,6 +24,8 @@ struct NewProjectSheet: View {
     /// pip and venv (with every Python) or uv (optional, recommended when installed).
     @State private var manager = "pip"
     @State private var managerChosen = false
+    /// Framework line ("5.2", "12"); empty: the newest that fits the chosen language.
+    @State private var frameworkVersion = ""
     @State private var git = true
     @AppStorage("newProject.group") private var groupChoice = ""
     @State private var openInGit = ButakeGit.installed
@@ -62,6 +64,19 @@ struct NewProjectSheet: View {
     var chosenPython: String? { python.isEmpty ? proposedPython : python }
     var proposedPhp: String? { installedPhp.first(where: compatible) ?? installedPhp.first }
     var chosenPhp: String? { kind == "laravel" ? (php.isEmpty ? proposedPhp : php) : nil }
+    /// The language line the project will use (Python or PHP).
+    var chosenLanguage: String? { kind == "laravel" ? chosenPhp : chosenPython }
+    var frameworkVersions: [FrameworkVersion] { requirement?.versions ?? [] }
+    /// The newest framework line that supports the chosen language line.
+    var proposedFramework: FrameworkVersion? {
+        frameworkVersions.first { v in chosenLanguage.map { v.compatible.contains($0) } ?? true } ?? frameworkVersions.first
+    }
+    func frameworkNote(_ language: String) -> String? {
+        chosenFramework.map { String(format: L("new.requires"), "\(L("kind.\(kind)")) \($0.cycle)", "\(language) \(FrameworkVersionChoice.range($0.requirement))") }
+    }
+    var chosenFramework: FrameworkVersion? {
+        frameworkVersions.first { $0.cycle == frameworkVersion && (chosenLanguage.map($0.compatible.contains) ?? true) } ?? proposedFramework
+    }
     var nodeVersion: String? { (store.installedTools["node"] ?? []).map(\.version).sorted { $0.compare($1, options: .numeric) == .orderedDescending }.first }
     var needsNode: Bool { info.needsNode || (kind == "laravel" && kit != "none") }
     var missingRuntime: String? {
@@ -316,7 +331,13 @@ struct NewProjectSheet: View {
         case "laravel":
             section(L("new.php")) {
                 VersionChoice(store: store, language: "PHP", detail: L("new.phpDetail"), installed: installedPhp,
-                              requirement: requirement, proposed: proposedPhp, selection: $php)
+                              requirement: requirement, proposed: proposedPhp, note: frameworkNote("PHP"), selection: $php)
+            }
+            if frameworkVersions.count > 1 {
+                section(String(format: L("new.frameworkVersion"), "Laravel")) {
+                    FrameworkVersionChoice(kind: kind, language: "PHP", versions: frameworkVersions, chosenLanguage: chosenPhp,
+                                           selected: chosenFramework?.cycle, select: { frameworkVersion = $0 })
+                }
             }
             section(L("new.kit")) {
                 OptionGrid(columns: 3, options: ProjectKindInfo.kits, selection: $kit)
@@ -337,7 +358,13 @@ struct NewProjectSheet: View {
         case "django", "fastapi":
             section(L("new.python")) {
                 VersionChoice(store: store, language: "Python", detail: L("new.pythonDetail"), installed: installedPython,
-                              requirement: requirement, proposed: proposedPython, selection: $python)
+                              requirement: requirement, proposed: proposedPython, note: frameworkNote("Python"), selection: $python)
+            }
+            if frameworkVersions.count > 1 {
+                section(String(format: L("new.frameworkVersion"), L("kind.\(kind)"))) {
+                    FrameworkVersionChoice(kind: kind, language: "Python", versions: frameworkVersions, chosenLanguage: chosenPython,
+                                           selected: chosenFramework?.cycle, select: { frameworkVersion = $0 })
+                }
             }
             section(L("new.manager")) {
                 OptionGrid(columns: 2, options: [
@@ -707,9 +734,9 @@ struct NewProjectSheet: View {
     func create() {
         var request: [String: Any] = ["kind": kind, "name": slug, "parent": parent, "git": git]
         switch kind {
-        case "laravel": request.merge(["kit": kit, "testing": testing, "database": database, "php": chosenPhp ?? ""]) { $1 }
+        case "laravel": request.merge(["kit": kit, "testing": testing, "database": database, "php": chosenPhp ?? "", "frameworkVersion": kit == "none" ? chosenFramework?.cycle ?? "" : ""]) { $1 }
         case "astro", "next", "vite", "rust", "swift", "react-native": request["template"] = template
-        case "django", "fastapi": request.merge(["python": chosenPython ?? "", "manager": manager]) { $1 }
+        case "django", "fastapi": request.merge(["python": chosenPython ?? "", "manager": manager, "frameworkVersion": chosenFramework?.cycle ?? ""]) { $1 }
         case "emdash": request.merge(["template": template, "platform": platform]) { $1 }
         default: break
         }
@@ -1089,6 +1116,8 @@ struct VersionChoice: View {
     let installed: [String]
     let requirement: FrameworkRequirement?
     let proposed: String?
+    /// What the chosen framework line asks for, when the framework has lines.
+    var note: String? = nil
     @Binding var selection: String
     func compatible(_ line: String) -> Bool { requirement.map { $0.compatible.contains(line) } ?? true }
     var chosen: String? { selection.isEmpty ? proposed : selection }
@@ -1097,7 +1126,9 @@ struct VersionChoice: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(detail).font(.uiCaption).foregroundStyle(.secondary)
-                    if let requirement, !requirement.requirement.isEmpty {
+                    if let note {
+                        Text(note).font(.uiCaption).foregroundStyle(.tertiary)
+                    } else if let requirement, !requirement.requirement.isEmpty {
                         Text(String(format: L("new.requires"), L("kind.\(requirement.framework)"), "\(requirement.language == "php" ? "PHP" : "Python") \(requirement.requirement)"))
                             .font(.uiCaption).foregroundStyle(.tertiary)
                     }
@@ -1126,5 +1157,58 @@ struct VersionChoice: View {
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
+    }
+}
+
+/// The framework's supported lines: the ones that run on the chosen language line can be picked
+/// (the newest of them is proposed); the rest say what they need.
+struct FrameworkVersionChoice: View {
+    let kind: String
+    let language: String
+    let versions: [FrameworkVersion]
+    let chosenLanguage: String?
+    let selected: String?
+    let select: (String) -> Void
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .top), count: 3), spacing: 8) {
+            ForEach(versions) { version in
+                let fits = chosenLanguage.map { version.compatible.contains($0) } ?? true
+                let on = version.cycle == selected
+                Button { select(version.cycle) } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text("\(L("kind.\(kind)")) \(version.cycle)").font(.ui(size: 13, weight: .semibold))
+                            if version.isLts { Chip(text: "LTS", tint: Brand.success) }
+                            Spacer(minLength: 0)
+                            ZStack {
+                                Circle().strokeBorder(on ? Brand.accent : Color.primary.opacity(0.22), lineWidth: 1.5)
+                                if on { Circle().fill(Brand.accent); Image(systemName: "checkmark").font(.system(size: 8, weight: .heavy)).foregroundStyle(.white) }
+                            }.frame(width: 16, height: 16)
+                        }
+                        Text(fits ? String(format: L("new.frameworkFits"), version.latest ?? version.cycle, "\(language) \(Self.range(version.requirement))") : String(format: L("new.frameworkNeeds"), "\(language) \(Self.range(version.requirement))"))
+                            .font(.uiCaption).foregroundStyle(fits ? Color.secondary : Brand.warning).lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Brand.accent.opacity(0.09) : Color.primary.opacity(0.035)))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(on ? Brand.accent.opacity(0.8) : Color.primary.opacity(0.08), lineWidth: on ? 1.5 : 1))
+                    .contentShape(Rectangle())
+                    .opacity(fits ? 1 : 0.6)
+                }
+                .buttonStyle(.plain).disabled(!fits)
+                .accessibilityIdentifier("new.framework.\(version.cycle)")
+            }
+        }
+    }
+    /// ">=3.12,<=3.15" -> "3.12–3.15"; ">=3.10" -> "3.10 o más nueva".
+    static func range(_ requirement: String) -> String {
+        let parts = requirement.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let low = parts.first { $0.hasPrefix(">=") }.map { String($0.dropFirst(2)) }
+        let high = parts.first { $0.hasPrefix("<=") }.map { String($0.dropFirst(2)) }
+        switch (low, high) {
+        case let (l?, h?): return "\(l)–\(h)"
+        case let (l?, nil): return String(format: L("new.orNewer"), l)
+        default: return requirement
+        }
     }
 }

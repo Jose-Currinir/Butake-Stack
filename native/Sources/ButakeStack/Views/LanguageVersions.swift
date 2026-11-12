@@ -52,6 +52,17 @@ struct FrameworkRequirement: Decodable, Sendable, Hashable {
     let requirement: String
     let lines: [String]
     let compatible: [String]
+    let versions: [FrameworkVersion]?
+}
+/// A supported line of a framework (Django 5.2, Laravel 12) and the language lines it accepts.
+struct FrameworkVersion: Decodable, Sendable, Hashable, Identifiable {
+    let cycle: String
+    let latest: String?
+    let lts: Flex?
+    let requirement: String
+    let compatible: [String]
+    var id: String { cycle }
+    var isLts: Bool { if case .flag(true) = lts { true } else if case .date = lts { true } else { false } }
 }
 
 // MARK: Store actions

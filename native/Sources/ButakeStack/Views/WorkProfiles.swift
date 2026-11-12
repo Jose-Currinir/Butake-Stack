@@ -57,7 +57,7 @@ struct WorkProfile: Identifiable, Hashable {
         WorkProfile(id: "laravel", logo: "laravel", category: "web", tools: ["php", "node", "clt"]),
         WorkProfile(id: "web", logo: "astro", category: "web", tools: ["node", "clt"]),
         WorkProfile(id: "python", logo: "django", category: "web", tools: ["python", "clt"]),
-        WorkProfile(id: "swift", logo: "swift", category: "native", tools: ["xcode", "clt"]),
+        WorkProfile(id: "swift", logo: "swift", category: "native", tools: ["xcode", "clt", "swiftly"]),
         WorkProfile(id: "android", logo: "android", category: "native", tools: ["jdk", "android-studio", "android-sdk"]),
         WorkProfile(id: "rust", logo: "rust", category: "native", tools: ["rustup", "clt"]),
         WorkProfile(id: "kmp", logo: "kmp", category: "crossplatform", tools: ["jdk", "android-studio", "android-sdk", "xcode"]),
@@ -96,34 +96,49 @@ struct WorkProfilesSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(L("profiles.question")).font(.ui(size: 13, weight: .semibold))
-            Text(L("profiles.hint")).font(.uiCaption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            // By category, each a row of its own: web, native, cross-platform, tools.
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(WorkProfile.categories, id: \.self) { category in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(L("category.work.\(category)")).font(.ui(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                            ForEach(WorkProfile.all.filter { $0.category == category }) { profile in
-                                ProfileChip(profile: profile, selected: chosen.contains(profile.id)) { toggle(profile.id) }
-                            }
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L("profiles.question")).font(.ui(size: 17, weight: .bold))
+                    Text(L("profiles.hint")).font(.uiCaption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                if !chosen.isEmpty {
+                    Text(String(format: L("profiles.count"), chosen.count)).font(.uiCaption.weight(.semibold)).foregroundStyle(Brand.accent)
+                        .padding(.horizontal, 9).padding(.vertical, 3)
+                        .background(Capsule().fill(Brand.accent.opacity(0.12)))
+                        .contentTransition(.numericText())
+                }
+            }
+            // By category: web, native, cross-platform, tools; two cards per row.
+            ForEach(WorkProfile.categories, id: \.self) { category in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L("category.work.\(category)").uppercased()).font(.ui(size: 10.5, weight: .semibold)).tracking(0.6).foregroundStyle(.secondary)
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3), spacing: 10) {
+                        ForEach(WorkProfile.all.filter { $0.category == category }) { profile in
+                            ProfileCard(profile: profile, selected: chosen.contains(profile.id)) { toggle(profile.id) }
                         }
                     }
                 }
             }
             if !tools.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(Array(tools.enumerated()), id: \.element) { index, tool in
-                        if index > 0 { Divider().padding(.leading, 44) }
-                        ToolRow(store: store, tool: tool)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L("profiles.needs").uppercased()).font(.ui(size: 10.5, weight: .semibold)).tracking(0.6).foregroundStyle(.secondary)
+                    VStack(spacing: 0) {
+                        ForEach(Array(tools.enumerated()), id: \.element) { index, tool in
+                            if index > 0 { Divider().padding(.leading, 44) }
+                            ToolRow(store: store, tool: tool)
+                        }
                     }
+                    .padding(.horizontal, 12).padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.035)))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
                 }
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .animation(.snappy(duration: 0.25), value: tools)
+        .animation(.snappy(duration: 0.2), value: chosen)
         .task { await store.refreshDevTools() }
     }
 
@@ -134,29 +149,43 @@ struct WorkProfilesSection: View {
     }
 }
 
-private struct ProfileChip: View {
+/// A kind of work: its logo, name and what it brings; the whole card toggles it.
+private struct ProfileCard: View {
     let profile: WorkProfile
     let selected: Bool
     let action: () -> Void
     @State private var hovering = false
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 6) {
-                TechLogo(tech: .of(profile.logo), size: 26).saturation(selected ? 1 : 0.5)
-                Text(L("profile.\(profile.id)")).font(.uiCaption.weight(.medium)).lineLimit(1).minimumScaleFactor(0.8)
+            HStack(spacing: 12) {
+                TechLogo(tech: .of(profile.logo), size: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("profile.\(profile.id)")).font(.ui(size: 13, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
+                    Text(L("profile.\(profile.id).detail")).font(.uiCaption).foregroundStyle(.secondary).lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 6)
+                ZStack {
+                    Circle().strokeBorder(selected ? Brand.accent : Color.primary.opacity(0.22), lineWidth: 1.5)
+                    if selected {
+                        Circle().fill(Brand.accent)
+                        Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
+                    }
+                }
+                .frame(width: 18, height: 18)
             }
-            .frame(maxWidth: .infinity).padding(.vertical, 10)
-            .foregroundStyle(selected ? Brand.accent : .secondary)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(selected ? Brand.accent.opacity(0.12) : Color.primary.opacity(hovering ? 0.07 : 0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(selected ? Brand.accent : .clear, lineWidth: 1.5))
-            .overlay(alignment: .topTrailing) {
-                if selected { Image(systemName: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(Brand.accent).padding(5).transition(.scale.combined(with: .opacity)) }
-            }
-            .contentShape(Rectangle())
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(selected ? Brand.accent.opacity(0.09) : Color.primary.opacity(hovering ? 0.06 : 0.03)))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(selected ? Brand.accent.opacity(0.8) : Color.primary.opacity(hovering ? 0.14 : 0.08), lineWidth: selected ? 1.5 : 1))
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .animation(.snappy(duration: 0.18), value: selected)
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("profile.\(profile.id)")
     }
@@ -164,7 +193,7 @@ private struct ProfileChip: View {
 
 /// Tools Stack installs itself from their official source (verified), and what that means.
 enum DevToolInstaller {
-    static let automatic: Set<String> = ["rustup", "uv", "python", "gh", "cloudflared", "wrangler", "android-sdk"]
+    static let automatic: Set<String> = ["rustup", "uv", "python", "gh", "cloudflared", "wrangler", "android-sdk", "swiftly"]
 }
 
 struct ToolRow: View {

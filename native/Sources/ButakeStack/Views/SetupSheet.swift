@@ -44,9 +44,8 @@ struct SetupSheet: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    CardBlock(title: L("profiles.title"), symbol: "person.crop.rectangle.stack") {
-                        WorkProfilesSection(store: store)
-                    }
+                    // Open on the sheet, not boxed: the cards are the content.
+                    WorkProfilesSection(store: store).padding(.horizontal, 4).padding(.bottom, 6)
                     CardBlock(title: L("setup.base"), symbol: "checkmark.seal") {
                         step(tech: .of("web"), title: "Caddy", detail: L("setup.caddy"), done: store.caddyReady) {
                             Picker("", selection: $caddyVersion) {
@@ -118,7 +117,7 @@ struct SetupSheet: View {
             }
             .padding(14)
         }
-        .frame(width: 720, height: 760)
+        .frame(width: 860, height: 780)
         .task {
             await store.refreshAppleTools()
             if store.phpCatalog.isEmpty { await store.loadPhpCatalog() }

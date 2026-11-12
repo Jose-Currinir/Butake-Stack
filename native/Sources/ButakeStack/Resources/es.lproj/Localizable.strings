@@ -423,7 +423,7 @@
 "setup.ready" = "Listo";
 "setup.done" = "Listo";
 "setup.later" = "Más tarde";
-"setup.footer" = "Lenguajes y motores quedan dentro de Butake Stack; las herramientas de desarrollo (uv, Rust, gh…) van a tu carpeta personal, como las instalan sus propios instaladores. Nada usa Homebrew ni pide contraseña. Puedes volver aquí desde General.";
+"setup.footer" = "Lenguajes y motores quedan dentro de Butake Stack; las herramientas de desarrollo (Rust, swiftly, gh…) van a tu carpeta personal, como las instalan sus propios instaladores. Nada usa Homebrew ni pide contraseña. Puedes volver aquí desde General.";
 "setup.phpOffline" = "No se pudo leer el catálogo de PHP. Revisa la conexión y vuelve a abrir esta ventana.";
 
 /* Entornos .env (requisitos en .compliance/docs/21719-gestor-entornos-requisitos.md) */
@@ -773,14 +773,14 @@
 "note.rust_port" = "Stack le pasa el puerto en PORT (y HOST, ROCKET_PORT, BIND_ADDRESS); si el servidor tiene el puerto fijo en el código, cámbialo para leer PORT.";
 "tools.clt" = "Herramientas de línea de comandos";
 "profiles.question" = "¿Con qué trabajas?";
-"profiles.hint" = "Elige todo lo que usas: Stack te muestra qué necesita cada cosa y qué tienes ya en este Mac. Nada se instala sin preguntarte.";
+"profiles.hint" = "Marca todo lo que usas. Abajo verás qué necesita y qué ya tienes; nada se instala sin preguntarte.";
 "profile.laravel" = "Laravel y PHP";
-"profile.web" = "JavaScript (Astro, Next, Vite)";
-"profile.cloudflare" = "Cloudflare (Wrangler, túneles)";
-"profile.python" = "Python (Django, FastAPI)";
+"profile.web" = "JavaScript";
+"profile.cloudflare" = "Cloudflare";
+"profile.python" = "Python";
 "profile.rust" = "Rust";
-"profile.swift" = "Swift (Apple)";
-"profile.android" = "Android (Kotlin)";
+"profile.swift" = "Swift";
+"profile.android" = "Android";
 "profile.kmp" = "Kotlin Multiplatform";
 "profile.react-native" = "React Native";
 "profile.github" = "GitHub";
@@ -802,7 +802,7 @@
 "toolDetail.node" = "Lo instala y lo administra Stack";
 "toolDetail.jdk" = "Lo instala y lo administra Stack";
 "toolDetail.clt" = "Git, compiladores y make de Apple";
-"toolDetail.uv" = "Python, entornos y paquetes (Django, FastAPI)";
+"toolDetail.uv" = "Gestor de paquetes rápido para Python (opcional)";
 "toolDetail.rustup" = "Compilador y cargo, en ~/.cargo";
 "toolDetail.xcode" = "Apps de Apple y simuladores; desde App Store";
 "toolDetail.android-studio" = "IDE, emuladores y gestor del SDK";
@@ -858,13 +858,13 @@
 "new.step.cargoNew" = "Crear el proyecto con cargo";
 "new.step.compile" = "Compilar por primera vez";
 "new.step.swiftPackage" = "Crear el paquete Swift";
-"new.about.django" = "Aplicación Django con uv: entorno propio, Python fijado y base SQLite migrada.";
-"new.about.fastapi" = "API con FastAPI y uv, lista para agregar rutas.";
+"new.about.django" = "Aplicación Django con el Python que elijas: entorno .venv propio y base SQLite migrada.";
+"new.about.fastapi" = "API con FastAPI y el Python que elijas, lista para agregar rutas.";
 "new.about.rust" = "Servidor web con axum, o una herramienta de consola.";
 "new.about.swift" = "Paquete Swift (SwiftPM). Las apps con ventana se crean en Xcode.";
 "new.about.react-native" = "App móvil con Expo o con la CLI de React Native.";
 "new.feature.django.1" = "Proyecto «config» con manage.py";
-"new.feature.django.2" = "Entorno virtual y dependencias con uv";
+"new.feature.django.2" = "Entorno .venv y dependencias con pip o uv";
 "new.feature.django.3" = "Base SQLite ya migrada";
 "new.feature.fastapi.1" = "FastAPI con sus extras estándar";
 "new.feature.fastapi.2" = "Rutas / y /salud de ejemplo";
@@ -878,8 +878,8 @@
 "new.feature.react-native.1" = "Expo (recomendado) o CLI nativa";
 "new.feature.react-native.2" = "TypeScript y dependencias instaladas";
 "new.feature.react-native.3" = "Listo para el simulador o tu teléfono";
-"new.run.django" = "«manage.py runserver» con uv en un puerto propio, detrás de HTTPS en la dirección .test.";
-"new.run.fastapi" = "uvicorn con recarga, con uv, en un puerto propio detrás de HTTPS en la dirección .test.";
+"new.run.django" = "«manage.py runserver» con el Python de su .venv en un puerto propio, detrás de HTTPS en la dirección .test.";
+"new.run.fastapi" = "uvicorn con recarga, con el Python de su .venv, en un puerto propio detrás de HTTPS en la dirección .test.";
 "new.run.rust" = "«cargo run» con PORT y HOST asignados; la consola no se sirve.";
 "new.run.swift" = "No se sirve: se compila y se ejecuta con swift build/run o desde Xcode.";
 "new.run.react-native" = "No se sirve: Metro y la app corren desde la terminal, el simulador o Expo Go.";
@@ -903,7 +903,7 @@
 "note.rn_pods" = "Antes de correr en iOS: «cd ios && pod install» (requiere CocoaPods).";
 "error.cargo_not_installed" = "Falta Rust: instálalo en Preparar Butake Stack › Tu trabajo.";
 "error.clt_not_installed" = "Faltan las herramientas de línea de comandos de Apple.";
-"error.uv_not_installed" = "Falta uv: instálalo en Preparar Butake Stack › Tu trabajo.";
+"error.uv_not_installed" = "Falta uv: instálalo en Lenguajes › Python o elige pip.";
 "category.work.web" = "Desarrollo web";
 "category.work.native" = "Desarrollo nativo";
 "category.work.crossplatform" = "Desarrollo multiplataforma";
@@ -915,7 +915,7 @@
 "language.python.summary" = "Python administrado por Butake Stack: varias versiones a la vez, una global y la de cada proyecto en .python-version.";
 "language.rust.summary" = "Rust con rustup: compilador, cargo y servidores web como sitios.";
 "language.swift.summary" = "Swift con Xcode y las herramientas de Apple: paquetes, apps y herramientas.";
-"language.python.versionsFooter" = "uv instala cada versión de Python en tu carpeta personal; cada proyecto fija la suya.";
+"language.python.versionsFooter" = "Butake Stack instala cada versión de Python; cada proyecto fija la suya.";
 "language.rust.versionsFooter" = "rustup mantiene la cadena estable al día en ~/.cargo.";
 "language.swift.versionsFooter" = "Xcode se instala desde App Store; Swift viene con Xcode y con las herramientas de línea de comandos.";
 "backup.title" = "Mi entorno";
@@ -1016,3 +1016,22 @@
 "new.incompatibleWarning" = "%@ no cumple lo que pide el framework (%@): podría no instalarse o no funcionar.";
 "new.noCompatible" = "Ninguna versión instalada de %@ es compatible; instala %@ o una más nueva en Lenguajes.";
 "new.step.venv" = "Crear el entorno .venv";
+"profiles.count" = "%d elegidos";
+"profiles.needs" = "Lo que necesita";
+"profile.laravel.detail" = "PHP, Composer y Node para Vite";
+"profile.web.detail" = "Node.js para Astro, Next.js, Vite y EmDash";
+"profile.python.detail" = "Python de Stack, Django y FastAPI con pip o uv";
+"profile.swift.detail" = "Xcode y swiftly para varias versiones de Swift";
+"profile.android.detail" = "Kotlin con JDK, Android Studio y su SDK";
+"profile.rust.detail" = "rustup, cargo y servidores web con axum";
+"profile.kmp.detail" = "Compose Multiplatform para Android, iOS y web";
+"profile.react-native.detail" = "Expo con Node, Watchman, CocoaPods y Xcode";
+"profile.github.detail" = "gh, GitHub desde la terminal";
+"profile.cloudflare.detail" = "Wrangler para Workers y túneles con cloudflared";
+"tool.swiftly" = "swiftly";
+"toolDetail.swiftly" = "Varias versiones de Swift, en ~/.swiftly";
+"toolSource.swiftly" = "Desde download.swift.org: el paquete debe estar firmado por Swift Open Source (V9AUD2URP3) y notarizado por Apple. Se instala en ~/.swiftly, sin contraseña de administrador.";
+"new.frameworkVersion" = "Versión de %@";
+"new.frameworkFits" = "%@ · %@";
+"new.frameworkNeeds" = "Necesita %@";
+"new.orNewer" = "%@ o más nueva";
