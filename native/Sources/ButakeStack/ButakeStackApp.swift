@@ -19,6 +19,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if StackStore.qaWindow, ProcessInfo.processInfo.environment["BUTAKE_QA_SETUP"] != nil {
                 Task { try? await Task.sleep(for: .seconds(2)); StackStore.shared.showSetup = true }
             }
+            if StackStore.qaWindow, let language = ProcessInfo.processInfo.environment["BUTAKE_QA_LANGUAGE"] {
+                Task { try? await Task.sleep(for: .seconds(1)); StackStore.shared.route = .language(language) }
+            }
             if StackStore.qaWindow, let folder = ProcessInfo.processInfo.environment["BUTAKE_QA_OPEN_FOLDER"] {
                 Task { try? await Task.sleep(for: .seconds(2)); await StackStore.shared.openFolder(folder, scan: true) }
             }

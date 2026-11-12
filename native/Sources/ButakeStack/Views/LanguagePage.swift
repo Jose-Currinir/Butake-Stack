@@ -23,7 +23,7 @@ struct LanguagePage: View {
                                 badges: runtime.series == store.globalPhp ? [L("runtimes.global")] : [],
                                 cycle: store.cycle("php", for: runtime.series)
                             ) {
-                                Button { Task { await store.setGlobalPhp(runtime.series) } } label: { Label(L("runtimes.useGlobal"), systemImage: "star") }
+                                Button { Task { await store.setGlobal("php", runtime.series) } } label: { Label(L("runtimes.useGlobal"), systemImage: "star") }
                                     .disabled(runtime.series == store.globalPhp)
                                 Button { Folder.open("runtimes/php/\(runtime.series)/bin") } label: { Label(L("runtimes.openBinary"), systemImage: "folder") }
                                 Button { Folder.open("config/php/\(runtime.series)") } label: { Label(L("runtimes.openIni"), systemImage: "doc.text") }
@@ -31,6 +31,14 @@ struct LanguagePage: View {
                         }
                     }
                     PhpCatalogSection(store: store)
+                    TerminalCard(store: store, language: "php", title: "PHP", installed: store.phpRuntimes.filter(\.verified).map(\.series))
+                } else if name == "python" {
+                    PythonVersionsSection(store: store)
+                    TerminalCard(store: store, language: "python", title: "Python", installed: store.pythonRuntimes.map(\.line))
+                    // pip and venv come with every Python; uv is optional (recommended, faster).
+                    CardBlock(title: L("python.packageManager"), symbol: "shippingbox", footer: L("python.packageManagerFooter")) {
+                        ToolRow(store: store, tool: "uv")
+                    }
                 } else if let tools = Self.userTools[name] {
                     // Toolchains installed in the user's home (uv, rustup, Xcode): same controls as Tu trabajo.
                     CardBlock(title: L("runtimes.installedVersions"), symbol: "checkmark.seal", footer: L("language.\(name).versionsFooter")) {
@@ -41,8 +49,12 @@ struct LanguagePage: View {
                             }
                         }
                     }
+                    if name == "rust" { RustToolchainsSection(store: store) }
+                    if name == "swift" { SwiftToolchainsSection(store: store) }
                 } else {
-                    VersionsSection(store: store, info: ToolInfo.of(name == "java" ? "jdk" : name))
+                    let tool = name == "java" ? "jdk" : name
+                    VersionsSection(store: store, info: ToolInfo.of(tool))
+                    TerminalCard(store: store, language: tool, title: tool == "jdk" ? "Java" : "Node", installed: (store.installedTools[tool] ?? []).map(\.version))
                 }
                 FrameworksCard(store: store, language: name)
                 CardBlock(title: L("engine.sites"), symbol: "globe") {
@@ -58,19 +70,19 @@ struct LanguagePage: View {
         .task {
             await store.refreshRuntimes()
             if name == "php" { await store.loadLifecycle("php") }
-            if Self.userTools[name] != nil { await store.refreshDevTools() }
+            if Self.userTools[name] != nil || name == "python" { await store.refreshDevTools() }
             if store.projectVersions.isEmpty { await store.loadProjectVersions() }
         }
     }
 }
 
 extension LanguagePage {
-    static let userTools: [String: [String]] = ["python": ["uv", "python"], "rust": ["rustup"], "swift": ["xcode", "clt"]]
+    static let userTools: [String: [String]] = ["rust": ["rustup"], "swift": ["xcode", "clt"]]
     func usesLanguage(_ project: Project) -> Bool {
         switch name {
         case "php": project.php != nil
         case "java": project.runtime["jdk"] != nil
-        case "python": ["django", "fastapi"].contains(project.kind)
+        case "python": ["django", "fastapi"].contains(project.kind) || project.runtime["python"] != nil
         case "rust": project.kind == "rust"
         case "swift": false
         default: project.node != nil
@@ -263,12 +275,21 @@ struct VersionsSection: View {
             Button(L("runtimes.remove"), role: .destructive) { Task { await store.removeTool(item.tool, item.version) } }
         }
     }
+    /// The global version names a line ("24", "21") or a version; a line is global when it matches.
+    func globalLine(_ name: String) -> Bool {
+        guard let global = store.globalVersion(info.id) else { return false }
+        return global == name || line(global) == name
+    }
+    /// Value saved as global for a line: its major (Node 24, Java 21), so patches follow.
+    func globalValue(_ name: String) -> String { String(name.split(separator: ".").first ?? Substring(name)) }
     private func row(_ name: String) -> some View {
         ReleaseLine(store: store, info: info, line: name,
                     installed: installed.filter { line($0.version) == name },
                     available: available.filter { line($0.version) == name },
                     cycle: cycle(name),
-                    install: { pending = $0 }, remove: { removing = $0 })
+                    install: { pending = $0 }, remove: { removing = $0 },
+                    global: globalLine(name),
+                    setGlobal: info.id == "node" || info.id == "jdk" ? { Task { await store.setGlobal(info.id, globalValue(name)) } } : nil)
     }
 }
 
@@ -281,6 +302,8 @@ private struct ReleaseLine: View {
     let cycle: Cycle?
     let install: (AvailableVersion) -> Void
     let remove: (ToolManifest) -> Void
+    var global = false
+    var setGlobal: (() -> Void)? = nil
     @State private var expanded = false
     @State private var hovering = false
     var newest: AvailableVersion? { available.first }
@@ -321,6 +344,13 @@ private struct ReleaseLine: View {
                 if let cycle { LifecycleChip(cycle: cycle) }
                 Spacer()
                 if let current {
+                    if global {
+                        Chip(text: L("runtimes.global"), symbol: "star.fill", tint: Brand.accent)
+                    } else if let setGlobal {
+                        Button(action: setGlobal) { Label(L("runtimes.useGlobal"), systemImage: "star") }
+                            .buttonStyle(.borderless).controlSize(.small).disabled(store.busy != nil)
+                            .accessibilityIdentifier("line.global.\(info.id).\(line)")
+                    }
                     Label(current.version, systemImage: "checkmark.seal.fill").font(.uiCaption.monospacedDigit()).foregroundStyle(Brand.success)
                 }
                 if let updatable {

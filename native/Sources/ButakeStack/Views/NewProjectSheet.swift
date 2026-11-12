@@ -20,6 +20,10 @@ struct NewProjectSheet: View {
     @State private var templates: [String: String] = [:]
     @State private var platform = "cloudflare"
     @State private var python = ""
+    @State private var php = ""
+    /// pip and venv (with every Python) or uv (optional, recommended when installed).
+    @State private var manager = "pip"
+    @State private var managerChosen = false
     @State private var git = true
     @AppStorage("newProject.group") private var groupChoice = ""
     @State private var openInGit = ButakeGit.installed
@@ -45,12 +49,26 @@ struct NewProjectSheet: View {
 
     // MARK: Requirements and validation
 
-    var phpVersion: String? { store.phpRuntimes.filter(\.installed).map(\.series).sorted().last }
+    var phpVersion: String? { chosenPhp ?? store.phpRuntimes.filter(\.installed).map(\.series).sorted().last }
+    var needsPython: Bool { kind == "django" || kind == "fastapi" }
+    /// Installed lines of a language, newest first.
+    var installedPython: [String] { store.pythonRuntimes.map(\.line).sorted { $0.compare($1, options: .numeric) == .orderedDescending } }
+    var installedPhp: [String] { store.phpRuntimes.filter(\.verified).map(\.series).sorted { $0.compare($1, options: .numeric) == .orderedDescending } }
+    /// What the framework's newest version needs (PyPI's requires_python, Packagist's require.php).
+    var requirement: FrameworkRequirement? { store.requirements[kind] }
+    func compatible(_ line: String) -> Bool { requirement.map { $0.compatible.contains(line) } ?? true }
+    /// The newest installed line that the framework supports: what the assistant proposes.
+    var proposedPython: String? { installedPython.first(where: compatible) ?? installedPython.first }
+    var chosenPython: String? { python.isEmpty ? proposedPython : python }
+    var proposedPhp: String? { installedPhp.first(where: compatible) ?? installedPhp.first }
+    var chosenPhp: String? { kind == "laravel" ? (php.isEmpty ? proposedPhp : php) : nil }
     var nodeVersion: String? { (store.installedTools["node"] ?? []).map(\.version).sorted { $0.compare($1, options: .numeric) == .orderedDescending }.first }
     var needsNode: Bool { info.needsNode || (kind == "laravel" && kit != "none") }
     var missingRuntime: String? {
         if info.needsPhp && phpVersion == nil { return L("new.needsPhp") }
         if needsNode && nodeVersion == nil { return L("new.needsNode") }
+        if needsPython && installedPython.isEmpty { return L("new.needsPython") }
+        if needsPython && manager == "uv" && store.devTools["uv"]?.installed != true { return String(format: L("new.needsTool"), L("tool.uv")) }
         if let tool = info.needsTool {
             let ready = tool == "clt" ? store.appleTools : (store.devTools[tool]?.installed == true && store.devTools[tool]?.broken != true)
             if !ready { return String(format: L("new.needsTool"), L("tool.\(tool)")) }
@@ -93,7 +111,15 @@ struct NewProjectSheet: View {
             if store.installedTools["node"] == nil { await store.refreshRuntimes() }
             if store.projectVersions.isEmpty { await store.loadProjectVersions() }
             if store.devTools.isEmpty || store.pythonLines.isEmpty { await store.refreshDevTools() }
+            if store.devTools["uv"]?.installed == true && manager == "pip" && !managerChosen { manager = "uv" }
         }
+        .task(id: kind) {
+            if ["django", "fastapi", "laravel"].contains(kind) {
+                await store.loadLifecycle(kind == "laravel" ? "php" : "python")
+                await store.loadRequirement(kind)
+            }
+        }
+        .onChange(of: manager) { _, _ in managerChosen = true }
     }
 
     var isCreating: Bool { if case .creating = phase { true } else { false } }
@@ -172,6 +198,7 @@ struct NewProjectSheet: View {
                     Chip(text: info.generatorPackage.flatMap { store.projectVersions[$0] }.map { "\(info.generator) \($0)" } ?? info.generator, symbol: "shippingbox")
                     if info.needsPhp { requirement(phpVersion.map { "PHP \($0)" }, missing: "PHP") }
                     if needsNode { requirement(nodeVersion.map { "Node \($0.split(separator: ".").first ?? "")" }, missing: "Node.js") }
+                    if needsPython { requirement(chosenPython.map { "Python \($0)" }, missing: "Python") }
                     if let tool = info.needsTool, tool != "clt" {
                         requirement(store.devTools[tool].flatMap { $0.installed ? "\(L("tool.\(tool)")) \($0.version ?? "")" : nil }, missing: L("tool.\(tool)"))
                     }
@@ -287,6 +314,10 @@ struct NewProjectSheet: View {
     @ViewBuilder private var options: some View {
         switch kind {
         case "laravel":
+            section(L("new.php")) {
+                VersionChoice(store: store, language: "PHP", detail: L("new.phpDetail"), installed: installedPhp,
+                              requirement: requirement, proposed: proposedPhp, selection: $php)
+            }
             section(L("new.kit")) {
                 OptionGrid(columns: 3, options: ProjectKindInfo.kits, selection: $kit)
             }
@@ -305,17 +336,14 @@ struct NewProjectSheet: View {
             }
         case "django", "fastapi":
             section(L("new.python")) {
-                HStack {
-                    Text(L("new.pythonDetail")).font(.uiCaption).foregroundStyle(.secondary)
-                    Spacer()
-                    Picker("", selection: $python) {
-                        Text(L("new.pythonDefault")).tag("")
-                        ForEach(store.pythonLines) { Text("Python \($0.latest ?? $0.version)").tag($0.version) }
-                    }
-                    .labelsHidden().fixedSize()
-                }
-                .padding(12)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
+                VersionChoice(store: store, language: "Python", detail: L("new.pythonDetail"), installed: installedPython,
+                              requirement: requirement, proposed: proposedPython, selection: $python)
+            }
+            section(L("new.manager")) {
+                OptionGrid(columns: 2, options: [
+                    TemplateOption(id: "pip", title: "pip + venv", detail: L("new.manager.pip"), symbol: "shippingbox"),
+                    TemplateOption(id: "uv", title: "uv", detail: store.devTools["uv"]?.installed == true ? L("new.manager.uv") : L("new.manager.uvMissing"), symbol: "bolt"),
+                ], selection: $manager)
             }
         case "astro", "emdash", "next", "vite", "rust", "swift", "react-native":
             section(L("new.template")) {
@@ -432,7 +460,7 @@ struct NewProjectSheet: View {
             list = [("generator", "npx")]
             if kind == "vite" { list.append(("dependencies", "npm install")) }
         case "django", "fastapi":
-            list = [("uvInit", "uv init"), ("dependencies", "uv add")]
+            list = manager == "uv" ? [("uvInit", "uv init"), ("dependencies", "uv add")] : [("venv", "python -m venv"), ("dependencies", "pip install")]
             if kind == "django" { list.append(("djangoProject", "startproject")) }
         case "rust":
             list = [("cargoNew", "cargo new")]
@@ -679,9 +707,9 @@ struct NewProjectSheet: View {
     func create() {
         var request: [String: Any] = ["kind": kind, "name": slug, "parent": parent, "git": git]
         switch kind {
-        case "laravel": request.merge(["kit": kit, "testing": testing, "database": database]) { $1 }
+        case "laravel": request.merge(["kit": kit, "testing": testing, "database": database, "php": chosenPhp ?? ""]) { $1 }
         case "astro", "next", "vite", "rust", "swift", "react-native": request["template"] = template
-        case "django", "fastapi": request["python"] = python
+        case "django", "fastapi": request.merge(["python": chosenPython ?? "", "manager": manager]) { $1 }
         case "emdash": request.merge(["template": template, "platform": platform]) { $1 }
         default: break
         }
@@ -783,8 +811,8 @@ struct ProjectKindInfo: Identifiable {
         ProjectKindInfo(id: "next", logo: "next", group: "web", generator: "create-next-app", needsNode: true, proxied: true),
         ProjectKindInfo(id: "vite", logo: "vite", group: "web", generator: "create-vite", needsNode: true, proxied: true),
         ProjectKindInfo(id: "node", logo: "node", group: "web", generator: "node:http", needsNode: true, proxied: true),
-        ProjectKindInfo(id: "django", logo: "django", group: "web", generator: "uv", proxied: true, needsTool: "uv"),
-        ProjectKindInfo(id: "fastapi", logo: "fastapi", group: "web", generator: "uv", proxied: true, needsTool: "uv"),
+        ProjectKindInfo(id: "django", logo: "django", group: "web", generator: "django-admin", proxied: true),
+        ProjectKindInfo(id: "fastapi", logo: "fastapi", group: "web", generator: "fastapi", proxied: true),
         ProjectKindInfo(id: "rust", logo: "rust", group: "native", generator: "cargo", proxied: true, needsTool: "rustup"),
         ProjectKindInfo(id: "swift", logo: "swift", group: "native", generator: "swift package", needsTool: "clt", app: true),
         ProjectKindInfo(id: "react-native", logo: "react-native", group: "crossplatform", generator: "create-expo-app", needsNode: true, app: true),
@@ -1049,5 +1077,54 @@ private struct TightLabel: LabelStyle {
             configuration.icon.font(.system(size: 9, weight: .bold)).foregroundStyle(Brand.success)
             configuration.title
         }
+    }
+}
+
+/// The language version for a new project: the installed lines the framework supports (the newest
+/// one proposed), the others apart with a warning, and what the framework asks for.
+struct VersionChoice: View {
+    @Bindable var store: StackStore
+    let language: String
+    let detail: String
+    let installed: [String]
+    let requirement: FrameworkRequirement?
+    let proposed: String?
+    @Binding var selection: String
+    func compatible(_ line: String) -> Bool { requirement.map { $0.compatible.contains(line) } ?? true }
+    var chosen: String? { selection.isEmpty ? proposed : selection }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(detail).font(.uiCaption).foregroundStyle(.secondary)
+                    if let requirement, !requirement.requirement.isEmpty {
+                        Text(String(format: L("new.requires"), L("kind.\(requirement.framework)"), "\(requirement.language == "php" ? "PHP" : "Python") \(requirement.requirement)"))
+                            .font(.uiCaption).foregroundStyle(.tertiary)
+                    }
+                }
+                Spacer()
+                Picker("", selection: $selection) {
+                    if let proposed { Text(String(format: L("new.proposed"), "\(language) \(proposed)")).tag("") }
+                    ForEach(installed.filter(compatible), id: \.self) { line in
+                        Text("\(language) \(line)").tag(line)
+                    }
+                    let others = installed.filter { !compatible($0) }
+                    if !others.isEmpty {
+                        Divider()
+                        ForEach(others, id: \.self) { Text(String(format: L("new.incompatible"), "\(language) \($0)")).tag($0) }
+                    }
+                }
+                .labelsHidden().fixedSize().accessibilityIdentifier("new.version.\(language.lowercased())")
+            }
+            if let chosen, !compatible(chosen) {
+                Label(String(format: L("new.incompatibleWarning"), "\(language) \(chosen)", requirement?.requirement ?? ""), systemImage: "exclamationmark.triangle.fill")
+                    .font(.uiCaption).foregroundStyle(Brand.warning)
+            } else if let requirement, !installed.contains(where: compatible) {
+                Label(String(format: L("new.noCompatible"), language, requirement.compatible.first ?? ""), systemImage: "exclamationmark.triangle.fill")
+                    .font(.uiCaption).foregroundStyle(Brand.warning)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
     }
 }

@@ -36,7 +36,13 @@ fn binaries(store: &Store, language: &str, version: &str) -> Result<(PathBuf, Ve
 fn ours(link: &Path, store: &Store) -> bool {
     match fs::symlink_metadata(link) {
         Err(_) => true,
-        Ok(meta) => meta.file_type().is_symlink() && fs::read_link(link).is_ok_and(|t| t.starts_with(store.root().join("runtimes")) || t.starts_with(store.root().join("run"))),
+        Ok(meta) => meta.file_type().is_symlink() && fs::read_link(link).is_ok_and(|t| {
+            // corepack writes relative links; resolve them before comparing.
+            let resolved = if t.is_absolute() { t } else { link.parent().map(|p| p.join(&t)).unwrap_or(t) };
+            let resolved = resolved.canonicalize().unwrap_or(resolved);
+            let root = store.root().canonicalize().unwrap_or_else(|_| store.root().to_path_buf());
+            resolved.starts_with(root.join("runtimes")) || resolved.starts_with(root.join("run")) || resolved.starts_with(store.root().join("runtimes"))
+        }),
     }
 }
 

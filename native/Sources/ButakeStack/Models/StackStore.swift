@@ -70,6 +70,15 @@ enum Route: Hashable {
     var ports: PortOwners?
     var recipes: [EngineRecipe] = []
     var lifecycles: [String: [Cycle]] = [:]
+    // Python (Stack's own CPython), toolchains of Rust and Swift, and the terminal's links.
+    var pythonRuntimes: [PythonRuntime] = []
+    var pythonCatalog: [PythonCatalogEntry] = []
+    var pythonCatalogFailed = false
+    var terminalLinks: [String: TerminalLink] = [:]
+    var rustToolchains: [RustToolchain] = []
+    var rustLoaded = false
+    var swiftToolchains: SwiftToolchains?
+    var requirements: [String: FrameworkRequirement] = [:]
     func loadLifecycle(_ tool: String) async {
         if lifecycles[tool] == nil, let cycles: [Cycle] = try? await call(["method": "lifecycle", "tool": tool]) { lifecycles[tool] = cycles }
     }
@@ -318,7 +327,8 @@ enum Route: Hashable {
             let _: JSONAny = try await self.call(["method": "installDevTool", "tool": tool, "version": version, "shellPath": shellPath, "acceptLicenses": acceptLicenses, "confirmed": true])
         }
         await refreshDevTools(refresh: true)
-        if devTools[tool == "python" ? "uv" : tool]?.installed == true { notify(String(format: L("tools.installed"), title)) }
+        if tool == "python" { await refreshRuntimes() }
+        if devTools[tool]?.installed == true { notify(String(format: L("tools.installed"), title)) }
     }
     var phpReady: Bool { phpRuntimes.contains(where: \.verified) }
     var caddyReady: Bool { !(installedTools["caddy"] ?? []).isEmpty }
@@ -486,6 +496,8 @@ enum Route: Hashable {
     }
     func refreshRuntimes() async {
         phpRuntimes = (try? await call(["method": "listPhpRuntimes"])) ?? []
+        pythonRuntimes = (try? await call(["method": "listPythonRuntimes"])) ?? []
+        terminalLinks = (try? await call(["method": "terminalStatus"])) ?? [:]
         recipes = (try? await call(["method": "engineRecipes"])) ?? recipes
         for tool in ["node", "jdk", "caddy"] + Route.allEngines {
             installedTools[tool] = (try? await call(["method": "installedTools", "tool": tool])) ?? []
@@ -614,16 +626,6 @@ enum Route: Hashable {
     func detect(_ path: String) async {
         await run(L("busy.detecting")) { self.newSite = try await self.call(["method": "detect", "path": path]) }
     }
-    func setGlobalPhp(_ series: String) async {
-        guard var config else { return }
-        config.versions["php"] = series
-        await run(L("busy.saving"), refresh: true) {
-            let object = try JSONSerialization.jsonObject(with: try JSONEncoder().encode(config))
-            let _: StackConfig = try await self.call(["method": "stackConfig", "config": object])
-            let _: Bool? = try? await self.call(["method": "reloadStack"])
-        }
-    }
-
     // MARK: Runtimes
     func installTool(_ tool: String, _ version: String) async {
         await run(L("busy.installing"), refresh: false) {

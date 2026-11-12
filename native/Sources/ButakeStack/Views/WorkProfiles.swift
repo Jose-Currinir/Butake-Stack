@@ -56,7 +56,7 @@ struct WorkProfile: Identifiable, Hashable {
     static let all: [WorkProfile] = [
         WorkProfile(id: "laravel", logo: "laravel", category: "web", tools: ["php", "node", "clt"]),
         WorkProfile(id: "web", logo: "astro", category: "web", tools: ["node", "clt"]),
-        WorkProfile(id: "python", logo: "django", category: "web", tools: ["uv", "python", "clt"]),
+        WorkProfile(id: "python", logo: "django", category: "web", tools: ["python", "clt"]),
         WorkProfile(id: "swift", logo: "swift", category: "native", tools: ["xcode", "clt"]),
         WorkProfile(id: "android", logo: "android", category: "native", tools: ["jdk", "android-studio", "android-sdk"]),
         WorkProfile(id: "rust", logo: "rust", category: "native", tools: ["rustup", "clt"]),
@@ -267,8 +267,7 @@ struct ToolRow: View {
                         else { Text(L("setup.install")) }
                     }
                     .controlSize(.small).buttonStyle(.borderedProminent)
-                    .disabled(busy || store.devTools["uv"]?.installed != true)
-                    .help(store.devTools["uv"]?.installed == true ? "" : L("tools.needsUv"))
+                    .disabled(busy)
                 }
             }
             .transition(.opacity)
