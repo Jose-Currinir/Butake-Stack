@@ -735,3 +735,4 @@
 "git.pendingChanges" = "%d cambios sin commit";
 "groups.collapse" = "Cerrar carpeta";
 "groups.expand" = "Abrir carpeta";
+"buildNumber" = "Compilación %@";

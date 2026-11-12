@@ -18,7 +18,7 @@ struct VersionBadge: View {
             Button { Task { await updates.check(userInitiated: true) } } label: {
                 Text("v\(updates.current)").font(.ui(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain).help(L("updateCheckNow")).accessibilityLabel("\(L("version")) \(updates.current). \(L("updateCheckNow"))")
+            .buttonStyle(.plain).help(L("updateCheckNow")).accessibilityLabel("\(L("version")) \(updates.versionLabel). \(L("updateCheckNow"))")
             .accessibilityIdentifier("sidebar.version")
         }
     }
@@ -115,7 +115,8 @@ struct UpdateSettingsSection: View {
             Toggle(L("updateAutomatic"), isOn: $automatic)
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("\(L("version")) \(updates.current)")
+                    Text("\(L("version")) \(updates.versionLabel)").textSelection(.enabled)
+                        .help(updates.build.isEmpty ? "" : String(format: L("buildNumber"), updates.build))
                     if let last = updates.lastCheck { Text(String(format: L("updateLastCheck"), last.formatted(date: .abbreviated, time: .shortened))).font(.uiCaption).foregroundStyle(.secondary) }
                 }
                 Spacer()

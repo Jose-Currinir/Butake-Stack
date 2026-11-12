@@ -39,6 +39,10 @@ import Foundation
         #endif
         return Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }()
+    /// Build number of the running app (`CFBundleVersion`), shown next to the version.
+    let build: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+    /// "1.3.1 (136)", like macOS shows versions.
+    var versionLabel: String { build.isEmpty ? current : "\(current) (\(build))" }
     var updateAvailable: Bool { latest.map { Self.isNewer($0.version, than: current) } ?? false }
     var automatic: Bool { UserDefaults.standard.object(forKey: "autoUpdateCheck") as? Bool ?? true }
 
