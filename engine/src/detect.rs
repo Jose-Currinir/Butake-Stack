@@ -374,6 +374,67 @@ pub fn detect(path: &Path) -> Result<Detection> {
     })
 }
 
+/// Files that mark a folder as a project (any of them).
+const PROJECT_MARKERS: [&str; 11] = [
+    "composer.json", "package.json", "artisan", "index.php", "index.html", "gradlew",
+    "settings.gradle.kts", "settings.gradle", ".git", "public/index.php", "astro.config.mjs",
+];
+const SKIP: [&str; 6] = ["node_modules", "vendor", "build", "dist", "target", "Library"];
+
+pub fn looks_like_project(path: &Path) -> bool {
+    PROJECT_MARKERS.iter().any(|m| path.join(m).exists())
+}
+
+/// Projects inside a folder that holds several (e.g. ~/Proyectos): its subfolders, and theirs one level
+/// down for folders that only organize (Apps/, Web/…), which become the suggested group. Hidden and
+/// dependency folders are skipped; at most 300 projects.
+pub fn scan(root: &Path) -> Result<serde_json::Value> {
+    let root = root.canonicalize()?;
+    ensure!(root.is_dir(), "invalid_path");
+    let children = |dir: &Path| -> Vec<PathBuf> {
+        let mut list: Vec<PathBuf> = std::fs::read_dir(dir)
+            .map(|entries| entries.flatten().map(|e| e.path()).collect())
+            .unwrap_or_default();
+        list.retain(|p| {
+            let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            // Real folders only: a symlink could point anywhere.
+            !name.starts_with('.') && !SKIP.contains(&name.as_str())
+                && std::fs::symlink_metadata(p).is_ok_and(|m| m.is_dir())
+        });
+        list.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()));
+        list
+    };
+    let mut found = vec![];
+    let mut push = |path: &Path, group: &str| {
+        if found.len() >= 300 {
+            return;
+        }
+        if let Ok(detection) = detect(path) {
+            // Something a browser can show: a kind with a server, or a static site with its index.html.
+            let web = detection.project.kind != ProjectKind::Static || path.join("index.html").is_file();
+            found.push(serde_json::json!({"group": group, "web": web, "detection": detection}));
+        }
+    };
+    for child in children(&root) {
+        if looks_like_project(&child) {
+            push(&child, "");
+        } else {
+            let group = child.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            for grandchild in children(&child) {
+                if looks_like_project(&grandchild) {
+                    push(&grandchild, &group);
+                }
+            }
+        }
+    }
+    Ok(serde_json::json!({
+        "root": root,
+        "name": root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+        "rootIsProject": looks_like_project(&root),
+        "projects": found,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -465,6 +526,22 @@ include(":server")"#), ("gradlew", "#!/bin/sh")]);
         fs::create_dir_all(&bare).unwrap();
         fs::write(bare.join("package.json"), "{}").unwrap();
         assert!(detect(&bare).unwrap().notes.contains(&"node_no_script".to_string()));
+    }
+
+    #[test]
+    fn scans_a_folder_of_projects_with_organizing_subfolders() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("Proyectos");
+        for (dir, file) in [("blog", "index.html"), ("Apps/api", "package.json"), ("Apps/web", "composer.json"), ("Apps/node_modules/x", "package.json"), (".oculto/x", "index.html"), ("vacia", "")] {
+            fs::create_dir_all(root.join(dir)).unwrap();
+            if !file.is_empty() { fs::write(root.join(dir).join(file), "{}").unwrap(); }
+        }
+        let result = scan(&root).unwrap();
+        let found: Vec<(String, String)> = result["projects"].as_array().unwrap().iter()
+            .map(|p| (p["group"].as_str().unwrap().to_string(), p["detection"]["project"]["id"].as_str().unwrap().to_string()))
+            .collect();
+        assert_eq!(found, vec![("Apps".into(), "api".into()), ("Apps".into(), "web".into()), ("".into(), "blog".into())]);
+        assert_eq!(result["rootIsProject"], false);
     }
 
 }

@@ -631,7 +631,7 @@ struct NewProjectSheet: View {
         dismiss()
         Task {
             try? await Task.sleep(for: .milliseconds(350))
-            await store.detect(path)
+            await store.openFolder(path)
         }
     }
     func create() {

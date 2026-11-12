@@ -15,6 +15,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.setActivationPolicy(.regular)
                 NSApp.activate(ignoringOtherApps: true)
             }
+            #if DEBUG
+            if StackStore.qaWindow, let folder = ProcessInfo.processInfo.environment["BUTAKE_QA_OPEN_FOLDER"] {
+                Task { try? await Task.sleep(for: .seconds(2)); await StackStore.shared.openFolder(folder, scan: true) }
+            }
+            #endif
             // A new Mac: what is missing is asked for in "Preparar Butake Stack".
             Task { await StackStore.shared.checkSetupAtLaunch() }
         }
@@ -136,7 +141,7 @@ struct RootView: View {
             // Dropping a project folder on the window adds it as a site.
             .dropDestination(for: URL.self) { urls, _ in
                 guard let folder = urls.first(where: { $0.hasDirectoryPath || (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }) else { return false }
-                Task { await store.detect(folder.path) }
+                Task { await store.openFolder(folder.path) }
                 return true
             }
             // Like Butake Git: no toolbar background, so toolbar groups render as glass capsules.
@@ -148,6 +153,7 @@ struct RootView: View {
         }
         .sheet(isPresented: $store.showNewProject) { NewProjectSheet(store: store).themedSheet() }
         .sheet(item: $store.groupNaming) { naming in GroupNameSheet(store: store, naming: naming).themedSheet() }
+        .sheet(item: $store.importScan) { scan in ImportFolderSheet(store: store, scan: scan).themedSheet() }
         .sheet(isPresented: $store.showPalette) { CommandPalette(store: store).themedSheet() }
         .sheet(isPresented: $updates.showingSheet) { UpdateSheet(updates: updates).themedSheet() }
         .sheet(isPresented: $store.showSetup) { SetupSheet(store: store).themedSheet() }
@@ -171,6 +177,7 @@ private struct Sidebar: View {
     @AppStorage("sidebar.closedSections") var closedSectionsRaw = ""
     // Live copies: changes to @State carry the animation (AppStorage writes don't); saved right after.
     @State var collapsed: Set<String> = Set((UserDefaults.standard.string(forKey: "sidebar.collapsedGroups") ?? "").split(separator: ",").map(String.init))
+    @State var nudging: Set<String> = []
     @State var closedSections: Set<String> = Set((UserDefaults.standard.string(forKey: "sidebar.closedSections") ?? "").split(separator: ",").map(String.init))
     func matches(_ text: String) -> Bool { search.isEmpty || text.localizedCaseInsensitiveContains(search) }
     var body: some View {
@@ -187,7 +194,8 @@ private struct Sidebar: View {
                     Label(L("route.home"), systemImage: "house").tag(Route.home).sidebarSelected(store.route == .home).accessibilityIdentifier("route.home")
                 }
                 let sites = store.projects.filter { matches($0.title) || matches($0.domain) }
-                if !sites.isEmpty || (search.isEmpty && !store.groups.isEmpty) {
+                // Always there while not searching: its + is how sites are added.
+                if !sites.isEmpty || search.isEmpty {
                     Section(isExpanded: sectionOpen("sites")) {
                         ForEach(store.groups) { group in
                             let members = store.projects(in: group).filter { matches($0.title) || matches($0.domain) || matches(group.name) }
@@ -245,6 +253,20 @@ private struct Sidebar: View {
                 }
             }
             .listStyle(.sidebar).themedScroll()
+            // A folder created while the list updates (an import) can be inserted closed by the outline view
+            // even though it's open here: state it once more so the two agree.
+            .onChange(of: store.groups.map(\.id)) { old, new in
+                guard !old.isEmpty || !new.isEmpty else { return }
+                let added = Set(new).subtracting(old).subtracting(collapsed)
+                guard !added.isEmpty, !old.isEmpty || store.importScan != nil else { return }
+                // Not the user's choice: nothing of this is saved (see setExpanded).
+                nudging.formUnion(added)
+                collapsed.formUnion(added)
+                DispatchQueue.main.async {
+                    withAnimation(.snappy(duration: 0.28)) { collapsed.subtract(added) }
+                    DispatchQueue.main.async { nudging.subtract(added) }
+                }
+            }
             .background(PlainSidebarSelection())
             HStack(spacing: 12) {
                 VersionBadge(updates: UpdateService.shared).lineLimit(1).fixedSize()
@@ -282,6 +304,7 @@ extension Sidebar {
         Binding(get: { !search.isEmpty || !collapsed.contains(id) }, set: { setExpanded(id, $0) })
     }
     func setExpanded(_ id: String, _ open: Bool) {
+        guard !nudging.contains(id) else { return }
         withAnimation(.snappy(duration: 0.28)) {
             if open { collapsed.remove(id) } else { collapsed.insert(id) }
         }
@@ -347,14 +370,29 @@ private struct SitesHeader: View {
     @State private var targeted = false
     var body: some View {
         // The trailing edge belongs to the sidebar's own show/hide control.
-        Button { open.toggle() } label: {
-            Text(L("route.sites"))
-                .padding(.vertical, 2).padding(.horizontal, 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.15) : .clear))
-                .contentShape(Rectangle())
+        HStack(spacing: 6) {
+            Button { open.toggle() } label: {
+                Text(L("route.sites"))
+                    .padding(.vertical, 2).padding(.horizontal, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Menu {
+                Button { store.showNewProject = true } label: { Label(L("new.menu"), systemImage: "sparkles") }
+                Button { store.chooseFolder() } label: { Label(L("sites.openProject"), systemImage: "folder") }
+                Button { store.chooseFolder(scan: true) } label: { Label(L("sites.openFolder"), systemImage: "folder.badge.gearshape") }
+                Divider()
+                Button { store.groupNaming = .new(sites: []) } label: { Label(L("groups.new"), systemImage: "folder.badge.plus") }
+            } label: {
+                Image(systemName: "plus").font(.ui(size: 11, weight: .bold))
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .help(L("sites.options")).accessibilityIdentifier("sidebar.sitesMenu")
         }
-        .buttonStyle(.plain)
+        // The trailing edge stays free for the sidebar's own show/hide chevron.
+        .padding(.trailing, 20)
+        .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.15) : .clear))
             .contextMenu { Button { store.groupNaming = .new(sites: []) } label: { Label(L("groups.new"), systemImage: "folder.badge.plus") } }
         .dropDestination(for: String.self) { ids, _ in
             for id in ids { store.move(id, to: nil) }

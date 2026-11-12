@@ -53,6 +53,9 @@ enum Route: Hashable {
     var missingSites: [MissingSite] = []
     /// Folders that group sites (sidebar and Home).
     var groups: [SiteGroup] = []
+    /// Folder saves run one at a time and always save the latest state (see `updateGroups`).
+    @ObservationIgnored var groupsSaving = false
+    @ObservationIgnored var groupsDirty = false
     /// A folder being named (new or renamed); the sidebar shows the prompt.
     var groupNaming: GroupNaming?
     /// Current framework and generator versions (npm and Packagist), cached by the engine.
@@ -76,6 +79,8 @@ enum Route: Hashable {
     var errorMessage: String?
     var toast: String?
     var newSite: Detection?
+    /// A folder holding several projects, ready to import.
+    var importScan: FolderScan?
     var showPalette = false
     var showNewProject = false
     /// Last HTTP status of each site (0 = no answer).
@@ -570,12 +575,22 @@ enum Route: Hashable {
             EnvVault.deleteAll(site: site.id)
         }
     }
-    func chooseFolder() {
+    /// Opens a project folder, or (`scan`) a folder that holds several projects.
+    func chooseFolder(scan: Bool = false) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
         panel.prompt = L("site.chooseFolder")
+        if scan { panel.prompt = L("import.choose"); panel.message = L("import.chooseMessage") }
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        Task { await detect(url.path) }
+        Task { await openFolder(url.path, scan: scan) }
+    }
+    /// A project folder opens in the site editor; a folder that holds several projects opens the import.
+    func openFolder(_ path: String, scan forceScan: Bool = false) async {
+        if let scan: FolderScan = try? await call(["method": "scanFolder", "path": path]), forceScan || !scan.rootIsProject, !scan.projects.isEmpty {
+            importScan = scan
+        } else {
+            await detect(path)
+        }
     }
     func detect(_ path: String) async {
         await run(L("busy.detecting")) { self.newSite = try await self.call(["method": "detect", "path": path]) }

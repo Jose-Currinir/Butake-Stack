@@ -27,21 +27,29 @@ extension StackStore {
         group.sites.compactMap { id in projects.first { $0.id == id } }
     }
 
-    /// Applies the change right away (so the sidebar animates with it) and saves it.
+    /// Applies the change right away (so the sidebar animates with it) and saves it. Saves are queued:
+    /// several quick changes (an import placing many sites) never race, and the last state wins.
     func updateGroups(_ change: (inout [SiteGroup]) -> Void) {
         var next = groups
         change(&next)
         guard next != groups else { return }
         withAnimation(.snappy(duration: 0.28)) { groups = next }
+        groupsDirty = true
+        guard !groupsSaving else { return }
+        groupsSaving = true
         Task {
-            guard let object = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(next)) else { return }
-            do {
-                let saved: [SiteGroup] = try await call(["method": "saveSiteGroups", "groups": object])
-                if saved != groups { groups = saved }
-            } catch {
-                report(error)
-                groups = (try? await call(["method": "siteGroups"])) ?? groups
+            while groupsDirty {
+                groupsDirty = false
+                let snapshot = groups
+                guard let object = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(snapshot)) else { break }
+                do {
+                    let _: [SiteGroup] = try await call(["method": "saveSiteGroups", "groups": object])
+                } catch {
+                    report(error)
+                    if !groupsDirty { groups = (try? await call(["method": "siteGroups"])) ?? groups }
+                }
             }
+            groupsSaving = false
         }
     }
     /// A new folder, optionally with sites in it; returns its id.
