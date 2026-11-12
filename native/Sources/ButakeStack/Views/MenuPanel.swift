@@ -202,7 +202,7 @@ private struct SiteMenuRow: View {
     let project: Project
     var detail: String {
         let branch = store.git[project.id].map { $0.branch.isEmpty ? L("git.detached") : $0.branch }
-        return [project.php.map { "PHP \($0)" } ?? L("kind.\(project.kind)"), branch].compactMap { $0 }.joined(separator: " · ")
+        return [project.php.map { "PHP \($0)" } ?? L("kind.\(project.kind)"), store.activeEnvironment(project.id)?.title, branch].compactMap { $0 }.joined(separator: " · ")
     }
     var body: some View {
         Button {

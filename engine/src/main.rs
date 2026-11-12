@@ -2,6 +2,7 @@ mod agent;
 mod daemon;
 mod detect;
 mod engines;
+mod envs;
 mod git;
 mod scaffold;
 mod dns;
@@ -47,6 +48,68 @@ fn dispatch(request: Value) -> Result<Value> {
             runtimes::generate_ini(&store, &manifest.series)?;
             Ok(serde_json::to_value(manifest)?)
         }
+        // Environments of a site's .env. Secret values never reach these responses (R1, R6).
+        "envList" => {
+            let project = store.get(id)?;
+            Ok(json!({
+                "site": envs::load(&store, id)?,
+                "guard": envs::git_guard(&project),
+                "exampleKeys": envs::example_keys(&project),
+                "hasEnv": project.path.join(".env").is_file(),
+            }))
+        }
+        "envSave" => {
+            let site: envs::SiteEnvironments = serde_json::from_value(request["site"].clone())?;
+            envs::save(&store, id, &site, request["actor"].as_str().unwrap_or(""))?;
+            Ok(serde_json::to_value(envs::load(&store, id)?)?)
+        }
+        "envDelete" => Ok(serde_json::to_value(envs::delete_environment(
+            &store,
+            id,
+            request["env"].as_str().unwrap_or(""),
+            request["actor"].as_str().unwrap_or(""),
+        )?)?),
+        "envActivate" => {
+            let secrets: std::collections::BTreeMap<String, String> =
+                serde_json::from_value(request["secrets"].clone()).unwrap_or_default();
+            let site = envs::activate(
+                &store,
+                id,
+                request["env"].as_str().unwrap_or(""),
+                &secrets,
+                request["confirmed"] == true,
+                request["actor"].as_str().unwrap_or(""),
+            )?;
+            drop(secrets);
+            // New values only take effect once the site's processes restart.
+            let _ = daemon::request_sync(&store, "reload", json!({}), false);
+            let project = store.get(id)?;
+            if project.enabled && !envs::production_active(&store, id) {
+                for process in project.processes.iter().filter(|p| p.autostart) {
+                    let _ = daemon::request_sync(&store, "restart", json!({"id": format!("{}.{}", id, process.name)}), false);
+                }
+            }
+            Ok(serde_json::to_value(site)?)
+        }
+        "envAudit" => {
+            envs::audit(
+                &store,
+                id,
+                request["env"].as_str().unwrap_or(""),
+                request["action"].as_str().unwrap_or(""),
+                request["key"].as_str().unwrap_or(""),
+                request["actor"].as_str().unwrap_or(""),
+            )?;
+            Ok(json!(true))
+        }
+        "envClassify" => {
+            // Secret by default for credential-like names (R2); names only, never values.
+            let keys: Vec<String> = serde_json::from_value(request["keys"].clone()).unwrap_or_default();
+            Ok(json!(keys.iter().map(|k| envs::looks_secret(k)).collect::<Vec<_>>()))
+        }
+        "envAuditLog" => Ok(serde_json::to_value(envs::audit_lines(&store, id)?)?),
+        // Used by scripts/php/build_php.py after a build: writes the runtime's php.ini.
+        "generatePhpIni" => Ok(json!(runtimes::generate_ini(&store, request["series"].as_str().unwrap_or(""))?)),
         "phpCatalog" => Ok(serde_json::to_value(runtimes::php_catalog()?)?),
         "downloadPhp" => {
             anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
@@ -213,6 +276,8 @@ fn dispatch(request: Value) -> Result<Value> {
         }
         "deleteProject" => {
             store.delete(id)?;
+            // Its environments go too (R10); the app removes their Keychain secrets.
+            let _ = std::fs::remove_file(store.directory("envs")?.join(format!("{id}.json")));
             let _ = daemon::request_sync(&store, "reload", json!({}), false);
             Ok(json!(true))
         }

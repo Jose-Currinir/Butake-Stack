@@ -146,6 +146,9 @@ private struct HomeSiteCard: View {
                     .overlay(alignment: .topLeading) {
                         if let info = store.git[project.id] { GitChip(info: info).padding(8) }
                     }
+                    .overlay(alignment: .topTrailing) {
+                        if let env = store.activeEnvironment(project.id) { EnvChip(env: env).background(.regularMaterial, in: Capsule()).padding(8) }
+                    }
                 HStack(spacing: 10) {
                     TechLogo(tech: project.tech, size: 26)
                     VStack(alignment: .leading, spacing: 1) {
@@ -203,6 +206,17 @@ struct SiteMenuItems: View {
     var body: some View {
         Button { Task { await store.setSite(project, enabled: !project.enabled) } } label: {
             Label(project.enabled ? L("palette.stop") : L("palette.start"), systemImage: "power")
+        }
+        Divider()
+        let environments = store.envs[project.id]?.site.environments.filter { $0.kind != .production } ?? []
+        if !environments.isEmpty {
+            Menu {
+                ForEach(environments) { env in
+                    Button { Task { await store.activateEnvironment(project, env) } } label: {
+                        Label(env.title, systemImage: store.envs[project.id]?.site.active == env.id ? "checkmark" : env.kind.symbol)
+                    }
+                }
+            } label: { Label(L("env.switch"), systemImage: "arrow.triangle.2.circlepath") }
         }
         Divider()
         Button { if let url = project.url { NSWorkspace.shared.open(url) } } label: { Label(L("site.browser"), systemImage: "safari") }

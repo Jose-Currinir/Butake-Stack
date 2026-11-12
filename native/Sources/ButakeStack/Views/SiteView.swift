@@ -5,7 +5,7 @@ import SwiftUI
 struct SiteView: View {
     @Bindable var store: StackStore
     let project: Project
-    enum Tab: String, CaseIterable, Identifiable { case summary, processes, logs, environment; var id: String { rawValue } }
+    enum Tab: String, CaseIterable, Identifiable { case summary, envs, processes, logs, environment; var id: String { rawValue } }
     @State private var tab: Tab = .summary
     @State private var previews = SitePreviews.shared
     @State private var editing = false
@@ -16,8 +16,16 @@ struct SiteView: View {
             VStack(alignment: .leading, spacing: 22) {
                 hero
                 if let changes = store.branchNotices[project.id] { BranchNotice(store: store, project: project, changes: changes) }
+                if store.activeEnvironment(project.id)?.kind == .production, tab != .envs {
+                    Label(L("env.productionActive"), systemImage: "exclamationmark.shield.fill")
+                        .font(.uiCallout.weight(.medium)).foregroundStyle(Brand.danger)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                        .background(Brand.danger.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Brand.danger.opacity(0.3)))
+                }
                 switch tab {
                 case .summary: summary
+                case .envs: EnvironmentsView(store: store, project: project)
                 case .processes: processes
                 case .logs: logs
                 case .environment: environment
@@ -32,7 +40,7 @@ struct SiteView: View {
             ToolbarItem(placement: .principal) {
                 // Procesos and Registros only exist for a site that runs processes.
                 Picker(L("site.tabs"), selection: $tab) {
-                    ForEach(Tab.allCases.filter { project.processes.isEmpty ? $0 == .summary || $0 == .environment : true }) { Text(L("site.tab.\($0.rawValue)")).tag($0) }
+                    ForEach(Tab.allCases.filter { project.processes.isEmpty ? ![.processes, .logs].contains($0) : true }) { Text(L("site.tab.\($0.rawValue)")).tag($0) }
                 }
                 .pickerStyle(.segmented).fixedSize().accessibilityIdentifier("site.tabs")
             }
@@ -60,6 +68,10 @@ struct SiteView: View {
                             .toggleStyle(.switch).labelsHidden().accessibilityLabel(L("site.power")).accessibilityIdentifier("site.power")
                         StatusRing(phase: phase, size: 11)
                         Text(project.enabled ? L("state.\(phase.rawValue)") : L("site.off")).font(.uiCallout.weight(.medium)).foregroundStyle(.white.opacity(0.9))
+                        if let env = store.activeEnvironment(project.id) {
+                            Button { tab = .envs } label: { EnvChip(env: env).background(.black.opacity(0.35), in: Capsule()) }
+                                .buttonStyle(.plain).accessibilityIdentifier("site.envChip")
+                        }
                     }
                 }
                 Spacer()

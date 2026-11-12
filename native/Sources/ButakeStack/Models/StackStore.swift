@@ -124,6 +124,124 @@ enum Route: Hashable {
         }
     }
 
+    // MARK: Environments of each site's .env (secrets in the Keychain, never in the engine's store)
+    var envs: [String: EnvState] = [:]
+    var actor: String { NSUserName() }
+    func loadEnvs(_ id: String) async {
+        if let value: EnvState = try? await call(["method": "envList", "id": id]) { envs[id] = value }
+    }
+    func loadAllEnvs() async { for project in projects { await loadEnvs(project.id) } }
+    func activeEnvironment(_ id: String) -> EnvEnvironment? { envs[id]?.site.activeEnvironment }
+    func envAudit(_ id: String, env: String, action: String, key: String = "") async {
+        let _: Bool? = try? await call(["method": "envAudit", "id": id, "env": env, "action": action, "key": key, "actor": actor])
+    }
+    /// Saves keys and non-secret values; secret values were already put in the Keychain.
+    func saveEnvs(_ id: String, _ site: SiteEnvironments) async -> Bool {
+        var ok = false
+        await run(L("busy.saving")) {
+            let object = try JSONSerialization.jsonObject(with: try JSONEncoder().encode(site))
+            let _: SiteEnvironments = try await self.call(["method": "envSave", "id": id, "site": object, "actor": self.actor])
+            ok = true
+        }
+        await loadEnvs(id)
+        return ok
+    }
+    func classify(_ keys: [String]) async -> [Bool] {
+        (try? await call(["method": "envClassify", "keys": keys])) ?? keys.map { _ in true }
+    }
+    /// The site's current `.env` becomes "Local": secrets go to the Keychain, nothing is lost (R8).
+    func importCurrentEnv(_ project: Project) async {
+        guard let text = try? String(contentsOfFile: (project.path as NSString).appendingPathComponent(".env"), encoding: .utf8) else { return }
+        let pairs = DotEnv.parse(text)
+        let secret = await classify(pairs.map(\.0))
+        var entries: [EnvEntry] = []
+        for (index, pair) in pairs.enumerated() {
+            if secret[index] {
+                EnvVault.set(pair.1, site: project.id, env: "local", key: pair.0)
+                entries.append(EnvEntry(key: pair.0, value: "", secret: true))
+            } else {
+                entries.append(EnvEntry(key: pair.0, value: pair.1, secret: false))
+            }
+        }
+        var site = envs[project.id]?.site ?? SiteEnvironments(active: nil, environments: [])
+        site.environments.removeAll { $0.id == "local" }
+        site.environments.insert(EnvEnvironment(id: "local", name: L("env.kind.local"), kind: .local, entries: entries), at: 0)
+        site.active = "local"
+        if await saveEnvs(project.id, site) { await envAudit(project.id, env: "local", action: "importar"); notify(L("env.imported")) }
+    }
+    /// A new environment, empty, from `.env.example` (names, non-secret values) or copied from another.
+    func createEnvironment(_ project: Project, name: String, kind: EnvKind, from base: String?) async -> String? {
+        var site = envs[project.id]?.site ?? SiteEnvironments(active: nil, environments: [])
+        // Standard environments use their standard name as id (and as APP_ENV); custom ones a slug.
+        let slug = kind.standard ?? Self.slug(name)
+        guard !slug.isEmpty, !site.environments.contains(where: { $0.id == slug }) else { errorMessage = L("env.nameTaken"); return nil }
+        var entries: [EnvEntry] = []
+        if base == "__example__" {
+            let path = (project.path as NSString).appendingPathComponent(".env.example")
+            let pairs = DotEnv.parse((try? String(contentsOfFile: path, encoding: .utf8)) ?? "")
+            let secret = await classify(pairs.map(\.0))
+            entries = pairs.enumerated().map { EnvEntry(key: $1.0, value: secret[$0] ? "" : $1.1, secret: secret[$0]) }
+        } else if let base, let source = site.environments.first(where: { $0.id == base }) {
+            if source.kind == .production, !(await EnvVault.authenticate(L("env.authCopy"), fresh: true)) { return nil }
+            entries = source.entries
+            for entry in source.entries where entry.secret {
+                if let value = EnvVault.get(site: project.id, env: source.id, key: entry.key) { EnvVault.set(value, site: project.id, env: slug, key: entry.key) }
+            }
+        }
+        // APP_ENV is the environment's standard name; APP_DEBUG only where nobody else looks.
+        func upsert(_ key: String, _ value: String) {
+            if let index = entries.firstIndex(where: { $0.key == key }) { entries[index] = EnvEntry(key: key, value: value, secret: false) }
+            else { entries.append(EnvEntry(key: key, value: value, secret: false)) }
+        }
+        upsert("APP_ENV", slug)
+        if kind != .other { upsert("APP_DEBUG", kind.debug ? "true" : "false") }
+        site.environments.append(EnvEnvironment(id: slug, name: name, kind: kind, entries: entries))
+        return await saveEnvs(project.id, site) ? slug : nil
+    }
+    func deleteEnvironment(_ project: Project, _ env: String) async {
+        await run(L("busy.saving")) {
+            let _: SiteEnvironments = try await self.call(["method": "envDelete", "id": project.id, "env": env, "actor": self.actor])
+            EnvVault.deleteAll(site: project.id, env: env)
+        }
+        await loadEnvs(project.id)
+    }
+    /// Writes the environment as the site's `.env` and refreshes the site. Production needs the typed
+    /// confirmation (done by the caller) plus Touch ID or the Mac's password (R4).
+    func activateEnvironment(_ project: Project, _ env: EnvEnvironment, confirmedProduction: Bool = false) async {
+        if env.kind == .production {
+            guard confirmedProduction, await EnvVault.authenticate(String(format: L("env.authProduction"), project.title), fresh: true) else { return }
+        }
+        // Off the main thread: a Keychain prompt must never freeze the window.
+        let keys = env.entries.filter(\.secret).map(\.key)
+        let site = project.id, envID = env.id
+        var secrets: [String: String] = await Task.detached {
+            Dictionary(uniqueKeysWithValues: keys.map { ($0, EnvVault.get(site: site, env: envID, key: $0) ?? "") })
+        }.value
+        await run(String(format: L("env.activating"), env.title)) {
+            let _: SiteEnvironments = try await self.call(["method": "envActivate", "id": project.id, "env": env.id, "secrets": secrets,
+                                                         "confirmed": confirmedProduction, "actor": self.actor])
+            self.notify(String(format: L("env.activated"), env.title))
+        }
+        secrets.removeAll()
+        await loadEnvs(project.id); await refreshStatus()
+        try? await Task.sleep(for: .seconds(2)); await refreshHealth()
+    }
+    /// A template without secret values, next to the project (R9).
+    func exportTemplate(_ project: Project, _ env: EnvEnvironment) async {
+        let text = "# Plantilla del entorno «\(env.title)» (sin valores secretos)\n" + env.entries.map { "\($0.key)=\($0.secret ? "" : $0.value)" }.joined(separator: "\n") + "\n"
+        let name = ".env.\(env.id).example"
+        let path = (project.path as NSString).appendingPathComponent(name)
+        do {
+            try text.write(toFile: path, atomically: true, encoding: .utf8)
+            await envAudit(project.id, env: env.id, action: "exportar")
+            notify(String(format: L("env.exported"), name))
+        } catch { errorMessage = L("env.exportFailed") }
+    }
+    static func slug(_ text: String) -> String {
+        let folded = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased()
+        return String(folded.map { $0.isLetter || $0.isNumber ? $0 : "-" }).split(separator: "-").joined(separator: "-").prefix(40).description
+    }
+
     // MARK: Setup: what Stack needs on a new Mac, asked for and installed one by one
     var showSetup = false
     var phpCatalog: [PhpCatalogEntry] = []
@@ -269,6 +387,7 @@ enum Route: Hashable {
     func refresh() async {
         do { projects = try await call(["method": "listProjects"]) } catch { report(error) }
         config = try? await call(["method": "stackConfig"])
+        await loadAllEnvs()
         await refreshStatus()
         agent = try? await call(["method": "agentStatus"])
         if selectedProject == nil { selectedSite = projects.first?.id }
@@ -378,6 +497,7 @@ enum Route: Hashable {
     func delete(_ project: Project) async {
         await run(L("busy.saving"), refresh: true) {
             let _: Bool = try await self.call(["method": "deleteProject", "id": project.id])
+            EnvVault.deleteAll(site: project.id)
             self.selectedSite = nil
             self.route = .home
         }

@@ -179,3 +179,49 @@ struct PhpCatalogEntry: Decodable, Identifiable, Hashable, Sendable {
     let source: String?
     var id: String { version }
 }
+
+// MARK: Environments of a site's .env (secret values never come from the engine)
+/// Standard environments (the usual `APP_ENV` values) plus a custom one.
+enum EnvKind: String, Codable, CaseIterable, Sendable {
+    case local, development, testing, staging, production, other
+    /// The environment's standard name, used as its id and as `APP_ENV`.
+    var standard: String? { self == .other ? nil : rawValue }
+    /// Debug output only where nobody else looks at the site.
+    var debug: Bool { [.local, .development, .testing].contains(self) }
+}
+struct EnvEntry: Codable, Hashable, Sendable {
+    var key: String
+    /// Empty for secrets: their value is in the Keychain.
+    var value: String
+    var secret: Bool
+}
+struct EnvEnvironment: Codable, Hashable, Identifiable, Sendable {
+    var id: String
+    var name: String
+    var kind: EnvKind
+    var entries: [EnvEntry]
+}
+extension EnvEnvironment {
+    /// Standard environments always show their Spanish name; custom ones the name the user gave.
+    var title: String { kind == .other ? name : L("env.kind.\(kind.rawValue)") }
+}
+struct SiteEnvironments: Codable, Hashable, Sendable {
+    var active: String?
+    var environments: [EnvEnvironment]
+    var activeEnvironment: EnvEnvironment? { environments.first { $0.id == active } }
+}
+struct EnvGitGuard: Codable, Hashable, Sendable { let ignored: Bool; let tracked: Bool; let repository: Bool }
+struct EnvState: Codable, Hashable, Sendable {
+    var site: SiteEnvironments
+    let gitGuard: EnvGitGuard
+    enum CodingKeys: String, CodingKey { case site, gitGuard = "guard", exampleKeys, hasEnv }
+    let exampleKeys: [String]
+    let hasEnv: Bool
+}
+struct EnvAuditEntry: Decodable, Hashable, Sendable {
+    let ts: Int
+    let env: String
+    let action: String
+    let key: String
+    let user: String
+}

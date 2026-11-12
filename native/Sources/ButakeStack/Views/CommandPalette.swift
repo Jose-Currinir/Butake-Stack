@@ -36,6 +36,14 @@ struct CommandPalette: View {
                 toggle: (project.enabled ? L("palette.stop") : L("palette.start"), { Task { await store.setSite(project, enabled: !project.enabled) } })
             ))
         }
+        // Switch a site's environment (Production only from the site page, with its confirmation).
+        for project in store.projects {
+            let state = store.envs[project.id]?.site
+            for env in state?.environments ?? [] where env.kind != .production && state?.active != env.id {
+                list.append(Command(id: "env.\(project.id).\(env.id)", section: L("palette.envs"), title: "\(project.title) → \(env.title)",
+                                    detail: L("palette.envActivate"), tech: project.tech, run: { Task { await store.activateEnvironment(project, env) } }))
+            }
+        }
         for name in Route.allEngines where store.engineVersion(name) != nil {
             let on = store.engineEnabled(name)
             list.append(Command(

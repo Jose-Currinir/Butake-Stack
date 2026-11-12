@@ -175,6 +175,8 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
         });
     }
     for project in projects {
+        // With Production active, nothing of the site starts on its own (queues, scheduler…).
+        let held = crate::envs::production_active(store, &project.id);
         let php_series = project
             .runtime
             .get("php")
@@ -217,11 +219,13 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                 args,
                 cwd: project.path.clone(),
                 // A missing runtime never blocks the rest of the stack; the UI shows it stopped.
-                autostart: process.autostart && available,
+                autostart: process.autostart && available && !held,
                 restart_on_exit: true,
                 environment: [
                     ("HOME".into(), home.clone()),
                     ("PATH".into(), path.join(":")),
+                    // The binary's built-in php.ini path is the build machine's; point it at ours.
+                    ("PHPRC".into(), store.root().join("config/php").join(&php_series).to_string_lossy().into_owned()),
                 ]
                 .into(),
                 inherit: vec![],
