@@ -141,10 +141,14 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
     }
     if let (Some(caddy), Some(http)) = (crate::services::caddy_executable(store, &config), fds.http) {
         let file = store.directory("config")?.join("Caddyfile");
-        crate::services::write_private(
-            &file,
-            &crate::services::caddyfile(store, &store.list()?, &config, fds.https_udp.is_some())?,
-        )?;
+        let content = crate::services::caddyfile(store, &store.list()?, &config, fds.https_udp.is_some())?;
+        crate::services::write_private(&file, &content)?;
+        // Caddy runs without its admin API, so it never rereads the file: a fingerprint of the
+        // content in its environment makes the supervisor restart it whenever sites change.
+        let fingerprint = {
+            use sha2::{Digest, Sha256};
+            Sha256::digest(content.as_bytes()).iter().take(8).map(|b| format!("{b:02x}")).collect::<String>()
+        };
         let mut inherit = vec![http];
         // Caddy only needs the HTTPS socket when a site asks for HTTPS.
         if store.list()?.iter().any(|p| p.https) {
@@ -169,7 +173,7 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
             cwd: store.root().into(),
             autostart: true,
             restart_on_exit: true,
-            environment: [("HOME".into(), home.clone())].into(),
+            environment: [("HOME".into(), home.clone()), ("BUTAKE_CONFIG".into(), fingerprint)].into(),
             inherit,
             stop_timeout: 10,
         });

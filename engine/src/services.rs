@@ -74,6 +74,36 @@ fn quoted(value: &str) -> Result<String> {
     Ok(format!("\"{value}\""))
 }
 
+/// HTML entities for text placed in the off page.
+fn html(text: &str) -> String {
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
+}
+
+/// Page served while a site is off: its name and address, light and dark, and a link that opens
+/// the site's page in the app (it never turns the site on: no web page can do that).
+/// One line, so it fits a Caddyfile heredoc without indentation rules.
+pub fn off_page(project: &Project) -> String {
+    let name = html(&project.name);
+    let domain = html(project.domains.first().map(String::as_str).unwrap_or(""));
+    let id = html(&project.id);
+    format!(concat!(
+        "<!doctype html><html lang=es><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>",
+        "<title>{name} está apagado</title><style>",
+        ":root{{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e5e5ea;--accent:#0b8147}}",
+        "@media (prefers-color-scheme:dark){{:root{{--bg:#111;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989d;--line:#2c2c2e;--accent:#19d79f}}}}",
+        "*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,'Inter',sans-serif}}",
+        ".card{{max-width:440px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:32px;box-shadow:0 20px 50px #0000001a}}",
+        ".state{{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted);padding:4px 10px;border:1px solid var(--line);border-radius:999px}}",
+        ".dot{{width:8px;height:8px;border-radius:50%;background:var(--muted)}}h1{{font-size:26px;line-height:1.2;margin:18px 0 6px}}",
+        "code{{font:14px ui-monospace,SFMono-Regular,monospace;color:var(--muted)}}p{{color:var(--muted);margin:16px 0 24px}}",
+        "a.button{{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;font-weight:600;padding:11px 18px;border-radius:12px}}",
+        "@media (prefers-color-scheme:dark){{a.button{{color:#0b2b20}}}}footer{{margin-top:24px;font-size:12px;color:var(--muted)}}",
+        "</style><main class=card><span class=state><span class=dot></span>Apagado</span><h1>{name}</h1><code>{domain}</code>",
+        "<p>Este sitio está registrado en Butake Stack, pero no se está sirviendo. Enciéndelo desde la app o desde la barra de menús.</p>",
+        "<a class=button href='butakestack://site/{id}'>Abrir en Butake Stack</a><footer>Butake Stack · desarrollo local</footer></main></html>"
+    ), name = name, domain = domain, id = id)
+}
+
 /// Caddyfile for every PHP site. Sockets come from inherited descriptors: `fd/3` for HTTP and
 /// `fd/4` for HTTPS, whether launchd or the daemon opened them.
 pub fn caddyfile(
@@ -114,7 +144,9 @@ pub fn caddyfile(
                 if scheme == "https" {
                     out.push_str("\ttls internal\n");
                 }
-                out.push_str("\theader Content-Type \"text/html; charset=utf-8\"\n\trespond \"<!doctype html><meta charset=utf-8><title>Sitio apagado</title><body style='font:16px -apple-system;display:grid;place-items:center;height:90vh;color:#555'><div><h2>Sitio apagado</h2><p>Enciéndelo en Butake Stack.</p></div>\" 503\n}\n\n");
+                // A page of its own (never cached, so turning the site on shows the site at once).
+                out.push_str("\theader Content-Type \"text/html; charset=utf-8\"\n\theader Cache-Control \"no-store\"\n");
+                out.push_str(&format!("\trespond <<BUTAKE_OFF\n\t{}\n\tBUTAKE_OFF 503\n}}\n\n", off_page(project)));
                 continue;
             }
             if scheme == "https" {
@@ -284,6 +316,21 @@ mod tests {
         let file_off = caddyfile(&store, &[off], &config, true).unwrap();
         assert!(file_off.contains("https://demo.test {\n\tbind fd/4 {\n\t\tprotocols h1 h2\n\t}\n\ttls internal"));
         assert!(!file_off.contains("fdgram"));
+        assert!(file_off.contains("respond <<BUTAKE_OFF") && file_off.contains("BUTAKE_OFF 503") && file_off.contains("no-store"));
+        let mut evil_name = project.clone();
+        evil_name.name = "<script>x</script>".into();
+        evil_name.id = "otro".into();
+        evil_name.domains = vec!["otro.test".into()];
+        evil_name.enabled = false;
+        assert!(off_page(&evil_name).contains("&lt;script&gt;") && !off_page(&evil_name).contains('\n'));
+        // With a real Caddy available (CADDY_BIN), the generated file must adapt cleanly.
+        if let Some(caddy) = std::env::var_os("CADDY_BIN") {
+            let both = caddyfile(&store, &[evil_name.clone(), project.clone()], &config, true).unwrap();
+            let path = temp.path().join("Caddyfile");
+            fs::write(&path, both).unwrap();
+            let out = std::process::Command::new(caddy).args(["adapt", "--adapter", "caddyfile", "--config"]).arg(&path).output().unwrap();
+            assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        }
         assert!(file.contains("php_fastcgi \"unix/"));
         let evil = temp.path().join("x}\nimport");
         fs::create_dir_all(&evil).unwrap();
