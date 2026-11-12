@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-12T12:35:48Z",
+  "git_commit": "030f395",
+  "company": {
+    "razon_social": "Butake SpA",
+    "rut": "[COMPLETAR]",
+    "tamano": "micro"
+  },
+  "scope": "Función: gestor de entornos .env por sitio (implementada)",
+  "active_packs": [
+    "ley-21719"
+  ],
+  "controls": {
+    "sec-secrets": {
+      "status": "pass",
+      "evidence": "engine/src/envs.rs (validate: secret_in_store; render/activate sin registrar valores); native/Sources/ButakeStack/Services/EnvVault.swift; pruebas activation_writes_private_env_without_leaking_and_locks_production",
+      "remediation": ""
+    },
+    "sec-rest": {
+      "status": "pass",
+      "evidence": "EnvVault.swift: Llavero kSecAttrAccessibleWhenUnlockedThisDeviceOnly, kSecAttrSynchronizable=false; .env con permisos 600 (write_private)",
+      "remediation": ""
+    },
+    "sec-mfa": {
+      "status": "pass",
+      "evidence": "EnvVault.authenticate: .deviceOwnerAuthentication sin reutilizar desbloqueos del sistema; Producción con autenticación nueva cada vez (fresh)",
+      "remediation": ""
+    },
+    "sec-logs": {
+      "status": "pass",
+      "evidence": "envs.rs audit(): logs/env-audit.log 0600, sin valores, 180 días; historial en la app",
+      "remediation": ""
+    },
+    "data-privacy-by-design": {
+      "status": "pass",
+      "evidence": "envs.rs looks_secret (secreto por defecto); Producción bloqueada (production_locked) y procesos retenidos (daemon held); importación sin copias en claro",
+      "remediation": ""
+    },
+    "data-minimizacion": {
+      "status": "pass",
+      "evidence": "EnvVault.deleteAll al eliminar entorno o sitio; main.rs deleteProject borra envs/<id>.json",
+      "remediation": ""
+    },
+    "inc-brechas": {
+      "status": "pass",
+      "evidence": "docs/21719-gestor-entornos-incidentes.md enlazado desde el historial de entornos",
+      "remediation": ""
+    },
+    "data-transfer": {
+      "status": "pass",
+      "evidence": "sin envíos fuera del Mac",
+      "remediation": ""
+    },
+    "data-eipd": {
+      "status": "pass",
+      "evidence": "docs/21719-eipd-gestor-entornos.md: test negativo",
+      "remediation": ""
+    },
+    "gov-politicas": {
+      "status": "pass",
+      "evidence": "docs/21719-gestor-entornos-requisitos.md; pruebas automáticas R12 en engine/src/envs.rs",
+      "remediation": ""
+    }
+  },
+  "frameworks": {
+    "ley-21719": {
+      "score": 1.0,
+      "controls_required": 10,
+      "pass": 10,
+      "partial": 0,
+      "fail": 0
+    }
+  }
+}
