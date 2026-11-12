@@ -1,0 +1,89 @@
+---
+// Diagrama de la portada: las tres capas de Butake Stack (sitios .test, lenguajes, motores) con
+// peticiones que bajan por ellas, y alrededor lo que Stack corre directo en el Mac orbitando.
+// Monocromo; respeta reducir movimiento.
+import Icon from './Icon.astro'
+
+const orbit = [
+  { icon: 'global-line', label: 'Sitios .test' },
+  { icon: 'lock-2-line', label: 'HTTPS y HTTP/3' },
+  { icon: 'database-2-line', label: 'MySQL y PostgreSQL' },
+  { icon: 'flashlight-line', label: 'Redis y Valkey' },
+  { icon: 'search-line', label: 'Meilisearch y Typesense' },
+  { icon: 'git-branch-line', label: 'Butake Git' },
+  { icon: 'apple-fill', label: 'macOS' },
+  { icon: 'terminal-box-line', label: 'Laravel y Composer' },
+]
+const R = 47 // % del radio para los nodos
+const capas = [
+  { y: 46, titulo: 'Sitios .test', detalle: 'Caddy · HTTP/3' },
+  { y: 104, titulo: 'PHP · Node', detalle: 'por sitio' },
+  { y: 162, titulo: 'Motores', detalle: 'MySQL · Redis' },
+]
+---
+<div class="orbita" role="img" aria-label="Las capas de Butake Stack: sitios .test servidos por Caddy, PHP y Node por sitio, y motores como MySQL y Redis, rodeadas de las herramientas que corre directo en el Mac">
+  <div class="anillo anillo-externo"></div>
+  <div class="anillo anillo-medio"></div>
+  <div class="giro">
+    {orbit.map((item, i) => {
+      const angulo = (i / orbit.length) * Math.PI * 2 - Math.PI / 2
+      const x = 50 + R * Math.cos(angulo), y = 50 + R * Math.sin(angulo)
+      return (
+        <span class="nodo" style={`left:${x}%;top:${y}%`} title={item.label}>
+          <span class="nodo-interior"><Icon name={item.icon} size={20} /></span>
+        </span>
+      )
+    })}
+  </div>
+  <svg class="capas" viewBox="0 0 240 240" aria-hidden="true">
+    <defs>
+      <path id="ruta-peticion" d="M120 18 L120 222" />
+    </defs>
+    <line class="eje" x1="120" y1="18" x2="120" y2="222" />
+    {capas.map((capa, i) => (
+      <g class="capa" style={`--i:${i}`}>
+        <rect x="40" y={capa.y} width="160" height="38" rx="11" />
+        <text class="capa-titulo" x="56" y={capa.y + 17}>{capa.titulo}</text>
+        <text class="capa-detalle" x="56" y={capa.y + 29}>{capa.detalle}</text>
+        <circle class="capa-luz" cx="184" cy={capa.y + 19} r="4" />
+      </g>
+    ))}
+    <circle class="viajero" r="3.4"><animateMotion dur="3.6s" repeatCount="indefinite"><mpath href="#ruta-peticion" /></animateMotion></circle>
+    <circle class="viajero viajero-tenue" r="2.8"><animateMotion dur="3.6s" begin="1.8s" repeatCount="indefinite"><mpath href="#ruta-peticion" /></animateMotion></circle>
+  </svg>
+  <div class="centro">
+    <span class="centro-punto" aria-hidden="true"></span>
+    Todo funcionando
+  </div>
+</div>
+
+<style>
+  .orbita { position: relative; width: min(100%, 500px); aspect-ratio: 1; margin-inline: auto; contain: layout; }
+  @media (max-width: 520px) { .orbita { width: 80%; } }
+  .anillo { position: absolute; border-radius: 50%; border: 1px dashed var(--line-strong); opacity: .55; }
+  .anillo-externo { inset: 3%; }
+  .anillo-medio { inset: 20%; border-style: solid; border-color: var(--line); opacity: 1; background: radial-gradient(circle, color-mix(in srgb, var(--text) 4%, transparent), transparent 70%); }
+  .giro { position: absolute; inset: 0; animation: girar 60s linear infinite; }
+  .nodo { position: absolute; transform: translate(-50%, -50%); }
+  .nodo-interior { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow-surface); animation: girar 60s linear infinite reverse; transition: transform var(--motion-fast), border-color var(--motion-fast); }
+  .nodo:hover .nodo-interior { border-color: var(--line-strong); transform: scale(1.08); }
+  .capas { position: absolute; inset: 22%; width: 56%; height: 56%; overflow: visible; }
+  .eje { stroke: var(--line-strong); stroke-width: 2; stroke-dasharray: 3 5; }
+  .capa { opacity: 0; transform: translateY(6px); animation: aparecer .6s cubic-bezier(.16, 1, .3, 1) forwards; animation-delay: calc(.5s + var(--i) * .18s); }
+  .capa rect { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.4; }
+  .capa-titulo { font: 700 10px var(--font-sans); fill: var(--text); }
+  .capa-detalle { font: 500 7.5px var(--font-sans); fill: var(--muted); }
+  .capa-luz { fill: var(--butake-status-active); }
+  .viajero { fill: var(--text); }
+  .viajero-tenue { fill: var(--muted); }
+  .centro { position: absolute; left: 50%; bottom: -3%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: var(--radius-pill); background: var(--surface); border: 1px solid var(--line); font-size: 13px; font-weight: 600; box-shadow: var(--shadow-surface); white-space: nowrap; }
+  .centro-punto { width: 8px; height: 8px; border-radius: 50%; background: var(--butake-status-active); animation: latir 2.4s ease-out infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
+  @keyframes aparecer { to { opacity: 1; transform: none; } }
+  @keyframes latir { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--butake-status-active) 50%, transparent); } 70%, 100% { box-shadow: 0 0 0 8px transparent; } }
+  @media (prefers-reduced-motion: reduce) {
+    .giro, .nodo-interior, .centro-punto { animation: none; }
+    .capa { animation: none; opacity: 1; transform: none; }
+    .viajero { display: none; }
+  }
+</style>

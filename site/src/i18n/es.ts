@@ -1,0 +1,158 @@
+// Textos de la página. Un solo idioma por ahora; todo texto visible vive aquí.
+export const repo = 'https://github.com/Jose-Currinir/Butake-Stack'
+export const descarga = `${repo}/releases/latest/download/Butake-Stack.dmg`
+
+export const t = {
+  titulo: 'Butake Stack · Desarrollo local nativo para Mac',
+  descripcion: 'Sitios .test con HTTPS y HTTP/3, PHP, Node y motores como MySQL, PostgreSQL y Redis corriendo directo en tu Mac, desde la barra de menús. Sin Homebrew, sin Docker, en español.',
+  nav: { funciones: 'Funciones', seguridad: 'Seguridad', instalar: 'Instalar', github: 'GitHub', descargar: 'Descargar' },
+  hero: {
+    etiqueta: 'Gratis y de código abierto · Apache 2.0',
+    titulo: 'Tu entorno de desarrollo local, nativo y en la barra de menús',
+    texto: 'Sirve tus sitios en .test con HTTPS y HTTP/3, elige la versión de PHP, Node y cada motor, y enciende sólo lo que usas. Sin Homebrew, sin Docker y sin tocar el sistema.',
+    descargar: 'Descargar para Mac',
+    github: 'Ver en GitHub',
+    requisitos: 'macOS 15 o superior · Mac con Apple Silicon',
+    imagen: 'Inicio de Butake Stack con sitios y servicios',
+  },
+  rotulos: { recorrido: 'La app', porque: 'Por qué', areas: 'Funciones', seguridad: 'Seguridad', rendimiento: 'En cifras', instalar: 'Empezar', faq: 'Preguntas' },
+  menu: { abrir: 'Abrir menú', cerrar: 'Cerrar menú' },
+  recorrido: {
+    titulo: 'Recorre la app',
+    texto: 'Sitios, servicios y versiones, cada cosa en su lugar y a un clic.',
+    pausar: 'Pausar recorrido',
+    reanudar: 'Reanudar recorrido',
+    pestanas: [
+      { id: 'inicio', icono: 'home-5-line', titulo: 'Inicio', texto: 'Tus sitios con su vista previa y su rama, y los servicios encendidos.', imagen: 'inicio.png' },
+      { id: 'sitio', icono: 'global-line', titulo: 'Sitio', texto: 'Dirección, carpeta, Git y worktrees; procesos, registros y entorno por sitio.', imagen: 'sitio.png' },
+      { id: 'motores', icono: 'database-2-line', titulo: 'Motores', texto: 'Cada motor con su estado, su puerto, los sitios que lo usan y sus versiones.', imagen: 'bases-de-datos.png' },
+      { id: 'versiones', icono: 'stack-line', titulo: 'Versiones', texto: 'Líneas LTS, activas y en mantenimiento; instalas la que eliges.', imagen: 'versiones.png' },
+      { id: 'web', icono: 'server-line', titulo: 'Servidor web', texto: 'Caddy con HTTP/1.1, HTTP/2 y HTTP/3 en los puertos que entrega macOS.', imagen: 'servidor-web.png' },
+      { id: 'nuevo', icono: 'add-box-line', titulo: 'Nuevo proyecto', texto: 'Laravel con starter kit, pruebas, base de datos y Git, sin instalar nada global.', imagen: 'nuevo-proyecto.png' },
+    ],
+  },
+  faq: {
+    titulo: 'Preguntas frecuentes',
+    items: [
+      { p: '¿Es gratis?', r: 'Sí. Butake Stack es de código abierto bajo licencia Apache 2.0. Puedes usarlo, estudiarlo y proponer mejoras.' },
+      { p: '¿En qué Mac funciona?', r: 'En Mac con Apple Silicon y macOS 15 o superior.' },
+      { p: '¿Es segura de instalar?', r: 'Sí. Está firmada con el certificado Developer ID de Butake SpA y notarizada por Apple, así que macOS la abre sin advertencias. La suma SHA-256 se publica junto a cada versión.' },
+      { p: '¿Necesito Homebrew o Docker?', r: 'No. PHP, Node, Caddy y los motores se descargan de su fuente oficial a la carpeta de Butake Stack y corren directo en el Mac. Nada global, nada en /usr/local.' },
+      { p: '¿Pide mi contraseña o cambia /etc?', r: 'No. macOS entrega los puertos 53, 80 y 443 al agente de sesión de Butake Stack; el DNS de .test es interno. Activarlo pide tu confirmación, no tu contraseña.' },
+      { p: '¿Qué pasa al instalarla en un Mac nuevo?', r: 'Se abre «Preparar Butake Stack» con lo que falta: PHP, Caddy y el agente; Node y las herramientas de Apple como recomendados. Eliges cada versión y confirmas antes de descargar.' },
+      { p: '¿Cómo se actualiza?', r: 'La app busca versiones nuevas en GitHub y se actualiza sola tras verificar la suma SHA-256, la firma de Butake SpA y la notarización de Apple.' },
+      { p: '¿Puedo contribuir?', r: 'Sí: haz un fork y abre un pull request hacia develop. El equipo lo revisa antes de integrarlo. Para cambios grandes, abre antes un issue.' },
+    ],
+  },
+  cierre: {
+    titulo: 'Tu próximo sitio, en un clic',
+    texto: 'Descarga Butake Stack y deja tu entorno local listo en minutos.',
+  },
+  pieColumnas: [
+    { titulo: 'Producto', enlaces: [['Funciones', '#funciones'], ['Seguridad', '#seguridad'], ['En cifras', '#rendimiento'], ['Instalar', '#instalar']] },
+    { titulo: 'Recursos', enlaces: [['Versiones', '/releases'], ['Arquitectura', '/blob/develop/docs/architecture.md'], ['Documentación', '/tree/develop/docs'], ['Butake Git', 'https://jose-currinir.github.io/Butake-Git/']] },
+    { titulo: 'Proyecto', enlaces: [['Código', ''], ['Licencia', '/blob/develop/LICENSE'], ['Reportar un problema', '/issues/new'], ['Butake Design', 'https://github.com/Jose-Currinir/Butake-Design']] },
+  ],
+  porque: {
+    titulo: 'Hecho para trabajar tranquilo',
+    texto: 'Un entorno local no debería pedirte Homebrew, Docker ni tu contraseña. Butake Stack corre todo directo en el Mac y te muestra qué está pasando.',
+    tarjetas: [
+      { icono: 'download-cloud-2-line', titulo: 'Nada en bruto', texto: 'Cada herramienta sale de su fuente oficial, verificada; tú eliges la versión y confirmas.' },
+      { icono: 'flashlight-line', titulo: 'Protocolos modernos', texto: 'HTTPS con TLS 1.3, HTTP/2 y HTTP/3 en tus sitios .test, como en producción.' },
+      { icono: 'shield-check-line', titulo: 'Sin tocar el sistema', texto: 'Sin contraseña, sin /etc, sin servicios globales. Todo vive en la carpeta de Stack.' },
+      { icono: 'apple-line', titulo: 'Nativa de verdad', texto: 'SwiftUI y AppKit, sin WebView. Vidrio de macOS, modo claro y oscuro, en español.' },
+    ],
+  },
+  funciones: [
+    { id: 'sitios', icono: 'global-line', etiqueta: 'Sitios', titulo: 'Cada sitio en su .test, encendido cuando lo necesitas', texto: 'Los sitios parten apagados y se encienden con un interruptor: Caddy los sirve con HTTPS y sus procesos (colas, Reverb, Vite) arrancan solos. Vista previa, registros en vivo y entorno por sitio.', puntos: ['HTTPS, HTTP/2 y HTTP/3', 'PHP y Node por sitio', 'Procesos y registros en vivo'], imagen: 'sitio.png', alt: 'Página de un sitio con vista previa, Git y worktrees' },
+    { id: 'motores', icono: 'database-2-line', etiqueta: 'Motores', titulo: 'Bases de datos y caché, directo en el Mac', texto: 'MySQL, PostgreSQL, MongoDB, Redis, Valkey, Meilisearch, Typesense y RustFS agrupados por tipo. Cada uno con su puerto, sus datos y los sitios que lo usan; se enciende o apaga con un clic.', puntos: ['Sin Homebrew ni Docker', 'Varias versiones lado a lado', 'Datos existentes importados por clon APFS'], imagen: 'bases-de-datos.png', alt: 'Bases de datos con MySQL en ejecución y PostgreSQL por instalar' },
+    { id: 'versiones', icono: 'stack-line', etiqueta: 'Versiones', titulo: 'Eliges la versión, sabes cuánto dura', texto: 'Las versiones se agrupan por línea con su ciclo de vida: LTS, activa, mantenimiento o sin soporte. Ves lo instalado, actualizas con un clic y las líneas antiguas esperan en «Más versiones».', puntos: ['Ciclo de vida de endoflife.date', 'SHA-256, firma o compilación verificada', 'Nada se descarga sin confirmar'], imagen: 'versiones.png', alt: 'Versiones de Redis con su ciclo de vida' },
+    { id: 'git', icono: 'git-branch-line', etiqueta: 'Butake Git', titulo: 'Tu rama, tus cambios y tus worktrees, junto al sitio', texto: 'Cada sitio muestra su rama y sus cambios pendientes. Un worktree se sirve como su propio sitio, <rama>.<sitio>.test, y al cambiar de rama Stack te avisa si hay dependencias o migraciones nuevas.', puntos: ['Abrir en Butake Git con un clic', 'Worktrees como sitios propios', 'composer install, npm install o migrar'], imagen: 'sitio.png', alt: 'Tarjeta Git de un sitio con su worktree' },
+    { id: 'preparar', icono: 'checkbox-multiple-line', etiqueta: 'Preparar', titulo: 'Un Mac nuevo, listo en minutos', texto: 'Al instalar, Butake Stack revisa qué falta y lo pide: PHP, Caddy y el agente de sesión; Node y las herramientas de Apple como recomendados. Eliges cada versión y confirmas antes de descargar.', puntos: ['PHP con Composer y Xdebug', 'Herramientas de Apple sin Xcode completo', 'Se vuelve a abrir desde General'], imagen: 'preparar.png', alt: 'Preparar Butake Stack con los requisitos listos' },
+  ],
+  funcionaCon: {
+    titulo: 'Corre directo en tu Mac',
+    items: [
+      { icono: 'code-s-slash-line', texto: 'PHP' },
+      { icono: 'javascript-line', texto: 'Node.js' },
+      { icono: 'server-line', texto: 'Caddy' },
+      { icono: 'database-2-line', texto: 'MySQL' },
+      { icono: 'database-line', texto: 'PostgreSQL' },
+      { icono: 'leaf-line', texto: 'MongoDB' },
+      { icono: 'flashlight-line', texto: 'Redis' },
+      { icono: 'key-2-line', texto: 'Valkey' },
+      { icono: 'search-line', texto: 'Meilisearch' },
+      { icono: 'hard-drive-3-line', texto: 'RustFS' },
+      { icono: 'git-branch-line', texto: 'Butake Git' },
+    ],
+  },
+  areas: {
+    titulo: 'Todo tu entorno, en una sola app',
+    texto: 'Desde el primer sitio hasta el último motor, sin abrir la terminal.',
+    lista: [
+      { icono: 'global-line', titulo: 'Sitios', ancla: '#sitios', items: ['Dominios .test con HTTPS', 'Encendido manual', 'Vista previa', 'Procesos y registros'] },
+      { icono: 'database-2-line', titulo: 'Motores', ancla: '#motores', items: ['Bases de datos y caché', 'Búsqueda y almacenamiento', 'Puerto y datos propios', 'Varias versiones'] },
+      { icono: 'stack-line', titulo: 'Versiones', ancla: '#versiones', items: ['LTS y mantenimiento', 'Actualizar con un clic', 'Fuente oficial', 'Verificación'] },
+      { icono: 'git-branch-line', titulo: 'Git', ancla: '#git', items: ['Rama y cambios', 'Worktrees como sitios', 'Aviso al cambiar de rama', 'Abrir en Butake Git'] },
+      { icono: 'add-box-line', titulo: 'Proyectos', ancla: '#instalar', items: ['Laravel con starter kit', 'Pest o PHPUnit', 'SQLite, MySQL o PostgreSQL', 'Arrastrar una carpeta'] },
+      { icono: 'checkbox-multiple-line', titulo: 'Preparar', ancla: '#preparar', items: ['Requisitos detectados', 'Versión a elegir', 'Confirmación previa', 'Actualizaciones verificadas'] },
+    ],
+  },
+  galeria: {
+    titulo: 'Y mucho más',
+    otroModo: 'Butake Stack en modo oscuro',
+    items: [
+      { icono: 'command-line', texto: 'Paleta ⌘K: ir, encender y abrir con el teclado' },
+      { icono: 'menu-line', texto: 'Panel en la barra de menús con sitios y motores' },
+      { icono: 'palette-line', texto: 'Temas Butake, Drácula o personalizado' },
+      { icono: 'drag-drop-line', texto: 'Arrastra una carpeta para agregar un sitio' },
+      { icono: 'radio-line', texto: 'Reverb y colas de todos los sitios en un lugar' },
+      { icono: 'text', texto: 'Tamaño de texto con ⌘+ y ⌘−' },
+      { icono: 'links-line', texto: 'Enlaces butakestack:// desde otras apps' },
+      { icono: 'accessibility-line', texto: 'Operable por agentes de IA y VoiceOver' },
+    ],
+  },
+  seguridad: {
+    titulo: 'Seguridad sin sustos',
+    texto: 'Butake Stack asume que en tu Mac hay proyectos y datos reales.',
+    puntos: [
+      'Sin shell: cada programa recibe argumentos separados; rutas, dominios y puertos validados.',
+      'Descargas sólo por HTTPS y verificadas con SHA-256, firma del fabricante o compilación desde el código.',
+      'Puertos 53, 80 y 443 entregados por macOS: sin contraseña, sin root y sin tocar /etc.',
+      'Los secretos del .env de tus proyectos nunca se leen; las claves propias quedan con permisos 0600.',
+      'Actualizaciones verificadas por SHA-256, Developer ID de Butake SpA y notarización de Apple.',
+    ],
+    estado: 'Activo',
+  },
+  rendimiento: {
+    titulo: 'Sin rodeos',
+    datos: [
+      { valor: '0', texto: 'contraseñas para servir .test' },
+      { valor: '3', texto: 'protocolos: HTTP/1.1, HTTP/2 y HTTP/3' },
+      { valor: '10', texto: 'motores y servidores listos para instalar' },
+      { valor: '1', texto: 'clic para encender un sitio' },
+    ],
+    nota: 'Todo dentro de la carpeta de Butake Stack.',
+  },
+  instalar: {
+    titulo: 'Instalar',
+    pasos: [
+      { titulo: 'Descarga', texto: 'Baja Butake-Stack.dmg desde la última versión.' },
+      { titulo: 'Arrastra', texto: 'Abre el .dmg y arrastra Butake Stack a Aplicaciones.' },
+      { titulo: 'Prepara', texto: 'Ábrela: «Preparar Butake Stack» te guía con lo que falta en tu Mac.' },
+    ],
+    aviso: 'Firmada con Developer ID de Butake SpA y notarizada por Apple.',
+    codigoTitulo: 'O compila desde el código',
+    codigo: 'git clone https://github.com/Jose-Currinir/Butake-Stack.git\ncd Butake-Stack\n./scripts/install-native.sh',
+  },
+  contribuir: {
+    titulo: 'Abierto a tu aporte',
+    texto: 'Nadie sube cambios directo: haz un fork y abre un pull request hacia develop. El equipo lo revisa y lo integra.',
+    boton: 'Ver el código',
+  },
+  pie: {
+    licencia: 'Código bajo licencia Apache 2.0.',
+    marca: 'Butake y su logo son marcas de Butake SpA y no se incluyen en la licencia.',
+    copyright: '© 2026 Butake SpA',
+  },
+}

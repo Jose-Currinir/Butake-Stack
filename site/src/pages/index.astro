@@ -1,0 +1,436 @@
+---
+import '@fontsource/inter/latin-400.css'
+import '@fontsource/inter/latin-500.css'
+import '@fontsource/inter/latin-600.css'
+import '@fontsource/inter/latin-700.css'
+import '@fontsource/inter/latin-800.css'
+import '../styles/tokens.css'
+import '../styles/site.css'
+import Icon from '../components/Icon.astro'
+import StackOrbit from '../components/StackOrbit.astro'
+import { t, repo, descarga } from '../i18n/es'
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+const img = (name: string) => `${base}/img/${name}`
+// Every capture has a dark twin (`<name>-oscuro.png`), shown when the visitor prefers a dark scheme.
+const oscura = (name: string) => img(name.replace('.png', '-oscuro.png'))
+const MODO_OSCURO = '(prefers-color-scheme: dark)'
+const canonical = new URL(import.meta.env.BASE_URL, Astro.site).href
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Butake Stack',
+  operatingSystem: 'macOS 15',
+  applicationCategory: 'DeveloperApplication',
+  description: t.descripcion,
+  url: canonical,
+  downloadUrl: descarga,
+  license: 'https://www.apache.org/licenses/LICENSE-2.0',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  publisher: { '@type': 'Organization', name: 'Butake SpA' },
+}
+---
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{t.titulo}</title>
+  <meta name="description" content={t.descripcion} />
+  <link rel="canonical" href={canonical} />
+  <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content={t.titulo} />
+  <meta property="og:description" content={t.descripcion} />
+  <meta property="og:image" content={new URL(img('inicio-oscuro.png'), Astro.site).href} />
+  <meta property="og:locale" content="es_CL" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+</head>
+<body>
+  <div class="progreso" aria-hidden="true"></div>
+  <a class="saltar" href="#contenido">Saltar al contenido</a>
+  <header class="barra">
+    <div class="contenedor barra-interior">
+      <a class="marca" href={`${base}/`} aria-label="Butake Stack, inicio">
+        <img src={img('logo.png')} alt="" width="30" height="30" />
+        <span>Butake <strong>Stack</strong></span>
+      </a>
+      <nav aria-label="Principal" class="nav">
+        <a href="#funciones">{t.nav.funciones}</a>
+        <a href="#seguridad">{t.nav.seguridad}</a>
+        <a href="#instalar">{t.nav.instalar}</a>
+        <a href={repo}><Icon name="github-fill" size={18} /> <span>{t.nav.github}</span></a>
+      </nav>
+      <a class="boton boton-primario boton-chico" href={descarga}><Icon name="download-2-line" size={18} /> {t.nav.descargar}</a>
+      <button class="menu-boton" type="button" aria-expanded="false" aria-controls="menu-movil" aria-label={t.menu.abrir} data-abrir={t.menu.abrir} data-cerrar={t.menu.cerrar}>
+        <span></span><span></span>
+      </button>
+    </div>
+    <nav id="menu-movil" class="menu-movil" aria-label="Principal" hidden>
+      <a href="#funciones">{t.nav.funciones}</a>
+      <a href="#seguridad">{t.nav.seguridad}</a>
+      <a href="#instalar">{t.nav.instalar}</a>
+      <a href={repo}><Icon name="github-fill" size={18} /> {t.nav.github}</a>
+    </nav>
+  </header>
+
+  <main id="contenido" class="marco">
+    <div class="puntos" aria-hidden="true"></div>
+    <section class="hero contenedor">
+      <div class="hero-texto-bloque">
+        <p class="pastilla entrada" style="--i:0"><span class="punto punto-exito" aria-hidden="true"></span>{t.hero.etiqueta}</p>
+        <h1 class="entrada" style="--i:1">{t.hero.titulo}</h1>
+        <p class="hero-texto entrada" style="--i:2">{t.hero.texto}</p>
+        <div class="acciones entrada" style="--i:3">
+          <a class="boton boton-primario" href={descarga}><Icon name="apple-fill" size={20} /> {t.hero.descargar}</a>
+          <a class="boton boton-secundario" href={repo}><Icon name="github-fill" size={20} /> {t.hero.github}</a>
+        </div>
+        <p class="requisitos entrada" style="--i:4">{t.hero.requisitos}</p>
+      </div>
+      <div class="hero-visual entrada" style="--i:3"><StackOrbit /></div>
+    </section>
+
+    <section class="franja" aria-label={t.funcionaCon.titulo}>
+      <p class="franja-titulo contenedor">{t.funcionaCon.titulo}</p>
+      <div class="cinta">
+        <ul class="cinta-pista" role="list">
+          {[...t.funcionaCon.items, ...t.funcionaCon.items].map((item, i) => (
+            <li aria-hidden={i >= t.funcionaCon.items.length ? 'true' : undefined}><Icon name={item.icono} size={20} /> {item.texto}</li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <section class="seccion contenedor recorrido" aria-labelledby="recorrido">
+      <div class="encabezado revelar">
+        <p class="rotulo">{t.rotulos.recorrido}</p>
+        <h2 id="recorrido">{t.recorrido.titulo}</h2>
+        <p>{t.recorrido.texto}</p>
+      </div>
+      <div class="pestanas revelar" role="tablist" aria-label={t.recorrido.titulo}>
+        {t.recorrido.pestanas.map((p, i) => (
+          <button class="pestana" type="button" role="tab" id={`tab-${p.id}`} aria-controls={`panel-${p.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1}>
+            <Icon name={p.icono} size={18} /> <span>{p.titulo}</span><i class="avance" aria-hidden="true"></i>
+          </button>
+        ))}
+        <button class="pausa" type="button" aria-label={t.recorrido.pausar} data-pausar={t.recorrido.pausar} data-reanudar={t.recorrido.reanudar}><Icon name="pause-line" size={16} /></button>
+      </div>
+      <div class="escena revelar">
+        <div class="vitrina vitrina-grande">
+          {t.recorrido.pestanas.map((p, i) => (
+            <figure class:list={['panel captura ampliable', { activo: i === 0 }]} id={`panel-${p.id}`} role="tabpanel" aria-labelledby={`tab-${p.id}`} hidden={i !== 0}>
+              <picture>
+                <source media={MODO_OSCURO} srcset={oscura(p.imagen)} />
+                <img src={img(p.imagen)} alt={`${p.titulo}: ${p.texto}`} width="2360" height="1480" loading={i === 0 ? 'eager' : 'lazy'} />
+              </picture>
+            </figure>
+          ))}
+        </div>
+        <p class="pie-panel" aria-live="polite">{t.recorrido.pestanas[0].texto}</p>
+      </div>
+    </section>
+
+    <section class="seccion contenedor" aria-labelledby="porque">
+      <div class="encabezado revelar">
+        <p class="rotulo">{t.rotulos.porque}</p>
+        <h2 id="porque">{t.porque.titulo}</h2>
+        <p>{t.porque.texto}</p>
+      </div>
+      <ul class="tarjetas" role="list">
+        {t.porque.tarjetas.map((tarjeta) => (
+          <li class="tarjeta revelar brillo">
+            <span class="icono-cuadro"><Icon name={tarjeta.icono} size={22} /></span>
+            <h3>{tarjeta.titulo}</h3>
+            <p>{tarjeta.texto}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section id="funciones" class="funciones" aria-label={t.nav.funciones}>
+      {t.funciones.map((funcion, indice) => (
+        <article class:list={['funcion contenedor', { invertida: indice % 2 === 1 }]} id={funcion.id}>
+          <div class="funcion-texto revelar">
+            <p class="sobretitulo"><Icon name={funcion.icono} size={16} /> {funcion.etiqueta}</p>
+            <h2>{funcion.titulo}</h2>
+            <p>{funcion.texto}</p>
+            <ul class="lista-check" role="list">
+              {funcion.puntos.map((punto) => <li><Icon name="check-line" size={18} /> {punto}</li>)}
+            </ul>
+          </div>
+          <div class="vitrina revelar revelar-tarde">
+            <figure class="captura ampliable">
+              <picture>
+                <source media={MODO_OSCURO} srcset={oscura(funcion.imagen)} />
+                <img src={img(funcion.imagen)} alt={funcion.alt} loading="lazy" width="2360" height="1480" />
+              </picture>
+            </figure>
+          </div>
+        </article>
+      ))}
+    </section>
+
+    <section class="seccion contenedor" aria-labelledby="areas">
+      <div class="encabezado revelar">
+        <p class="rotulo">{t.rotulos.areas}</p>
+        <h2 id="areas">{t.areas.titulo}</h2>
+        <p>{t.areas.texto}</p>
+      </div>
+      <ul class="areas" role="list">
+        {t.areas.lista.map((area) => (
+          <li class="area revelar brillo">
+            <a class="area-cabecera" href={area.ancla}><span class="icono-cuadro icono-chico"><Icon name={area.icono} size={18} /></span><h3>{area.titulo}</h3><Icon name="arrow-right-up-line" size={18} /></a>
+            <ul role="list">
+              {area.items.map((item) => <li><a href={area.ancla}>{item} <Icon name="arrow-right-line" size={14} /></a></li>)}
+            </ul>
+          </li>
+        ))}
+      </ul>
+      <ul class="rejilla rejilla-extra" role="list">
+        {t.galeria.items.map((item) => (
+          <li class="revelar brillo"><span class="icono-cuadro icono-chico"><Icon name={item.icono} size={18} /></span>{item.texto}</li>
+        ))}
+      </ul>
+      <figure class="captura captura-ancha ampliable revelar">
+        <picture>
+          <source media={MODO_OSCURO} srcset={img('inicio.png')} />
+          <img src={oscura('inicio.png')} alt={t.galeria.otroModo} loading="lazy" width="2360" height="1480" />
+        </picture>
+      </figure>
+    </section>
+
+    <section id="seguridad" class="seccion contenedor dos-columnas" aria-labelledby="seguridad-titulo">
+      <div class="revelar">
+        <p class="rotulo">{t.rotulos.seguridad}</p>
+        <h2 id="seguridad-titulo">{t.seguridad.titulo}</h2>
+        <p class="texto-suave">{t.seguridad.texto}</p>
+      </div>
+      <ul class="lista-estado" role="list">
+        {t.seguridad.puntos.map((punto) => (
+          <li class="revelar"><span class="estado"><span class="punto punto-exito" aria-hidden="true"></span>{t.seguridad.estado}</span><span>{punto}</span></li>
+        ))}
+      </ul>
+    </section>
+
+    <section id="rendimiento" class="seccion contenedor" aria-labelledby="rendimiento-titulo">
+      <div class="encabezado revelar"><p class="rotulo">{t.rotulos.rendimiento}</p><h2 id="rendimiento-titulo">{t.rendimiento.titulo}</h2></div>
+      <dl class="cifras">
+        {t.rendimiento.datos.map((dato) => (
+          <div class="cifra revelar brillo"><dt>{dato.texto}</dt><dd data-cifra={dato.valor}>{dato.valor}</dd></div>
+        ))}
+      </dl>
+      <p class="nota">{t.rendimiento.nota}</p>
+    </section>
+
+    <section id="instalar" class="seccion contenedor" aria-labelledby="instalar-titulo">
+      <div class="encabezado revelar"><p class="rotulo">{t.rotulos.instalar}</p><h2 id="instalar-titulo">{t.instalar.titulo}</h2></div>
+      <ol class="pasos" role="list">
+        {t.instalar.pasos.map((paso, indice) => (
+          <li class="paso revelar brillo"><span class="numero">{indice + 1}</span><h3>{paso.titulo}</h3><p>{paso.texto}</p></li>
+        ))}
+      </ol>
+      <p class="aviso"><span class="estado estado-exito"><span class="punto punto-exito" aria-hidden="true"></span>Verificada</span>{t.instalar.aviso}</p>
+      <div class="acciones acciones-centro">
+        <a class="boton boton-primario" href={descarga}><Icon name="download-2-line" size={20} /> {t.hero.descargar}</a>
+      </div>
+      <h3 class="subtitulo">{t.instalar.codigoTitulo}</h3>
+      <div class="codigo-caja revelar">
+        <pre class="codigo"><code>{t.instalar.codigo}</code></pre>
+        <button class="copiar" type="button" data-copiar aria-label="Copiar comandos"><Icon name="file-copy-line" size={16} /><span>Copiar</span></button>
+      </div>
+    </section>
+
+    <section id="preguntas" class="seccion contenedor faq" aria-labelledby="faq-titulo">
+      <div class="encabezado revelar"><p class="rotulo">{t.rotulos.faq}</p><h2 id="faq-titulo">{t.faq.titulo}</h2></div>
+      <div class="faq-lista">
+        {t.faq.items.map((item) => (
+          <details class="pregunta revelar">
+            <summary>{item.p}<Icon name="add-line" size={20} /></summary>
+            <p>{item.r}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+
+    <section class="seccion contenedor" aria-labelledby="cierre">
+      <div class="cierre revelar">
+        <img src={img('logo.png')} alt="" width="56" height="56" />
+        <h2 id="cierre">{t.cierre.titulo}</h2>
+        <p>{t.cierre.texto}</p>
+        <div class="acciones">
+          <a class="boton boton-invertido" href={descarga}><Icon name="apple-fill" size={20} /> {t.hero.descargar}</a>
+          <a class="boton boton-fantasma" href={repo}><Icon name="github-fill" size={20} /> {t.hero.github}</a>
+        </div>
+        <p class="requisitos">{t.hero.requisitos}</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <div class="contenedor pie-rejilla">
+      <div class="pie-marca">
+        <a class="marca" href={`${base}/`}><img src={img('logo.png')} alt="" width="26" height="26" /><span>Butake <strong>Stack</strong></span></a>
+        <p>{t.descripcion}</p>
+      </div>
+      {t.pieColumnas.map((columna) => (
+        <div class="pie-columna">
+          <h3>{columna.titulo}</h3>
+          <ul role="list">
+            {columna.enlaces.map(([texto, destino]) => <li><a href={destino.startsWith('#') || destino.startsWith('http') ? destino : `${repo}${destino}`}>{texto}</a></li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+    <div class="contenedor pie-legal">
+      <p>{t.pie.copyright} · {t.pie.licencia} {t.pie.marca}</p>
+      <a class="arriba" href="#contenido"><Icon name="arrow-up-line" size={16} /> Volver arriba</a>
+    </div>
+  </footer>
+
+  <dialog class="visor" aria-label="Captura ampliada">
+    <button class="visor-cerrar" type="button" aria-label="Cerrar"><Icon name="close-line" size={22} /></button>
+    <img alt="" />
+  </dialog>
+
+  <script>
+    const reducido = matchMedia('(prefers-reduced-motion: reduce)').matches
+    document.documentElement.classList.add('js')
+
+    // Aparición al hacer scroll.
+    const revelar = new IntersectionObserver((entradas) => {
+      for (const entrada of entradas) if (entrada.isIntersecting) { const el = entrada.target as HTMLElement; el.classList.add('visible'); revelar.unobserve(el); setTimeout(() => el.style.setProperty('--d', '0ms'), 1000) }
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.12 })
+    document.querySelectorAll('.revelar').forEach((el, i) => { (el as HTMLElement).style.setProperty('--d', `${(i % 4) * 70}ms`); revelar.observe(el) })
+
+    // Contadores: animan la parte numérica conservando el formato («~100 ms», «0,3 s»).
+    const contar = new IntersectionObserver((entradas) => {
+      for (const entrada of entradas) {
+        if (!entrada.isIntersecting) continue
+        const el = entrada.target as HTMLElement; contar.unobserve(el)
+        const texto = el.dataset.cifra ?? ''
+        const m = texto.match(/(\d+(?:[.,]\d+)?)/)
+        if (!m || reducido) continue
+        const objetivo = parseFloat(m[1].replace(',', '.')), decimales = (m[1].split(/[.,]/)[1] ?? '').length
+        const inicio = performance.now(), duracion = 1100
+        const paso = (ahora: number) => {
+          const p = Math.min(1, (ahora - inicio) / duracion), e = 1 - Math.pow(1 - p, 3)
+          const valor = (objetivo * e).toFixed(decimales).replace('.', m[1].includes(',') ? ',' : '.')
+          el.textContent = texto.replace(m[1], valor)
+          if (p < 1) requestAnimationFrame(paso)
+        }
+        requestAnimationFrame(paso)
+      }
+    }, { threshold: 0.6 })
+    document.querySelectorAll('[data-cifra]').forEach((el) => contar.observe(el))
+
+    const enlaces = [...document.querySelectorAll('.nav a[href^="#"]')] as HTMLAnchorElement[]
+    // Barra de progreso, sombra de la barra y perspectiva de la captura principal.
+    const progreso = document.querySelector('.progreso') as HTMLElement
+    const barra = document.querySelector('.barra') as HTMLElement
+    const escena = document.querySelector('.escena') as HTMLElement
+    let pendiente = false
+    const alDesplazar = () => {
+      pendiente = false
+      const max = document.documentElement.scrollHeight - innerHeight
+      progreso.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`
+      barra.classList.toggle('con-sombra', scrollY > 8)
+      if (scrollY < innerHeight * 0.6) enlaces.forEach((a) => a.classList.remove('activo'))
+      // Respaldo del observador: al saltar con un enlace, revela lo que ya está en pantalla.
+      document.querySelectorAll('.revelar:not(.visible)').forEach((el) => { if (el.getBoundingClientRect().top < innerHeight * 0.95) { el.classList.add('visible'); revelar.unobserve(el) } })
+      if (!reducido && escena) { const top = escena.getBoundingClientRect().top; escena.style.setProperty('--giro', `${Math.min(14, Math.max(0, (top - innerHeight * 0.25) / 28))}deg`) }
+    }
+    addEventListener('scroll', () => { if (!pendiente) { pendiente = true; requestAnimationFrame(alDesplazar) } }, { passive: true })
+    addEventListener('hashchange', () => setTimeout(alDesplazar, 50))
+    alDesplazar()
+
+    // Sección activa en el menú.
+    const activa = new IntersectionObserver((entradas) => {
+      for (const entrada of entradas) if (entrada.isIntersecting) enlaces.forEach((a) => a.classList.toggle('activo', a.hash === `#${entrada.target.id}`))
+    }, { rootMargin: '-45% 0px -50% 0px' })
+    ;['funciones', 'seguridad', 'instalar'].forEach((id) => { const el = document.getElementById(id); if (el) activa.observe(el) })
+
+    // Brillo que sigue al cursor.
+    document.querySelectorAll('.brillo').forEach((el) => el.addEventListener('pointermove', (e) => {
+      const r = (el as HTMLElement).getBoundingClientRect(), ev = e as PointerEvent
+      ;(el as HTMLElement).style.setProperty('--x', `${ev.clientX - r.left}px`); (el as HTMLElement).style.setProperty('--y', `${ev.clientY - r.top}px`)
+    }))
+
+    // Copiar comandos.
+    document.querySelectorAll('[data-copiar]').forEach((boton) => boton.addEventListener('click', async () => {
+      const codigo = boton.parentElement?.querySelector('code')?.textContent ?? ''
+      try { await navigator.clipboard.writeText(codigo) } catch { return }
+      const etiqueta = boton.querySelector('span') as HTMLElement
+      boton.classList.add('copiado'); etiqueta.textContent = 'Copiado'
+      setTimeout(() => { boton.classList.remove('copiado'); etiqueta.textContent = 'Copiar' }, 1800)
+    }))
+
+    // Visor de capturas.
+    const visor = document.querySelector('.visor') as HTMLDialogElement
+    const visorImg = visor.querySelector('img') as HTMLImageElement
+    document.querySelectorAll('.ampliable img').forEach((img) => {
+      const i = img as HTMLImageElement
+      i.tabIndex = 0; i.setAttribute('role', 'button'); i.setAttribute('aria-label', `Ampliar: ${i.alt}`)
+      const abrir = () => { visorImg.src = i.currentSrc || i.src; visorImg.alt = i.alt; visor.showModal() }
+      i.addEventListener('click', abrir)
+      i.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') { e.preventDefault(); abrir() } })
+    })
+    visor.addEventListener('click', (e) => { if (e.target === visor || (e.target as HTMLElement).closest('.visor-cerrar')) visor.close() })
+
+    // Recorrido por pestañas: avance automático, teclado y pausa.
+    const pestanas = [...document.querySelectorAll('.pestana')] as HTMLButtonElement[]
+    const paneles = [...document.querySelectorAll('.panel')] as HTMLElement[]
+    const piePanel = document.querySelector('.pie-panel') as HTMLElement
+    const textos = paneles.map((p) => (p.querySelector('img') as HTMLImageElement).alt.split(': ').slice(1).join(': '))
+    const pausa = document.querySelector('.pausa') as HTMLButtonElement
+    let actual = 0, temporizador = 0, pausado = reducido, enVista = false
+    const DURACION = 6500
+    const mostrar = (i: number, foco = false) => {
+      actual = (i + pestanas.length) % pestanas.length
+      pestanas.forEach((b, j) => { b.setAttribute('aria-selected', String(j === actual)); b.tabIndex = j === actual ? 0 : -1; b.classList.remove('corriendo') })
+      paneles.forEach((p, j) => { if (j === actual) { p.hidden = false; requestAnimationFrame(() => p.classList.add('activo')) } else { p.classList.remove('activo'); p.hidden = true } })
+      piePanel.textContent = textos[actual]
+      if (foco) pestanas[actual].focus()
+      programar()
+    }
+    const programar = () => {
+      clearTimeout(temporizador)
+      const b = pestanas[actual]
+      b.classList.remove('corriendo'); void b.offsetWidth
+      if (pausado || !enVista) return
+      b.style.setProperty('--duracion', `${DURACION}ms`); b.classList.add('corriendo')
+      temporizador = window.setTimeout(() => mostrar(actual + 1), DURACION)
+    }
+    pestanas.forEach((b, i) => {
+      b.addEventListener('click', () => mostrar(i))
+      b.addEventListener('keydown', (e) => {
+        const k = (e as KeyboardEvent).key
+        if (k === 'ArrowRight' || k === 'ArrowLeft') { e.preventDefault(); mostrar(actual + (k === 'ArrowRight' ? 1 : -1), true) }
+        if (k === 'Home') { e.preventDefault(); mostrar(0, true) }
+        if (k === 'End') { e.preventDefault(); mostrar(pestanas.length - 1, true) }
+      })
+    })
+    const ponerPausa = (valor: boolean) => {
+      pausado = valor; pausa.setAttribute('aria-label', valor ? pausa.dataset.reanudar! : pausa.dataset.pausar!); pausa.classList.toggle('en-pausa', valor); programar()
+    }
+    pausa.addEventListener('click', () => ponerPausa(!pausado))
+    if (reducido) ponerPausa(true)
+    const zona = document.querySelector('.recorrido') as HTMLElement
+    new IntersectionObserver(([entrada]) => { enVista = entrada.isIntersecting; programar() }, { threshold: 0.35 }).observe(zona)
+
+    // Menú en teléfono.
+    const menuBoton = document.querySelector('.menu-boton') as HTMLButtonElement
+    const menuMovil = document.getElementById('menu-movil') as HTMLElement
+    const cerrarMenu = () => { menuMovil.hidden = true; menuBoton.setAttribute('aria-expanded', 'false'); menuBoton.setAttribute('aria-label', menuBoton.dataset.abrir!); document.body.classList.remove('menu-abierto') }
+    menuBoton.addEventListener('click', () => {
+      const abrir = menuMovil.hidden
+      menuMovil.hidden = !abrir; menuBoton.setAttribute('aria-expanded', String(abrir)); menuBoton.setAttribute('aria-label', abrir ? menuBoton.dataset.cerrar! : menuBoton.dataset.abrir!)
+      document.body.classList.toggle('menu-abierto', abrir)
+    })
+    menuMovil.querySelectorAll('a').forEach((a) => a.addEventListener('click', cerrarMenu))
+    addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Escape' && !menuMovil.hidden) { cerrarMenu(); menuBoton.focus() } })
+  </script>
+</body>
+</html>

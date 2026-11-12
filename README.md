@@ -15,7 +15,8 @@ sin Docker y sin tocar `/etc`.
 - Integrado con [Butake Git](https://github.com/Jose-Currinir/Butake-Git): rama y cambios por sitio,
   worktrees servidos como `<rama>.<sitio>.test` y apertura cruzada entre las dos apps.
 
-Requiere macOS 15 o posterior en un Mac con Apple Silicon.
+Requiere macOS 15 o posterior en un Mac con Apple Silicon. Página:
+[jose-currinir.github.io/Butake-Stack](https://jose-currinir.github.io/Butake-Stack/).
 
 ## Instalar
 

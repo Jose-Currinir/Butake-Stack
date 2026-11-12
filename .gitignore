@@ -15,3 +15,9 @@ internal/
 
 # Herramientas locales del editor
 .claude/
+
+# Página (GitHub Pages): dependencias y salidas generadas
+site/node_modules/
+site/dist/
+site/.astro/
+site/public/img/

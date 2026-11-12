@@ -1,0 +1,17 @@
+---
+// Remix Icon embebido en el HTML al compilar: sin CDN ni fuente de íconos en runtime.
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+
+interface Props { name: string; size?: number; label?: string }
+const { name, size = 20, label } = Astro.props
+const base = join(process.cwd(), 'node_modules/remixicon/icons')
+let svg = ''
+for (const categoria of readdirSync(base)) {
+  try { svg = readFileSync(join(base, categoria, `${name}.svg`), 'utf8'); break } catch {}
+}
+if (!svg) throw new Error(`Ícono Remix no encontrado: ${name}`)
+const cuerpo = svg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
+---
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={size} height={size} fill="currentColor"
+  aria-hidden={label ? undefined : 'true'} role={label ? 'img' : undefined} aria-label={label} class="icono" set:html={cuerpo} />
