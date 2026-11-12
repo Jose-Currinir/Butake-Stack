@@ -19,6 +19,7 @@ struct NewProjectSheet: View {
     @State private var database = "sqlite"
     @State private var templates: [String: String] = [:]
     @State private var platform = "cloudflare"
+    @State private var python = ""
     @State private var git = true
     @AppStorage("newProject.group") private var groupChoice = ""
     @State private var openInGit = ButakeGit.installed
@@ -50,6 +51,10 @@ struct NewProjectSheet: View {
     var missingRuntime: String? {
         if info.needsPhp && phpVersion == nil { return L("new.needsPhp") }
         if needsNode && nodeVersion == nil { return L("new.needsNode") }
+        if let tool = info.needsTool {
+            let ready = tool == "clt" ? store.appleTools : (store.devTools[tool]?.installed == true && store.devTools[tool]?.broken != true)
+            if !ready { return String(format: L("new.needsTool"), L("tool.\(tool)")) }
+        }
         return nil
     }
     /// What's wrong with the name, if anything: checked as the user types.
@@ -87,6 +92,7 @@ struct NewProjectSheet: View {
         .task {
             if store.installedTools["node"] == nil { await store.refreshRuntimes() }
             if store.projectVersions.isEmpty { await store.loadProjectVersions() }
+            if store.devTools.isEmpty || store.pythonLines.isEmpty { await store.refreshDevTools() }
         }
     }
 
@@ -162,7 +168,10 @@ struct NewProjectSheet: View {
                     Chip(text: info.generatorPackage.flatMap { store.projectVersions[$0] }.map { "\(info.generator) \($0)" } ?? info.generator, symbol: "shippingbox")
                     if info.needsPhp { requirement(phpVersion.map { "PHP \($0)" }, missing: "PHP") }
                     if needsNode { requirement(nodeVersion.map { "Node \($0.split(separator: ".").first ?? "")" }, missing: "Node.js") }
-                    if git { requirement(store.appleTools ? "Git" : nil, missing: "Git") }
+                    if let tool = info.needsTool, tool != "clt" {
+                        requirement(store.devTools[tool].flatMap { $0.installed ? "\(L("tool.\(tool)")) \($0.version ?? "")" : nil }, missing: L("tool.\(tool)"))
+                    }
+                    if git || info.needsTool == "clt" { requirement(store.appleTools ? (info.needsTool == "clt" ? L("tools.clt") : "Git") : nil, missing: info.needsTool == "clt" ? L("tools.clt") : "Git") }
                 }
                 .padding(.top, 2)
             }
@@ -222,7 +231,11 @@ struct NewProjectSheet: View {
                                 .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                         VStack(spacing: 0) {
-                            PreviewRow(symbol: "globe", title: L("new.address"), value: slug.isEmpty ? "—" : address)
+                            if info.app || (kind == "rust" && template == "cli") {
+                                PreviewRow(symbol: "app.dashed", title: L("new.address"), value: L("new.notASite"), mono: false)
+                            } else {
+                                PreviewRow(symbol: "globe", title: L("new.address"), value: slug.isEmpty ? "—" : address)
+                            }
                             Divider().padding(.leading, 34)
                             PreviewRow(symbol: "folder", title: L("new.location"), value: (slug.isEmpty ? parent : target).replacingOccurrences(of: NSHomeDirectory(), with: "~")) {
                                 Button(L("new.choose")) { choose() }.controlSize(.small)
@@ -286,9 +299,23 @@ struct NewProjectSheet: View {
                     TemplateOption(id: "pgsql", title: "PostgreSQL", detail: engineDetail("postgres"), logo: "postgres"),
                 ], selection: $database)
             }
-        case "astro", "emdash", "next", "vite":
+        case "django", "fastapi":
+            section(L("new.python")) {
+                HStack {
+                    Text(L("new.pythonDetail")).font(.uiCaption).foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("", selection: $python) {
+                        Text(L("new.pythonDefault")).tag("")
+                        ForEach(store.pythonLines) { Text("Python \($0.latest ?? $0.version)").tag($0.version) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
+            }
+        case "astro", "emdash", "next", "vite", "rust", "swift", "react-native":
             section(L("new.template")) {
-                OptionGrid(columns: kind == "vite" ? 4 : 3, options: templateOptions,
+                OptionGrid(columns: kind == "vite" || kind == "react-native" ? 4 : 3, options: templateOptions,
                            selection: Binding(get: { template }, set: { templates[kind] = $0 }))
             }
             if kind == "emdash" {
@@ -397,9 +424,17 @@ struct NewProjectSheet: View {
             if testing == "pest" { list.append(("tests", "pestphp")) }
             list.append(("frontend", "npm install"))
             list.append(("database", "artisan migrate"))
-        case "astro", "emdash", "next", "vite":
+        case "astro", "emdash", "next", "vite", "react-native":
             list = [("generator", "npx")]
             if kind == "vite" { list.append(("dependencies", "npm install")) }
+        case "django", "fastapi":
+            list = [("uvInit", "uv init"), ("dependencies", "uv add")]
+            if kind == "django" { list.append(("djangoProject", "startproject")) }
+        case "rust":
+            list = [("cargoNew", "cargo new")]
+            if template != "cli" { list += [("dependencies", "cargo add"), ("compile", "cargo build")] }
+        case "swift":
+            list = [("swiftPackage", "swift package")]
         default:
             list = [("files", "")]
         }
@@ -486,24 +521,26 @@ struct NewProjectSheet: View {
                     .symbolEffect(.bounce, options: .nonRepeating)
                     .padding(.top, 26)
                 VStack(spacing: 4) {
-                    Text(String(format: L("new.doneTitle"), created.project.name)).font(.system(size: 21, weight: .bold, design: .rounded))
-                    Text(created.project.url?.absoluteString ?? "").font(.uiCallout).foregroundStyle(.secondary).textSelection(.enabled)
+                    Text(String(format: L("new.doneTitle"), created.name)).font(.system(size: 21, weight: .bold, design: .rounded))
+                    Text(created.project?.url?.absoluteString ?? L("new.doneApp")).font(.uiCallout).foregroundStyle(.secondary).textSelection(.enabled)
                     Text(String(format: L("new.doneElapsed"), Self.clock(created.seconds))).font(.uiCaption).foregroundStyle(.tertiary)
                 }
                 HStack(spacing: 10) {
-                    ActionTile(symbol: "power", title: L("new.turnOn"), prominent: true) {
-                        Task { await store.setSite(created.project, enabled: true); finish(created) }
+                    if let site = created.project {
+                        ActionTile(symbol: "power", title: L("new.turnOn"), prominent: true) {
+                            Task { await store.setSite(site, enabled: true); finish(created) }
+                        }
                     }
                     ActionTile(symbol: "folder", title: L("site.finder")) {
-                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: created.project.path)
+                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: created.path)
                     }
-                    ActionTile(symbol: "chevron.left.forwardslash.chevron.right", title: L("site.editor")) { Editor.open(created.project.path) }
-                    if ButakeGit.installed && FileManager.default.fileExists(atPath: created.project.path + "/.git") {
-                        ActionTile(symbol: "arrow.triangle.branch", title: "Butake Git") { ButakeGit.open(created.project.path) }
+                    ActionTile(symbol: "chevron.left.forwardslash.chevron.right", title: L("site.editor")) { Editor.open(created.path) }
+                    if ButakeGit.installed && FileManager.default.fileExists(atPath: created.path + "/.git") {
+                        ActionTile(symbol: "arrow.triangle.branch", title: "Butake Git") { ButakeGit.open(created.path) }
                     }
                 }
                 .frame(maxWidth: 560)
-                summary(created.project)
+                summary(created)
                 if !created.notes.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(L("new.nextSteps")).font(.ui(size: 12, weight: .semibold)).foregroundStyle(.secondary)
@@ -523,13 +560,14 @@ struct NewProjectSheet: View {
     }
 
     /// What was created, as the site will run it.
-    private func summary(_ project: Project) -> some View {
+    private func summary(_ created: CreatedProject) -> some View {
+        let project = created.project
         let choice: String? = switch kind {
         case "laravel": kit == "none" ? nil : ProjectKindInfo.kits.first { $0.id == kit }?.title
-        case "astro", "emdash", "next", "vite": ProjectKindInfo.templates[kind]?.first { $0.id == template }?.title
+        case "astro", "emdash", "next", "vite", "rust", "swift", "react-native": ProjectKindInfo.templates[kind]?.first { $0.id == template }?.title
         default: nil
         }
-        let runtime = [project.php.map { "PHP \($0)" }, project.node.map { "Node \($0)" }].compactMap { $0 }.joined(separator: " · ")
+        let runtime = [project?.php.map { "PHP \($0)" }, project?.node.map { "Node \($0)" }, project?.runtime["python"].map { "Python \($0)" }].compactMap { $0 }.joined(separator: " · ")
         return VStack(spacing: 0) {
             PreviewRow(symbol: "square.stack.3d.up", title: L("new.summaryKind"), value: [L("kind.\(kind)"), choice].compactMap { $0 }.joined(separator: " · "), mono: false)
             Divider().padding(.leading, 34)
@@ -537,7 +575,7 @@ struct NewProjectSheet: View {
                 PreviewRow(symbol: "cpu", title: L("new.summaryRuntime"), value: runtime, mono: false)
                 Divider().padding(.leading, 34)
             }
-            if let port = project.upstream {
+            if let port = project?.upstream {
                 PreviewRow(symbol: "network", title: L("new.summaryPort"), value: "127.0.0.1:\(port)")
                 Divider().padding(.leading, 34)
             }
@@ -545,8 +583,8 @@ struct NewProjectSheet: View {
                 PreviewRow(symbol: "cylinder", title: L("new.database"), value: ["sqlite": "SQLite", "mysql": "MySQL", "pgsql": "PostgreSQL"][database] ?? database, mono: false)
                 Divider().padding(.leading, 34)
             }
-            PreviewRow(symbol: "folder", title: L("new.location"), value: project.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
-            if FileManager.default.fileExists(atPath: project.path + "/.git") {
+            PreviewRow(symbol: "folder", title: L("new.location"), value: created.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+            if FileManager.default.fileExists(atPath: created.path + "/.git") {
                 Divider().padding(.leading, 34)
                 PreviewRow(symbol: "arrow.triangle.branch", title: "Git", value: L("new.summaryGit"), mono: false)
             }
@@ -638,7 +676,8 @@ struct NewProjectSheet: View {
         var request: [String: Any] = ["kind": kind, "name": slug, "parent": parent, "git": git]
         switch kind {
         case "laravel": request.merge(["kit": kit, "testing": testing, "database": database]) { $1 }
-        case "astro", "next", "vite": request["template"] = template
+        case "astro", "next", "vite", "rust", "swift", "react-native": request["template"] = template
+        case "django", "fastapi": request["python"] = python
         case "emdash": request.merge(["template": template, "platform": platform]) { $1 }
         default: break
         }
@@ -653,9 +692,9 @@ struct NewProjectSheet: View {
                 case .success(var created):
                     created.seconds = Date().timeIntervalSince(started)
                     savedParent = parent
-                    if store.groups.contains(where: { $0.id == groupChoice }) { store.move(created.project.id, to: groupChoice) }
+                    if let site = created.project, store.groups.contains(where: { $0.id == groupChoice }) { store.move(site.id, to: groupChoice) }
                     // QA windows never drive the user's own Butake Git (its recents are theirs).
-                    if git && openInGit && !StackStore.qaWindow { ButakeGit.open(created.project.path) }
+                    if git && openInGit && !StackStore.qaWindow { ButakeGit.open(created.path) }
                     phase = .done(created)
                 case .failure(let failure):
                     phase = .failed(failure.message)
@@ -664,7 +703,7 @@ struct NewProjectSheet: View {
         }
     }
     func finish(_ created: CreatedProject) {
-        store.openSite(created.project.id)
+        if let site = created.project { store.openSite(site.id) }
         dismiss()
     }
     func reset() {
@@ -677,10 +716,13 @@ struct NewProjectSheet: View {
 
 /// A created project and the next steps the engine noted.
 struct CreatedProject: Decodable, Sendable {
-    var project: Project
+    /// The site; nil for apps, libraries and tools Stack doesn't serve (Swift, React Native, Rust CLI).
+    var project: Project?
+    var path: String
     var notes: [String]
     var seconds: TimeInterval = 0
-    enum CodingKeys: String, CodingKey { case project, notes }
+    var name: String { project?.name ?? URL(fileURLWithPath: path).lastPathComponent }
+    enum CodingKeys: String, CodingKey { case project, path, notes }
 }
 
 // MARK: Catalog
@@ -703,6 +745,10 @@ struct ProjectKindInfo: Identifiable {
     var needsNode = false
     var proxied = false
     var wizard = false
+    /// A toolchain of the user's (`devTools` id): uv, rustup or Apple's command line tools.
+    var needsTool: String? = nil
+    /// Creates a project that isn't a site (an app, a library, a tool).
+    var app = false
 
     /// Framework shown with its current version, and the generator's package.
     var framework: (name: String, package: String)? {
@@ -712,6 +758,7 @@ struct ProjectKindInfo: Identifiable {
         case "emdash": ("EmDash", "emdash")
         case "next": ("Next.js", "next")
         case "vite": ("Vite", "vite")
+        case "react-native": ("React", "react")
         default: nil
         }
     }
@@ -723,7 +770,7 @@ struct ProjectKindInfo: Identifiable {
         }
     }
 
-    static let groups = ["php", "javascript", "other"]
+    static let groups = ["php", "javascript", "python", "native", "other"]
     static let all: [ProjectKindInfo] = [
         ProjectKindInfo(id: "laravel", logo: "laravel", group: "php", generator: "laravel/laravel", needsPhp: true),
         ProjectKindInfo(id: "php", logo: "php", group: "php", generator: "index.php"),
@@ -732,8 +779,13 @@ struct ProjectKindInfo: Identifiable {
         ProjectKindInfo(id: "next", logo: "next", group: "javascript", generator: "create-next-app", needsNode: true, proxied: true),
         ProjectKindInfo(id: "vite", logo: "vite", group: "javascript", generator: "create-vite", needsNode: true, proxied: true),
         ProjectKindInfo(id: "node", logo: "node", group: "javascript", generator: "node:http", needsNode: true, proxied: true),
+        ProjectKindInfo(id: "django", logo: "django", group: "python", generator: "uv", proxied: true, needsTool: "uv"),
+        ProjectKindInfo(id: "fastapi", logo: "fastapi", group: "python", generator: "uv", proxied: true, needsTool: "uv"),
+        ProjectKindInfo(id: "rust", logo: "rust", group: "native", generator: "cargo", proxied: true, needsTool: "rustup"),
+        ProjectKindInfo(id: "swift", logo: "swift", group: "native", generator: "swift package", needsTool: "clt", app: true),
+        ProjectKindInfo(id: "react-native", logo: "react-native", group: "native", generator: "create-expo-app", needsNode: true, app: true),
+        ProjectKindInfo(id: "kmp", logo: "kmp", group: "native", generator: "kmp.jetbrains.com", proxied: true, wizard: true),
         ProjectKindInfo(id: "static", logo: "static", group: "other", generator: "index.html"),
-        ProjectKindInfo(id: "kmp", logo: "kmp", group: "other", generator: "kmp.jetbrains.com", proxied: true, wizard: true),
     ]
     static func of(_ id: String) -> ProjectKindInfo { all.first { $0.id == id } ?? all[0] }
 
@@ -749,6 +801,21 @@ struct ProjectKindInfo: Identifiable {
         "astro": ["minimal", "basics", "blog", "portfolio", "starlight"].map { option("astro", $0, symbols: ["minimal": "square.dashed", "basics": "square.grid.2x2", "blog": "text.book.closed", "portfolio": "photo.on.rectangle", "starlight": "books.vertical"]) },
         "emdash": ["blog", "starter", "marketing", "portfolio"].map { option("emdash", $0, symbols: ["blog": "text.book.closed", "starter": "sparkles", "marketing": "megaphone", "portfolio": "photo.on.rectangle"]) },
         "next": ["app", "api", "empty"].map { option("next", $0, symbols: ["app": "macwindow", "api": "point.3.connected.trianglepath.dotted", "empty": "square.dashed"]) },
+        "rust": [
+            TemplateOption(id: "web", title: L("new.template.rust.web"), detail: L("new.templateDetail.rust.web"), symbol: "network"),
+            TemplateOption(id: "cli", title: L("new.template.rust.cli"), detail: L("new.templateDetail.rust.cli"), symbol: "terminal"),
+        ],
+        "swift": [
+            TemplateOption(id: "executable", title: L("new.template.swift.executable"), detail: L("new.templateDetail.swift.executable"), symbol: "play.rectangle"),
+            TemplateOption(id: "tool", title: L("new.template.swift.tool"), detail: L("new.templateDetail.swift.tool"), symbol: "terminal"),
+            TemplateOption(id: "library", title: L("new.template.swift.library"), detail: L("new.templateDetail.swift.library"), symbol: "books.vertical"),
+        ],
+        "react-native": [
+            TemplateOption(id: "expo", title: "Expo", detail: L("new.templateDetail.rn.expo"), symbol: "sparkles"),
+            TemplateOption(id: "blank", title: L("new.template.rn.blank"), detail: L("new.templateDetail.rn.blank"), symbol: "square.dashed"),
+            TemplateOption(id: "tabs", title: L("new.template.rn.tabs"), detail: L("new.templateDetail.rn.tabs"), symbol: "rectangle.split.3x1"),
+            TemplateOption(id: "cli", title: "React Native CLI", detail: L("new.templateDetail.rn.cli"), logo: "react-native"),
+        ],
         "vite": [
             TemplateOption(id: "react-ts", title: "React", detail: L("new.template.vite.detail"), logo: "react"),
             TemplateOption(id: "vue-ts", title: "Vue", detail: L("new.template.vite.detail"), logo: "vue"),

@@ -23,6 +23,8 @@ pub struct Options {
     pub testing: String,
     pub database: String,
     pub git: bool,
+    /// Python line for Django and FastAPI (empty: uv's default, the newest installed).
+    pub python: String,
 }
 
 fn package(kit: &str) -> Result<&'static str> {
@@ -258,7 +260,7 @@ fn git_init(runner: &Runner, target: &Path, notes: &mut Vec<String>) {
 /// leaves half a project behind: a free name (folder and site), and the runtime of its kind.
 fn preflight(store: &Store, options: &Options) -> Result<()> {
     ensure!(
-        ["laravel", "php", "static", "node", "astro", "emdash", "next", "vite", "kmp"].contains(&options.kind.as_str()),
+        ["laravel", "php", "static", "node", "astro", "emdash", "next", "vite", "kmp", "django", "fastapi", "rust", "swift", "react-native"].contains(&options.kind.as_str()),
         "unknown_kind"
     );
     ensure!(options.kind != "kmp", "kmp_use_wizard");
@@ -276,8 +278,14 @@ fn preflight(store: &Store, options: &Options) -> Result<()> {
         let series = config.versions.get("php").cloned().unwrap_or_else(|| "8.2".into());
         ensure!(crate::runtimes::manifest(store, &series).is_ok(), "php_not_installed");
     }
-    if needs_node {
+    if needs_node || options.kind == "react-native" {
         ensure!(tools::resolve(store, "node", "").is_some(), "node_not_installed");
+    }
+    match options.kind.as_str() {
+        "django" | "fastapi" => ensure!(tools::user_tool("uv").is_some(), "uv_not_installed"),
+        "rust" => ensure!(tools::user_tool("cargo").is_some(), "cargo_not_installed"),
+        "swift" => ensure!(git_available(), "clt_not_installed"),
+        _ => {}
     }
     Ok(())
 }
@@ -292,20 +300,32 @@ fn git_available() -> bool {
         .is_ok_and(|s| s.success())
 }
 
-/// Creates the project and registers it (off). Returns the site and notes for the next steps.
-/// If any step fails, the half-made folder is removed: it did not exist before this call.
-pub fn create(store: &Store, options: &Options) -> Result<(Project, Vec<String>)> {
+/// What was created: the site (none for apps, libraries and tools Stack doesn't serve), its folder and
+/// the notes for the next steps.
+pub struct Created {
+    pub project: Option<Project>,
+    pub path: PathBuf,
+    pub notes: Vec<String>,
+}
+
+/// Creates the project and, when it's a site, registers it (off). If any step fails, the half-made
+/// folder is removed: it did not exist before this call.
+pub fn create(store: &Store, options: &Options) -> Result<Created> {
     validate_name(&options.name)?;
     preflight(store, options)?;
     let (_, target) = target_of(options)?;
     let mut notes = vec![];
     let result = match options.kind.as_str() {
-        "laravel" => create_laravel(store, options, &mut notes),
-        "php" | "static" | "node" => create_basic(store, options, &mut notes),
-        _ => create_javascript(store, options, &mut notes),
+        "laravel" => create_laravel(store, options, &mut notes).map(Some),
+        "php" | "static" | "node" => create_basic(store, options, &mut notes).map(Some),
+        "django" | "fastapi" => create_python(store, options, &mut notes).map(Some),
+        "rust" => create_rust(store, options, &mut notes),
+        "swift" => create_swift(store, options, &mut notes).map(|_| None),
+        "react-native" => create_react_native(store, options, &mut notes).map(|_| None),
+        _ => create_javascript(store, options, &mut notes).map(Some),
     };
     match result {
-        Ok(project) => Ok((project, notes)),
+        Ok(project) => Ok(Created { project, path: target, notes }),
         Err(error) => {
             if target.is_dir() {
                 let _ = fs::remove_dir_all(&target);
@@ -313,6 +333,109 @@ pub fn create(store: &Store, options: &Options) -> Result<(Project, Vec<String>)
             Err(error)
         }
     }
+}
+
+/// A runner whose PATH has the user's toolchains (uv, cargo) and, when given, the stack's Node.
+fn user_runner(store: &Store, options: &Options, node_bin: Option<&Path>) -> Result<Runner> {
+    let home = dirs::home_dir().unwrap_or_default();
+    let mut path: Vec<String> = [home.join(".local/bin"), home.join(".cargo/bin")].iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    if let Some(node) = node_bin { path.insert(0, node.to_string_lossy().into_owned()); }
+    path.push("/usr/bin:/bin:/usr/sbin:/sbin".into());
+    let log = store.directory("logs")?.join(format!("create-{}.log", options.name));
+    let _ = fs::remove_file(&log);
+    Ok(Runner { path: path.join(":"), home: home.to_string_lossy().into_owned(), phprc: String::new(), log })
+}
+
+fn pascal(name: &str) -> String {
+    name.split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|p| !p.is_empty())
+        .map(|p| p[..1].to_ascii_uppercase() + &p[1..])
+        .collect::<String>()
+        .trim_start_matches(|c: char| c.is_ascii_digit())
+        .to_string()
+}
+
+/// Django or FastAPI with uv: a project of its own (pyproject, lock, pinned Python).
+fn create_python(store: &Store, options: &Options, notes: &mut Vec<String>) -> Result<Project> {
+    let (parent, target) = target_of(options)?;
+    let uv = tools::user_tool("uv").ok_or_else(|| anyhow::anyhow!("uv_not_installed"))?;
+    let runner = user_runner(store, options, None)?;
+    let mut init = vec!["init", options.name.as_str(), "--app", "--vcs", "none", "--no-workspace"];
+    if !options.python.is_empty() {
+        ensure!(options.python.len() <= 10 && options.python.bytes().all(|c| c.is_ascii_digit() || c == b'.'), "invalid_version");
+        init.extend(["--python", options.python.as_str()]);
+    }
+    runner.run(&parent, &uv, &init)?;
+    let _ = fs::remove_file(target.join("main.py"));
+    if options.kind == "django" {
+        runner.run(&target, &uv, &["add", "django"])?;
+        runner.run(&target, &uv, &["run", "django-admin", "startproject", "config", "."])?;
+        runner.run(&target, &uv, &["run", "python", "manage.py", "migrate", "--noinput"])?;
+    } else {
+        runner.run(&target, &uv, &["add", "fastapi[standard]"])?;
+        let title = options.name.replace('"', "");
+        fs::write(target.join("main.py"), format!("from fastapi import FastAPI\n\napp = FastAPI(title=\"{title}\")\n\n\n@app.get(\"/\")\ndef inicio():\n    return {{\"mensaje\": \"Hola desde FastAPI y Butake Stack\"}}\n\n\n@app.get(\"/salud\")\ndef salud():\n    return {{\"estado\": \"ok\"}}\n"))?;
+    }
+    if !target.join(".gitignore").exists() {
+        fs::write(target.join(".gitignore"), ".venv/\n__pycache__/\n*.pyc\ndb.sqlite3\n.env\n")?;
+    }
+    if options.git { git_init(&runner, &target, notes); }
+    register(store, &target)
+}
+
+/// Rust with cargo: a web server (axum, reading PORT and HOST from Stack) or a command-line tool.
+fn create_rust(store: &Store, options: &Options, notes: &mut Vec<String>) -> Result<Option<Project>> {
+    let (parent, target) = target_of(options)?;
+    let cargo = tools::user_tool("cargo").ok_or_else(|| anyhow::anyhow!("cargo_not_installed"))?;
+    let runner = user_runner(store, options, None)?;
+    let web = options.template != "cli";
+    runner.run(&parent, &cargo, &["new", options.name.as_str(), "--vcs", "none"])?;
+    if web {
+        runner.run(&target, &cargo, &["add", "axum", "tokio", "--features", "tokio/full"])?;
+        fs::write(target.join("src/main.rs"), "use axum::{routing::get, Router};\n\n#[tokio::main]\nasync fn main() {\n    // Butake Stack assigns PORT and HOST; the .test address points here.\n    let port = std::env::var(\"PORT\").unwrap_or_else(|_| \"3000\".into());\n    let host = std::env::var(\"HOST\").unwrap_or_else(|_| \"127.0.0.1\".into());\n    let app = Router::new()\n        .route(\"/\", get(|| async { \"Hola desde Rust y Butake Stack\" }))\n        .route(\"/salud\", get(|| async { \"ok\" }));\n    let listener = tokio::net::TcpListener::bind(format!(\"{host}:{port}\")).await.unwrap();\n    println!(\"http://{host}:{port}\");\n    axum::serve(listener, app).await.unwrap();\n}\n")?;
+        // Compiled once now, so the first start of the site is quick.
+        runner.run(&target, &cargo, &["build"])?;
+    }
+    if !target.join(".gitignore").exists() { fs::write(target.join(".gitignore"), "/target\n")?; }
+    if options.git { git_init(&runner, &target, notes); }
+    if web { register(store, &target).map(Some) } else { Ok(None) }
+}
+
+/// A Swift package (SwiftPM): executable, library or command-line tool. Apps with a window are
+/// created in Xcode; the note says so.
+fn create_swift(store: &Store, options: &Options, notes: &mut Vec<String>) -> Result<()> {
+    let (_, target) = target_of(options)?;
+    let kind = match options.template.as_str() { "library" => "library", "tool" => "tool", _ => "executable" };
+    let runner = user_runner(store, options, None)?;
+    fs::create_dir_all(&target)?;
+    let name = pascal(&options.name);
+    ensure!(!name.is_empty(), "invalid_name");
+    runner.run(&target, Path::new("/usr/bin/swift"), &["package", "init", "--type", kind, "--name", &name])?;
+    if options.git { git_init(&runner, &target, notes); }
+    notes.push("swift_xcode_apps".into());
+    Ok(())
+}
+
+/// React Native: Expo (the framework React Native recommends) or the bare React Native CLI.
+fn create_react_native(store: &Store, options: &Options, notes: &mut Vec<String>) -> Result<()> {
+    let (parent, target) = target_of(options)?;
+    let node = tools::resolve(store, "node", "").map(|d| d.join("bin")).ok_or_else(|| anyhow::anyhow!("node_not_installed"))?;
+    let runner = user_runner(store, options, Some(&node))?;
+    let npx = node.join("npx");
+    if options.template == "cli" {
+        let name = pascal(&options.name);
+        ensure!(!name.is_empty(), "invalid_name");
+        runner.run(&parent, &npx, &["--yes", "@react-native-community/cli@latest", "init", &name, "--directory", &options.name, "--skip-git-init", "--install-pods", "false", "--pm", "npm"])?;
+        notes.push("rn_pods".into());
+    } else {
+        let template = match options.template.as_str() { "blank" => "blank-typescript", "tabs" => "tabs", _ => "default" };
+        runner.run(&parent, &npx, &["--yes", "create-expo-app@latest", &options.name, "--template", template, "--yes"])?;
+    }
+    if !target.join(".nvmrc").exists() {
+        if let Some(major) = node_major(&node) { fs::write(target.join(".nvmrc"), format!("{major}\n"))?; }
+    }
+    if options.git { git_init(&runner, &target, notes); }
+    Ok(())
 }
 
 fn target_of(options: &Options) -> Result<(PathBuf, PathBuf)> {

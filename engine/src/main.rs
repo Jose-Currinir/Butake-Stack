@@ -157,11 +157,14 @@ fn dispatch(request: Value) -> Result<Value> {
                 testing: request["testing"].as_str().unwrap_or("pest").into(),
                 database: request["database"].as_str().unwrap_or("sqlite").into(),
                 git: request["git"].as_bool().unwrap_or(true),
+                python: request["python"].as_str().unwrap_or("").into(),
             };
             anyhow::ensure!(options.parent.is_absolute(), "invalid_path");
-            let (project, notes) = scaffold::create(&store, &options)?;
-            let _ = daemon::request_sync(&store, "reload", json!({}), false);
-            Ok(json!({"project": project, "notes": notes}))
+            let created = scaffold::create(&store, &options)?;
+            if created.project.is_some() {
+                let _ = daemon::request_sync(&store, "reload", json!({}), false);
+            }
+            Ok(json!({"project": created.project, "path": created.path, "notes": created.notes}))
         }
         "gitStatus" => {
             // Branch and pending changes of every site that is a Git repository.
@@ -364,7 +367,7 @@ const PUBLIC_ERRORS: &[&str] = &[
     "scaffold_step_failed", "kmp_use_wizard", "unknown_template", "domain_in_use",
     "postgres_not_installed", "postgres_command_failed", "no_free_port", "invalid_group_name",
     "checksum_mismatch", "checksum_not_found", "devtool_step_failed", "licenses_not_accepted", "jdk_not_installed",
-    "uv_not_installed", "download_failed", "signature_invalid",
+    "uv_not_installed", "download_failed", "signature_invalid", "cargo_not_installed", "clt_not_installed",
 ];
 
 #[tokio::main]

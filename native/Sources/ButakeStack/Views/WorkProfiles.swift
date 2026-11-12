@@ -175,19 +175,19 @@ private struct ToolRow: View {
             TechLogo(tech: .of(tool == "jdk" ? "java" : tool), size: 24)
             VStack(alignment: .leading, spacing: 1) {
                 Text(L("tool.\(tool)")).font(.uiCallout)
-                Text(L("toolDetail.\(tool)")).font(.uiCaption).foregroundStyle(.secondary).lineLimit(1)
+                Text(detail).font(.uiCaption).foregroundStyle(.secondary).lineLimit(1)
+                    .contentTransition(.opacity)
             }
             Spacer(minLength: 10)
-            if tool == "python" { pythonPicker }
-            if let status, status.installed, status.broken != true {
+            if tool == "python" {
+                pythonControls
+            } else if let status, status.installed, status.broken != true {
                 if let update {
                     Button { confirming = true } label: { Label(String(format: L("tools.updateTo"), update.latest), systemImage: "arrow.down.circle") }
                         .controlSize(.small).buttonStyle(.borderedProminent).disabled(busy)
                         .help(String(format: L("tools.installedVersion"), update.installed))
                 }
-                if tool != "python" || update == nil {
-                    Label(status.version ?? L("setup.ready"), systemImage: "checkmark.circle.fill").font(.uiCaption.weight(.medium)).foregroundStyle(Brand.success).lineLimit(1)
-                }
+                Label(status.version ?? L("setup.ready"), systemImage: "checkmark.circle.fill").font(.uiCaption.weight(.medium)).foregroundStyle(Brand.success).lineLimit(1)
             } else {
                 if status?.broken == true {
                     Label(L("tools.broken"), systemImage: "exclamationmark.triangle.fill").font(.uiCaption.weight(.medium)).foregroundStyle(Brand.warning)
@@ -211,23 +211,53 @@ private struct ToolRow: View {
         }
     }
 
+    /// The Python line picked (by default: one with an update, else the newest supported).
     var chosenPython: String {
-        if let line = update.map({ $0.latest.split(separator: ".").prefix(2).joined(separator: ".") }), pythonVersion.isEmpty { return line }
-        return pythonVersion.isEmpty ? (store.pythonLines.first?.version ?? "") : pythonVersion
+        if !pythonVersion.isEmpty { return pythonVersion }
+        if let line = store.devUpdates.python.first(where: { $0.value.update })?.key { return line }
+        return store.pythonLines.first?.version ?? ""
+    }
+    /// Installed state of the picked line: nil when it isn't installed.
+    var pickedInfo: ToolUpdate? { store.devUpdates.python[chosenPython] }
+    var detail: String {
+        guard tool == "python" else { return L("toolDetail.\(tool)") }
+        let installed = store.devUpdates.python.sorted { $0.key.compare($1.key, options: .numeric) == .orderedDescending }
+        guard !installed.isEmpty else { return L("toolDetail.python") }
+        return String(format: L("tools.pythonInstalled"), installed.map { $0.value.update ? String(format: L("tools.pythonLineUpdate"), $0.value.installed, $0.value.latest) : $0.value.installed }.joined(separator: " · "))
     }
     var confirmTitle: String {
+        if tool == "python" {
+            return pickedInfo.map { String(format: L("tools.updatePython"), $0.installed, $0.latest) } ?? String(format: L("tools.installPython"), store.pythonLines.first { $0.version == chosenPython }?.latest ?? chosenPython)
+        }
         let verb = (status?.installed == true && status?.broken != true) ? L("tools.update") : L("setup.install")
-        return "\(verb) \(L("tool.\(tool)"))" + (tool == "python" ? " \(chosenPython)" : "")
+        return "\(verb) \(L("tool.\(tool)"))"
     }
 
-    @ViewBuilder private var pythonPicker: some View {
+    /// One picker and one button that always matches what's picked.
+    @ViewBuilder private var pythonControls: some View {
         if !store.pythonLines.isEmpty {
             Picker("", selection: Binding(get: { chosenPython }, set: { pythonVersion = $0 })) {
-                ForEach(store.pythonLines) { line in Text("Python \(line.latest ?? line.version)").tag(line.version) }
+                ForEach(store.pythonLines) { line in
+                    let info = store.devUpdates.python[line.version]
+                    Text(info == nil ? "Python \(line.latest ?? line.version)" : String(format: L("tools.pythonPickInstalled"), line.latest ?? line.version)).tag(line.version)
+                }
             }
             .labelsHidden().fixedSize().controlSize(.small)
-            Button(L("setup.install")) { confirming = true }.controlSize(.small).disabled(busy || store.devTools["uv"]?.installed != true)
-                .help(store.devTools["uv"]?.installed == true ? "" : L("tools.needsUv"))
+            Group {
+                if let info = pickedInfo, !info.update {
+                    Label(L("tools.upToDate"), systemImage: "checkmark.circle.fill").font(.uiCaption.weight(.medium)).foregroundStyle(Brand.success)
+                } else {
+                    Button { confirming = true } label: {
+                        if let info = pickedInfo { Label(String(format: L("tools.updateTo"), info.latest), systemImage: "arrow.down.circle") }
+                        else { Text(L("setup.install")) }
+                    }
+                    .controlSize(.small).buttonStyle(.borderedProminent)
+                    .disabled(busy || store.devTools["uv"]?.installed != true)
+                    .help(store.devTools["uv"]?.installed == true ? "" : L("tools.needsUv"))
+                }
+            }
+            .transition(.opacity)
+            .animation(.snappy(duration: 0.2), value: chosenPython)
         }
     }
 
