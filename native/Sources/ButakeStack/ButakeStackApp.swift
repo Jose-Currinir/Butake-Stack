@@ -19,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if StackStore.qaWindow, ProcessInfo.processInfo.environment["BUTAKE_QA_SETUP"] != nil {
                 Task { try? await Task.sleep(for: .seconds(2)); StackStore.shared.showSetup = true }
             }
+            if StackStore.qaWindow, let page = ProcessInfo.processInfo.environment["BUTAKE_QA_WELCOME"] {
+                UserDefaults.standard.set(Int(page) ?? 0, forKey: "welcome.qaPage")
+                Task { try? await Task.sleep(for: .seconds(2)); StackStore.shared.showWelcome = true }
+            }
             if StackStore.qaWindow, let kind = ProcessInfo.processInfo.environment["BUTAKE_QA_NEW"] {
                 Task {
                     try? await Task.sleep(for: .seconds(2))
@@ -170,6 +174,7 @@ struct RootView: View {
         .sheet(isPresented: $store.showPalette) { CommandPalette(store: store).themedSheet() }
         .sheet(isPresented: $updates.showingSheet) { UpdateSheet(updates: updates).themedSheet() }
         .sheet(isPresented: $store.showSetup) { SetupSheet(store: store).themedSheet() }
+        .sheet(isPresented: $store.showWelcome) { WelcomeSheet(store: store).themedSheet() }
         .alert(L("error.title"), isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
             Button(L("action.close"), role: .cancel) { store.errorMessage = nil }
         } message: { Text(store.errorMessage ?? "") }

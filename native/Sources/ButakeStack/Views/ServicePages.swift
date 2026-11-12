@@ -148,6 +148,8 @@ struct GeneralPage: View {
                     Text(store.daemonRunning ? L("general.running") : L("general.stopped")).font(.uiCallout).foregroundStyle(.secondary)
                 }
                 Spacer()
+                Button { store.showWelcome = true } label: { Label(L("welcome.again"), systemImage: "sparkles") }
+                    .accessibilityIdentifier("general.welcome")
                 Button { store.showSetup = true } label: { Label(L("setup.menu"), systemImage: "checklist") }
                     .accessibilityIdentifier("general.setup")
                 if store.daemonRunning {

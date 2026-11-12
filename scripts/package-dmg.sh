@@ -34,7 +34,51 @@ rm -rf "$STAGE" "$OUT"
 mkdir -p "$STAGE"
 ditto "$APP" "$STAGE/Butake Stack.app"
 ln -s /Applications "$STAGE/Aplicaciones"
-hdiutil create -volname "Butake Stack $VERSION" -srcfolder "$STAGE" -fs HFS+ -format UDZO -imagekey zlib-level=9 -ov "$OUT" >/dev/null
+# Installer window: brand background, the app on the left and Aplicaciones on the right. The layout
+# is written by Finder (AppleScript); if Finder can't be automated, the plain image is made instead.
+VOLUME="Butake Stack $VERSION"
+mkdir -p "$STAGE/.background"
+swift scripts/dmg-background.swift "$STAGE/.background" >/dev/null
+tiffutil -cathidpicheck "$STAGE/.background/dmg-background.png" "$STAGE/.background/dmg-background@2x.png" -out "$STAGE/.background/background.tiff" >/dev/null 2>&1
+rm -f "$STAGE/.background/"*.png
+RW="build/Butake-Stack-rw.dmg"
+rm -f "$RW"
+hdiutil create -volname "$VOLUME" -srcfolder "$STAGE" -fs HFS+ -format UDRW -ov "$RW" >/dev/null
+MOUNT="/Volumes/$VOLUME"
+[ -d "$MOUNT" ] && hdiutil detach "$MOUNT" -force -quiet
+hdiutil attach -readwrite -noverify -noautoopen "$RW" >/dev/null
+if osascript >/dev/null 2>&1 <<APPLESCRIPT
+tell application "Finder"
+    tell disk "$VOLUME"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set the bounds of container window to {200, 120, 860, 600}
+        set opts to the icon view options of container window
+        set arrangement of opts to not arranged
+        set icon size of opts to 112
+        set text size of opts to 13
+        set background picture of opts to file ".background:background.tiff"
+        set position of item "Butake Stack.app" of container window to {170, 190}
+        set position of item "Aplicaciones" of container window to {490, 190}
+        update without registering applications
+        delay 1
+        close
+    end tell
+end tell
+APPLESCRIPT
+then
+    echo "Ventana del instalador con fondo y disposición."
+else
+    echo "Finder no se pudo automatizar: DMG sin fondo."
+fi
+SetFile -a C "$MOUNT" 2>/dev/null || true
+SetFile -a E "$MOUNT/Butake Stack.app" 2>/dev/null || true
+sync
+hdiutil detach "$MOUNT" -quiet || hdiutil detach "$MOUNT" -force -quiet
+hdiutil convert "$RW" -format UDZO -imagekey zlib-level=9 -ov -o "$OUT" >/dev/null
+rm -f "$RW"
 rm -rf "$STAGE"
 
 if [ -n "$IDENTITY" ]; then

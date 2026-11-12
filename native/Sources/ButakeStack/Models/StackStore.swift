@@ -308,6 +308,8 @@ enum Route: Hashable {
 
     // MARK: Setup: what Stack needs on a new Mac, asked for and installed one by one
     var showSetup = false
+    /// The animated tour shown on first launch (and from General).
+    var showWelcome = false
     var phpCatalog: [PhpCatalogEntry] = []
     /// Apple's command line tools (Git, compiler): needed for new projects and engines built from source.
     var appleTools = true
@@ -375,7 +377,10 @@ enum Route: Hashable {
     func checkSetupAtLaunch() async {
         await refresh(); await refreshRuntimes(); await refreshAppleTools()
         // A separate data folder (QA) must not open the installed app through the URL scheme.
-        if !setupComplete, ProcessInfo.processInfo.environment["BUTAKE_STACK_HOME"] == nil { NSWorkspace.shared.open(URL(string: "butakestack://setup")!) }
+        guard ProcessInfo.processInfo.environment["BUTAKE_STACK_HOME"] == nil else { return }
+        // First launch: the tour first (it ends in "Preparar"); later, "Preparar" when something is missing.
+        if !UserDefaults.standard.bool(forKey: "welcome.seen") { NSWorkspace.shared.open(URL(string: "butakestack://welcome")!) }
+        else if !setupComplete { NSWorkspace.shared.open(URL(string: "butakestack://setup")!) }
     }
 
     // MARK: Links from other apps (butakestack://site/<id>, butakestack://open?path=…)
@@ -385,6 +390,8 @@ enum Route: Hashable {
         switch url.host {
         case "setup":
             showSetup = true
+        case "welcome":
+            showWelcome = true
         case "site":
             let id = url.lastPathComponent
             if projects.contains(where: { $0.id == id }) { openSite(id) }
