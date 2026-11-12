@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>branch.migrations</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d migración nueva o cambiada</string>
+			<key>other</key>
+			<string>%d migraciones nuevas o cambiadas</string>
+		</dict>
+	</dict>
+	<key>category.installedCount</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$d de %2$#@m@ instalados</string>
+		<key>m</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d motor</string>
+			<key>other</key>
+			<string>%d motores</string>
+		</dict>
+	</dict>
+	<key>env.missing</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@ de .env.example</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Falta %d variable</string>
+			<key>other</key>
+			<string>Faltan %d variables</string>
+		</dict>
+	</dict>
+	<key>git.changesCount</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d archivo con cambios</string>
+			<key>other</key>
+			<string>%d archivos con cambios</string>
+		</dict>
+	</dict>
+	<key>git.help</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>Rama %1$@ · %2$#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d archivo con cambios</string>
+			<key>other</key>
+			<string>%d archivos con cambios</string>
+			<key>zero</key>
+			<string>sin cambios</string>
+		</dict>
+	</dict>
+	<key>home.summary</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$d de %2$#@s@ en línea · %3$#@v@</string>
+		<key>s</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d sitio</string>
+			<key>other</key>
+			<string>%d sitios</string>
+		</dict>
+		<key>v</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d servicio en ejecución</string>
+			<key>other</key>
+			<string>%d servicios en ejecución</string>
+			<key>zero</key>
+			<string>ningún servicio en ejecución</string>
+		</dict>
+	</dict>
+	<key>home.summaryAllOff</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@s@ · %2$#@v@</string>
+		<key>s</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>El sitio está apagado</string>
+			<key>other</key>
+			<string>Los %d sitios están apagados</string>
+		</dict>
+		<key>v</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d servicio en ejecución</string>
+			<key>other</key>
+			<string>%d servicios en ejecución</string>
+			<key>zero</key>
+			<string>ningún servicio en ejecución</string>
+		</dict>
+	</dict>
+	<key>runtimes.extensions</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d extensión</string>
+			<key>other</key>
+			<string>%d extensiones</string>
+		</dict>
+	</dict>
+	<key>services.restarts</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d reinicio</string>
+			<key>other</key>
+			<string>%d reinicios</string>
+		</dict>
+	</dict>
+	<key>site.servedWith</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>En línea · %#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d proceso</string>
+			<key>other</key>
+			<string>%d procesos</string>
+			<key>zero</key>
+			<string>sin procesos</string>
+		</dict>
+	</dict>
+	<key>sites.count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d sitio</string>
+			<key>other</key>
+			<string>%d sitios</string>
+			<key>zero</key>
+			<string>Sin sitios</string>
+		</dict>
+	</dict>
+	<key>status.engines</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$d de %2$#@m@</string>
+		<key>m</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d motor</string>
+			<key>other</key>
+			<string>%d motores</string>
+		</dict>
+	</dict>
+	<key>status.processes</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d proceso de sitios</string>
+			<key>other</key>
+			<string>%d procesos de sitios</string>
+			<key>zero</key>
+			<string>Ningún proceso de sitios</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

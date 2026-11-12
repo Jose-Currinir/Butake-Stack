@@ -42,6 +42,8 @@ pub fn validate_name(name: &str) -> Result<()> {
 pub struct Runner {
     path: String,
     home: String,
+    /// Folder of the stack's php.ini for this PHP line (the binary's built-in path is the build machine's).
+    phprc: String,
     pub log: PathBuf,
 }
 
@@ -56,6 +58,7 @@ impl Runner {
             .env_clear()
             .env("PATH", &self.path)
             .env("HOME", &self.home)
+            .env("PHPRC", &self.phprc)
             .env("LANG", "en_US.UTF-8")
             .env("COMPOSER_NO_INTERACTION", "1")
             .stdin(Stdio::null())
@@ -97,12 +100,14 @@ impl Toolchain {
         path.push("/usr/bin:/bin".into());
         let log = store.directory("logs")?.join(format!("{log_name}.log"));
         let _ = fs::remove_file(&log);
+        let phprc = store.root().join("config/php").join(&series).to_string_lossy().into_owned();
         Ok(Self {
             php: php_root.join("bin/php"),
             composer: php_root.join("composer.phar").to_string_lossy().into_owned(),
             series,
             node_bin,
             runner: Runner {
+                phprc,
                 path: path.join(":"),
                 home: dirs::home_dir().map(|h| h.to_string_lossy().into_owned()).unwrap_or_default(),
                 log,

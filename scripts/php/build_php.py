@@ -259,7 +259,7 @@ def build(minor, home, build_root):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("version", choices=["8.2", "8.5"])
+    parser.add_argument("version", choices=["8.2", "8.3", "8.4", "8.5"])
     arguments = parser.parse_args()
     default_home = Path.home() / "Library/Application Support/Butake Stack"
     home = Path(os.environ.get("BUTAKE_STACK_HOME", str(default_home))).expanduser()

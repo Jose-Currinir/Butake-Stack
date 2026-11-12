@@ -30,6 +30,7 @@ struct LanguagePage: View {
                             }
                         }
                     }
+                    PhpCatalogSection(store: store)
                 } else {
                     VersionsSection(store: store, info: ToolInfo.of(name))
                 }
@@ -44,6 +45,41 @@ struct LanguagePage: View {
             }
         }
         .task { await store.refreshRuntimes(); await store.loadLifecycle("php") }
+    }
+}
+
+/// PHP builds published by Butake Stack (release `runtimes`), one per line; installing one asks first.
+private struct PhpCatalogSection: View {
+    @Bindable var store: StackStore
+    @State private var pending: PhpCatalogEntry?
+    var installedSeries: Set<String> { Set(store.phpRuntimes.filter(\.installed).map(\.series)) }
+    var body: some View {
+        CardBlock(title: L("php.catalog"), symbol: "arrow.down.circle", footer: L("php.catalogFooter")) {
+            Button { Task { await store.loadPhpCatalog() } } label: { Image(systemName: "arrow.clockwise") }
+                .buttonStyle(.borderless).help(L("runtimes.reloadCatalog")).disabled(store.busy != nil)
+        } content: {
+            if store.phpCatalogFailed { Text(L("setup.phpOffline")).foregroundStyle(.secondary) }
+            else if store.phpCatalog.isEmpty { HStack { ProgressView().controlSize(.small); Text(L("busy.catalog")).foregroundStyle(.secondary) } }
+            ForEach(Array(store.phpCatalog.sorted { $0.version.compare($1.version, options: .numeric) == .orderedDescending }.enumerated()), id: \.element.id) { index, entry in
+                if index > 0 { Divider() }
+                HStack(spacing: 10) {
+                    Text("PHP \(entry.version)").font(.ui(size: 13, weight: .semibold)).monospacedDigit()
+                    if let cycle = store.cycle("php", for: entry.series) { LifecycleChip(cycle: cycle) }
+                    Spacer()
+                    if let bytes = entry.size_bytes { Text(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)).font(.uiCaption).foregroundStyle(.secondary) }
+                    if installedSeries.contains(entry.series) {
+                        Label(L("runtimes.installed"), systemImage: "checkmark.seal.fill").font(.uiCaption).foregroundStyle(Brand.success)
+                    } else {
+                        Button { pending = entry } label: { Label(L("runtimes.install"), systemImage: "arrow.down.circle") }
+                            .controlSize(.small).disabled(store.busy != nil).accessibilityIdentifier("php.install.\(entry.version)")
+                    }
+                }
+            }
+        }
+        .task { if store.phpCatalog.isEmpty { await store.loadPhpCatalog() } }
+        .confirmationDialog(pending.map { String(format: L("runtimes.confirmInstall"), "PHP", $0.version) } ?? "", isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }), presenting: pending) { entry in
+            Button(L("runtimes.install")) { Task { await store.downloadPhp(entry.version) } }
+        } message: { _ in Text(L("setup.phpSource")) }
     }
 }
 
