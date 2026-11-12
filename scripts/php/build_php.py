@@ -196,10 +196,26 @@ def build(minor, home, build_root):
                 if child.wait() != 0:
                     raise RuntimeError("spc_command_failed")
             run(["doctor", "--auto-fix=never", "--no-interaction"])
-            # imap left PHP's core in 8.4 (now in PECL): from 8.4 on it is not built.
-            extensions = [e for e in EXTENSIONS if not (e == "imap" and tuple(map(int, minor.split("."))) >= (8, 4))]
+            extensions = list(EXTENSIONS)
             run(["download", "--for-extensions=" + ",".join(extensions + ["mbregex", "xdebug"]), "--with-php=" + minor, "--custom-url=xdebug:" + PINS["xdebug"]["url"], "--custom-url=onig:" + PINS["onig"]["url"], "--debug", "--no-interaction", "--preserve-log"])
             source_lock = json.loads((source / "downloads/.lock.json").read_text())
+            # imap left PHP's core in 8.4 and comes from PECL. spc 2.8.5 extracts it and then wipes it
+            # when it extracts php-src; spc skips sources already in place, so both are laid out here.
+            if "imap" in extensions and tuple(map(int, minor.split("."))) >= (8, 4):
+                php_src = source / "source/php-src"
+                if not php_src.exists():
+                    php_src.mkdir(parents=True)
+                    archive = source / "downloads" / source_lock["php-src"]["filename"]
+                    subprocess.run(["/usr/bin/tar", "-xf", str(archive), "-C", str(php_src), "--strip-components", "1"], check=True, env=environment)
+                imap_target = php_src / "ext/imap"
+                if not (imap_target / "config.m4").exists():
+                    staging_imap = work / "imap"
+                    staging_imap.mkdir()
+                    subprocess.run(["/usr/bin/tar", "-xzf", str(source / "downloads" / source_lock["ext-imap"]["filename"]), "-C", str(staging_imap)], check=True, env=environment)
+                    folder = next(p for p in staging_imap.iterdir() if p.is_dir() and (p / "config.m4").exists())
+                    if imap_target.exists():
+                        shutil.rmtree(imap_target)
+                    shutil.move(str(folder), str(imap_target))
             xdebug_source = source / "downloads" / source_lock["xdebug"]["filename"]
             if digest(xdebug_source) != PINS["xdebug"]["sha256"]:
                 raise RuntimeError("xdebug_hash_mismatch")
@@ -240,7 +256,8 @@ def build(minor, home, build_root):
             modules = subprocess.check_output([php, "-n", "-m"], env=environment, text=True)
             extensions = sorted({line.strip().lower().replace("zend opcache", "opcache") for line in modules.splitlines() if line.strip() and not line.startswith("[")})
             missing = sorted(set(EXTENSIONS) - set(extensions))
-            if not version.startswith(minor + ".") or set(missing) - {"imap", "sqlsrv", "pdo_sqlsrv", "ffi"}:
+            # Every version ships the full set of extensions: nothing may be missing.
+            if not version.startswith(minor + ".") or missing:
                 raise RuntimeError("runtime_acceptance_failed")
             manifest = {"version": version, "series": minor, "architecture": "arm64", "minimum_macos": "14.0", "spc_version": PINS["spc"]["version"],
                         "built_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"), "extensions": extensions, "xdebug_version": PINS["xdebug"]["version"],
@@ -256,8 +273,10 @@ def build(minor, home, build_root):
         result = json.loads(response.stdout)
         if not result.get("ok"):
             raise RuntimeError("php_configuration_failed")
-        subprocess.run([str(destination / "bin/php-fpm"), "-t", "-c", result["value"], "-y",
-                        str(home / "config/php" / minor / "fpm-verification.conf")], check=True, env=environment, timeout=30)
+        # FPM must load the generated php.ini with a minimal pool of its own (temporary files only).
+        verification = work / "fpm-verification.conf"
+        verification.write_text("[global]\ndaemonize=no\nerror_log=" + str(work / "fpm.log") + "\n[verification]\nlisten=" + str(work / "fpm.sock") + "\npm=ondemand\npm.max_children=1\n")
+        subprocess.run([str(destination / "bin/php-fpm"), "-t", "-c", result["value"], "-y", str(verification)], check=True, env=environment, timeout=30)
         print(json.dumps({"event": "build.completed", "version": version}), flush=True)
     finally:
         # Keep the evidence before deleting source/build trees, including on failure.
