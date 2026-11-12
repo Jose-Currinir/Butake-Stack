@@ -1,14 +1,14 @@
 // Textos de la página. Un solo idioma por ahora; todo texto visible vive aquí.
 export const repo = 'https://github.com/Jose-Currinir/Butake-Stack'
 export const descarga = `${repo}/releases/latest/download/Butake-Stack.dmg`
-export const version = '1.3.1'
+export const version = '1.3.2'
 
 export const t = {
   titulo: 'Butake Stack · Desarrollo local nativo para Mac',
   descripcion: 'Sitios .test con HTTPS y HTTP/3; PHP, Node, Python, Java, Rust y Swift con varias versiones a la vez; MySQL, PostgreSQL y Redis corriendo directo en tu Mac, desde la barra de menús. Sin Homebrew, sin Docker, en español.',
   nav: { funciones: 'Funciones', seguridad: 'Seguridad', instalar: 'Instalar', github: 'GitHub', descargar: 'Descargar' },
   hero: {
-    etiqueta: 'Versión 1.3.1 · Gratis y de código abierto · Apache 2.0',
+    etiqueta: 'Versión 1.3.2 · Gratis y de código abierto · Apache 2.0',
     titulo: 'Tu entorno de desarrollo local, nativo y en la barra de menús',
     texto: 'Sirve tus sitios en .test con HTTPS y HTTP/3, crea proyectos de cualquier tipo, elige la versión de cada lenguaje por proyecto y enciende sólo lo que usas. Sin Homebrew, sin Docker y sin tocar el sistema.',
     descargar: 'Descargar para Mac',
