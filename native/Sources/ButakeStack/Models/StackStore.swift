@@ -324,7 +324,8 @@ enum Route: Hashable {
     var caddyReady: Bool { !(installedTools["caddy"] ?? []).isEmpty }
     var agentReady: Bool { agent?.loaded == true }
     /// What must exist for sites to be served at all.
-    var setupComplete: Bool { phpReady && caddyReady && agentReady }
+    /// Ready to serve sites: Caddy and the agent; PHP only when the user works with Laravel or PHP.
+    var setupComplete: Bool { caddyReady && agentReady && (!WorkProfile.chosen.contains("laravel") || phpReady) }
     func refreshAppleTools() async {
         appleTools = await Task.detached {
             let process = Process()

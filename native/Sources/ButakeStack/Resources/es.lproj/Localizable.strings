@@ -415,7 +415,7 @@
 "setup.phpSource" = "Compilación de Butake Stack (static-php-cli) publicada en github.com/Jose-Currinir/Butake-Stack · se verifica su SHA-256.";
 "setup.caddy" = "Servidor web de los sitios .test, con HTTPS, HTTP/2 y HTTP/3.";
 "setup.agent" = "macOS entrega los puertos 53, 80 y 443 al iniciar sesión, sin contraseña.";
-"setup.agentNeeds" = "Primero instala PHP y Caddy.";
+"setup.agentNeeds" = "Primero instala Caddy.";
 "setup.node" = "Para Vite y los starter kits de proyectos nuevos.";
 "setup.appleTools" = "Herramientas de Apple";
 "setup.appleToolsDetail" = "Git y el compilador: para crear proyectos con Git y para motores que se compilan (Redis, PostgreSQL). Las instala Apple.";
@@ -423,7 +423,7 @@
 "setup.ready" = "Listo";
 "setup.done" = "Listo";
 "setup.later" = "Más tarde";
-"setup.footer" = "Todo queda dentro de la carpeta de Butake Stack; no se instala nada global ni se tocan otras herramientas. Puedes volver aquí desde General.";
+"setup.footer" = "Lenguajes y motores quedan dentro de Butake Stack; las herramientas de desarrollo (uv, Rust, gh…) van a tu carpeta personal, como las instalan sus propios instaladores. Nada usa Homebrew ni pide contraseña. Puedes volver aquí desde General.";
 "setup.phpOffline" = "No se pudo leer el catálogo de PHP. Revisa la conexión y vuelve a abrir esta ventana.";
 
 /* Entornos .env (requisitos en .compliance/docs/21719-gestor-entornos-requisitos.md) */
@@ -949,3 +949,5 @@
 "error.invalid_backup" = "Ese archivo no es un entorno exportado desde Butake Stack.";
 "error.clone_failed" = "No se pudo clonar: revisa tu acceso al repositorio (clave SSH o cuenta).";
 "error.invalid_remote" = "La dirección del repositorio no es válida.";
+"setup.base" = "Base de Butake Stack";
+"setup.forWork" = "Para tu trabajo";

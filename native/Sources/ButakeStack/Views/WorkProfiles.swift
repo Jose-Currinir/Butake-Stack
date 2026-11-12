@@ -49,6 +49,10 @@ struct WorkProfile: Identifiable, Hashable {
     let tools: [String]
 
     static let categories = ["web", "native", "crossplatform", "tools"]
+    /// Profiles the user picked in Preparar (saved in the preferences).
+    static var chosen: Set<String> { Set((UserDefaults.standard.string(forKey: "setup.profiles") ?? "").split(separator: ",").map(String.init)) }
+    /// Profiles whose work runs on Node (installed in the setup's own step).
+    static let needsNode: Set<String> = ["laravel", "web", "cloudflare", "react-native"]
     static let all: [WorkProfile] = [
         WorkProfile(id: "laravel", logo: "laravel", category: "web", tools: ["php", "node", "clt"]),
         WorkProfile(id: "web", logo: "astro", category: "web", tools: ["node", "clt"]),
@@ -87,7 +91,8 @@ struct WorkProfilesSection: View {
     var chosen: Set<String> { Set(profilesRaw.split(separator: ",").map(String.init)) }
     var tools: [String] {
         var seen = Set<String>()
-        return WorkProfile.all.filter { chosen.contains($0.id) }.flatMap(\.tools).filter { seen.insert($0).inserted }
+        // PHP, Node and Apple's tools have their own steps in "Para tu trabajo", with version pickers.
+        return WorkProfile.all.filter { chosen.contains($0.id) }.flatMap(\.tools).filter { !["php", "node", "clt"].contains($0) && seen.insert($0).inserted }
     }
 
     var body: some View {

@@ -12,6 +12,10 @@ struct SetupSheet: View {
     @State private var confirm: Pending?
     @State private var confirmAgent = false
     @State private var waitingTools = false
+    @AppStorage("setup.profiles") private var profilesRaw = ""
+    var profiles: Set<String> { Set(profilesRaw.split(separator: ",").map(String.init)) }
+    var needsPhp: Bool { profiles.contains("laravel") }
+    var needsNode: Bool { !profiles.isDisjoint(with: WorkProfile.needsNode) }
 
     struct Pending: Identifiable {
         let id: String
@@ -43,18 +47,7 @@ struct SetupSheet: View {
                     CardBlock(title: L("profiles.title"), symbol: "person.crop.rectangle.stack") {
                         WorkProfilesSection(store: store)
                     }
-                    CardBlock(title: L("setup.required"), symbol: "checkmark.seal") {
-                        step(tech: .of("php"), title: "PHP", detail: store.phpCatalogFailed ? L("setup.phpOffline") : L("setup.php"), done: store.phpReady) {
-                            Picker("", selection: $phpVersion) {
-                                ForEach(store.phpCatalog) { Text("PHP \($0.version)").tag($0.version) }
-                            }
-                            .labelsHidden().fixedSize().disabled(store.phpCatalog.isEmpty)
-                            installButton("php", disabled: phpVersion.isEmpty) {
-                                Pending(id: "php", title: String(format: L("runtimes.confirmInstall"), "PHP", phpVersion),
-                                        detail: L("setup.phpSource")) { await store.downloadPhp(phpVersion) }
-                            }
-                        }
-                        Divider()
+                    CardBlock(title: L("setup.base"), symbol: "checkmark.seal") {
                         step(tech: .of("web"), title: "Caddy", detail: L("setup.caddy"), done: store.caddyReady) {
                             Picker("", selection: $caddyVersion) {
                                 ForEach((store.availableTools["caddy"] ?? []).prefix(8)) { Text($0.version).tag($0.version) }
@@ -70,11 +63,25 @@ struct SetupSheet: View {
                         step(symbol: "network", title: L("activation.title"), detail: L("setup.agent"), done: store.agentReady) {
                             Button(L("activation.enable")) { confirmAgent = true }
                                 .buttonStyle(.borderedProminent).controlSize(.small)
-                                .disabled(!store.phpReady || !store.caddyReady || store.busy != nil)
+                                .disabled(!store.caddyReady || store.busy != nil)
                                 .help(L("setup.agentNeeds")).accessibilityIdentifier("setup.agent")
                         }
                     }
-                    CardBlock(title: L("setup.recommended"), symbol: "star") {
+                    CardBlock(title: L("setup.forWork"), symbol: "hammer") {
+                        if needsPhp {
+                            step(tech: .of("php"), title: "PHP", detail: store.phpCatalogFailed ? L("setup.phpOffline") : L("setup.php"), done: store.phpReady) {
+                                Picker("", selection: $phpVersion) {
+                                    ForEach(store.phpCatalog) { Text("PHP \($0.version)").tag($0.version) }
+                                }
+                                .labelsHidden().fixedSize().disabled(store.phpCatalog.isEmpty)
+                                installButton("php", disabled: phpVersion.isEmpty) {
+                                    Pending(id: "php", title: String(format: L("runtimes.confirmInstall"), "PHP", phpVersion),
+                                            detail: L("setup.phpSource")) { await store.downloadPhp(phpVersion) }
+                                }
+                            }
+                            Divider()
+                        }
+                        if needsNode {
                         step(tech: .of("node"), title: "Node.js", detail: L("setup.node"), done: !(store.installedTools["node"] ?? []).isEmpty) {
                             Picker("", selection: $nodeVersion) {
                                 ForEach(nodeChoices) { Text("\($0.version) · \($0.label ?? "")").tag($0.version) }
@@ -86,7 +93,8 @@ struct SetupSheet: View {
                                                detail: String(format: L("runtimes.installDetail"), info.source + " · " + info.verification)) { await store.installTool("node", nodeVersion) }
                             }
                         }
-                        Divider()
+                            Divider()
+                        }
                         step(symbol: "hammer.fill", title: L("setup.appleTools"), detail: L("setup.appleToolsDetail"), done: store.appleTools) {
                             if waitingTools { ProgressView().controlSize(.small) }
                             Button(L("setup.install")) {

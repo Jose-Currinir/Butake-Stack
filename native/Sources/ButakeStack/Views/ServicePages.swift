@@ -278,7 +278,9 @@ struct ActivationSection: View {
         }
     }
     var active: Bool { store.agent?.loaded == true }
-    var ready: Bool { phpReady && caddyReady && busyPorts.isEmpty && !store.projects.isEmpty }
+    /// PHP matters only when there are PHP sites (or the user works with Laravel/PHP).
+    var needsPhp: Bool { store.projects.contains { $0.php != nil } || WorkProfile.chosen.contains("laravel") }
+    var ready: Bool { (!needsPhp || phpReady) && caddyReady && busyPorts.isEmpty && !store.projects.isEmpty }
     var body: some View {
         CardBlock(title: L("settings.login"), symbol: "person.badge.clock") {
             HStack(spacing: 12) {
@@ -296,7 +298,9 @@ struct ActivationSection: View {
             }
             if !active {
                 Divider()
-                Requirement(ok: phpReady, text: L("activation.php")) { store.route = .language("php") }
+                if needsPhp {
+                    Requirement(ok: phpReady, text: L("activation.php")) { store.route = .language("php") }
+                }
                 Requirement(ok: caddyReady, text: L("activation.caddy")) { store.route = .service("web") }
                 Requirement(ok: !store.projects.isEmpty, text: L("activation.sites")) { store.chooseFolder() }
                 Requirement(ok: busyPorts.isEmpty, text: busyPorts.isEmpty ? L("activation.ports") : String(format: L("activation.portsBusy"), busyPorts.joined(separator: ", ")), go: nil)
