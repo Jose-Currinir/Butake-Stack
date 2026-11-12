@@ -202,11 +202,10 @@ def build(minor, home, build_root):
             # imap left PHP's core in 8.4 and comes from PECL. spc 2.8.5 extracts it and then wipes it
             # when it extracts php-src; spc skips sources already in place, so both are laid out here.
             if "imap" in extensions and tuple(map(int, minor.split("."))) >= (8, 4):
+                # spc extracts php-src itself (it keeps a hash of what it extracted and would wipe a
+                # tree it did not make); only then ext/imap is laid inside it.
+                run(["extract", "php-src", "--debug", "--no-interaction"])
                 php_src = source / "source/php-src"
-                if not php_src.exists():
-                    php_src.mkdir(parents=True)
-                    archive = source / "downloads" / source_lock["php-src"]["filename"]
-                    subprocess.run(["/usr/bin/tar", "-xf", str(archive), "-C", str(php_src), "--strip-components", "1"], check=True, env=environment)
                 imap_target = php_src / "ext/imap"
                 if not (imap_target / "config.m4").exists():
                     staging_imap = work / "imap"
