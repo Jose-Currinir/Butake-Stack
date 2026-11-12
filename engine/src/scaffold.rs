@@ -29,6 +29,8 @@ pub struct Options {
     pub manager: String,
     /// PHP line for Laravel (empty: the global one).
     pub php: String,
+    /// Framework line ("5.2" Django, "12" Laravel, "0.162" FastAPI); empty: the newest.
+    pub framework_version: String,
 }
 
 fn package(kit: &str) -> Result<&'static str> {
@@ -374,7 +376,8 @@ fn create_python(store: &Store, options: &Options, notes: &mut Vec<String>) -> R
     let mut runner = user_runner(store, options, None)?;
     let venv_bin = target.join(".venv/bin");
     runner.path = format!("{}:{}:{}", venv_bin.display(), python.parent().unwrap().display(), runner.path);
-    let package = if options.kind == "django" { "django" } else { "fastapi[standard]" };
+    let package = crate::python::framework_spec(if options.kind == "django" { "django" } else { "fastapi[standard]" }, &options.framework_version)?;
+    let package = package.as_str();
     if options.manager == "uv" {
         let uv = tools::user_tool("uv").ok_or_else(|| anyhow::anyhow!("uv_not_installed"))?;
         let python_arg = python.to_string_lossy().into_owned();
@@ -575,7 +578,14 @@ fn create_laravel(store: &Store, options: &Options, notes: &mut Vec<String>) -> 
     // 1. Skeleton (Composer runs its post-create scripts: .env, key, SQLite file).
     // Starter kits come from their main branch, like the official installer (`--stability=dev`):
     // some have no stable tag, and the tagged ones lag behind.
-    let mut args = vec![composer_arg.as_str(), "create-project", package, &options.name, "--prefer-dist", "--no-interaction"];
+    // A Laravel line ("12") picks its skeleton; starter kits follow their main branch.
+    ensure!(options.framework_version.is_empty() || options.framework_version.bytes().all(|c| c.is_ascii_digit()) && options.framework_version.len() <= 3, "invalid_version");
+    let constraint = format!("^{}.0", options.framework_version);
+    let mut args = vec![composer_arg.as_str(), "create-project", package, &options.name];
+    if options.kit == "none" && !options.framework_version.is_empty() {
+        args.push(&constraint);
+    }
+    args.extend(["--prefer-dist", "--no-interaction"]);
     if options.kit != "none" {
         args.push("--stability=dev");
     }

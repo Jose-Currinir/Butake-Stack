@@ -152,10 +152,11 @@ pub fn shell_path(store: &Store) -> Result<()> {
 
 pub fn install(store: &Store, options: &Options) -> Result<Value> {
     let tool = options.tool.as_str();
-    ensure!(["rustup", "uv", "python", "gh", "cloudflared", "wrangler", "android-sdk"].contains(&tool), "unknown_tool");
+    ensure!(["rustup", "uv", "python", "gh", "cloudflared", "wrangler", "android-sdk", "swiftly"].contains(&tool), "unknown_tool");
     if let Ok(dir) = store.directory("logs") { let _ = fs::remove_file(dir.join(format!("devtool-{tool}.log"))); }
     let home = home()?;
     let result = match tool {
+        "swiftly" => crate::toolchains::install_swiftly(store)?,
         "rustup" if home.join(".cargo/bin/rustup").is_file() => {
             // Already there: rustup's own update to the newest stable.
             run(store, tool, &home.join(".cargo/bin/rustup"), &["update", "stable"], &[], &[("CARGO_HOME", home.join(".cargo").to_string_lossy().into_owned()), ("RUSTUP_HOME", home.join(".rustup").to_string_lossy().into_owned())], false)?;
@@ -236,6 +237,14 @@ pub fn install(store: &Store, options: &Options) -> Result<Value> {
             fs::create_dir_all(launcher.parent().unwrap())?;
             if fs::symlink_metadata(&launcher).is_ok_and(|m| m.is_file() || m.file_type().is_symlink()) { fs::remove_file(&launcher)?; }
             crate::toolchains::replace_link(&prefix.join("bin/wrangler"), &launcher)?;
+            // Its entry point runs with `node` from the PATH: the global Node goes on the terminal too
+            // (links only, never replacing files that aren't Stack's).
+            if !home.join(".local/bin/node").exists() {
+                let wanted = store.config()?.versions.get("node").cloned().unwrap_or_default();
+                let version = if tools::resolve(store, "node", &wanted).is_some() { wanted } else { String::new() };
+                let version = if version.is_empty() { node.parent().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default() } else { version };
+                crate::toolchains::link_terminal(store, "node", &version)?;
+            }
             json!({"path": launcher})
         }
         "android-sdk" => {

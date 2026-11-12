@@ -163,6 +163,7 @@ fn dispatch(request: Value) -> Result<Value> {
                 python: request["python"].as_str().unwrap_or("").into(),
                 manager: request["manager"].as_str().unwrap_or("pip").into(),
                 php: request["php"].as_str().unwrap_or("").into(),
+                framework_version: request["frameworkVersion"].as_str().unwrap_or("").into(),
             };
             anyhow::ensure!(options.parent.is_absolute(), "invalid_path");
             let created = scaffold::create(&store, &options)?;
@@ -374,9 +375,20 @@ fn dispatch(request: Value) -> Result<Value> {
             };
             let mut lines: Vec<String> = lines.into_iter().collect::<std::collections::BTreeSet<_>>().into_iter().collect();
             lines.sort_by_key(|l| std::cmp::Reverse(l.split('.').map(|p| p.parse::<u32>().unwrap_or(0)).collect::<Vec<_>>()));
-            let compatible: Vec<&String> = lines.iter().filter(|l| python::satisfies(&requirement, l)).collect();
+            // Each supported line of the framework with the language lines it accepts.
+            let versions = cache::cached(&store, &format!("framework-{framework}"), 12 * 3600, request["refresh"] == true, || python::framework_versions(framework)).unwrap_or(json!([]));
+            let versions: Vec<Value> = versions.as_array().cloned().unwrap_or_default().into_iter().map(|mut v| {
+                let spec = v["requirement"].as_str().unwrap_or("").to_string();
+                v["compatible"] = json!(lines.iter().filter(|l| python::satisfies(&spec, l)).collect::<Vec<_>>());
+                v
+            }).collect();
+            // A language line is usable if some supported framework line accepts it.
+            let compatible: Vec<&String> = lines.iter().filter(|l| if versions.is_empty() { python::satisfies(&requirement, l) } else {
+                versions.iter().any(|v| v["compatible"].as_array().is_some_and(|c| c.iter().any(|x| x == l.as_str())))
+            }).collect();
             info["lines"] = json!(lines);
             info["compatible"] = json!(compatible);
+            info["versions"] = json!(versions);
             Ok(info)
         }
         "setGlobalVersion" => {

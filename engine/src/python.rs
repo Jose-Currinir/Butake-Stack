@@ -347,8 +347,58 @@ pub fn framework_requirement(framework: &str) -> Result<Value> {
     Ok(json!({"framework": framework, "language": language, "requirement": requirement, "version": version}))
 }
 
+/// Supported release lines of a framework, newest first, each with the language versions it
+/// supports: endoflife.date (`supportedPythonVersions` / `supportedPhpVersions`, "3.12 - 3.15")
+/// for Django and Laravel; FastAPI publishes no lines, so its newest release with PyPI's
+/// `requires_python`. Lines past their end of life are left out.
+pub fn framework_versions(framework: &str) -> Result<Value> {
+    let today = {
+        let out = Command::new("/bin/date").arg("+%Y-%m-%d").output().ok();
+        out.map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default()
+    };
+    if framework == "fastapi" {
+        let info = framework_requirement(framework)?;
+        let version = info["version"].as_str().unwrap_or("").to_string();
+        let cycle = version.split('.').take(2).collect::<Vec<_>>().join(".");
+        return Ok(json!([{"cycle": cycle, "latest": version, "lts": false, "eol": null, "support": null, "requirement": info["requirement"]}]));
+    }
+    ensure!(["django", "laravel"].contains(&framework), "unknown_framework");
+    let data: Value = serde_json::from_slice(&tools::fetch(&format!("https://endoflife.date/api/{framework}.json"), 2_000_000)?)?;
+    let field = if framework == "django" { "supportedPythonVersions" } else { "supportedPhpVersions" };
+    let out: Vec<Value> = data.as_array().into_iter().flatten()
+        .filter(|c| c["eol"].as_str().is_none_or(|eol| eol > today.as_str()))
+        .filter_map(|c| {
+            // "3.12 - 3.15 (added in 6.1.3)" -> ">=3.12,<=3.15"
+            let range = c[field].as_str()?.split('(').next()?.trim().to_string();
+            let mut ends = range.split('-').map(str::trim);
+            let (low, high) = (ends.next()?, ends.next().unwrap_or(""));
+            let valid = |v: &str| !v.is_empty() && v.split('.').all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()));
+            if !valid(low) { return None; }
+            let requirement = if valid(high) { format!(">={low},<={high}") } else { format!(">={low}") };
+            Some(json!({"cycle": c["cycle"], "latest": c["latest"], "lts": c["lts"], "eol": c["eol"], "support": c["support"], "requirement": requirement}))
+        })
+        .collect();
+    ensure!(!out.is_empty(), "no_versions");
+    Ok(Value::Array(out))
+}
+
+/// The package spec for a framework line ("django>=5.2,<5.3"), for pip and uv.
+pub fn framework_spec(package: &str, cycle: &str) -> Result<String> {
+    if cycle.is_empty() { return Ok(package.to_string()); }
+    let parts: Vec<u32> = cycle.split('.').map(|p| p.parse().map_err(|_| anyhow::anyhow!("invalid_version"))).collect::<Result<_>>()?;
+    ensure!(parts.len() == 2, "invalid_version");
+    Ok(format!("{package}>={}.{},<{}.{}", parts[0], parts[1], parts[0], parts[1] + 1))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn framework_specs() {
+        assert_eq!(super::framework_spec("django", "5.2").unwrap(), "django>=5.2,<5.3");
+        assert_eq!(super::framework_spec("fastapi[standard]", "").unwrap(), "fastapi[standard]");
+        assert!(super::framework_spec("django", "5;x").is_err());
+        assert!(super::satisfies(">=3.12,<=3.15", "3.15") && !super::satisfies(">=3.12,<=3.15", "3.16"));
+    }
     use super::*;
     #[test]
     fn requirements_by_line() {

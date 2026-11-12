@@ -934,7 +934,7 @@ mod tests {
 /// A developer tool installed by its official installer in the user's home (rustup's `~/.cargo/bin`,
 /// uv's `~/.local/bin`) or, failing that, in the usual system places.
 pub fn user_tool(name: &str) -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
+    let home = crate::devtools::home().ok()?;
     [home.join(".cargo/bin"), home.join(".local/bin"), PathBuf::from("/opt/homebrew/bin"), PathBuf::from("/usr/local/bin")]
         .into_iter()
         .map(|dir| dir.join(name))
@@ -944,7 +944,7 @@ pub fn user_tool(name: &str) -> Option<PathBuf> {
 /// Developer tools for the work profiles, as installed on this Mac: where and which version. Only
 /// paths and `--version` are read (each with a time limit); nothing is installed or changed.
 pub fn dev_tools(store: &Store) -> Result<serde_json::Value> {
-    let home = dirs::home_dir().unwrap_or_default();
+    let home = crate::devtools::home().unwrap_or_default();
     let sdk = std::env::var_os("ANDROID_HOME").map(PathBuf::from).unwrap_or_else(|| home.join("Library/Android/sdk"));
     // Apps' Info.plist may be binary: plutil reads both forms.
     let app_version = |app: &str| -> Option<String> {
@@ -967,13 +967,20 @@ pub fn dev_tools(store: &Store) -> Result<serde_json::Value> {
         ("watchman", user_tool("watchman"), &["--version"]),
         ("adb", Some(sdk.join("platform-tools/adb")).filter(|p| p.is_file()), &["--version"]),
     ];
+    let node_path = resolve(store, "node", "").map(|d| d.join("bin").to_string_lossy().into_owned());
     let handles: Vec<_> = checks
         .into_iter()
         .map(|(id, path, args)| {
+            let node_path = node_path.clone();
             let args: Vec<String> = args.iter().map(|a| a.to_string()).collect();
             std::thread::spawn(move || {
                 let version = path.as_ref().and_then(|p| {
-                    let mut child = Command::new(p).args(&args).stdout(Stdio::piped()).stderr(Stdio::null()).stdin(Stdio::null()).spawn().ok()?;
+                    let mut command = Command::new(p);
+                    // Scripts run by their `#!/usr/bin/env node` (Wrangler) find Stack's Node.
+                    if let Some(node) = &node_path {
+                        command.env("PATH", format!("{}:{}", node, std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into())));
+                    }
+                    let mut child = command.args(&args).stdout(Stdio::piped()).stderr(Stdio::null()).stdin(Stdio::null()).spawn().ok()?;
                     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
                     while child.try_wait().ok()?.is_none() {
                         if std::time::Instant::now() > deadline { let _ = child.kill(); return None; }

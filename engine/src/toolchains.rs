@@ -232,6 +232,8 @@ fn run_swiftly(args: &[&str]) -> Result<String> {
     let swiftly_home = swiftly_home()?;
     let out = Command::new(swiftly()?).args(args).env_clear().env("HOME", &home)
         .env("SWIFTLY_HOME_DIR", &swiftly_home).env("SWIFTLY_BIN_DIR", swiftly_home.join("bin"))
+        // swiftly's default on macOS, named so a test home keeps its toolchains apart.
+        .env("SWIFTLY_TOOLCHAINS_DIR", home.join("Library/Developer/Toolchains"))
         .env("PATH", format!("{}:/usr/bin:/bin:/usr/sbin:/sbin", swiftly_home.join("bin").display()))
         .stdin(Stdio::null()).stderr(Stdio::null()).output()?;
     ensure!(out.status.success(), "devtool_step_failed");
@@ -280,7 +282,10 @@ pub fn swift_toolchains(include_available: bool) -> Result<Value> {
     let mut available = json!([]);
     if include_available {
         let all: Value = serde_json::from_str(&run_swiftly(&["list-available", "--format", "json"])?).unwrap_or(Value::Null);
-        available = json!(all["toolchains"].as_array().into_iter().flatten().filter(|t| t["version"]["type"] == "stable").take(12)
+        // The newest patch of each minor line (6.4.2, 6.3.3…), newest first.
+        let mut seen = std::collections::HashSet::new();
+        available = json!(all["toolchains"].as_array().into_iter().flatten().filter(|t| t["version"]["type"] == "stable")
+            .filter(|t| seen.insert((t["version"]["major"].as_u64(), t["version"]["minor"].as_u64()))).take(6)
             .map(|t| json!({"name": t["version"]["name"], "installed": t["installed"]})).collect::<Vec<_>>());
     }
     let toolchains: Vec<Value> = list["toolchains"].as_array().into_iter().flatten()
