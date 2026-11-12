@@ -283,16 +283,20 @@ pub fn detect(path: &Path) -> Result<Detection> {
     let mut push = |name: &str, (program, args): (String, Vec<String>), autostart: bool| {
         processes.push(ProjectProcess { name: name.into(), program, args, autostart });
     };
+    // Node line from .nvmrc (24.13.0 -> 24), else 24.
+    let node_line = read_small(&path.join(".nvmrc"), 64)
+        .and_then(|t| t.trim().trim_start_matches('v').split('.').next().filter(|m| m.parse::<u32>().is_ok()).map(str::to_string))
+        .unwrap_or_else(|| "24".into());
     match kind {
         ProjectKind::Astro => {
             push("dev", script("dev", &["--host", "127.0.0.1", "--port", "{port}"]), true);
             site_env.insert("PORT".into(), "{port}".into());
-            runtime.insert("node".into(), "24".into());
+            runtime.insert("node".into(), node_line.clone());
         }
         ProjectKind::Next => {
             push("dev", script("dev", &["-H", "127.0.0.1", "-p", "{port}"]), true);
             site_env.insert("PORT".into(), "{port}".into());
-            runtime.insert("node".into(), "24".into());
+            runtime.insert("node".into(), node_line.clone());
         }
         ProjectKind::Emdash => {
             // Build + `wrangler dev` on the port Stack assigns, with the .test address as the site URL.
@@ -302,7 +306,7 @@ pub fn detect(path: &Path) -> Result<Detection> {
             for (k, v) in [("PORT", "{port}"), ("PUBLIC_SITE_URL", "https://{domain}"), ("BUTAKE_DEV_ALLOWED_HOSTS", "{domain}"), ("EMDASH_URL", "http://127.0.0.1:{port}")] {
                 site_env.insert(k.into(), v.into());
             }
-            runtime.insert("node".into(), "24".into());
+            runtime.insert("node".into(), node_line.clone());
             notes.push("emdash_secrets_in_dev_vars".into());
         }
         ProjectKind::Kmp => {

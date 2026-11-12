@@ -194,7 +194,10 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
             .or_else(|| config.versions.get("node"))
             .cloned()
             .unwrap_or_default();
-        let node_bin = crate::tools::resolve(store, "node", &node_wanted).map(|d| d.join("bin"));
+        // The wanted Node line, or else the newest one installed (a site never stays down for that).
+        let node_bin = crate::tools::resolve(store, "node", &node_wanted)
+            .or_else(|| crate::tools::resolve(store, "node", ""))
+            .map(|d| d.join("bin"));
         // JDK for Kotlin projects: JAVA_HOME and its bin first on PATH.
         let java_home = (project.kind == crate::model::ProjectKind::Kmp || project.runtime.contains_key("jdk"))
             .then(|| crate::tools::resolve(store, "jdk", project.runtime.get("jdk").map(String::as_str).unwrap_or(""))
