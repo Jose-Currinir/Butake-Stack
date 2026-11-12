@@ -198,10 +198,15 @@ private struct Sidebar: View {
                                         Text(L("groups.empty")).font(.uiCaption).foregroundStyle(.tertiary).selectionDisabled()
                                     }
                                 } label: {
-                                    GroupRow(store: store, group: group, members: store.projects(in: group), open: expanded(group.id).wrappedValue)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture { setExpanded(group.id, collapsed.contains(group.id)) }
-                                        .dropDestination(for: String.self) { ids, _ in
+                                    // A real button over the whole row: in an optimized build a tap gesture on a list
+                                    // row can lose the click to the list's own selection.
+                                    Button { setExpanded(group.id, collapsed.contains(group.id)) } label: {
+                                        GroupRow(store: store, group: group, members: store.projects(in: group), open: expanded(group.id).wrappedValue)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityHint(expanded(group.id).wrappedValue ? L("groups.collapse") : L("groups.expand"))
+                                    .dropDestination(for: String.self) { ids, _ in
                                             for id in ids where store.projects.contains(where: { $0.id == id }) { store.move(id, to: group.id) }
                                             setExpanded(group.id, true)
                                             return true
@@ -328,11 +333,10 @@ private struct SectionToggle: View {
     let title: String
     @Binding var open: Bool
     var body: some View {
-        Text(title)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture { open.toggle() }
-            .accessibilityAddTraits(.isButton)
+        Button { open.toggle() } label: {
+            Text(title).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -343,12 +347,14 @@ private struct SitesHeader: View {
     @State private var targeted = false
     var body: some View {
         // The trailing edge belongs to the sidebar's own show/hide control.
-        Text(L("route.sites"))
-            .padding(.vertical, 2).padding(.horizontal, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.15) : .clear))
-            .contentShape(Rectangle())
-            .onTapGesture { open.toggle() }
+        Button { open.toggle() } label: {
+            Text(L("route.sites"))
+                .padding(.vertical, 2).padding(.horizontal, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.15) : .clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
             .contextMenu { Button { store.groupNaming = .new(sites: []) } label: { Label(L("groups.new"), systemImage: "folder.badge.plus") } }
         .dropDestination(for: String.self) { ids, _ in
             for id in ids { store.move(id, to: nil) }

@@ -733,3 +733,5 @@
 "new.groupNone" = "Ninguna";
 "groups.empty" = "Arrastra sitios aquí";
 "git.pendingChanges" = "%d cambios sin commit";
+"groups.collapse" = "Cerrar carpeta";
+"groups.expand" = "Abrir carpeta";
