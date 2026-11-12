@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Window(L("app.name"), id: "main") {
             RootView(store: store)
                 .frame(minWidth: 960, minHeight: 600)
+                .background(FullScreenCapable())
                 .tint(Brand.accent)
                 .id(themes.theme.signature)
         }
@@ -115,10 +116,7 @@ struct RootView: View {
             .navigationSubtitle(subtitle)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button { store.showNewProject = true } label: { Label(L("new.menu"), systemImage: "sparkles") }
-                        Button { store.chooseFolder() } label: { Label(L("sites.addExisting"), systemImage: "folder.badge.plus") }
-                    } label: { Label(L("sites.addEllipsis"), systemImage: "plus") } primaryAction: { store.showNewProject = true }
+                    Button { store.showNewProject = true } label: { Label(L("sites.addEllipsis"), systemImage: "plus") }
                         .help(L("sites.addHelp")).accessibilityIdentifier("toolbar.addSite")
                 }
             }
@@ -383,5 +381,27 @@ private struct ThemePreview: View {
     private func chip(_ text: String, _ color: HexColor) -> some View {
         Text(text).font(.ui(size: 9.5, weight: .semibold)).foregroundStyle(color.color)
             .padding(.horizontal, 6).padding(.vertical, 2).background(color.color.opacity(0.14), in: Capsule())
+    }
+}
+
+/// A menu bar app's window isn't full-screen capable by default, so the green button only zooms.
+/// This marks the main window as a primary full-screen window.
+private struct FullScreenCapable: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { Probe() }
+    func updateNSView(_ view: NSView, context: Context) { view.window.map(Probe.mark) }
+    final class Probe: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window else { return }
+            apply(window)
+            // SwiftUI sets the window's behavior after it appears; apply again once it has.
+            DispatchQueue.main.async { [weak self] in self?.window.map(Self.mark) }
+        }
+        private func apply(_ window: NSWindow) { Self.mark(window) }
+        static func mark(_ window: NSWindow) {
+            window.collectionBehavior.remove(.fullScreenAuxiliary)
+            window.collectionBehavior.remove(.fullScreenNone)
+            window.collectionBehavior.insert(.fullScreenPrimary)
+        }
     }
 }

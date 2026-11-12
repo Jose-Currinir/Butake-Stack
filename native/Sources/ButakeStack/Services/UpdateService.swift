@@ -199,8 +199,9 @@ import Foundation
         rm -rf \(shellQuote(backup))
         mv \(shellQuote(target.path)) \(shellQuote(backup)) || { /usr/bin/open \(shellQuote(target.path)); exit 1; }
         if /usr/bin/ditto \(shellQuote(staged.path)) \(shellQuote(target.path)); then rm -rf \(shellQuote(backup)); else rm -rf \(shellQuote(target.path)); mv \(shellQuote(backup)) \(shellQuote(target.path)); fi
-        # The session agent runs the engine from inside the bundle: restart it on the new copy.
-        /bin/launchctl kickstart -k gui/$(id -u)/cl.butake.stack.daemon >/dev/null 2>&1 || true
+        # The session agent runs the engine from inside the bundle: restart it on the new copy. SIGTERM
+        # lets it stop MySQL, PostgreSQL and the rest cleanly; launchd (KeepAlive) starts the new one.
+        /bin/launchctl kill TERM gui/$(id -u)/cl.butake.stack.daemon >/dev/null 2>&1 || /bin/launchctl kickstart gui/$(id -u)/cl.butake.stack.daemon >/dev/null 2>&1 || true
         /usr/bin/open \(shellQuote(target.path))
         rm -rf \(shellQuote(work.path))
         """
