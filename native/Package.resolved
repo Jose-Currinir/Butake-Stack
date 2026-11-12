@@ -1,0 +1,15 @@
+{
+  "originHash" : "3d7822b3141e03d36ba246259040f54419ae61066537b30e7459f04ec713b8a3",
+  "pins" : [
+    {
+      "identity" : "butake-design",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Jose-Currinir/Butake-Design.git",
+      "state" : {
+        "revision" : "968b0f3a0bcc92ba1320b5258c9a6e363a2eb442",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}
