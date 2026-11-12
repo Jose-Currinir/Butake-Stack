@@ -55,7 +55,7 @@ private struct PhpCatalogSection: View {
     var installedSeries: Set<String> { Set(store.phpRuntimes.filter(\.installed).map(\.series)) }
     var body: some View {
         CardBlock(title: L("php.catalog"), symbol: "arrow.down.circle", footer: L("php.catalogFooter")) {
-            Button { Task { await store.loadPhpCatalog() } } label: { Image(systemName: "arrow.clockwise") }
+            Button { Task { await store.loadPhpCatalog(refresh: true) } } label: { Image(systemName: "arrow.clockwise") }
                 .buttonStyle(.borderless).help(L("runtimes.reloadCatalog")).disabled(store.busy != nil)
         } content: {
             if store.phpCatalogFailed { Text(L("setup.phpOffline")).foregroundStyle(.secondary) }
@@ -144,7 +144,7 @@ struct VersionsSection: View {
         let main = all.enumerated().filter { primary($0.element, at: $0.offset) }.map(\.element)
         let rest = all.filter { !main.contains($0) }
         CardBlock(title: L("versions.title"), symbol: "square.stack.3d.up", footer: String(format: L("versions.footer"), info.source, info.verification)) {
-            Button { Task { await store.loadAvailable(info.id) } } label: { Image(systemName: "arrow.clockwise") }
+            Button { Task { await store.loadAvailable(info.id, refresh: true) } } label: { Image(systemName: "arrow.clockwise") }
                 .buttonStyle(.borderless).help(L("runtimes.reloadCatalog")).disabled(store.busy != nil)
         } content: {
             if all.isEmpty {

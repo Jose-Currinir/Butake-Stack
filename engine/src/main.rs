@@ -1,4 +1,5 @@
 mod agent;
+mod cache;
 mod daemon;
 mod detect;
 mod engines;
@@ -123,7 +124,10 @@ fn dispatch(request: Value) -> Result<Value> {
         "envAuditLog" => Ok(serde_json::to_value(envs::audit_lines(&store, id)?)?),
         // Used by scripts/php/build_php.py after a build: writes the runtime's php.ini.
         "generatePhpIni" => Ok(json!(runtimes::generate_ini(&store, request["series"].as_str().unwrap_or(""))?)),
-        "phpCatalog" => Ok(serde_json::to_value(runtimes::php_catalog()?)?),
+        // Catalogs are cached on disk (6 h / 12 h / 24 h); "refresh": true asks the source again.
+        "phpCatalog" => cache::cached(&store, "php-catalog", 6 * 3600, request["refresh"] == true, || {
+            Ok(serde_json::to_value(runtimes::php_catalog()?)?)
+        }),
         "downloadPhp" => {
             anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
             let manifest = runtimes::download_php(&store, request["version"].as_str().unwrap_or(""))?;
@@ -180,7 +184,10 @@ fn dispatch(request: Value) -> Result<Value> {
         }
         "availableTools" => {
             let tool = request["tool"].as_str().unwrap_or("");
-            Ok(serde_json::to_value(tools::available(tool)?)?)
+            tools::validate_tool(tool)?;
+            cache::cached(&store, &format!("available-{tool}"), 12 * 3600, request["refresh"] == true, || {
+                Ok(serde_json::to_value(tools::available(tool)?)?)
+            })
         }
         "siteHealth" => {
             // HTTP status of every site (redirects not followed: a 302 to login is healthy).
@@ -198,7 +205,11 @@ fn dispatch(request: Value) -> Result<Value> {
             }
             Ok(serde_json::Value::Object(out))
         }
-        "lifecycle" => Ok(tools::lifecycle(request["tool"].as_str().unwrap_or(""))?),
+        "lifecycle" => {
+            let tool = request["tool"].as_str().unwrap_or("");
+            tools::validate_tool(tool)?;
+            cache::cached(&store, &format!("lifecycle-{tool}"), 24 * 3600, request["refresh"] == true, || tools::lifecycle(tool))
+        }
         "installedTools" => {
             let tool = request["tool"].as_str().unwrap_or("");
             Ok(serde_json::to_value(tools::installed(&store, tool)?)?)

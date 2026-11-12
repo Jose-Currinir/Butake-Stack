@@ -29,9 +29,12 @@ pub struct PhpRuntime {
     pub manifest: Option<PhpManifest>,
 }
 pub fn validate_series(series: &str) -> Result<()> {
-    // PHP 8 lines with static builds (8.1 to 8.9): "8.<minor>".
+    // Any PHP line "<major>.<minor>" from 8.1 on: the published catalog decides what exists, so
+    // an older Stack can install a PHP released after it.
+    let mut parts = series.split('.');
+    let (major, minor) = (parts.next().and_then(|p| p.parse::<u32>().ok()), parts.next().and_then(|p| p.parse::<u32>().ok()));
     ensure!(
-        series.len() == 3 && series.starts_with("8.") && series.as_bytes()[2].is_ascii_digit() && series != "8.0",
+        parts.next().is_none() && series.len() <= 5 && matches!((major, minor), (Some(8), Some(1..=99)) | (Some(9..=19), Some(0..=99))),
         "unsupported_php_series"
     );
     Ok(())

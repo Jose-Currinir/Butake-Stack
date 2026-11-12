@@ -309,9 +309,10 @@ enum Route: Hashable {
     }
     var phpCatalogFailed = false
     /// Quiet on failure (offline): the PHP step says so instead of an alert.
-    func loadPhpCatalog() async {
+    /// `refresh`: ask the source again (reload button); otherwise the engine's local copy answers.
+    func loadPhpCatalog(refresh: Bool = false) async {
         busy = L("busy.catalog"); defer { busy = nil }
-        if let value: [PhpCatalogEntry] = try? await call(["method": "phpCatalog"]) { phpCatalog = value; phpCatalogFailed = false } else { phpCatalogFailed = true }
+        if let value: [PhpCatalogEntry] = try? await call(["method": "phpCatalog", "refresh": refresh]) { phpCatalog = value; phpCatalogFailed = false } else { phpCatalogFailed = true }
     }
     func downloadPhp(_ version: String) async {
         await run(L("busy.installing")) {
@@ -448,9 +449,9 @@ enum Route: Hashable {
             installedTools[tool] = (try? await call(["method": "installedTools", "tool": tool])) ?? []
         }
     }
-    func loadAvailable(_ tool: String) async {
+    func loadAvailable(_ tool: String, refresh: Bool = false) async {
         await run(L("busy.catalog")) {
-            self.availableTools[tool] = try await self.call(["method": "availableTools", "tool": tool])
+            self.availableTools[tool] = try await self.call(["method": "availableTools", "tool": tool, "refresh": refresh])
         }
     }
     func refreshPorts() async {
