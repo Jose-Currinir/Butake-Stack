@@ -161,6 +161,7 @@ struct GeneralPage: View {
             .padding(.horizontal, 18).padding(.vertical, 12)
             .glassCard(radius: 18)
             LazyVGrid(columns: pageColumns, alignment: .leading, spacing: 22) {
+                EnvironmentBackupCard(store: store)
                 CardBlock(title: L("general.diagnosis"), symbol: "stethoscope") {
                     StateLine(title: L("general.supervisor"), ok: store.daemonRunning, value: store.daemonRunning ? L("state.running") : L("state.stopped"))
                     Divider()

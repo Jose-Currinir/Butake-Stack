@@ -368,3 +368,12 @@ mod tests {
         assert!(listed_hash(body, "missing.tgz").is_err());
     }
 }
+
+/// Python lines uv manages here ("3.13"…), for the environment backup.
+pub fn installed_pythons() -> Vec<String> {
+    let Some(uv) = tools::user_tool("uv") else { return vec![] };
+    let mut lines: Vec<String> = managed_pythons(&uv).unwrap_or_default().into_iter()
+        .map(|v| v.split('.').take(2).collect::<Vec<_>>().join(".")).collect();
+    lines.sort(); lines.dedup();
+    lines
+}

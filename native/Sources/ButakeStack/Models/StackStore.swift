@@ -38,7 +38,7 @@ enum Route: Hashable {
     static func category(of engine: String) -> String {
         services.first { engines(in: $0).contains(engine) } ?? "web"
     }
-    static let languages = ["php", "node", "java"]
+    static let languages = ["php", "node", "python", "java", "rust", "swift"]
 }
 
 /// Everything the window shows. All engine calls go through `StackEngine` (JSON over stdin/stdout).

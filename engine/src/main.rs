@@ -1,3 +1,4 @@
+mod backup;
 mod devtools;
 mod agent;
 mod cache;
@@ -196,6 +197,19 @@ fn dispatch(request: Value) -> Result<Value> {
         }
         "stepLog" => Ok(serde_json::to_value(scaffold::log_tail(&store, request["name"].as_str().unwrap_or(""))?)?),
         "devTools" => tools::dev_tools(&store),
+        "exportEnvironment" => backup::export(&store, serde_json::from_value(request["profiles"].clone()).unwrap_or_default()),
+        "planRestore" => backup::plan(&store, &request["data"]),
+        "restoreEnvironment" => {
+            anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
+            let result = backup::restore(&store, &request["data"], &request["parts"])?;
+            let _ = daemon::request_sync(&store, "reload", json!({}), false);
+            Ok(result)
+        }
+        "cloneSite" => {
+            anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
+            backup::clone(std::path::Path::new(request["path"].as_str().unwrap_or("")), request["remote"].as_str().unwrap_or(""), request["branch"].as_str())?;
+            Ok(json!(true))
+        }
         "installDevTool" => {
             anyhow::ensure!(request["confirmed"] == true, "confirmation_required");
             devtools::install(&store, &devtools::Options {
@@ -367,7 +381,7 @@ const PUBLIC_ERRORS: &[&str] = &[
     "scaffold_step_failed", "kmp_use_wizard", "unknown_template", "domain_in_use",
     "postgres_not_installed", "postgres_command_failed", "no_free_port", "invalid_group_name",
     "checksum_mismatch", "checksum_not_found", "devtool_step_failed", "licenses_not_accepted", "jdk_not_installed",
-    "uv_not_installed", "download_failed", "signature_invalid", "cargo_not_installed", "clt_not_installed",
+    "uv_not_installed", "download_failed", "signature_invalid", "cargo_not_installed", "clt_not_installed", "invalid_backup", "clone_failed", "invalid_remote",
 ];
 
 #[tokio::main]

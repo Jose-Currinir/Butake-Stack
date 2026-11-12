@@ -31,20 +31,102 @@ struct LanguagePage: View {
                         }
                     }
                     PhpCatalogSection(store: store)
+                } else if let tools = Self.userTools[name] {
+                    // Toolchains installed in the user's home (uv, rustup, Xcode): same controls as Tu trabajo.
+                    CardBlock(title: L("runtimes.installedVersions"), symbol: "checkmark.seal", footer: L("language.\(name).versionsFooter")) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(tools.enumerated()), id: \.element) { index, tool in
+                                if index > 0 { Divider().padding(.leading, 44) }
+                                ToolRow(store: store, tool: tool)
+                            }
+                        }
+                    }
                 } else {
                     VersionsSection(store: store, info: ToolInfo.of(name == "java" ? "jdk" : name))
                 }
+                FrameworksCard(store: store, language: name)
                 CardBlock(title: L("engine.sites"), symbol: "globe") {
-                    let users = store.projects.filter { name == "php" ? $0.php != nil : (name == "java" ? $0.runtime["jdk"] != nil : $0.node != nil) }
+                    let users = store.projects.filter(usesLanguage)
                     if users.isEmpty { Text(L("engine.noSites")).foregroundStyle(.secondary) }
                     ForEach(Array(users.enumerated()), id: \.element.id) { index, project in
                         if index > 0 { Divider() }
-                        SiteLinkRow(project: project, detail: "\(tech.title) \((name == "php" ? project.php : (name == "java" ? project.runtime["jdk"] : project.node)) ?? "")") { store.openSite(project.id) }
+                        SiteLinkRow(project: project, detail: siteDetail(project)) { store.openSite(project.id) }
                     }
                 }
             }
         }
-        .task { await store.refreshRuntimes(); await store.loadLifecycle("php") }
+        .task {
+            await store.refreshRuntimes()
+            if name == "php" { await store.loadLifecycle("php") }
+            if Self.userTools[name] != nil { await store.refreshDevTools() }
+            if store.projectVersions.isEmpty { await store.loadProjectVersions() }
+        }
+    }
+}
+
+extension LanguagePage {
+    static let userTools: [String: [String]] = ["python": ["uv", "python"], "rust": ["rustup"], "swift": ["xcode", "clt"]]
+    func usesLanguage(_ project: Project) -> Bool {
+        switch name {
+        case "php": project.php != nil
+        case "java": project.runtime["jdk"] != nil
+        case "python": ["django", "fastapi"].contains(project.kind)
+        case "rust": project.kind == "rust"
+        case "swift": false
+        default: project.node != nil
+        }
+    }
+    func siteDetail(_ project: Project) -> String {
+        switch name {
+        case "php": "PHP \(project.php ?? "")"
+        case "java": "Java \(project.runtime["jdk"] ?? "")"
+        case "python": project.runtime["python"].map { "Python \($0)" } ?? L("kind.\(project.kind)")
+        case "rust": "Rust"
+        default: "Node \(project.node ?? "")"
+        }
+    }
+}
+
+/// The frameworks of a language, with their current version, and a shortcut to create a project.
+struct FrameworksCard: View {
+    @Bindable var store: StackStore
+    let language: String
+    static let byLanguage: [String: [String]] = [
+        "php": ["laravel", "php"],
+        "node": ["astro", "emdash", "next", "vite", "node", "react-native"],
+        "python": ["django", "fastapi"],
+        "java": ["kmp"],
+        "rust": ["rust"],
+        "swift": ["swift"],
+    ]
+    var body: some View {
+        CardBlock(title: L("language.frameworks"), symbol: "square.stack.3d.up") {
+            let kinds = Self.byLanguage[language] ?? []
+            ForEach(Array(kinds.enumerated()), id: \.element) { index, kind in
+                if index > 0 { Divider() }
+                let info = ProjectKindInfo.of(kind)
+                HStack(spacing: 10) {
+                    TechLogo(tech: .of(info.logo), size: 28)
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 6) {
+                            Text(L("kind.\(kind)")).font(.ui(size: 13, weight: .semibold))
+                            if let framework = info.framework, let version = store.projectVersions[framework.package] {
+                                Chip(text: version, tint: Brand.accent)
+                            }
+                        }
+                        Text(L("new.about.\(kind)")).font(.uiCaption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Button { create(kind) } label: { Label(L("language.createProject"), systemImage: "plus") }
+                        .controlSize(.small).accessibilityIdentifier("language.create.\(kind)")
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+    func create(_ kind: String) {
+        UserDefaults.standard.set(kind, forKey: "newProject.kind")
+        store.showNewProject = true
     }
 }
 

@@ -224,3 +224,22 @@ mod tests {
         assert!(valid_oid(&"a".repeat(40)) && !valid_oid("HEAD") && !valid_oid(&"g".repeat(40)));
     }
 }
+
+/// The `origin` remote, without any user or password an https URL may carry.
+pub fn origin(path: &Path) -> Option<String> {
+    if !is_repository(path) { return None; }
+    let url = git(path, &["remote", "get-url", "origin"]).ok()?.trim().to_string();
+    Some(strip_credentials(&url)).filter(|u| !u.is_empty())
+}
+pub fn strip_credentials(url: &str) -> String {
+    match url.split_once("://") {
+        Some((scheme, rest)) if scheme.starts_with("http") => match rest.split_once('@') {
+            Some((userinfo, host)) if !userinfo.contains('/') => format!("{scheme}://{host}"),
+            _ => url.to_string(),
+        },
+        _ => url.to_string(),
+    }
+}
+pub fn current_branch(path: &Path) -> Option<String> {
+    git(path, &["rev-parse", "--abbrev-ref", "HEAD"]).ok().map(|b| b.trim().to_string()).filter(|b| !b.is_empty() && b != "HEAD")
+}

@@ -49,6 +49,16 @@ secretos; borrado completo; procedimiento de incidentes; pruebas automáticas.
   procesos); en la app pasan como secretos y se guardan en el Llavero al guardar el entorno (R1, R2).
 - Sin datos personales nuevos ni transferencias: la base vive en el Mac del usuario. La postura no cambia.
 
+## Revisión 2026-11-12 — «Mi entorno» (exportar y restaurar)
+- El archivo exportado lleva perfiles, versiones, herramientas, sitios (ruta, dominio, origen Git sin
+  usuario ni contraseña), carpetas y entornos **sin valores secretos** (los secretos siguen sólo en el
+  Llavero, R1). Las claves no secretas de los entornos sí viajan: pueden contener datos de
+  configuración, por eso el archivo se guarda con permisos 600 y el usuario elige dónde.
+- Restaurar es un plan que el usuario revisa; descargas desde fuentes oficiales verificadas; sitios
+  apagados; entornos nunca reemplazan a los existentes; clonar usa el acceso Git propio del usuario,
+  sin preguntas interactivas, y sólo dentro de su carpeta personal.
+- Sin datos nuevos hacia terceros: el archivo no sale del Mac salvo que el usuario lo copie.
+
 ## Pendiente fuera del código
 - RUT de Butake SpA (sólo para el estado; no afecta los requisitos).
 - Recomendación organizativa: credenciales de Producción de sólo lectura en Macs de desarrollo.

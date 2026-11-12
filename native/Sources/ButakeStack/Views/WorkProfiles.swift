@@ -162,7 +162,7 @@ enum DevToolInstaller {
     static let automatic: Set<String> = ["rustup", "uv", "python", "gh", "cloudflared", "wrangler", "android-sdk"]
 }
 
-private struct ToolRow: View {
+struct ToolRow: View {
     @Bindable var store: StackStore
     let tool: String
     @State private var confirming = false

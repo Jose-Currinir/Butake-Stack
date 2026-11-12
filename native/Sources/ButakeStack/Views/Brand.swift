@@ -176,7 +176,7 @@ struct Tech: Hashable {
         case "cocoapods": Tech(id: id, title: "CocoaPods", symbol: "shippingbox.fill", color: 0xEE3322)
         case "watchman": Tech(id: id, title: "Watchman", symbol: "eye.fill", color: 0x4267B2)
         case "kmp": Tech(id: id, title: "Kotlin Multiplatform", simple: "kotlin", color: 0x7F52FF)
-        case "java", "jdk": Tech(id: "java", title: "Java", simple: "openjdk", color: 0xE76F00)
+        case "java", "jdk": Tech(id: "java", title: "Java y Kotlin", simple: "openjdk", color: 0xE76F00)
         case "vue": Tech(id: id, title: "Vue", svg: "vue", color: 0x42B883)
         case "svelte": Tech(id: id, title: "Svelte", svg: "svelte", color: 0xFF3E00)
         case "livewire": Tech(id: id, title: "Livewire", symbol: "bolt.fill", color: 0xFB70A9)
