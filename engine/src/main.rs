@@ -116,6 +116,10 @@ fn dispatch(request: Value) -> Result<Value> {
             )?;
             Ok(json!(true))
         }
+        "createDatabase" => {
+            anyhow::ensure!(request["engine"] == "postgres", "unsupported_engine");
+            engines::create_postgres_database(&store, &store.config()?, request["name"].as_str().unwrap_or(""))
+        }
         "envClassify" => {
             // Secret by default for credential-like names (R2); names only, never values.
             let keys: Vec<String> = serde_json::from_value(request["keys"].clone()).unwrap_or_default();

@@ -534,3 +534,6 @@
 "env.downloaded" = "Descargado %@ (permisos 600)";
 "site.upstream" = "Servidor del sitio";
 "language.java.summary" = "JDK (Eclipse Temurin) para proyectos Kotlin y Java: Stack exporta JAVA_HOME a sus procesos.";
+"env.createDatabase" = "Crear base en PostgreSQL de Stack";
+"env.createDatabaseFailed" = "No se pudo crear la base: enciende PostgreSQL en Servicios › Bases de datos.";
+"env.databaseCreated" = "Base %@ creada: revisa las variables y guarda";

@@ -168,3 +168,44 @@ mod tests {
         assert!(recipe("sqlite").is_none());
     }
 }
+
+/// A database and its own login role in the stack's PostgreSQL (running), for a site: the role
+/// owns the database and is not a superuser and cannot bypass row security. Names are validated
+/// identifiers; the password is random. Returns the connection details (the app stores the
+/// password in the Keychain at once).
+pub fn create_postgres_database(store: &Store, config: &StackConfig, name: &str) -> anyhow::Result<serde_json::Value> {
+    anyhow::ensure!(
+        !name.is_empty() && name.len() <= 40 && name.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_')
+            && !name.as_bytes()[0].is_ascii_digit(),
+        "invalid_database_name"
+    );
+    let base = crate::services::engine_dir(store, config, "postgres").ok_or_else(|| anyhow::anyhow!("postgres_not_installed"))?;
+    let port = port(config, "postgres");
+    let password: String = {
+        let mut bytes = [0u8; 24];
+        fs::File::open("/dev/urandom").and_then(|mut f| std::io::Read::read_exact(&mut f, &mut bytes))?;
+        bytes.iter().map(|b| format!("{b:02x}")).collect()
+    };
+    let user = format!("{name}_app");
+    // Identifiers are validated above and the password is hex: nothing user-typed reaches SQL.
+    let sql = format!(
+        "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{user}') THEN CREATE ROLE {user} LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '{password}'; ELSE ALTER ROLE {user} PASSWORD '{password}'; END IF; END $$;"
+    );
+    let psql = |sql: &str, db: &str| -> anyhow::Result<String> {
+        let out = Command::new(base.join("bin/psql"))
+            .args(["-h", "127.0.0.1", "-p", &port.to_string(), "-U", "postgres", "-d", db, "-v", "ON_ERROR_STOP=1", "-tAc", sql])
+            .env_clear()
+            .stdin(std::process::Stdio::null())
+            .output()?;
+        anyhow::ensure!(out.status.success(), "postgres_command_failed");
+        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    };
+    psql(&sql, "postgres")?;
+    if psql(&format!("SELECT 1 FROM pg_database WHERE datname = '{name}'"), "postgres")?.is_empty() {
+        psql(&format!("CREATE DATABASE {name} OWNER {user} ENCODING 'UTF8'"), "postgres")?;
+    }
+    Ok(serde_json::json!({
+        "host": "127.0.0.1", "port": port, "database": name, "user": user, "password": password,
+        "jdbc": format!("jdbc:postgresql://127.0.0.1:{port}/{name}"),
+    }))
+}

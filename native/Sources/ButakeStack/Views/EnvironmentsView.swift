@@ -243,6 +243,8 @@ struct EnvironmentsView: View {
                     .accessibilityIdentifier("env.download")
             }
             Menu {
+                Button { Task { await createDatabase() } } label: { Label(L("env.createDatabase"), systemImage: "cylinder.split.1x2") }
+                    .disabled(store.engineVersion("postgres") == nil)
                 Button { showAudit = true } label: { Label(L("env.audit"), systemImage: "clock.arrow.circlepath") }
                 if let current {
                     Button { Task { await store.downloadEnv(project, current) } } label: { Label(String(format: L("env.downloadMenu"), current.id), systemImage: "arrow.down.doc") }
@@ -311,6 +313,27 @@ struct EnvironmentsView: View {
         EnvVault.copy(value)
         await store.envAudit(project.id, env: current.id, action: "copiar", key: row.key)
         store.notify(L("env.copied"))
+    }
+    /// A database and its own role in the stack's PostgreSQL; the connection goes into this
+    /// environment (the password as a secret, kept in the Keychain on save).
+    private func createDatabase() async {
+        struct Created: Decodable { let jdbc: String; let user: String; let password: String; let host: String; let port: Int; let database: String }
+        let name = project.id.replacingOccurrences(of: "-", with: "_")
+        guard let created: Created = try? await store.call(["method": "createDatabase", "engine": "postgres", "name": name]) else {
+            store.errorMessage = L("env.createDatabaseFailed"); return
+        }
+        func upsert(_ key: String, _ value: String, secret: Bool) {
+            if let i = draft.firstIndex(where: { $0.key == key }) {
+                if secret { draft[i].secret = true; draft[i].newSecret = value } else { draft[i].value = value }
+            } else {
+                draft.append(Row(key: key, value: secret ? "" : value, secret: secret, newSecret: secret ? value : nil))
+            }
+        }
+        upsert("DATABASE_URL", created.jdbc, secret: false)
+        upsert("DATABASE_USER", created.user, secret: false)
+        upsert("DATABASE_PASSWORD", created.password, secret: true)
+        dirty = true
+        store.notify(String(format: L("env.databaseCreated"), created.database))
     }
     private func addMissing() async {
         let keys = missing
