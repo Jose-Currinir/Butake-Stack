@@ -1,0 +1,46 @@
+name: macOS
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    # The same Xcode the app is developed with (27.2): Xcode 26 cannot type-check parts of the app.
+    runs-on: xcode-27
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Herramientas
+        run: |
+          sudo xcode-select -s /Applications/Xcode_27.2.app
+          xcodebuild -version
+          rustup update stable
+          rustup default stable
+          rustup component add clippy rustfmt
+      - name: Calidad de Rust
+        run: |
+          cargo fmt --manifest-path engine/Cargo.toml -- --check
+          cargo clippy --locked --all-targets --manifest-path engine/Cargo.toml -- -D warnings
+      - name: Pruebas
+        run: ./scripts/test-native.sh
+      - name: Compilación y firma local
+        run: |
+          ./scripts/build-native.sh
+          codesign --verify --deep --strict "build/native.noindex/Stack.app"
+      - name: Espacios
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git diff --check "$BASE_SHA" HEAD

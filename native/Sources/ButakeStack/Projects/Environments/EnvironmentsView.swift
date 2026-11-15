@@ -1,0 +1,439 @@
+import AppKit
+import SwiftUI
+
+extension EnvKind {
+    @MainActor var color: Color {
+        switch self {
+        case .local: Brand.success
+        case .development: Brand.accent
+        case .testing: Brand.info
+        case .staging: Brand.warning
+        case .production: Brand.danger
+        case .other: Brand.special
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .local: "laptopcomputer"
+        case .development: "hammer"
+        case .testing: "checkmark.diamond"
+        case .staging: "shippingbox"
+        case .production: "exclamationmark.shield.fill"
+        case .other: "square.stack"
+        }
+    }
+}
+
+
+/// Sections of a `.env`, by the usual prefixes, so long files read like settings.
+enum EnvSection: String, CaseIterable, Identifiable {
+    case app, database, cache, mail, storage, frontend, services, other
+    var id: String { rawValue }
+    var symbol: String {
+        switch self {
+        case .app: "app.badge"
+        case .database: Symbols.database
+        case .cache: "bolt.horizontal"
+        case .mail: "envelope"
+        case .storage: "externaldrive"
+        case .frontend: "paintbrush"
+        case .services: "puzzlepiece.extension"
+        case .other: "ellipsis.curlybraces"
+        }
+    }
+    static func of(_ key: String) -> EnvSection {
+        let k = key.dataCapitals
+        func any(_ prefixes: [String]) -> Bool { prefixes.contains { k.hasPrefix($0) } }
+        if any(["APP_", "LOG_", "BCRYPT_", "PHP_CLI", "DEBUGBAR_", "TELESCOPE_"]) { return .app }
+        if any(["DB_", "DATABASE_", "MONGO", "SCOUT_", "MEILISEARCH_", "TYPESENSE_"]) { return .database }
+        if any(["SESSION_", "CACHE_", "QUEUE_", "REDIS_", "MEMCACHED_", "BROADCAST_", "REVERB_", "PUSHER_", "HORIZON_", "OCTANE_"]) { return .cache }
+        if any(["MAIL_", "RESEND_", "POSTMARK_", "SES_", "MAILGUN_", "SENDGRID_"]) { return .mail }
+        if any(["FILESYSTEM_", "AWS_", "S3_", "R2_", "MINIO_", "RUSTFS_"]) { return .storage }
+        if any(["VITE_", "MIX_", "NODE_", "NEXT_PUBLIC_"]) { return .frontend }
+        if k.contains("_") { return .services }
+        return .other
+    }
+}
+
+/// Entornos: each site keeps several `.env` (local, development, testing, staging, production).
+/// Keys and plain values are stored by Stack; secret values only in the Keychain. Activating one
+/// writes the site's `.env`, clears Laravel's caches and restarts its processes. Production is
+/// locked by default (see `.compliance/docs/21719-gestor-entornos-requisitos.md`).
+struct EnvironmentsView: View {
+    @Bindable var store: StackStore
+    let project: Project
+    @State private var selected: String?
+    @State private var draft: [Row] = []
+    @State private var dirty = false
+    @State private var creating = false
+    @State private var confirmProduction = false
+    @State private var confirmDelete = false
+    @State private var showAudit = false
+    @State private var revealed: [String: String] = [:]
+    @State private var editingSecret: Row?
+    /// Which secrets have a value in the Keychain, read once per load (not on every redraw: a long
+    /// .env made every keystroke query the Keychain dozens of times).
+    @State private var storedSecrets: Set<String> = []
+    /// The environment just applied while processes run: they take it only when restarted.
+    @State private var offerRestart: EnvEnvironment?
+    @State private var creatingDatabase = false
+    @State private var changingPassword = false
+
+    struct Row: Identifiable, Hashable {
+        let id = UUID()
+        var key: String
+        var value: String
+        var secret: Bool
+        /// A new secret value typed by the user, written to the Keychain on save.
+        var newSecret: String?
+        var original: String?
+    }
+
+    var state: EnvState? { store.envs[project.id] }
+    var environments: [EnvEnvironment] { state?.site.environments ?? [] }
+    var current: EnvEnvironment? { environments.first { $0.id == selected } ?? environments.first }
+    var missing: [String] {
+        guard current != nil, let keys = state?.exampleKeys else { return [] }
+        let have = Set(draft.map(\.key))
+        return keys.filter { !have.contains($0) }
+    }
+    var sections: [(EnvSection, [Binding<Row>])] {
+        EnvSection.allCases.compactMap { section in
+            let rows = $draft.filter { EnvSection.of($0.wrappedValue.key) == section || ($0.wrappedValue.key.isEmpty && section == .other) }
+            return rows.isEmpty ? nil : (section, rows)
+        }
+    }
+
+    var body: some View {
+        Group {
+            if environments.isEmpty { emptyState } else { content }
+        }
+        .task(id: project.id) { await store.loadEnvs(project.id); load() }
+        .onChange(of: selected) { _, _ in load() }
+        .sheet(isPresented: $creating) {
+            NewEnvironmentSheet(store: store, project: project, current: current) { id in selected = id; load() }.themedSheet()
+        }
+        .sheet(item: $editingSecret) { row in SecretEditor(key: row.key) { value in set(row.id) { $0.newSecret = value }; dirty = true }.themedSheet() }
+        .sheet(isPresented: $confirmProduction) {
+            if let current { ProductionConfirm(store: store, project: project, env: current).themedSheet() }
+        }
+        .sheet(isPresented: $showAudit) { EnvAuditSheet(store: store, project: project).themedSheet() }
+        .sheet(isPresented: $creatingDatabase) {
+            NewDatabaseSheet(store: store, suggested: project.id.replacingOccurrences(of: "-", with: "_")) { fill($0) }.themedSheet()
+        }
+        .sheet(isPresented: $changingPassword) {
+            DatabasePasswordSheet(store: store, accounts: databaseAccounts) { account, password in
+                set(draftID(account.passwordKey)) { $0.secret = true; $0.newSecret = password }
+                dirty = true
+                store.notify(String(format: L("db.password.changed"), account.user))
+            }.themedSheet()
+        }
+        .confirmationDialog(String(format: L("env.deleteConfirm"), current?.title ?? ""), isPresented: $confirmDelete) {
+            Button(L("env.delete"), role: .destructive) {
+                if let current { Task { await store.deleteEnvironment(project, current.id); selected = nil; load() } }
+            }
+            Button(L("common.cancel"), role: .cancel) {}
+        } message: { Text(L("env.deleteDetail")) }
+        .confirmationDialog(String(format: L("env.restartConfirm"), project.title), isPresented: Binding(get: { offerRestart != nil }, set: { if !$0 { offerRestart = nil } }),
+                            presenting: offerRestart) { _ in
+            Button(L("env.restartProcesses")) { Task { await store.restartProcesses(project) } }
+                .accessibilityIdentifier("env.restartProcesses")
+            Button(L("common.cancel"), role: .cancel) {}
+        } message: { env in Text(String(format: L("env.restartDetail"), env.title)) }
+    }
+    /// Projects named with `{port:<id>}` in this environment that no longer exist.
+    private var missingPorts: [String] {
+        let known = Set(store.projects.map(\.id))
+        var out: [String] = []
+        for row in draft {
+            var rest = Substring(row.value)
+            while let start = rest.range(of: "{port:"), let end = rest[start.upperBound...].firstIndex(of: "}") {
+                let id = String(rest[start.upperBound..<end])
+                if !known.contains(id), !out.contains(id) { out.append(id) }
+                rest = rest[rest.index(after: end)...]
+            }
+        }
+        return out
+    }
+    private func projectTitle(_ id: String) -> String { store.projects.first { $0.id == id }?.title ?? id }
+    /// Projects whose port another value can name with `{port:<id>}`.
+    private var ports: [Project] { store.projects.filter { $0.upstream != nil }.sorted { $0.title < $1.title } }
+
+    /// The `.env` is not ignored or is tracked: secrets are not written until that is fixed.
+    var guardProblem: String? {
+        guard let guardState = state?.gitGuard, !guardState.ignored || guardState.tracked else { return nil }
+        return guardState.tracked ? L("env.guard.tracked") : L("env.guard.notIgnored")
+    }
+
+    // MARK: Empty: import the current .env or start from .env.example
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            if let guardProblem { Notice(.error, guardProblem).padding(.horizontal, 20).padding(.top, 14) }
+            ContentUnavailableView {
+                Label(L("env.title"), systemImage: Symbols.environments)
+            } description: {
+                Text(L("env.emptyDetail"))
+            } actions: {
+                HStack(spacing: 10) {
+                    Button { creating = true } label: { Label(L("env.new"), systemImage: Symbols.add) }
+                        .buttonStyle(.bordered).accessibilityIdentifier("env.newEmpty")
+                    if state?.hasEnv == true {
+                        Button { Task { await store.importCurrentEnv(project); selected = "local"; load() } } label: {
+                            Label(L("env.import"), systemImage: Symbols.importing)
+                        }.buttonStyle(.borderedProminent).accessibilityIdentifier("env.import")
+                    }
+                }
+            }
+            .help(L("env.securityNote"))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: The environment, its status and its variables by section
+    private var content: some View {
+        Form {
+            if let guardProblem { Section { Notice(.error, guardProblem) } }
+            if !missingPorts.isEmpty {
+                Section { Notice(.error, String(format: L("env.portMissing"), missingPorts.joined(separator: ", ")), detail: L("env.portMissingDetail")) }
+            }
+            if let pending = state?.publicPending, !pending.isEmpty {
+                Section { Notice(.warning, String(format: L("env.publicPending"), pending.map(projectTitle).joined(separator: ", ")), detail: L("env.publicPendingDetail")) }
+            }
+            if let active = state?.site.activeEnvironment, let outdated = state?.site.outdated, !outdated.isEmpty {
+                Section {
+                    Notice(.warning, String(format: L("env.portOutdated"), outdated.map(projectTitle).joined(separator: ", ")), detail: L("env.portOutdatedDetail")) {
+                        Button {
+                            if active.kind == .production { selected = active.id; confirmProduction = true } else { Task { await activate(active) } }
+                        } label: { Label(L("env.reapply"), systemImage: Symbols.reload) }
+                        .buttonStyle(.bordered).disabled(store.busy != nil || missingPorts.contains { outdated.contains($0) })
+                        .accessibilityIdentifier("env.reapply")
+                    }
+                }
+            }
+            Section {
+                Picker(L("env.editing"), selection: Binding(get: { current?.id }, set: { id in if !dirty || confirmDiscard() { selected = id } })) {
+                    ForEach(environments) { env in
+                        Label(env.title, systemImage: env.kind.symbol).tag(Optional(env.id))
+                    }
+                }
+                .help(L("env.securityNote"))
+                .accessibilityIdentifier("env.select")
+                LabeledContent(L("env.activeLabel")) {
+                    if let active = state?.site.activeEnvironment { Chip(env: active) } else { Text(L("env.none")) }
+                }
+                if !project.processes.isEmpty {
+                    Toggle(L("env.passToProcesses"), isOn: Binding(get: { state?.site.passes ?? true },
+                                                                   set: { on in Task { await store.setPassToProcesses(project, on) } }))
+                        .help(L("env.passToProcessesHelp")).disabled(store.busy != nil)
+                        .accessibilityIdentifier("env.passToProcesses")
+                }
+                if store.pluginEnabled("aws") { AWSProfilePicker(rows: $draft, production: current?.kind == .production) { dirty = true } }
+                if let current, current.kind == .production, state?.site.active == current.id {
+                    Notice(.error, L("env.productionActive"), symbol: EnvKind.production.symbol)
+                }
+                actions
+            }
+            if !missing.isEmpty {
+                Section {
+                    Notice(.warning, String(format: L("env.missing"), missing.count), detail: missing.joined(separator: ", ")) {
+                        Button { Task { await addMissing() } } label: { Label(L("env.addMissing"), systemImage: Symbols.add) }
+                            .buttonStyle(.bordered).accessibilityIdentifier("env.addMissing")
+                    }
+                }
+            }
+            ForEach(sections, id: \.0) { section, rows in
+                Section(L("env.section.\(section.rawValue)")) {
+                    ForEach(rows, id: \.wrappedValue.id) { row in
+                        EnvRowView(row: row, revealed: revealed[row.wrappedValue.key], hasSecret: hasSecret(row.wrappedValue),
+                                   changed: { if !dirty { dirty = true } },
+                                   reveal: { Task { await reveal(row.wrappedValue) } },
+                                   copy: { Task { await copy(row.wrappedValue) } },
+                                   edit: { editingSecret = row.wrappedValue },
+                                   toggleSecret: { set(row.wrappedValue.id) { $0.secret.toggle() }; dirty = true },
+                                   remove: { draft.removeAll { $0.id == row.wrappedValue.id }; dirty = true },
+                                   ports: ports)
+                    }
+                }
+            }
+            Section {
+                Button { draft.append(Row(key: "", value: "", secret: false)); dirty = true } label: { Label(L("env.addKey"), systemImage: Symbols.add) }
+                    .buttonStyle(.bordered).accessibilityIdentifier("env.addKey")
+            }
+        }
+        .formStyle(.grouped).themedScroll()
+    }
+
+    /// The environment's actions: more (new, database, history, download, export, delete), save and
+    /// activate, the one prominent action of the tab.
+    private var actions: some View {
+        HStack(spacing: 10) {
+            Menu {
+                Button { creating = true } label: { Label(L("env.new"), systemImage: Symbols.add) }.accessibilityIdentifier("env.new")
+                Divider()
+                Button { creatingDatabase = true } label: { Label(L("env.createDatabase"), systemImage: Symbols.database) }
+                    .disabled(store.engineVersion("postgres") == nil && store.engineVersion("mysql") == nil)
+                    .accessibilityIdentifier("env.createDatabase")
+                Button { changingPassword = true } label: { Label(L("env.changeDatabasePassword"), systemImage: Symbols.key) }
+                    .disabled(databaseAccounts.isEmpty).accessibilityIdentifier("env.changeDatabasePassword")
+                Button { showAudit = true } label: { Label(L("env.audit"), systemImage: Symbols.history) }
+                if let current {
+                    Button { Task { await store.downloadEnv(project, current) } } label: { Label(String(format: L("env.downloadMenu"), current.id), systemImage: Symbols.dump) }
+                        .help(String(format: L("env.downloadHelp"), current.title)).disabled(store.busy != nil || dirty)
+                        .accessibilityIdentifier("env.download")
+                    Button { Task { await store.exportTemplate(project, current) } } label: { Label(L("env.export"), systemImage: Symbols.share) }
+                    Divider()
+                    Button(role: .destructive) { confirmDelete = true } label: { Label(L("env.delete"), systemImage: Symbols.delete) }
+                        .disabled(state?.site.active == current.id)
+                }
+            } label: {
+                Label(L("env.more"), systemImage: Symbols.more)
+            }
+            .fixedSize().accessibilityIdentifier("env.more")
+            Spacer()
+            if dirty { Text(L("env.unsaved")).font(.uiCaption).foregroundStyle(Brand.warning) }
+            Button { Task { await save() } } label: { Label(L("common.save"), systemImage: Symbols.save) }
+                .buttonStyle(.bordered).disabled(!dirty || store.busy != nil).accessibilityIdentifier("env.save")
+            if let current {
+                Button {
+                    if current.kind == .production { confirmProduction = true } else { Task { await activate(current) } }
+                } label: {
+                    Label(String(format: L("env.activate"), current.title), systemImage: current.kind == .production ? Symbols.locked : Symbols.active)
+                }
+                .buttonStyle(.borderedProminent).tint(current.kind == .production ? Brand.danger : nil)
+                .disabled(store.busy != nil || state?.site.active == current.id && !dirty)
+                .accessibilityIdentifier("env.activate").help(L("env.activateHelp"))
+            }
+        }
+    }
+
+    // MARK: Actions
+    /// Saves, applies and, when processes are running, asks before restarting them.
+    private func activate(_ env: EnvEnvironment) async {
+        await save()
+        await store.activateEnvironment(project, env, restart: false)
+        load()
+        if store.activeEnvironment(project.id)?.id == env.id, !store.liveProcessIDs(project).isEmpty { offerRestart = env }
+    }
+    private func load() {
+        if selected == nil || !environments.contains(where: { $0.id == selected }) { selected = state?.site.active ?? environments.first?.id }
+        draft = (current?.entries ?? []).map { Row(key: $0.key, value: $0.value, secret: $0.secret, original: $0.key) }
+        revealed = [:]
+        dirty = false
+        Task { await loadStoredSecrets() }
+    }
+    private func set(_ id: UUID, _ change: (inout Row) -> Void) {
+        guard let index = draft.firstIndex(where: { $0.id == id }) else { return }
+        change(&draft[index])
+    }
+    private func hasSecret(_ row: Row) -> Bool {
+        row.secret && row.original != nil && storedSecrets.contains(row.key)
+    }
+    /// Which secrets have a value, from the Keychain item's attributes only (no value is read, so
+    /// opening the tab never asks for access), off the main thread, once.
+    private func loadStoredSecrets() async {
+        guard let current else { storedSecrets = []; return }
+        let site = project.id, env = current.id
+        storedSecrets = await Task.detached { EnvSecrets.keychain.storedKeys(site: site, env: env) }.value
+    }
+    private func confirmDiscard() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = L("env.discardTitle"); alert.informativeText = L("env.discardDetail")
+        alert.addButton(withTitle: L("env.discard")); alert.addButton(withTitle: L("common.cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+    private func reveal(_ row: Row) async {
+        guard let current else { return }
+        if revealed[row.key] != nil { revealed[row.key] = nil; return }
+        guard await EnvVault.authenticate(String(format: L("env.authReveal"), row.key)) else { return }
+        guard let values = await store.secretValues(project.id, current.id) else { return }
+        revealed[row.key] = values[row.key] ?? ""
+        await store.envAudit(project.id, env: current.id, action: "revelar", key: row.key)
+        let key = row.key
+        Task { try? await Task.sleep(for: .seconds(30)); revealed[key] = nil }
+    }
+    private func copy(_ row: Row) async {
+        guard let current, await EnvVault.authenticate(String(format: L("env.authCopyKey"), row.key)),
+              let value = await store.secretValues(project.id, current.id)?[row.key] else { return }
+        EnvVault.copy(value)
+        await store.envAudit(project.id, env: current.id, action: "copiar", key: row.key)
+        store.notify(L("env.copied"))
+    }
+    /// Database logins this environment names (`DB_USERNAME`, `DATABASE_USER`…) that have a password
+    /// key next to them: the accounts whose password can be changed from here.
+    private var databaseAccounts: [DatabasePasswordSheet.Account] {
+        draft.compactMap { row in
+            guard !row.secret, !row.value.isEmpty, let suffix = ["USERNAME", "USER"].first(where: { row.key.hasSuffix($0) }) else { return nil }
+            let key = String(row.key.dropLast(suffix.count)) + "PASSWORD"
+            return draft.contains { $0.key == key } ? .init(user: row.value, passwordKey: key) : nil
+        }
+    }
+    private func draftID(_ key: String) -> UUID {
+        if let row = draft.first(where: { $0.key == key }) { return row.id }
+        draft.append(Row(key: key, value: "", secret: true))
+        return draft[draft.count - 1].id
+    }
+    /// The new database's connection goes into this environment; passwords as secrets that land in
+    /// the Keychain on save. An account that already existed keeps its password: its key is left
+    /// as it is, and the notice says how to change it.
+    private func fill(_ created: CreatedDatabase) {
+        func upsert(_ key: String, _ value: String?, secret: Bool = false) {
+            guard let value else { return }
+            if let i = draft.firstIndex(where: { $0.key == key }) {
+                if secret { draft[i].secret = true; draft[i].newSecret = value } else { draft[i].value = value }
+            } else {
+                draft.append(Row(key: key, value: secret ? "" : value, secret: secret, newSecret: secret ? value : nil))
+            }
+        }
+        let owner = created.migrationUser ?? created.user
+        let ownerPassword = created.migrationUser == nil ? created.password : created.migrationPassword
+        if created.engine == "mysql" || draft.contains(where: { $0.key == "DB_CONNECTION" || $0.key == "DB_DATABASE" }) {
+            // Laravel-style: one connection that also runs the migrations, so it gets the owner.
+            upsert("DB_CONNECTION", created.engine == "mysql" ? "mysql" : "pgsql")
+            upsert("DB_HOST", created.host)
+            upsert("DB_PORT", String(created.port))
+            upsert("DB_DATABASE", created.database)
+            upsert("DB_USERNAME", owner)
+            upsert("DB_PASSWORD", ownerPassword, secret: true)
+        } else {
+            // JDBC style (KMP backends): the app's login for runtime, the owner for migrations.
+            upsert("DATABASE_URL", created.jdbc)
+            upsert("DATABASE_USER", created.user)
+            upsert("DATABASE_PASSWORD", created.password, secret: true)
+            if created.migrationUser != nil || draft.contains(where: { $0.key == "DATABASE_MIGRATION_USER" }) {
+                upsert("DATABASE_MIGRATION_URL", created.jdbc)
+                upsert("DATABASE_MIGRATION_USER", owner)
+                upsert("DATABASE_MIGRATION_PASSWORD", ownerPassword, secret: true)
+            }
+        }
+        dirty = true
+        var kept: [String] = []
+        if created.password == nil { kept.append(created.user) }
+        if let owner = created.migrationUser, created.migrationPassword == nil { kept.append(owner) }
+        store.notify(kept.isEmpty ? String(format: L("env.databaseCreated"), created.database)
+                                  : String(format: L("env.databaseKept"), created.database, kept.joined(separator: ", ")))
+    }
+    private func addMissing() async {
+        let keys = missing
+        let secret = await store.classify(keys)
+        for (index, key) in keys.enumerated() { draft.append(Row(key: key, value: "", secret: secret[index])) }
+        dirty = true
+    }
+    /// Secrets to the Keychain first, then keys and plain values to the store.
+    private func save() async {
+        guard dirty, let current, var site = state?.site, let index = site.environments.firstIndex(where: { $0.id == current.id }) else { return }
+        let keys = draft.map { $0.key.trimmingCharacters(in: .whitespaces) }
+        guard !keys.contains(where: \.isEmpty), Set(keys).count == keys.count else { store.errorMessage = L("env.invalidKeys"); return }
+        // A typed secret, or a plain value just marked secret, goes to the Keychain; one write in all.
+        var set: [String: String] = [:]
+        for row in draft where row.secret {
+            if let value = row.newSecret { set[row.key] = value } else if !row.value.isEmpty { set[row.key] = row.value }
+        }
+        let kept = Set(draft.filter(\.secret).map(\.key))
+        let remove = Set(current.entries.filter { $0.secret && !kept.contains($0.key) }.map(\.key)).intersection(storedSecrets)
+        if !set.isEmpty || !remove.isEmpty {
+            guard await store.updateSecrets(project.id, current.id, set: set, remove: remove) else { return }
+        }
+        site.environments[index].entries = draft.map { EnvEntry(key: $0.key.trimmingCharacters(in: .whitespaces), value: $0.secret ? "" : $0.value, secret: $0.secret) }
+        if await store.saveEnvs(project.id, site) { load() }
+    }
+}
