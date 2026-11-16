@@ -180,9 +180,10 @@ fn rename_relinks() {
         "skillsRename",
         json!({"id": "a", "newId": "b", "confirmed": true}),
     );
-    assert_eq!(renamed["id"], "b");
-    assert_eq!(renamed["name"], "b");
-    assert_eq!(renamed["agents"], json!(["claude"]));
+    assert_eq!(renamed["conflicts"], json!([]));
+    assert_eq!(renamed["skill"]["id"], "b");
+    assert_eq!(renamed["skill"]["name"], "b");
+    assert_eq!(renamed["skill"]["agents"], json!(["claude"]));
     assert!(fs::symlink_metadata(env.link_path(".claude/skills", "a")).is_err());
     let new = env.link_path(".claude/skills", "b");
     assert_eq!(fs::read_link(&new).unwrap(), env.skills_dir().join("b"));
@@ -283,4 +284,28 @@ fn custom_agents_are_validated_and_removed_with_their_links() {
         env.ok("skillsList", json!({}))["skills"][0]["agents"],
         json!([])
     );
+}
+
+#[test]
+fn rename_answers_the_names_taken_in_an_ai_folder() {
+    let env = env();
+    env.create("a");
+    env.link("a", "claude");
+    env.link("a", "gemini");
+    let taken = env.link_path(".claude/skills", "b");
+    fs::create_dir_all(&taken).unwrap();
+    fs::write(taken.join("keep.txt"), "mine").unwrap();
+    let renamed = env.ok(
+        "skillsRename",
+        json!({"id": "a", "newId": "b", "confirmed": true}),
+    );
+    assert_eq!(renamed["skill"]["id"], "b");
+    assert_eq!(
+        renamed["conflicts"],
+        json!([{"path": taken.to_string_lossy(), "reason": "exists"}])
+    );
+    assert_eq!(fs::read_to_string(taken.join("keep.txt")).unwrap(), "mine");
+    assert!(fs::symlink_metadata(&taken).unwrap().is_dir());
+    let linked = env.link_path(".gemini/skills", "b");
+    assert_eq!(fs::read_link(&linked).unwrap(), env.skills_dir().join("b"));
 }

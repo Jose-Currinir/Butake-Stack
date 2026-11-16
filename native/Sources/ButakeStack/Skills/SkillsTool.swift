@@ -36,6 +36,8 @@ enum SkillsSheet: Identifiable {
     var sheet: SkillsSheet?
     /// The skill just deleted, while «Deshacer» is on offer.
     var deleted: DeletedSkill?
+    /// Names a rename could not link because the AI folder already had them; shown until dismissed.
+    var renameConflicts: [SkillLinkPlan.Conflict] = []
 
     private var store: StackStore { .shared }
 
@@ -67,6 +69,13 @@ enum SkillsSheet: Identifiable {
     }
 
     /// The skill on screen stays only while the list still shows it; «Salud» starts without one.
+    /// «Salud» from the rename notice: it lists the names taken, which the rename left alone.
+    func showHealthAfterRename() {
+        renameConflicts = []
+        scope = .health
+        scopeChanged()
+    }
+
     func scopeChanged() {
         if scope == .health { selection = nil } else { keepSelectionVisible() }
     }
@@ -172,10 +181,12 @@ enum SkillsSheet: Identifiable {
     }
 
     private func rename(_ skill: Skill, to newId: String) async -> Bool {
+        var result: SkillRenameResult?
         let renamed = await change(L("skills.renaming"), done: L("skills.renamed")) {
-            let _: Skill = try await self.store.call(["method": "skillsRename", "id": skill.id, "newId": newId, "confirmed": true])
+            result = try await self.store.call(["method": "skillsRename", "id": skill.id, "newId": newId, "confirmed": true])
         }
         if renamed { selection = newId }
+        renameConflicts = result?.conflicts ?? []
         return renamed
     }
 

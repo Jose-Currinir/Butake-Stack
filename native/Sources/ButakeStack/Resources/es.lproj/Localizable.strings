@@ -4031,6 +4031,9 @@
 "skills.deleted" = "Skill «%@» eliminada";
 "skills.deletedDetail" = "Se quitaron sus enlaces. Deshacer la trae de vuelta con ellos.";
 "skills.undo" = "Deshacer";
+"skills.renameConflicts" = "Skill renombrada; algunos enlaces se omitieron";
+"skills.renameConflictsDetail" = "El nombre nuevo ya existía en esas carpetas y no se tocó. Salud lo muestra.";
+"skills.renameConflictsHealth" = "Ver Salud";
 "skills.restoring" = "Restaurando la skill…";
 "skills.restored" = "Skill restaurada";
 "skills.creating" = "Creando la skill…";

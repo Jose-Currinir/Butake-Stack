@@ -149,6 +149,12 @@ struct SkillLinkResult: Decodable, Sendable {
     let conflicts: [SkillLinkPlan.Conflict]
 }
 
+/// `skillsRename` applied: the renamed skill and the names already taken in an AI folder (skipped, untouched).
+struct SkillRenameResult: Decodable, Sendable {
+    let skill: Skill
+    let conflicts: [SkillLinkPlan.Conflict]
+}
+
 /// The starting texts of a new skill (the engine knows them by these names).
 enum SkillTemplate: String, CaseIterable, Identifiable, Sendable {
     case blank, commits, publishApp = "publish-app"

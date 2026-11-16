@@ -34,6 +34,16 @@ private let listJSON = """
     #expect(plan.create == ["/qa/a"] && plan.conflicts.first?.reason == "exists" && !plan.isEmpty)
 }
 
+/// `skillsRename` answers the skill and the names it could not link.
+@Test func skillRenameResultDecodes() throws {
+    let skill = #"{"id": "b", "name": "b", "description": "", "group": "personal", "tags": [], "enabled": true, "agents": ["gemini"], "files": [], "modified": 1760000000}"#
+    let withConflict = try JSONDecoder().decode(SkillRenameResult.self, from: Data(
+        #"{"skill": \#(skill), "conflicts": [{"path": "/qa/.claude/skills/b", "reason": "exists"}]}"#.utf8))
+    #expect(withConflict.skill.id == "b" && withConflict.conflicts.map(\.path) == ["/qa/.claude/skills/b"] && withConflict.conflicts[0].reason == "exists")
+    let clean = try JSONDecoder().decode(SkillRenameResult.self, from: Data(#"{"skill": \#(skill), "conflicts": []}"#.utf8))
+    #expect(clean.conflicts.isEmpty)
+}
+
 /// The list the content column shows: the scope, then the filters and the search.
 @Test @MainActor func visibleSkillsFollowScopeFiltersAndSearch() throws {
     let tool = SkillsTool()

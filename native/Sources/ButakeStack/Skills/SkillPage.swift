@@ -10,7 +10,7 @@ struct SkillPage: View {
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .safeAreaInset(edge: .top, spacing: 0) { deletedNotice }
+            .safeAreaInset(edge: .top, spacing: 0) { VStack(spacing: 0) { deletedNotice; renameConflictsNotice } }
             .toolbar { toolbar }
             .skillsSheets(tool)
             .task {
@@ -58,6 +58,21 @@ struct SkillPage: View {
                 Button { tool.deleted = nil } label: { Label(L("common.close"), systemImage: Symbols.close) }
                     .labelStyle(.iconOnly).buttonStyle(.borderless).help(L("common.close"))
                     .accessibilityIdentifier("skills.deleted.close")
+            }
+            .padding(12)
+        }
+    }
+
+    /// After renaming: the AI folders where the new name was already taken (nothing there was touched).
+    @ViewBuilder private var renameConflictsNotice: some View {
+        if !tool.renameConflicts.isEmpty {
+            Notice(.warning, L("skills.renameConflicts"),
+                   detail: tool.renameConflicts.map(\.path).joined(separator: "\n") + "\n" + L("skills.renameConflictsDetail")) {
+                Button(L("skills.renameConflictsHealth")) { tool.showHealthAfterRename() }
+                    .buttonStyle(.bordered).accessibilityIdentifier("skills.renameConflicts.health")
+                Button { tool.renameConflicts = [] } label: { Label(L("common.close"), systemImage: Symbols.close) }
+                    .labelStyle(.iconOnly).buttonStyle(.borderless).help(L("common.close"))
+                    .accessibilityIdentifier("skills.renameConflicts.close")
             }
             .padding(12)
         }

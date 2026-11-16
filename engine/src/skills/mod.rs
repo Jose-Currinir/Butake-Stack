@@ -430,11 +430,18 @@ fn rename(ctx: &Ctx, index: &mut Index, id: &str, new_id: &str) -> Result<Value>
     if let Ok(text) = skill_file::read_text(&dir) {
         let _ = skill_file::write_text(&dir, &skill_file::rename_in_text(&text, id, new_id));
     }
+    // Names already taken in an AI folder are skipped by `create_for`; they are answered too.
+    let mut taken = vec![];
     if entry.enabled {
+        taken = links::creatable(ctx, index, new_id, &entry.agents).1;
         links::create_for(ctx, index, new_id, &entry.agents);
     }
     index::save(ctx, index)?;
-    skill_json(ctx, index, new_id)
+    let conflicts: Vec<Value> = taken
+        .iter()
+        .map(|p| json!({"path": p.to_string_lossy(), "reason": "exists"}))
+        .collect();
+    Ok(json!({"skill": skill_json(ctx, index, new_id)?, "conflicts": conflicts}))
 }
 
 fn delete(ctx: &Ctx, index: &mut Index, id: &str) -> Result<Value> {

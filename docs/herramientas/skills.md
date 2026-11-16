@@ -77,7 +77,7 @@ Tres columnas, como las demás herramientas:
 | `skillsSave {id, text}` | Reemplaza `SKILL.md` (256 KiB como máximo) |
 | `skillsUpdate {id, group?, tags?}` | Grupo y etiquetas (minúsculas, sin repetir, hasta 20) |
 | `skillsDuplicate {id, newId}` | Copia sin IA |
-| `skillsRename {id, newId, plan?, confirmed}` | Mueve la carpeta, cambia `name` del encabezado si era el id y recrea los enlaces |
+| `skillsRename {id, newId, plan?, confirmed}` | Mueve la carpeta, cambia `name` del encabezado si era el id y recrea los enlaces. Aplicado responde `{skill, conflicts:[{path, reason}]}`: los nombres ya ocupados en la carpeta de una IA se omiten sin tocarlos y se devuelven (`exists`); la app los muestra con un acceso a Salud |
 | `skillsDelete {id, plan?, confirmed}` | Quita sus enlaces, la manda a la papelera y devuelve `{trashId}` |
 | `skillsRestore {trashId, plan?, confirmed}` | La trae de vuelta; sus enlaces, donde el nombre siga libre |
 | `skillsGroupSave {groups}` | Crea, renombra y ordena grupos en una llamada |
