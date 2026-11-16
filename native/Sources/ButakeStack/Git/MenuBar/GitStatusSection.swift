@@ -10,10 +10,15 @@ struct GitStatusSection: View {
 
     var body: some View {
         let rows = board.rows
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(L("git.statusBoard.title")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text(L("git.statusBoard.title")).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
                 Spacer()
+                Toggle(isOn: $board.autoFetch) { Text(L("git.statusBoard.autoFetchShort")).font(.caption2).foregroundStyle(.secondary) }
+                    .toggleStyle(.checkbox).controlSize(.mini)
+                    .help(L("git.statusBoard.autoFetch") + ". " + L("git.statusBoard.autoFetchHelp"))
+                    .accessibilityLabel(L("git.statusBoard.autoFetch"))
+                    .accessibilityIdentifier("panel.git.autoFetch")
                 if board.refreshing { ProgressView().controlSize(.mini) }
                 Button { Task { await board.refresh() } } label: { Label(L("common.refresh"), systemImage: Symbols.reload).labelStyle(.iconOnly) }
                     .buttonStyle(.borderless).controlSize(.small).disabled(board.refreshing)
@@ -23,18 +28,18 @@ struct GitStatusSection: View {
             .padding(.horizontal, 14)
             if rows.isEmpty {
                 Label(L("git.statusBoard.allClear"), systemImage: Symbols.success)
-                    .font(.callout).foregroundStyle(.secondary)
-                    .padding(.horizontal, 14).padding(.vertical, 4)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .padding(.horizontal, 14).padding(.vertical, 2)
                     .accessibilityIdentifier("panel.git.allClear")
             } else {
                 // The repositories of a project of several parts together, under its name.
                 let groups = board.grouped(rows)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 0) {
                         ForEach(groups, id: \.id) { group in
                             if let title = group.title {
-                                Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
-                                    .padding(.horizontal, 14).padding(.top, 4)
+                                Text(title).font(.caption2.weight(.medium)).foregroundStyle(.tertiary).lineLimit(1)
+                                    .padding(.horizontal, 14).frame(height: 16)
                                     .accessibilityAddTraits(.isHeader)
                                     .accessibilityIdentifier("panel.git.composite.\(group.id)")
                             }
@@ -42,16 +47,9 @@ struct GitStatusSection: View {
                         }
                     }
                 }
-                .frame(height: min(CGFloat(rows.count) * 46 + CGFloat(groups.filter { $0.title != nil }.count) * 22, 260))
+                .frame(height: min(CGFloat(rows.count) * 27 + CGFloat(groups.filter { $0.title != nil }.count) * 16, 178))
                 .accessibilityIdentifier("panel.git.list")
             }
-            Toggle(isOn: $board.autoFetch) {
-                Text(L("git.statusBoard.autoFetch")).font(.caption)
-            }
-            .toggleStyle(.checkbox).controlSize(.small)
-            .help(L("git.statusBoard.autoFetchHelp"))
-            .padding(.horizontal, 14)
-            .accessibilityIdentifier("panel.git.autoFetch")
         }
         .task { await board.refresh() }
     }
@@ -66,17 +64,15 @@ private struct GitStatusRowView: View {
     var body: some View {
         let failure = board.failures[row.entry.path]
         let working = board.working == row.entry.path
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Image(systemName: row.summary.problems > 0 || row.summary.unfinished || failure != nil ? Symbols.warning : Symbols.git)
                 .foregroundStyle(row.summary.problems > 0 || row.summary.unfinished || failure != nil ? Brand.warning : .secondary)
-                .frame(width: 18).accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(row.entry.name).font(.callout.weight(.medium)).lineLimit(1)
-                Text(failure.map { $0.title } ?? row.detail).font(.caption).foregroundStyle(failure == nil ? .secondary : Brand.warning)
-                    .lineLimit(1).truncationMode(.middle)
-                    .help(failure.map { $0.detail.isEmpty ? $0.title : $0.detail } ?? row.spokenDetail)
-                    .accessibilityLabel(failure.map { $0.title } ?? row.spokenDetail)
-            }
+                .font(.caption).frame(width: 16).accessibilityHidden(true)
+            // One line: the name and, fainter, what it has pending.
+            Text(row.entry.name).font(.callout).lineLimit(1).layoutPriority(1)
+            Text(failure.map { $0.title } ?? row.detail).font(.caption2).foregroundStyle(failure == nil ? .secondary : Brand.warning)
+                .lineLimit(1).truncationMode(.tail)
+                .accessibilityLabel(failure.map { $0.title } ?? row.spokenDetail)
             Spacer(minLength: 4)
             if working {
                 ProgressView().controlSize(.small)
@@ -103,8 +99,8 @@ private struct GitStatusRowView: View {
                 .help(String(format: L("git.statusBoard.openHelp"), row.entry.name))
                 .accessibilityIdentifier("panel.git.open.\(row.entry.name)")
         }
-        .padding(.horizontal, 10).padding(.vertical, 5)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 14).frame(height: 27)
+        .help(row.entry.name + " · " + (failure.map { $0.detail.isEmpty ? $0.title : $0.detail } ?? row.spokenDetail))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(row.entry.name)
     }

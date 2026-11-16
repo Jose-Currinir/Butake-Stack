@@ -22,9 +22,12 @@ pestaña Cuentas desaparece), deja de vigilar carpetas y cada `git*` responde `p
 ## Qué hace
 
 - **Ventana:** selector de repositorio (proyectos de Stack con repositorio, agregados y recientes;
-  «Agregar repositorio…», «Clonar…», «Crear…»), pestañas Cambios, Historial, Ramas, Pull requests y
-  Problemas (⌥⌘1…⌥⌘5), un botón principal que cambia con el estado y «Más…» (guardados, etiquetas,
-  remotos, carpetas de trabajo y archivos).
+  «Agregar repositorio…», «Clonar…», «Crear…») y, bajo él, la barra lateral del repositorio:
+  «Espacio de trabajo» (Cambios, Historial, Pull requests y Problemas; ⌥⌘1…⌥⌘5), sus ramas (doble clic
+  cambia a la rama), las que solo están en el remoto y «Más» (etiquetas, guardados y remotos). Lo
+  elegido ahí llena el detalle: su lista junto a su contenido. En la barra de herramientas, las acciones de
+  siempre en su lugar: Confirmar, Bajar, Subir, Actualizar, la rama, Combinar y Guardar (con la cuenta
+  de lo pendiente; lo que no aplica queda atenuado); «Más…» suma carpetas de trabajo y archivos.
 - **Proyecto:** con la herramienta encendida, la página suma «Abrir en Git», la cuenta de problemas y,
   sin repositorio, «Crear repositorio aquí» (no dentro de otro repositorio).
 - **Proyectos de varias partes:** el selector y el panel de la barra de menús agrupan sus

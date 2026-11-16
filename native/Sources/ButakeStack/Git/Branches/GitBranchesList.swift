@@ -60,7 +60,7 @@ struct GitBranchesList: View {
 }
 
 /// A local branch: name, the current one marked, ↑ to send and ↓ to bring, its remote gone.
-private struct GitBranchRow: View {
+struct GitBranchRow: View {
     let branch: GitBranch
     let protected: Bool
     /// A branch of the same name exists on the remote (it is only not followed).

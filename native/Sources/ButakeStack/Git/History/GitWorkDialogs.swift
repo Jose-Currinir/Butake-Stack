@@ -57,7 +57,6 @@ private struct GitWorkDialogs: ViewModifier {
             .sheet(item: $work.naming) { request in GitCommitNameSheet(repository: repository, request: request).themedSheet() }
             .sheet(isPresented: $work.organizing) { GitOrganizeSheet(repository: repository).themedSheet() }
             .sheet(isPresented: $work.syncingBranches) { GitBranchSyncSheet(repository: repository).themedSheet() }
-            .sheet(isPresented: $work.more) { GitMoreSheet(repository: repository).themedSheet() }
             .sheet(isPresented: $work.resolving) { GitConflictSheet(repository: repository).themedSheet() }
             .sheet(isPresented: $work.identity) { GitIdentitySheet(repository: repository).themedSheet() }
     }

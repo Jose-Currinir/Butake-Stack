@@ -6,7 +6,7 @@ extension Symbols {
 }
 
 /// The Git tool's content column. With a repository open: the repository selector on top and,
-/// under it, the list of the tab on screen (files, branches…). With none: the list of
+/// under it, the repository's sidebar (`GitSidebar`). With none: the list of
 /// repositories itself, ready to open one.
 struct GitContentList: View {
     @Bindable var tool: GitTool
@@ -19,7 +19,7 @@ struct GitContentList: View {
                 VStack(spacing: 0) {
                     GitRepositoryPicker(tool: tool, repository: repository)
                     Divider()
-                    tool.tab.list(repository).id(repository.root)
+                    GitSidebar(tool: tool, repository: repository).id(repository.root)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {

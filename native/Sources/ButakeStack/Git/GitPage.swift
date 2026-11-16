@@ -2,23 +2,23 @@ import AppKit
 import SwiftUI
 
 /// The Git tool's detail: the selected tab's detail for the open repository, or why there is none
-/// (Git missing, no repositories, nothing chosen). Its toolbar holds the branch, the primary sync
-/// button and the tabs; the list of each tab is in the content column (`GitContentList`).
+/// (Git missing, no repositories, nothing chosen). Its toolbar holds the branch and the primary sync
+/// button; what is shown is chosen in the repository's sidebar, in the content column (`GitSidebar`).
 struct GitPage: View {
     @Bindable var store: StackStore
     @Bindable var tool = GitTool.shared
     /// The tab on screen, kept with the window.
     @SceneStorage("git.tab") private var savedTab = GitTab.changes.rawValue
-    /// The detail's width: the toolbar's tabs show their titles while they fit.
-    @State private var detailWidth: CGFloat = 800
+    /// A narrow detail: the toolbar's actions show their symbols only, so they stay over it.
+    @State private var narrow = false
 
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { if abs($0 - detailWidth) > 0.5 { detailWidth = $0 } }
+            .onGeometryChange(for: Bool.self) { $0.size.width < 860 } action: { narrow = $0 }
             .toolbar {
                 if tool.requirement.ready, let repository = tool.repository {
-                    GitToolbar(tool: tool, repository: repository, detailWidth: detailWidth)
+                    GitToolbar(repository: repository, compact: narrow)
                 }
             }
             .focusedSceneValue(\.gitCommands, tool.requirement.ready && tool.repository != nil ? GitCommands(tool: tool) : nil)
@@ -61,7 +61,7 @@ struct GitPage: View {
             GitRequirementView(store: store, tool: tool)
         case .ready:
             if let repository = tool.repository {
-                tool.tab.detail(repository).id(repository.root)
+                GitWorkspace(tab: tool.tab, repository: repository).id(repository.root)
                     .gitBranchDialogs(repository: repository)
             } else if !tool.loaded || tool.opening != nil {
                 ProgressView()

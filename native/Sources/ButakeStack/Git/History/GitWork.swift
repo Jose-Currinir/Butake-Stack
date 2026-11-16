@@ -11,6 +11,8 @@ import Foundation
     var organizing = false
     var syncingBranches = false
     var more = false
+    /// The list «Más…» opens on.
+    var moreSection: GitMoreSection = .stashes
     var resolving = false
     var identity = false
     var aborting = false

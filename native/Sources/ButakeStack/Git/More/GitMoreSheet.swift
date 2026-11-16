@@ -4,7 +4,7 @@ import SwiftUI
 /// tags, remotes, other working folders and the repository's files with a preview.
 struct GitMoreSheet: View {
     let repository: GitRepository
-    @State private var section: GitMoreSection = .stashes
+    @State var section: GitMoreSection = .stashes
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {

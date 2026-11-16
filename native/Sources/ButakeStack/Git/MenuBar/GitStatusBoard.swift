@@ -26,7 +26,9 @@ import SwiftUI
 
     /// Rows that need something, in the order of the repository picker.
     var rows: [GitStatusRow] {
-        tool.entries.filter { !$0.missing }.compactMap { entry in
+        // A folder listed twice (a project and the same repository added by hand) shows once.
+        var seen = Set<String>()
+        return tool.entries.filter { !$0.missing && seen.insert($0.path).inserted }.compactMap { entry in
             guard let summary = tool.summary(of: entry) else { return nil }
             let row = GitStatusRow(entry: entry, summary: summary)
             return row.needsAttention || failures[entry.path] != nil ? row : nil
