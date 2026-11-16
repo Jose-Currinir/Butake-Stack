@@ -91,7 +91,13 @@ struct GitCloneAccessNotice: View {
                 if !access.hostKnown { hostNotice(access) }
                 if !access.identities { keyNotice } else if needsPublic { publicNotice }
             } else if refused == "clone_auth" {
-                Notice(.warning, L("git.access.https.title"), detail: L("git.access.https.detail")) {
+                let connected = provider.flatMap { hosting.account(for: $0) } != nil
+                Notice(.warning, L(connected ? "git.access.token.title" : "git.access.https.title"),
+                       detail: connected ? String(format: L("git.access.token.detail"), where_) : L("git.access.https.detail")) {
+                    if connected {
+                        Button { SettingsRouter.shared.open(.accounts) } label: { Label(L("git.pr.missing.openAccounts"), systemImage: Symbols.settings) }
+                            .buttonStyle(.bordered).accessibilityIdentifier("git.access.token.accounts")
+                    }
                     if let useSSH {
                         Button(action: useSSH) { Label(L("git.access.https.useSSH"), systemImage: Symbols.key) }
                             .buttonStyle(.bordered).accessibilityIdentifier("git.access.https.useSSH")

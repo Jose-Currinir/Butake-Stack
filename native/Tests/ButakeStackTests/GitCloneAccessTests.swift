@@ -29,3 +29,32 @@ import Testing
     #expect(GitHostingProvider.github.sshKeysPage.host == "github.com" && GitHostingProvider.github.sshKeysPage.scheme == "https")
     #expect(GitHostingProvider.bitbucket.sshKeysPage.host == "bitbucket.org" && GitHostingProvider.bitbucket.sshKeysPage.scheme == "https")
 }
+
+/// The account's token goes with a transfer only over HTTPS and only to its provider's own
+/// origin, with the user name each provider takes with a token.
+@MainActor @Test func theTokenGoesToGitOnlyForItsProviderOverHTTPS() async throws {
+    let token = "ficha-inventada-para-git"
+    let vault = GitHostingVault(items: MemoryKeychainItems())
+    try vault.save(GitHostingAccount(provider: .bitbucket, login: "ana-qa", name: "Ana Prueba", email: "ana@example.invalid"),
+                   credentials: GitHostingCredentials(email: "ana@example.invalid", token: token))
+    let hosting = GitHosting(endpoints: .production, vault: vault)
+
+    let bitbucket = try #require(await hosting.transferCredentials(for: "https://bitbucket.org/equipo/app.git"))
+    #expect(bitbucket == ["origin": "https://bitbucket.org", "username": "x-bitbucket-api-token-auth", "password": token])
+    // Bitbucket's own clone address carries the user: the origin is still the provider's.
+    #expect(await hosting.transferCredentials(for: "https://ana-qa@bitbucket.org/equipo/app.git")?["origin"] == "https://bitbucket.org")
+
+    // SSH, another server, a look-alike name and a provider without an account: nothing is sent.
+    for remote in ["git@bitbucket.org:equipo/app.git", "ssh://git@bitbucket.org/equipo/app.git", "https://git.example.invalid/equipo/app.git",
+                   "https://bitbucket.org.example.invalid/equipo/app.git", "http://bitbucket.org/equipo/app.git", "https://github.com/equipo/app.git", ""] {
+        #expect(await hosting.transferCredentials(for: remote) == nil, "\(remote)")
+    }
+    let plain: [String: Any] = ["method": "gitClone", "url": "git@bitbucket.org:equipo/app.git"]
+    #expect(await hosting.transfer(plain, remote: "git@bitbucket.org:equipo/app.git")["credentials"] == nil)
+    #expect(await hosting.transfer(plain, remote: "https://bitbucket.org/equipo/app.git")["credentials"] != nil)
+
+    // On GitHub the account's own name goes with the token.
+    try vault.save(GitHostingAccount(provider: .github, login: "ana-qa", name: "", email: ""), credentials: GitHostingCredentials(email: "", token: token))
+    await hosting.loadAccounts()
+    #expect(await hosting.transferCredentials(for: "https://github.com/equipo/app.git")?["username"] == "ana-qa")
+}

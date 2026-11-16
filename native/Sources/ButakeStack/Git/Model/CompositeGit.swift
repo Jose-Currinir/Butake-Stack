@@ -10,7 +10,9 @@ import Foundation
         var failures: [String: GitFailure] = [:]
         for entry in entries where !entry.missing {
             do {
-                let _: String? = try await store.call(["method": "gitAction", "path": entry.path, "action": GitAction.fetch.rawValue, "value": ""])
+                let request = await GitHosting.shared.transfer(["method": "gitAction", "path": entry.path, "action": GitAction.fetch.rawValue, "value": ""],
+                                                               path: entry.path, store: store)
+                let _: String? = try await store.call(request)
             } catch {
                 failures[entry.path] = GitFailure(error)
             }

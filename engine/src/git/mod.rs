@@ -15,6 +15,7 @@ mod access;
 mod actions;
 mod branches;
 mod console;
+pub mod credentials;
 mod diff;
 mod editing;
 mod files;
@@ -202,6 +203,15 @@ async fn run(method: &str, r: &Value) -> Result<Value> {
         return Err(error("invalid_path", "Selecciona una carpeta."));
     }
     let root = root.as_path();
+    // The token of a connected account, only for a transfer with that provider (credentials.rs).
+    if !r["credentials"].is_null() {
+        let urls = match method {
+            "gitClone" | "gitPublish" => vec![text(r, "url").to_string()],
+            "gitAction" => remotes::urls(root).await,
+            _ => vec![],
+        };
+        credentials::accept(&r["credentials"], &urls)?;
+    }
     Ok(match method {
         "gitClone" => json!(remotes::clone(root, text(r, "url"), text(r, "name")).await?),
         "gitInit" => json!(

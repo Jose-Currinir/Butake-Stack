@@ -134,9 +134,10 @@ caracteres como máximo. Solo los `git*` aceptan solicitudes de más de 1 MiB (h
   abre `.git` ni enlaces simbólicos y solo guarda si el archivo, HEAD y la rama siguen iguales.
 - Las URL salen sin usuario ni contraseña; la salida de `remote`/`config` y los errores pasan por el
   filtro de credenciales.
-- Fichas de proveedores (R19): solo en el Llavero, leídas la primera vez que hacen falta y enviadas solo
-  en la cabecera `Authorization` de pedidos HTTPS al anfitrión de la API del proveedor (sesión efímera,
-  sin redirección a otro anfitrión). Nunca llegan al motor, a Git, a disco ni a la interfaz. Todo lo
+- Fichas de proveedores (R19): solo en el Llavero, leídas la primera vez que hacen falta y enviadas en
+  la cabecera `Authorization` de pedidos HTTPS al anfitrión de la API del proveedor (sesión efímera,
+  sin redirección a otro anfitrión) y, en memoria, a Git en una transferencia por HTTPS con ese mismo
+  proveedor (ver «HTTPS con la ficha de la cuenta»). Nunca llegan a disco ni a la interfaz. Todo lo
   que crea algo en el proveedor se confirma; un repositorio nuevo es privado por defecto.
 - Autores de commits (R18): se leen en el momento, nunca se guardan.
 
@@ -145,6 +146,24 @@ caracteres como máximo. Solo los `git*` aceptan solicitudes de más de 1 MiB (h
 - `butakestack://tool/git`: abre la herramienta (apagada, Ajustes › Herramientas con su fila).
 - `butakestack://git?path=<repositorio>` (por ejemplo `butakestack://git/open?path=/Users/ana/codigo/tienda`):
   abre ese repositorio si la herramienta está encendida; si no, se comporta como `tool/git`.
+
+## HTTPS con la ficha de la cuenta
+
+Con GitHub o Bitbucket Cloud conectados, clonar, traer, bajar, subir y publicar por HTTPS usan la ficha de
+esa cuenta (R19), sin configurar nada en Git. «Clonar…» propone HTTPS por defecto.
+
+- La app agrega `credentials` (`origin`, `username`, `password`) al pedido (`gitClone`, `gitPublish`,
+  `gitAction` de red) solo si el remoto es una dirección `https://` del proveedor y hay cuenta
+  (`GitHosting.transferCredentials`). Usuario: `x-bitbucket-api-token-auth` en Bitbucket Cloud, el de la
+  cuenta en GitHub.
+- El motor (`engine/src/git/credentials.rs`) las acepta solo si la dirección a clonar o publicar, o un remoto
+  del repositorio, es de ese origen; si no, las descarta. Para `clone`, `fetch`, `pull` y `push` apaga los
+  gestores de credenciales de Git (`-c credential.helper=`) y apunta `GIT_ASKPASS` a sí mismo: cuando Git
+  pregunta, el ayudante consulta por un socket Unix privado y recibe respuesta solo si la pregunta es por ese
+  origen. La ficha no queda en la dirección del remoto, en `.git/config`, en argumentos ni en archivos.
+- Con SSH, con otro servidor o sin cuenta, Git funciona como antes (claves y gestores del usuario).
+- Subir exige una ficha con permiso de escritura de repositorios; las creadas con los permisos anteriores
+  solo leen.
 
 ## Acceso por SSH al clonar
 
@@ -162,9 +181,11 @@ que falta, cada cosa con su acción:
   que la sesión del Mac); sin ninguna, lleva a Ajustes › Claves SSH.
 - **Clave no registrada** (`clone_ssh_denied`): copiar la clave pública y abrir la página de claves SSH del
   proveedor. Stack no la registra por la API: la ficha no pide ese permiso.
-- **HTTPS sin credenciales** (`clone_auth`): explica que la ficha no va a Git (R19) y ofrece pasar a SSH.
+- **HTTPS rechazado** (`clone_auth`): con la cuenta conectada, la ficha no da acceso a ese repositorio
+  (lleva a Ajustes › Cuentas para conectar otra); sin cuenta o con otro servidor, lo explica. En ambos
+  casos ofrece pasar a SSH.
 
-Nada de esto lee una clave privada ni entrega la ficha a Git. Las pruebas usan una carpeta personal
+Nada de esto lee una clave privada. Las pruebas usan una carpeta personal
 temporal y las claves públicas de los proveedores como texto, sin red (`engine/src/git/tests/access.rs`).
 
 ## Límites conocidos

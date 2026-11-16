@@ -206,6 +206,26 @@ secretos; borrado completo; procedimiento de incidentes; pruebas automáticas.
 - Sin datos personales nuevos ni envíos fuera del Mac: la postura no cambia (EIPD no obligatoria). Pruebas con
   un respaldo inventado y llaves en memoria (`native/Tests/ButakeStackTests/VaultImportClarityTests.swift`).
 
+## Revisión 2026-11-16 — Git por HTTPS con la ficha de la cuenta y servidores SSH conocidos
+- **La ficha también autentica a Git, solo con su proveedor** (R19 ampliado; R18 ajustado): conectar la cuenta
+  permitía listar los repositorios pero no clonarlos por HTTPS, porque la ficha no llegaba a Git. Ahora la app
+  la entrega al motor con cada transferencia por HTTPS (clonar, traer, bajar, subir, publicar) cuyo remoto es
+  una dirección `https://` de GitHub o Bitbucket Cloud con cuenta conectada. El motor la tiene en memoria
+  durante ese comando y se la da a Git por un ayudante askpass (socket Unix en carpeta 0700, ficha de un solo
+  uso, mismo usuario), que responde solo a la pregunta por el origen del proveedor. Con ese comando los
+  gestores de credenciales de Git quedan apagados: nada la guarda. No va a la dirección del remoto, a la
+  configuración de Git, a argumentos, variables, archivos, registros, respuestas ni a la interfaz.
+- **Permisos de la ficha:** los mínimos que Stack muestra incluyen ahora leer y escribir repositorios
+  (GitHub «Contents: Read and write»; Bitbucket `read:repository:bitbucket` y `write:repository:bitbucket`).
+  Una ficha anterior, de solo lectura, sirve para clonar y traer; para subir hay que crear otra.
+- **Servidores SSH conocidos:** al clonar por SSH, Stack agrega el servidor a `~/.ssh/known_hosts` solo tras
+  mostrar sus huellas y con la confirmación del usuario; para GitHub y Bitbucket las compara con las que
+  publica cada proveedor y rechaza cualquier otra. No lee claves privadas.
+- Sin datos personales nuevos; lo único que sale del Mac es la autenticación de Git ante el proveedor que el
+  usuario conectó: la postura no cambia (EIPD no obligatoria). Pruebas: `engine/tests/git_credentials.rs`
+  (servidor local y ficha centinela), `engine/src/git/tests/access.rs` y
+  `native/Tests/ButakeStackTests/GitCloneAccessTests.swift`.
+
 ## Pendiente fuera del código
 - RUT de Butake SpA (sólo para el estado; no afecta los requisitos).
 - Recomendación organizativa: credenciales de Producción de sólo lectura en Macs de desarrollo.

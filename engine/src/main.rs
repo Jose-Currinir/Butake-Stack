@@ -323,6 +323,10 @@ async fn main() {
     if ssh::askpass::helper_mode() {
         std::process::exit(ssh::askpass::run_helper());
     }
+    // Started by Git as GIT_ASKPASS for a transfer with a connected account (git/credentials.rs).
+    if git::credentials::helper_mode() {
+        std::process::exit(git::credentials::run_helper());
+    }
     // AWS CLI asks for the keys of a profile kept in the Keychain (credential_process).
     if std::env::args().nth(1).as_deref() == Some(aws::helper::SUBCOMMAND) {
         std::process::exit(aws::helper::run(&args[2..]));

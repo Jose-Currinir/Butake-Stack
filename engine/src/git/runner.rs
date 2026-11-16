@@ -271,6 +271,7 @@ fn failure_detail(output: &std::process::Output) -> String {
 
 pub async fn git_bytes(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
     let mut command = base_command(root, true);
+    let _session = super::credentials::attach(&mut command, args);
     command
         .args(args)
         .env("GIT_EDITOR", "true")

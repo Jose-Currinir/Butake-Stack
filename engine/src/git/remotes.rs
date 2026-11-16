@@ -24,6 +24,19 @@ pub fn without_credentials(url: &str) -> String {
     }
 }
 
+/// The addresses of every remote of the repository (fetch and push), as configured.
+pub async fn urls(root: &Path) -> Vec<String> {
+    git(
+        root,
+        &["config", "--get-regexp", r"^remote\..*\.(push)?url$"],
+    )
+    .await
+    .unwrap_or_default()
+    .lines()
+    .filter_map(|line| line.split_once(' ').map(|(_, url)| url.trim().to_string()))
+    .collect()
+}
+
 /// Only network transports a user would paste: https, ssh and scp-like `git@host:path`.
 /// Rejects `ext::`, `file://`, option-like values and anything with spaces or control characters.
 pub fn validate_clone_url(url: &str) -> Result<()> {

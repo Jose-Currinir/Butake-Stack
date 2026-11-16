@@ -75,7 +75,9 @@ import SwiftUI
     func fetchAll() async {
         await tool.loadList()
         for entry in tool.entries where !entry.missing && working == nil {
-            let _: String? = try? await store.call(["method": "gitAction", "path": entry.path, "action": GitAction.fetch.rawValue, "value": ""])
+            let request = await GitHosting.shared.transfer(["method": "gitAction", "path": entry.path, "action": GitAction.fetch.rawValue, "value": ""],
+                                                           path: entry.path, store: store)
+            let _: String? = try? await store.call(request)
         }
         lastFetch = Date()
         await refresh()

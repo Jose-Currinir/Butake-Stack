@@ -60,7 +60,9 @@ Stack, de Butake: entorno de desarrollo local para macOS. Producto canónico: Sw
 - Secretos de Entornos: un ítem por proyecto y entorno (`EnvSecrets`); no volver a ítems por variable
   ni leer valores para pintar una pantalla (los nombres están en los atributos).
 - Cuentas de GitHub y Bitbucket (herramienta Git): un ítem por cuenta (`GitHostingVault`); la ficha
-  solo va a la API del proveedor, nunca al motor, a Git, a disco ni a la interfaz (R19).
+  va a la API del proveedor y, en memoria y solo durante una transferencia por HTTPS con ese mismo
+  proveedor, al motor para responderle a Git (`engine/src/git/credentials.rs`); nunca a la dirección
+  del remoto, a la configuración de Git, a argumentos, a disco, a registros ni a la interfaz (R19).
 - Herramienta Git: Stack no abre la app Butake Git. «Traer mis repositorios» solo lee las preferencias
   de esa app y no copia sus cuentas.
 - Toda regla nueva sobre datos personales o secretos pasa a `.compliance/` como requisito `R<n>`.

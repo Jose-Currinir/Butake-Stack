@@ -3,7 +3,8 @@ import SwiftUI
 
 /// «Clonar…»: a repository of a connected account (searched in a list) or any address
 /// (https://, ssh:// or git@servidor:ruta), into a folder of this Mac; the new repository opens
-/// in the tool. Git uses the Mac's SSH keys and credential managers: the token never reaches it.
+/// in the tool. Over HTTPS, a repository of a connected account is cloned with its token; over
+/// SSH, with the Mac's keys (`GitCloneAccessNotice` says what is missing).
 struct GitCloneSheet: View {
     let tool: GitTool
     var hosting = GitHosting.shared
@@ -15,7 +16,8 @@ struct GitCloneSheet: View {
     @State private var loading = false
     @State private var search = ""
     @State private var chosen: GitHostingRemoteRepository.ID?
-    @State private var useSSH = true
+    /// HTTPS works as soon as the account is connected; SSH stays chosen once the user picks it.
+    @AppStorage("git.cloneSSH") private var useSSH = false
     @State private var address = ""
     @State private var parent = GitCloneSheet.defaultParent
     @State private var name = ""
