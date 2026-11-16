@@ -17,6 +17,7 @@ Texto completo de cada requisito en `docs/21719-gestor-entornos-requisitos.md`.
 | R20 | Importación propuesta por un enlace sin acceso por sí sola | Revisión 2026-11-14 (P-38) |
 | R21 | Resumen de importación sin contenido y material sensible sin leer | Revisión 2026-11-14 (P-40) |
 | R22 | Renombrar o mover un proyecto sin secretos huérfanos ni copias | Revisión 2026-11-14 (P-41) |
+| R23 | Skills: texto del usuario solo en la carpeta de Stack, enlaces solo hacia las carpetas de las IA bajo el HOME | Revisión 2026-11-16 (herramienta Skills) |
 
 Las revisiones siguen en orden cronológico, de la más antigua a la más nueva.
 
@@ -225,6 +226,18 @@ secretos; borrado completo; procedimiento de incidentes; pruebas automáticas.
   usuario conectó: la postura no cambia (EIPD no obligatoria). Pruebas: `engine/tests/git_credentials.rs`
   (servidor local y ficha centinela), `engine/src/git/tests/access.rs` y
   `native/Tests/ButakeStackTests/GitCloneAccessTests.swift`.
+
+## Revisión 2026-11-16 — Herramienta Skills
+- **Skills como texto del usuario, sin salir de Stack ni tocar lo ajeno** (R23 nuevo; ningún requisito anterior
+  trata de enlaces dentro de carpetas de otros programas): las skills (instrucciones en texto) viven en
+  `skills/` de la carpeta de datos de Stack, con su índice (0600) y una papelera de 30 días. Solo
+  `skillsRead` y `skillsExport` devuelven su texto; nada se registra. Las IA (Claude, Codex, Gemini) reciben
+  enlaces simbólicos a la copia única, solo bajo el HOME canonicalizado; solo se quitan enlaces que resuelven
+  a la carpeta `skills/` de Stack y cada cambio se planifica, se muestra y se confirma. ChatGPT solo recibe
+  texto exportado, copiado por el usuario.
+- Sin datos personales nuevos que Stack procese por su cuenta ni envíos fuera del Mac: la postura no cambia
+  (EIPD no obligatoria). Pruebas con HOME y carpeta de datos temporales y skills inventadas:
+  `engine/src/skills/tests/` (`skills.rs`, `links.rs`, `trash_groups.rs`, `health_export.rs`, `dispatch.rs`).
 
 ## Pendiente fuera del código
 - RUT de Butake SpA (sólo para el estado; no afecta los requisitos).

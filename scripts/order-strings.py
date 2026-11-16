@@ -53,6 +53,7 @@ AREAS = [
     ("Herramienta Registros", ["logs"]),
     ("Herramienta AWS", ["aws"]),
     ("Herramienta Google Cloud", ["gcp"]),
+    ("Herramienta Skills", ["skills"]),
     ("Ajustes", ["settings", "general", "theme*", "keys", "trust", "listener", "mode",
                  "migration", "backup"]),
     ("Errores del motor y de la app", ["error"]),

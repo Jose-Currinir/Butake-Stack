@@ -20,6 +20,7 @@ struct ToolInfo: Codable, Identifiable, Hashable, Sendable {
         case "vault": "vault"
         case "mail": "mail"
         case "git": "config/git"
+        case "skills": "skills"
         default: nil
         }
     }

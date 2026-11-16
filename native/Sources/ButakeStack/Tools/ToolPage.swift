@@ -15,6 +15,7 @@ struct ToolPage: View {
         case "aws": AWSPage(store: store)
         case "gcp": GCPPage(store: store)
         case "git": GitPage(store: store)
+        case "skills": SkillPage(store: store)
         default: HomePage(store: store)
         }
     }

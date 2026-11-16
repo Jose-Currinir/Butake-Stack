@@ -9,6 +9,7 @@ mod error_texts_tests;
 mod gcp;
 mod git;
 mod runtimes;
+mod skills;
 mod ssh;
 mod web;
 use anyhow::{bail, Result};
@@ -46,6 +47,7 @@ fn dispatch_with(
         Some("aws") => return aws::dispatch(store, method, request),
         Some("gcp") => return gcp::dispatch(store, method, request),
         Some("git") => return git::dispatch(store, method, request),
+        Some("skills") => return skills::dispatch(store, method, request),
         _ => {}
     }
     // Extensions of the components (P-43), before `installSteps` of the other installs.
@@ -260,6 +262,16 @@ const PUBLIC_ERRORS: &[&str] = &[
     "gcp_timeout",
     "gcp_cancelled",
     "gcp_failed",
+    // Skills tool.
+    "skills_invalid_id",
+    "skills_exists",
+    "skills_not_found",
+    "skills_invalid_group",
+    "skills_group_not_empty",
+    "skills_invalid_folder",
+    "skills_too_large",
+    "skills_link_conflict",
+    "skills_agent_builtin",
     // Projects without a server, removing a version in use and one-click fixes (P-42).
     "project_not_served",
     "runtime_global",

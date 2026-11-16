@@ -1,0 +1,152 @@
+# Skills
+
+Guarda tus skills (instrucciones en texto que las IA cargan según la tarea) en un solo lugar, las
+ordena en grupos y las enlaza a las carpetas de Claude, Codex y Gemini sin copiarlas. Para ChatGPT, que
+no tiene carpeta de skills, las exporta como texto listo para pegar.
+
+- Motor: `engine/src/skills/` (`mod.rs` despacho y operaciones, `index.rs`, `skill_file.rs`,
+  `agents.rs`, `links.rs`, `health.rs`, `export.rs`, `templates.rs`, `trash.rs`; pruebas en
+  `engine/src/skills/tests/`).
+- App: `native/Sources/ButakeStack/Skills/` (archivos `Skill*`).
+- Id del catálogo: `skills`. No requiere programas externos (`requires` vacío).
+
+## Cómo se activa
+
+Ajustes › Herramientas › Skills. Empieza apagada en toda instalación (sin entrada en `plugins.json`).
+Apagada no aparece en la barra lateral, la paleta ni los menús, y cada `skills*` responde
+`plugin_disabled`. Desactivarla no borra nada ni quita enlaces; «Eliminar datos…» (Ajustes ›
+Herramientas) quita los enlaces que Stack creó en las carpetas de las IA y borra `skills/` y
+`skills-trash/`, con confirmación.
+
+## Qué hace
+
+- **Una sola copia:** cada skill es una carpeta con su `SKILL.md` en la carpeta de datos de Stack. Las
+  IA reciben un enlace simbólico a esa carpeta (`<carpeta de la IA>/<id>`), nunca una copia.
+- **Grupos:** Personal, Trabajo y Butake de partida; se crean, renombran, reordenan y eliminan. Las
+  carpetas son planas: el grupo y las etiquetas viven solo en `index.json`, así que mover una skill de
+  grupo o renombrar un grupo nunca toca un enlace.
+- **IA incluidas:** Claude (`~/.claude/skills`), Codex (`~/.codex/skills`) y Gemini
+  (`~/.gemini/skills`) por enlace; ChatGPT solo por exportación. Se pueden agregar IA propias con
+  nombre y carpeta (`skillsAgentSave`).
+- **Plantillas:** En blanco, Commits y Publicar app (`templates.rs`). El `SKILL.md` queda portable: su
+  encabezado trae solo `name` y `description`; lo propio de Stack no va en el archivo.
+- **Edición:** el editor guarda el `SKILL.md` completo (máximo 256 KiB) y vuelve a leer `name` y
+  `description` del encabezado. Duplicar copia la carpeta sin seguir enlaces y la deja sin IA.
+- **Papelera:** eliminar una skill quita sus enlaces y mueve la carpeta a `skills-trash/`; «Deshacer»
+  la restaura con sus enlaces donde el nombre siga libre. Lo que lleva más de 30 días se purga al
+  listar.
+- **Salud:** revisa sin cambiar nada y propone una acción por problema (ver abajo).
+
+### Pantallas
+
+Tres columnas, como las demás herramientas:
+
+- **Columna de contenido:** selector Todas, un elemento por grupo y Salud; búsqueda, filtros por
+  etiqueta y por IA, y «Grupos…» al pie.
+- **Lista:** las skills del ámbito elegido.
+- **Detalle:** nombre, descripción, grupo, etiquetas, última modificación y archivos de apoyo; una
+  sección «IA» con un interruptor por IA (ChatGPT ofrece «Copiar texto»; las IA propias, Editar y
+  Quitar) y el editor de `SKILL.md` (⌘S guarda).
+- **Barra de herramientas:** «Nueva skill…» (con plantilla), Duplicar, Exportar… (copiar o guardar un
+  `.md`) y «⋯» (Mover a grupo…, Renombrar…, Desactivar o Activar, Eliminar…).
+- **Hoja de confirmación de enlaces:** antes de aplicar cualquier cambio a una carpeta de IA (enlazar,
+  activar o desactivar, renombrar, eliminar, restaurar o quitar una IA propia) muestra las rutas
+  exactas que se crean, las que se quitan y los conflictos.
+- **Salud:** cada problema con su botón: escribir la descripción, reparar el enlace, renombrar,
+  enlazar, mostrar en Finder o cambiar la carpeta.
+
+### Salud
+
+| Tipo | Significa |
+|---|---|
+| `no_description` | El encabezado no trae `description` |
+| `broken_link` | Falta el enlace de una IA asignada, o hay un enlace a Stack cuya skill ya no existe |
+| `conflict` | Algo que no es nuestro ocupa el nombre en la carpeta de la IA; no se toca |
+| `duplicate_name` | Dos skills tienen el mismo `name` |
+| `unused` | La skill no está enlazada a ninguna IA |
+| `missing_folder` | Falta la carpeta de una skill o de una IA propia |
+
+## Métodos del motor
+
+| Método | Qué hace |
+|---|---|
+| `skillsList` | Grupos, skills, IA (con `mode` `link` o `export`, `builtin`, `exists`) y etiquetas; purga la papelera de más de 30 días |
+| `skillsRead {id}` | El texto completo de `SKILL.md` |
+| `skillsCreate {id, group, template, name, description}` | Skill nueva desde `blank`, `commits` o `publish-app` |
+| `skillsSave {id, text}` | Reemplaza `SKILL.md` (256 KiB como máximo) |
+| `skillsUpdate {id, group?, tags?}` | Grupo y etiquetas (minúsculas, sin repetir, hasta 20) |
+| `skillsDuplicate {id, newId}` | Copia sin IA |
+| `skillsRename {id, newId, plan?, confirmed}` | Mueve la carpeta, cambia `name` del encabezado si era el id y recrea los enlaces |
+| `skillsDelete {id, plan?, confirmed}` | Quita sus enlaces, la manda a la papelera y devuelve `{trashId}` |
+| `skillsRestore {trashId, plan?, confirmed}` | La trae de vuelta; sus enlaces, donde el nombre siga libre |
+| `skillsGroupSave {groups}` | Crea, renombra y ordena grupos en una llamada |
+| `skillsGroupDelete {id, moveTo}` | Elimina un grupo; `moveTo` es obligatorio si tiene skills |
+| `skillsAgentSave {id, name, folder}` | Crea o edita una IA propia (las incluidas no se editan) |
+| `skillsAgentRemove {id, plan?, confirmed}` | Quita una IA propia y sus enlaces |
+| `skillsLinkPlan {changes}` o `{skill, enabled}` | Lo que se crearía, se quitaría y chocaría; no escribe nada |
+| `skillsLinkApply {…, confirmed}` | Aplica el plan y actualiza `agents` y `enabled` en el índice |
+
+Los cuatro métodos con `plan?` (renombrar, eliminar, restaurar y quitar una IA propia) responden
+`plan: true` con `{create, remove, conflicts}`, la misma forma que `skillsLinkPlan`, sin escribir nada
+(ni tomar el candado de escritura); la misma petición con `confirmed: true` en lugar de `plan` hace
+exactamente eso. Sin `confirmed` responden `confirmation_required`. El plan de renombrar quita los
+enlaces del id anterior y crea los del nuevo (un nombre ocupado en la carpeta de una IA es conflicto);
+eliminar y quitar una IA solo quitan; restaurar solo crea, y los nombres ocupados son conflicto.
+| `skillsHealth` | La lista de problemas de arriba |
+| `skillsExport {id}` o `{ids, format}` | Texto Markdown (nombre, descripción, instrucciones y nombres de los archivos de apoyo) para pegar en ChatGPT; hasta 50 skills |
+
+Códigos propios: `skills_invalid_id`, `skills_exists`, `skills_not_found`, `skills_invalid_group`,
+`skills_group_not_empty`, `skills_invalid_folder`, `skills_too_large`, `skills_link_conflict` y
+`skills_agent_builtin`; además `confirmation_required`, `invalid_name` y `unsafe_store_path`.
+
+## Datos que guarda
+
+Todo en la carpeta de datos de Stack:
+
+| Qué | Dónde |
+|---|---|
+| El índice (grupos, etiquetas, IA y, por skill, grupo, etiquetas, `enabled` e IA enlazadas) | `skills/index.json` (0600, escritura atómica) |
+| La copia real de cada skill y sus archivos de apoyo | `skills/<id>/SKILL.md`, `skills/<id>/…` |
+| Skills eliminadas, 30 días | `skills-trash/<id>-<epoch>/` con `entry.json` (su entrada del índice) y `files/` |
+| Estado de la herramienta | `config/plugins.json` |
+
+Fuera de la carpeta de datos, Stack solo crea enlaces simbólicos en las carpetas de las IA. Una
+carpeta bajo `skills/` con `SKILL.md` y sin entrada en el índice se adopta en el primer grupo. Nada va
+al Llavero.
+
+## Seguridad (R23)
+
+- Una skill es texto del usuario. Vive solo en la carpeta de datos de Stack; el motor no lo registra ni
+  lo devuelve fuera de `skillsRead` y `skillsExport`. Ni errores ni la salud llevan texto: solo ids,
+  rutas y códigos.
+- `SKILL.md` se abre sin seguir enlaces (`O_NOFOLLOW`), debe ser un archivo regular de hasta 256 KiB, y
+  guardar sobre un enlace falla con `unsafe_store_path`. Duplicar y listar archivos de apoyo tampoco
+  siguen enlaces. Los ids son `[a-z0-9-]`, 1 a 64 caracteres, sin guion al principio ni al final.
+- Los enlaces solo van a carpetas de IA bajo el HOME, resueltas con `canonicalize`: sin `..`, nunca el
+  propio HOME, nunca la carpeta de datos de Stack ni una que la contenga. Una IA propia no puede repetir
+  la carpeta de otra, ni cambiarla mientras tenga skills enlazadas.
+- Solo se quita un enlace que apunta a la carpeta de esa skill dentro de `skills/`. Un archivo o una
+  carpeta real con el mismo nombre en la carpeta de una IA no se toca: se informa como `conflict`
+  (`exists`).
+- Cada cambio de enlaces se planifica (`skillsLinkPlan`), se muestra con las rutas exactas y se aplica
+  solo con `confirmed`; renombrar, eliminar, restaurar y quitar una IA también se planifican (`plan: true`), se
+  muestran con las rutas exactas en la misma hoja y exigen `confirmed`.
+- Eliminar va a una papelera restaurable que se purga a los 30 días; «Eliminar datos…» borra además la
+  papelera.
+- Pruebas y QA solo con un HOME y una carpeta de datos temporales; el motor recibe el HOME por
+  parámetro (`dispatch_in`) y las pruebas no tocan las carpetas reales de ninguna IA.
+
+## Enlaces
+
+- `butakestack://tool/skills`: abre la herramienta.
+
+## Límites conocidos
+
+- Solo un enlace por IA y skill, con el id como nombre: no hay nombres distintos por IA.
+- ChatGPT no tiene carpeta: solo se exporta texto, y los archivos de apoyo van por nombre, sin su
+  contenido.
+- No lee las carpetas actuales de las IA ni importa skills que ya estén ahí: se crean en Stack o se
+  colocan en `skills/<id>/` (se adoptan).
+- Restaurar («Deshacer») muestra antes los enlaces que recrea y exige `confirmed`; solo donde el
+  nombre sigue libre, los ocupados se omiten y se informan como conflicto.
+- Pruebas: motor en `engine/src/skills/tests/`; app en `SkillsTests.swift`.

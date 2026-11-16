@@ -61,13 +61,18 @@
       "status": "pass",
       "evidence": "docs/21719-gestor-entornos-requisitos.md; pruebas automáticas R12 en engine/src/web/projects/envs/tests.rs",
       "remediation": ""
+    },
+    "data-skills": {
+      "status": "pass",
+      "evidence": "engine/src/skills/ (R23): texto solo en skills/ de la carpeta de datos, devuelto solo por skillsRead y skillsExport; SKILL.md sin seguir enlaces (O_NOFOLLOW, 256 KiB); enlaces solo bajo el HOME canonicalizado y solo se quitan los que resuelven a skills/; plan y confirmed; papelera de 30 días. Pruebas con HOME temporal: engine/src/skills/tests/links.rs (apply_links_to_the_real_copy_and_remove_only_own_links, a_conflict_is_left_alone_and_reported), skills.rs (invalid_ids_paths_and_sizes_are_refused, skill_files_are_never_read_through_links), trash_groups.rs (delete_and_restore_bring_the_links_back, old_trash_is_purged_on_list), dispatch.rs (every_method_answers_plugin_disabled_while_off_and_the_tool_registers)",
+      "remediation": ""
     }
   },
   "frameworks": {
     "ley-21719": {
       "score": 1.0,
-      "controls_required": 10,
-      "pass": 10,
+      "controls_required": 11,
+      "pass": 11,
       "partial": 0,
       "fail": 0
     }

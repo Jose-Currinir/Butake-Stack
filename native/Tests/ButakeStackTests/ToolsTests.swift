@@ -56,7 +56,7 @@ import Testing
 }
 
 @Test @MainActor func everyToolWithAListUsesTheContentColumn() {
-    for id in ["database-client", "mail", "dumps", "logs", "vault"] { #expect(Route.tool(id).hasContentColumn) }
+    for id in ["database-client", "mail", "dumps", "logs", "vault", "skills"] { #expect(Route.tool(id).hasContentColumn) }
     #expect(!Route.home.hasContentColumn)
 }
 

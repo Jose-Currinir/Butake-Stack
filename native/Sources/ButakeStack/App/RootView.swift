@@ -83,6 +83,11 @@ struct RootView: View {
                             TerminalNewItems()
                             Divider()
                         }
+                        if store.route == .tool("skills"), store.canShow(.tool("skills")) {
+                            Button { SkillsTool.shared.sheet = .newSkill } label: { Label(L("skills.newEllipsis"), systemImage: Symbols.skill) }
+                                .help(L("skills.newHelp")).accessibilityIdentifier("toolbar.add.newSkill")
+                            Divider()
+                        }
                         Button { store.showNewProject = true } label: { Label(L("menu.newProject"), systemImage: Symbols.project) }
                             .accessibilityIdentifier("toolbar.add.newProject")
                         Button { store.chooseFolder() } label: { Label(L("menu.addExisting"), systemImage: Symbols.folder) }

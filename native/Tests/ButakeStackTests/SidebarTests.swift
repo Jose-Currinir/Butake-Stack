@@ -5,7 +5,7 @@ import Testing
 // The sidebar in four blocks (P-37): every route of before keeps opening the same page, and selects
 // its row of the sidebar and, for Componentes, its category in the content column.
 
-private let allTools = ["vault", "database-client", "ssh-terminal", "mail", "dumps", "aws", "gcp", "git"]
+private let allTools = ["vault", "database-client", "ssh-terminal", "mail", "dumps", "aws", "gcp", "git", "skills"]
 
 /// The row of the sidebar and the category of the content column a route leaves selected.
 private func selected(_ route: Route) -> (SidebarRow, String?) {
@@ -94,7 +94,7 @@ private func selected(_ route: Route) -> (SidebarRow, String?) {
 
 /// Herramientas in its fixed order with Registros last; Nube only with an account on.
 @Test func toolsAndCloudFollowTheirOrder() {
-    #expect(SidebarLayout.toolRows(enabled: allTools) == ["git", "ssh-terminal", "database-client", "vault", "mail", "dumps", "logs"])
+    #expect(SidebarLayout.toolRows(enabled: allTools) == ["git", "ssh-terminal", "database-client", "vault", "skills", "mail", "dumps", "logs"])
     #expect(SidebarLayout.cloudRows(enabled: allTools) == ["aws", "gcp"])
     // Everything off: only Registros, and no Nube.
     #expect(SidebarLayout.toolRows(enabled: []) == ["logs"])

@@ -129,6 +129,13 @@ import Testing
     family("gcp.section.*", GCPAccount.Kind.allCases.map(\.rawValue))
     family("gcp.console.*", GCPConsolePage.allCases.map(\.rawValue))
     keys.append("tool.gcloud")
+    // Skills: the templates, the findings of Salud with their fixes, and why a link is skipped.
+    family("skills.template.*", SkillTemplate.allCases.map(\.rawValue))
+    family("skills.template.*.detail", SkillTemplate.allCases.map(\.rawValue))
+    family("skills.problem.*", SkillProblem.Kind.allCases.map(\.rawValue))
+    family("skills.problem.*.detail", SkillProblem.Kind.allCases.map(\.rawValue))
+    family("skills.fix.*", ["no_description", "unused", "broken_link", "duplicate_name", "missing_folder", "reveal"])
+    family("skills.links.reason.*", ["exists", "export_only"])
 
     // Every error the engine may name (PUBLIC_ERRORS in engine/src/main.rs) and the database client's own.
     let main = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../engine/src/main.rs")
