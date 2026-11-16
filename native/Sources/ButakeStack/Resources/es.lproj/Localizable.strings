@@ -4140,6 +4140,7 @@
 "error.no_free_port" = "No quedan puertos libres para el proyecto.";
 "error.cargo_not_installed" = "Falta Rust: instálalo en Lenguajes › Rust.";
 "error.clt_not_installed" = "Faltan las herramientas de línea de comandos de Apple.";
+"error.xcode_license_pending" = "Falta aceptar la licencia de Xcode y, hasta entonces, macOS no deja compilar. Abre Xcode y acéptala, o ejecuta «sudo xcodebuild -license accept» en Terminal. Después vuelve a intentarlo.";
 "error.uv_not_installed" = "Falta uv: instálalo en Lenguajes › Python o elige pip.";
 "error.invalid_backup" = "Ese archivo no es una configuración exportada desde Stack. Elige otro.";
 "error.clone_failed" = "No se pudo clonar: revisa tu acceso al repositorio (clave SSH o cuenta).";

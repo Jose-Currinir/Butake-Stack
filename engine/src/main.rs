@@ -128,6 +128,7 @@ const PUBLIC_ERRORS: &[&str] = &[
     "unsupported_platform",
     "cargo_not_installed",
     "clt_not_installed",
+    "xcode_license_pending",
     "invalid_backup",
     "clone_failed",
     "invalid_remote",

@@ -286,6 +286,33 @@ fn apple_developer_dir() -> Option<PathBuf> {
     (out.status.success() && dir.is_absolute() && dir.join("usr/bin/git").is_file()).then_some(dir)
 }
 
+/// What Apple's tools print, instead of running, while Xcode's license is pending.
+pub(crate) fn license_pending(output: &str) -> bool {
+    output.contains("agreed to the Xcode license")
+}
+
+/// Apple's developer tools are there and its compiler runs: `clt_not_installed` without them,
+/// `xcode_license_pending` when Xcode is installed and its license has not been accepted (every
+/// tool in `/usr/bin` refuses to run until it is). Asked before anything is downloaded for a
+/// build, so the user reads what to do instead of a `build_failed` whose reason is in a log.
+pub(crate) fn ensure_apple_toolchain() -> Result<()> {
+    ensure!(apple_developer_dir().is_some(), "clt_not_installed");
+    // Only with the tools in place: without them `/usr/bin/cc` opens macOS's offer to install them.
+    let out = Command::new("/usr/bin/cc")
+        .arg("--version")
+        .env_clear()
+        .stdin(Stdio::null())
+        .output();
+    if let Ok(out) = out {
+        let said = [out.stdout, out.stderr].concat();
+        ensure!(
+            out.status.success() || !license_pending(&String::from_utf8_lossy(&said)),
+            "xcode_license_pending"
+        );
+    }
+    Ok(())
+}
+
 /// Git as found on this Mac: a copy in the user's places (Stack's link in `~/.local/bin` first) or
 /// Apple's, from its developer tools (`apple`: it comes with them and they update it). With a
 /// temporary home (tests and QA) only that home is looked at.

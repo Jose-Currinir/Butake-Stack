@@ -18,6 +18,9 @@ pub fn install(store: &Store, tool: &str, version: &str, replace: bool) -> Resul
         );
     }
     let src = source(tool, version);
+    if src.build != Build::None {
+        crate::runtimes::utilities::ensure_apple_toolchain()?;
+    }
     let steps = plan(tool);
     progress::step(steps[0]);
     let expected = match &src.verify {

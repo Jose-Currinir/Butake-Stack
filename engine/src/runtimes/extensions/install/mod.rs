@@ -252,6 +252,7 @@ pub fn install(
 ) -> Result<Installed> {
     ensure!(recipe.component == engine.component, "unknown_extension");
     ensure!(recipe.supports(&engine.version), "extension_unsupported");
+    crate::runtimes::utilities::ensure_apple_toolchain()?;
     let plan = recipe.plan();
     progress::step(plan[0]);
     let cache = store.directory("cache")?;
