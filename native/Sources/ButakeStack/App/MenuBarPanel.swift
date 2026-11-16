@@ -12,25 +12,22 @@ enum MenuBarIcon {
     }()
 }
 
-/// The menu bar panel: favorite sites first (switch, open), the stack's services in a compact grid,
-/// every other site one click away. Height is bounded, so the panel never grows past the screen
+/// The menu bar panel: the projects (favorites first; switch, open), the stack's services in a
+/// compact grid and the repositories with something pending. Height is bounded, so the panel never grows past the screen
 /// and lands under the pointer (a row that ended up there used to catch the opening click).
 struct MenuPanel: View {
     @Bindable var store: StackStore
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismiss) private var dismiss
-    #if DEBUG
-    @State private var showAll = QAHooks.menuPanelShowAll
-    #else
-    @State private var showAll = false
-    #endif
     @State private var filter = ""
 
-    var favorites: [Project] { store.projects.filter { store.isFavorite($0.id) } }
-    var others: [Project] {
-        let rest = store.projects.filter { !store.isFavorite($0.id) }
+    /// Rows of the project list on screen; the rest scroll.
+    static let visibleProjects = 5
+    /// Favorites first, then the rest, filtered by what is typed.
+    var listed: [Project] {
         let query = filter.trimmingCharacters(in: .whitespaces).lowercased()
-        return query.isEmpty ? rest : rest.filter { $0.title.lowercased().contains(query) || ($0.domains.first ?? "").contains(query) }
+        let matching = query.isEmpty ? store.projects : store.projects.filter { $0.title.lowercased().contains(query) || ($0.domains.first ?? "").contains(query) }
+        return matching.filter { store.isFavorite($0.id) } + matching.filter { !store.isFavorite($0.id) }
     }
 
     var panelServices: [String] { Route.allEngines.filter { store.engineVersion($0) != nil } }
@@ -40,42 +37,27 @@ struct MenuPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             PanelDivider()
-            PanelSection(title: L("favorites.title"), trailing: favorites.isEmpty ? nil : "\(favorites.count)") {
-                if favorites.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label(L("favorites.empty"), systemImage: Symbols.favorite).font(.callout.weight(.medium))
-                        Text(L("favorites.emptyHelp")).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.horizontal, 14).padding(.vertical, 6)
-                } else {
-                    ScrollView {
-                        VStack(spacing: 2) { ForEach(favorites) { ProjectMenuRow(store: store, project: $0, favorite: true) } }
-                    }
-                    .frame(height: min(CGFloat(favorites.count) * 41, 288))
-                }
-            }
+            // One list of a fixed height, favorites first: the panel never changes size while it is
+            // open (a menu bar window that grows does not shrink back).
             if !store.projects.isEmpty {
-                DisclosureGroup(isExpanded: $showAll) {
-                    VStack(spacing: 4) {
+                PanelSection(title: L("panel.projects"), trailing: "\(store.projects.count)") {
+                    if store.projects.count > Self.visibleProjects {
                         TextField(L("favorites.search"), text: $filter).textFieldStyle(.roundedBorder).controlSize(.small)
-                            .padding(.leading, -8).padding(.trailing, 12)
-                        ScrollView {
-                            VStack(spacing: 2) { ForEach(others) { ProjectMenuRow(store: store, project: $0, favorite: false) } }
-                        }
-                        .frame(height: min(CGFloat(max(others.count, 1)) * 41, 205))
-                        .padding(.leading, -18)
+                            .padding(.horizontal, 12).accessibilityIdentifier("panel.search")
                     }
-                    .padding(.vertical, 4)
-                } label: {
-                    Text(String(format: L("favorites.allSites"), store.projects.count - favorites.count)).font(.callout).foregroundStyle(.secondary)
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(listed) { ProjectMenuRow(store: store, project: $0, favorite: store.isFavorite($0.id)) }
+                        }
+                    }
+                    .frame(height: CGFloat(min(store.projects.count, Self.visibleProjects)) * ProjectMenuRow.height)
+                    .accessibilityIdentifier("panel.allSites")
                 }
-                .padding(.leading, 14)
-                .accessibilityIdentifier("panel.allSites")
             }
             if !panelServices.isEmpty || !panelProcesses.isEmpty {
                 PanelDivider()
                 PanelSection(title: L("panel.engines"), trailing: nil) {
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 4), GridItem(.flexible(), spacing: 4)], spacing: 4) {
                         ForEach(panelServices, id: \.self) { name in
                             EngineTile(store: store, name: name)
                         }
@@ -95,29 +77,25 @@ struct MenuPanel: View {
                 }
             }
             PanelDivider()
-            HStack(spacing: 10) {
-                Button { open() } label: { Label(L("menu.open"), systemImage: Symbols.openWindow) }
+            // One line, like the end of a menu: the window, the app's settings and quitting it.
+            HStack(spacing: 2) {
+                Button { open() } label: { PanelMenuRow(title: L("menu.open")) }
                     .accessibilityIdentifier("panel.open")
-                Spacer()
+                Spacer(minLength: 4)
                 if let dns = store.status?.listeners["dns"] {
                     Label(".test", systemImage: dns.mode == "unavailable" ? Symbols.warning : Symbols.success)
-                        .font(.caption).foregroundStyle(dns.mode == "unavailable" ? Brand.warning : .secondary)
-                        .help(L("panel.dnsHelp"))
+                        .font(.caption2).foregroundStyle(dns.mode == "unavailable" ? Brand.warning : .secondary)
+                        .help(L("panel.dnsHelp")).padding(.trailing, 4)
                 }
-            }
-            .padding(.horizontal, 14).padding(.top, 4)
-            PanelDivider()
-            // Like the end of a menu: the app's settings and quitting it.
-            VStack(spacing: 0) {
                 SettingsLink { PanelMenuRow(title: L("menu.settings")) }
                     .accessibilityIdentifier("panel.settings")
-                Button { NSApp.terminate(nil) } label: { PanelMenuRow(title: L("menu.quit")) }
+                Button { NSApp.terminate(nil) } label: { PanelMenuRow(title: L("panel.quit")) }
                     .help(L("menu.quitHelp")).accessibilityIdentifier("panel.quit")
             }
             .buttonStyle(HighlightButtonStyle(radius: 6))
             .padding(.horizontal, 6).padding(.bottom, 6)
         }
-        .frame(width: 340)
+        .frame(width: 320)
         .themedTint()
         .serviceStopConfirmation(store)
         .task { await store.bootstrap() }
@@ -126,13 +104,11 @@ struct MenuPanel: View {
     /// The app and its state: the same indicator as the window's status bar, with the same «Estado».
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                BrandMark(size: 30)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(L("app.name")).font(.headline)
-                    StackStateIndicator(store: store).font(.caption).padding(.leading, -6)
-                }
+            HStack(spacing: 7) {
+                BrandMark(size: 18)
+                Text(L("app.name")).font(.callout.weight(.semibold))
                 Spacer()
+                StackStateIndicator(store: store).font(.caption)
             }
             // A newer verified release: one click opens the window with the update sheet.
             if UpdateService.shared.updateAvailable, let latest = UpdateService.shared.latest {
@@ -145,7 +121,7 @@ struct MenuPanel: View {
                 .buttonStyle(.bordered).controlSize(.small).accessibilityIdentifier("panel.update")
             }
         }
-        .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 4)
+        .padding(.leading, 14).padding(.trailing, 8).padding(.top, 9).padding(.bottom, 0)
     }
 
     /// The window opens on the page it showed last.
@@ -157,7 +133,7 @@ struct MenuPanel: View {
 }
 
 private struct PanelDivider: View {
-    var body: some View { Divider().padding(.horizontal, 12).padding(.vertical, 6) }
+    var body: some View { Divider().padding(.horizontal, 12).padding(.vertical, 4) }
 }
 
 private struct PanelSection<Content: View>: View {
@@ -165,9 +141,9 @@ private struct PanelSection<Content: View>: View {
     let trailing: String?
     @ViewBuilder let content: Content
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(title).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
                 Spacer()
                 if let trailing { Text(trailing).font(.caption2.monospacedDigit()).foregroundStyle(.tertiary) }
             }
@@ -186,21 +162,18 @@ private struct ServiceTileView: View {
     let isOn: Binding<Bool>
     let identifier: String
     var body: some View {
-        HStack(spacing: 8) {
-            TechLogo(tech: tech, size: 22)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(title).font(.callout).lineLimit(1).minimumScaleFactor(0.8)
-                HStack(spacing: 4) {
-                    if let phase { Circle().fill(phase.color).frame(width: 5, height: 5) }
-                    Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 2)
+        HStack(spacing: 5) {
+            TechLogo(tech: tech, size: 16)
+            // One line: the dot says whether it runs; the port is in the tooltip.
+            if let phase { Circle().fill(phase.color).frame(width: 5, height: 5) }
+            Text(title).font(.caption).lineLimit(1).minimumScaleFactor(0.75)
+            Spacer(minLength: 0)
             Toggle("", isOn: isOn).toggleStyle(.switch).controlSize(.mini).labelsHidden().accessibilityIdentifier(identifier)
                 .accessibilityLabel(title)
         }
-        .padding(.horizontal, 8).padding(.vertical, 6)
-        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .padding(.horizontal, 6).padding(.vertical, 4)
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .help(detail.isEmpty ? title : "\(title) · \(detail)")
     }
 }
 
@@ -240,18 +213,18 @@ private struct ProjectMenuRow: View {
     let favorite: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var hover = false
+    /// One line per project.
+    static let height: CGFloat = 29
     var detail: String {
         let branch = store.git[project.id].map { $0.branch.isEmpty ? L("git.detached") : $0.branch }
         return [project.domains.first, branch].compactMap { $0 }.joined(separator: " · ")
     }
     var body: some View {
-        HStack(spacing: 10) {
-            TechLogo(tech: project.tech, size: 26)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(project.title).font(.callout.weight(.medium)).lineLimit(1)
-                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-            }
-            Spacer(minLength: 6)
+        HStack(spacing: 7) {
+            TechLogo(tech: project.tech, size: 18)
+            Text(project.title).font(.callout).lineLimit(1).layoutPriority(1)
+            Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 4)
             // Always visible: a favorite in the secondary tone, the rest fainter.
             Button { store.toggleFavorite(project.id) } label: {
                 Label(favorite ? L("favorites.remove") : L("favorites.add"), systemImage: Symbols.favorite).labelStyle(.iconOnly)
@@ -275,8 +248,9 @@ private struct ProjectMenuRow: View {
                     .accessibilityIdentifier("panel.site.\(project.id)")
             }
         }
-        .padding(.horizontal, 10).padding(.vertical, 5)
-        .background(hover ? Color.primary.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 8).frame(height: Self.height)
+        .help("\(project.title) · \(detail)")
+        .background(hover ? Color.primary.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         .padding(.horizontal, 4)
         .onHover { hover = $0 }
         .contextMenu { ProjectMenuItems(store: store, project: project) }
@@ -287,6 +261,6 @@ private struct ProjectMenuRow: View {
 private struct PanelMenuRow: View {
     let title: String
     var body: some View {
-        Text(title).font(.body).padding(.horizontal, 8).padding(.vertical, 4)
+        Text(title).font(.callout).padding(.horizontal, 8).padding(.vertical, 3)
     }
 }

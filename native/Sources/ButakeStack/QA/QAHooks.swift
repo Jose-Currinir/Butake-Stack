@@ -314,8 +314,6 @@ import SwiftUI
 
     // MARK: Menu bar panel
 
-    /// The panel starts with every project shown (BUTAKE_QA_PANEL=all).
-    static var menuPanelShowAll: Bool { env["BUTAKE_QA_PANEL"] == "all" }
 
     // MARK: Database client
 

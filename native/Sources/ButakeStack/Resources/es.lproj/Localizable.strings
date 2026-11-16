@@ -153,6 +153,8 @@
 "panel.engines" = "Servicios";
 "panel.notInstalled" = "Sin instalar";
 "panel.web" = "Servidor web";
+"panel.quit" = "Salir";
+"panel.projects" = "Proyectos";
 "panel.dnsHelp" = "Estado de los dominios .test";
 
 "stackState.setup" = "Falta preparar";
@@ -173,10 +175,6 @@
 "stackState.port" = "Puerto %@";
 "stackState.portFree" = "Libre";
 
-"favorites.title" = "Favoritos";
-"favorites.empty" = "Elige tus proyectos favoritos";
-"favorites.emptyHelp" = "Marca la estrella de un proyecto en «Todos los proyectos» o usa su menú contextual. Solo los favoritos aparecen aquí.";
-"favorites.allSites" = "Todos los proyectos (%d)";
 "favorites.search" = "Buscar proyecto";
 "favorites.add" = "Agregar a favoritos";
 "favorites.remove" = "Quitar de favoritos";
