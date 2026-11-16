@@ -25,9 +25,9 @@ private let listJSON = """
     #expect(state.skills[0].matches("COMMITS") && state.skills[0].matches("git") && !state.skills[0].matches("nada"))
 
     let problems = try JSONDecoder().decode([SkillProblem].self, from: Data(
-        #"[{"kind": "no_description", "skill": "publicar"}, {"kind": "broken_link", "skill": "commits", "agent": "claude", "path": "/qa/x"}, {"kind": "missing_folder", "agent": "mia", "path": "/qa/y"}, {"kind": "moved_folder", "agent": "codex", "path": "/qa/.codex/skills"}]"#.utf8))
-    #expect(problems.map(\.kind) == [.noDescription, .brokenLink, .missingFolder, .movedFolder])
-    #expect(Set(problems.map(\.id)).count == 4)
+        #"[{"kind": "no_description", "skill": "publicar"}, {"kind": "broken_link", "skill": "commits", "agent": "claude", "path": "/qa/x"}, {"kind": "missing_folder", "agent": "mia", "path": "/qa/y"}, {"kind": "moved_folder", "agent": "codex", "path": "/qa/.codex/skills"}, {"kind": "agent_path", "skill": "commits", "agent": "claude", "path": "/qa/.claude/skills"}]"#.utf8))
+    #expect(problems.map(\.kind) == [.noDescription, .brokenLink, .missingFolder, .movedFolder, .agentPath])
+    #expect(Set(problems.map(\.id)).count == 5)
 
     let plan = try JSONDecoder().decode(SkillLinkPlan.self, from: Data(
         #"{"create": ["/qa/a"], "remove": [], "conflicts": [{"path": "/qa/b", "reason": "exists"}]}"#.utf8))

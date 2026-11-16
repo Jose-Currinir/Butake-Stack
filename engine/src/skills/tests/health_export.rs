@@ -121,3 +121,89 @@ fn export_is_text_ready_to_paste() {
         "skills_not_found"
     );
 }
+
+fn agent_paths(env: &Env, skill: &str) -> Vec<String> {
+    env.ok("skillsHealth", json!({}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|p| p["kind"] == "agent_path" && p["skill"] == skill)
+        .map(|p| p["agent"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[test]
+fn health_reports_paths_to_unlinked_agents() {
+    let env = env();
+    env.create("ruta");
+    let dir = env.skills_dir().join("ruta");
+    let sentinel = "SENTINEL-4f9a1c";
+    fs::write(
+        dir.join("SKILL.md"),
+        format!(
+            "---\nname: ruta\ndescription: Hace algo\n---\n\n{sentinel} Corre `~/.claude/skills/ruta/run.sh`\n"
+        ),
+    )
+    .unwrap();
+    env.link("ruta", "codex");
+
+    // Named for claude, linked only to codex.
+    assert_eq!(agent_paths(&env, "ruta"), ["claude"]);
+    let health = env.ok("skillsHealth", json!({}));
+    let finding = health
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["kind"] == "agent_path")
+        .unwrap();
+    assert_eq!(
+        finding["path"],
+        env.home.join(".claude/skills").to_string_lossy().as_ref()
+    );
+    assert!(!health.to_string().contains(sentinel));
+    assert!(!health.to_string().contains("run.sh"));
+
+    // Linked to claude: nothing.
+    env.link("ruta", "claude");
+    assert!(agent_paths(&env, "ruta").is_empty());
+
+    // The absolute form with the real home, in a support file, for the agent not linked (gemini).
+    fs::create_dir(dir.join("scripts")).unwrap();
+    fs::write(
+        dir.join("scripts/go.sh"),
+        format!("cat {}/.gemini/skills/ruta/x\n", env.home.display()),
+    )
+    .unwrap();
+    assert_eq!(agent_paths(&env, "ruta"), ["gemini"]);
+}
+
+#[test]
+fn health_agent_path_counts_only_own_id_and_text_files() {
+    let env = env();
+    env.create("propia");
+    let dir = env.skills_dir().join("propia");
+    // Another skill's id, and an id that only starts with ours: not ours.
+    fs::write(
+        dir.join("SKILL.md"),
+        "---\nname: propia\ndescription: Hace algo\n---\n\nVer ~/.claude/skills/otra/run.sh y ~/.claude/skills/propia-2/x\n",
+    )
+    .unwrap();
+    assert!(agent_paths(&env, "propia").is_empty());
+
+    // Binary, oversized and linked files are skipped.
+    let path = b"~/.claude/skills/propia/x";
+    let mut binary = vec![0u8];
+    binary.extend_from_slice(path);
+    fs::write(dir.join("bin.dat"), binary).unwrap();
+    let mut big = vec![b' '; super::super::model::MAX_TEXT as usize + 1];
+    big.extend_from_slice(path);
+    fs::write(dir.join("big.txt"), big).unwrap();
+    let outside = env.temp.path().join("outside.txt");
+    fs::write(&outside, path).unwrap();
+    std::os::unix::fs::symlink(&outside, dir.join("link.txt")).unwrap();
+    assert!(agent_paths(&env, "propia").is_empty());
+
+    // A regular text file does count.
+    fs::write(dir.join("ok.txt"), path).unwrap();
+    assert_eq!(agent_paths(&env, "propia"), ["claude"]);
+}

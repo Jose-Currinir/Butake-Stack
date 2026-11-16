@@ -245,6 +245,12 @@ secretos; borrado completo; procedimiento de incidentes; pruebas automáticas.
   nunca copiar. Stack no lee ni escribe `~/.kiro` ni los ajustes de otra IA (`skills.extra_paths` es del
   usuario). Sin datos nuevos: la postura no cambia. Pruebas: `engine/src/skills/tests/links.rs`
   (`kiro_is_export_only_and_never_touches_its_folder`).
+- **Revisión 2026-11-16 (A4, rutas dentro de una skill):** la salud (`agent_path`) lee `SKILL.md` y los archivos
+  de texto de apoyo de cada skill (regulares, sin seguir enlaces, sin binarios, con tope de tamaño y
+  cantidad) solo para hallar rutas a la carpeta de una IA a la que la skill no está enlazada. No reescribe ni
+  devuelve el texto: el hallazgo lleva solo skill, IA y carpeta. R23 ampliado. Sin datos nuevos: la postura no
+  cambia. Pruebas: `engine/src/skills/tests/health_export.rs`
+  (`health_reports_paths_to_unlinked_agents`, `health_agent_path_counts_only_own_id_and_text_files`).
 - Sin datos personales nuevos que Stack procese por su cuenta ni envíos fuera del Mac: la postura no cambia
   (EIPD no obligatoria). Pruebas con HOME y carpeta de datos temporales y skills inventadas:
   `engine/src/skills/tests/` (`skills.rs`, `links.rs`, `trash_groups.rs`, `health_export.rs`, `dispatch.rs`).

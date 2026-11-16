@@ -55,6 +55,8 @@ struct SkillProblem: Decodable, Identifiable, Hashable, Sendable {
         case unused, conflict, missingFolder = "missing_folder"
         /// Links left in the former folder of a built-in assistant (`agent`, `path` = that folder).
         case movedFolder = "moved_folder"
+        /// The skill's text names a folder of an assistant it is not linked to (`agent`, `path` = that folder).
+        case agentPath = "agent_path"
     }
     let kind: Kind
     let skill: String?

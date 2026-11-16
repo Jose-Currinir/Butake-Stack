@@ -66,6 +66,14 @@ Tres columnas, como las demás herramientas:
 | `unused` | La skill no está enlazada a ninguna IA |
 | `missing_folder` | Falta la carpeta de una skill o de una IA propia |
 | `moved_folder` | Quedan enlaces de Stack en `~/.codex/skills`, la carpeta que Codex usaba antes (`agent`, `path`); «Mover enlaces…» abre la hoja de enlaces con el plan |
+| `agent_path` | El texto de la skill (`SKILL.md` y sus archivos de texto de apoyo) nombra `<carpeta de una IA>/<id de la skill>` (por ejemplo `~/.claude/skills/<id>/`, también con el HOME absoluto) de una IA con carpeta a la que la skill no está enlazada (`skill`, `agent`, `path` = carpeta de esa IA); «Enlazar a esa IA…» abre la hoja de enlaces con el plan |
+
+Sobre `agent_path`: solo cuenta la ruta con el id de la propia skill (la de otra skill no). Salud solo lee
+para encontrar esas rutas: nunca reescribe el texto ni lo devuelve (sin fragmento ni línea). Lee archivos
+regulares de texto (sin enlaces, sin binarios, de hasta 256 KiB cada uno, hasta 100 de apoyo y 2 MiB en total).
+Recomendación: en el texto y los scripts de una skill, refiere los archivos de apoyo con rutas relativas a
+la carpeta de la skill; una ruta a la carpeta de una IA solo funciona mientras esa IA esté enlazada. Las
+plantillas ya lo hacen así.
 
 ## Métodos del motor
 
@@ -121,7 +129,8 @@ al Llavero.
 
 - Una skill es texto del usuario. Vive solo en la carpeta de datos de Stack; el motor no lo registra ni
   lo devuelve fuera de `skillsRead` y `skillsExport`. Ni errores ni la salud llevan texto: solo ids,
-  rutas y códigos.
+  rutas y códigos. Salud lee los archivos de la skill solo para encontrar rutas a carpetas de IA
+  (`agent_path`) y no devuelve su contenido.
 - `SKILL.md` se abre sin seguir enlaces (`O_NOFOLLOW`), debe ser un archivo regular de hasta 256 KiB, y
   guardar sobre un enlace falla con `unsafe_store_path`. Duplicar y listar archivos de apoyo tampoco
   siguen enlaces. Los ids son `[a-z0-9-]`, 1 a 64 caracteres, sin guion al principio ni al final.

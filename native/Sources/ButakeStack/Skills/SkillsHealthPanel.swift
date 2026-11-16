@@ -63,7 +63,7 @@ struct SkillProblemRow: View {
                 }
             }
         }
-        .help(problem.path ?? "")
+        .help(problem.kind == .agentPath ? L("skills.problem.agent_path.help") : (problem.path ?? ""))
         .accessibilityIdentifier("skills.health.problem.\(problem.id)")
     }
 
@@ -89,6 +89,12 @@ struct SkillProblemRow: View {
                     tool.requestLinks(SkillLinkRequest(skill: "", operation: .migrate(agent: agent.id), subject: agent.name))
                 }
             }
+        case .agentPath:
+            if let skill, let agent {
+                button(L("skills.fix.agent_path")) {
+                    tool.requestLinks(SkillLinkRequest(skill: skill.id, changes: [SkillLinkChange(skill: skill.id, agent: agent.id, on: true)]))
+                }
+            } else if let skill { button(L("skills.fix.unused")) { tool.select(skill.id) } }
         case .missingFolder:
             if let agent, !agent.builtin {
                 button(L("skills.fix.missing_folder")) { tool.sheet = .agent(agent.id) }
