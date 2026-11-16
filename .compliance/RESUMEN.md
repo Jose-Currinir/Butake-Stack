@@ -235,6 +235,11 @@ secretos; borrado completo; procedimiento de incidentes; pruebas automáticas.
   enlaces simbólicos a la copia única, solo bajo el HOME canonicalizado; solo se quitan enlaces que resuelven
   a la carpeta `skills/` de Stack y cada cambio se planifica, se muestra y se confirma. ChatGPT solo recibe
   texto exportado, copiado por el usuario.
+- **Revisión 2026-11-16 (A1, carpeta de Codex):** Codex pasa a `~/.agents/skills`, carpeta compartida entre IA:
+  lo que otras herramientas pusieron allí es conflicto y no se toca. Los enlaces de Stack que quedaron en
+  `~/.codex/skills` se mueven solo por el par plan/`confirmed` (`migrate`), con las rutas exactas, y solo si
+  resuelven a `skills/` de Stack; el resto de esa carpeta no se lista ni se toca. La salud (`moved_folder`) lo
+  ofrece. Sin datos nuevos: la postura no cambia. Pruebas: `engine/src/skills/tests/migration.rs`.
 - Sin datos personales nuevos que Stack procese por su cuenta ni envíos fuera del Mac: la postura no cambia
   (EIPD no obligatoria). Pruebas con HOME y carpeta de datos temporales y skills inventadas:
   `engine/src/skills/tests/` (`skills.rs`, `links.rs`, `trash_groups.rs`, `health_export.rs`, `dispatch.rs`).

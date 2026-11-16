@@ -5,13 +5,18 @@ use anyhow::Result;
 use serde_json::{json, Value};
 use std::path::{Component, Path, PathBuf};
 
-/// id, name, folder (`None` = export only).
+/// id, name, folder (`None` = export only). The Codex folder is the shared `~/.agents/skills` (other
+/// AIs install real skill folders there; those are conflicts and stay untouched). Its former folder
+/// is `LEGACY_CODEX` (see `links::migration`).
 const BUILTIN: &[(&str, &str, Option<&str>)] = &[
     ("claude", "Claude", Some("~/.claude/skills")),
-    ("codex", "Codex", Some("~/.codex/skills")),
+    ("codex", "Codex", Some("~/.agents/skills")),
     ("gemini", "Gemini", Some("~/.gemini/skills")),
     ("chatgpt", "ChatGPT", None),
 ];
+
+/// Where Stack linked skills for Codex before the shared folder; only read to offer the move.
+pub const LEGACY_CODEX: (&str, &str) = ("codex", "~/.codex/skills");
 
 pub struct Agent {
     pub id: String,

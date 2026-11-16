@@ -79,5 +79,11 @@ pub fn check(ctx: &Ctx, index: &Index) -> Vec<Value> {
             }
         }
     }
+    // Links left in a former built-in folder (`~/.codex/skills`): `skillsLinkPlan` with `migrate`.
+    if let Ok((moves, _)) = links::migration(ctx, index, agents::LEGACY_CODEX.0) {
+        if let Some(first) = moves.first().and_then(|m| m.old.parent()) {
+            out.push(json!({"kind": "moved_folder", "agent": agents::LEGACY_CODEX.0, "path": first.to_string_lossy()}));
+        }
+    }
     out
 }

@@ -53,6 +53,8 @@ struct SkillProblem: Decodable, Identifiable, Hashable, Sendable {
     enum Kind: String, Decodable, CaseIterable, Sendable {
         case noDescription = "no_description", brokenLink = "broken_link", duplicateName = "duplicate_name"
         case unused, conflict, missingFolder = "missing_folder"
+        /// Links left in the former folder of a built-in assistant (`agent`, `path` = that folder).
+        case movedFolder = "moved_folder"
     }
     let kind: Kind
     let skill: String?
@@ -82,6 +84,9 @@ struct SkillLinkRequest: Identifiable, Hashable, Sendable {
         case restore(trashId: String)
         /// The id of the assistant to remove.
         case removeAgent(id: String)
+        /// Moves the links of a built-in assistant from its former folder to the current one
+        /// (`skillsLinkPlan` / `skillsLinkApply` with `migrate`).
+        case migrate(agent: String)
     }
 
     let id = UUID()
@@ -94,13 +99,19 @@ struct SkillLinkRequest: Identifiable, Hashable, Sendable {
     var subject: String?
 
     /// Rename, delete, restore and removing an assistant always do something, even with no links.
-    var alwaysActs: Bool { operation != .links }
+    var alwaysActs: Bool {
+        switch operation {
+        case .links, .migrate: false
+        default: true
+        }
+    }
 
     /// The request of the operation's own method: its plan, or its apply once confirmed.
     func operationPayload(confirmed: Bool) -> [String: Any] {
         var request: [String: Any] = confirmed ? ["confirmed": true] : ["plan": true]
         switch operation {
         case .links: break
+        case .migrate(let agent): request["method"] = confirmed ? "skillsLinkApply" : "skillsLinkPlan"; request["migrate"] = agent
         case .rename(let newId): request["method"] = "skillsRename"; request["id"] = skill; request["newId"] = newId
         case .delete: request["method"] = "skillsDelete"; request["id"] = skill
         case .restore(let trashId): request["method"] = "skillsRestore"; request["trashId"] = trashId

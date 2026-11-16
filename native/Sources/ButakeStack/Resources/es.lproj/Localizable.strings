@@ -4150,6 +4150,9 @@
 "skills.links.reason.export_only" = "Solo se exporta";
 "skills.links.nothing" = "No hay enlaces que cambiar.";
 "skills.links.failed" = "No se pudo preparar el cambio";
+"skills.links.titleMigrate" = "Mover enlaces de Codex";
+"skills.links.migrateApply" = "Mover";
+"skills.links.migrateNote" = "Codex lee ahora ~/.agents/skills. Solo se mueven los enlaces de ~/.codex/skills que apuntan a tus skills de Stack; lo demás no se toca.";
 "skills.health.ok" = "Todo en orden";
 "skills.health.okDetail" = "Las skills y sus enlaces no tienen problemas.";
 "skills.health.check" = "Comprobar de nuevo";
@@ -4165,10 +4168,13 @@
 "skills.problem.conflict.detail" = "Hay otra cosa con el nombre de la skill en la carpeta de la IA; Stack no la toca.";
 "skills.problem.missing_folder" = "Carpetas que faltan";
 "skills.problem.missing_folder.detail" = "La carpeta de la skill o la de una IA no existe.";
+"skills.problem.moved_folder" = "Enlaces en la carpeta anterior";
+"skills.problem.moved_folder.detail" = "Hay enlaces de Stack en una carpeta que la IA ya no usa.";
 "skills.fix.no_description" = "Escribir descripción";
 "skills.fix.unused" = "Enlazar a una IA";
 "skills.fix.broken_link" = "Reparar enlace";
 "skills.fix.duplicate_name" = "Renombrar…";
+"skills.fix.moved_folder" = "Mover enlaces…";
 "skills.fix.missing_folder" = "Cambiar carpeta…";
 "skills.fix.reveal" = "Mostrar en Finder";
 

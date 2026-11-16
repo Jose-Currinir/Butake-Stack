@@ -37,7 +37,7 @@ fn health_reports_each_kind() {
     env.create("falta");
 
     // A conflict (codex), a link that went missing (claude), and a link left behind for a gone skill.
-    let codex = env.link_path(".codex/skills", "enlazada");
+    let codex = env.link_path(".agents/skills", "enlazada");
     fs::remove_file(&codex).unwrap();
     fs::create_dir(&codex).unwrap();
     fs::remove_file(env.link_path(".claude/skills", "perdida")).unwrap();

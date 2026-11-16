@@ -2,6 +2,7 @@
 mod dispatch;
 mod health_export;
 mod links;
+mod migration;
 mod plans;
 mod skills;
 mod trash_groups;

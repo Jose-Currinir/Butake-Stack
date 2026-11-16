@@ -134,7 +134,7 @@ import Testing
     family("skills.template.*.detail", SkillTemplate.allCases.map(\.rawValue))
     family("skills.problem.*", SkillProblem.Kind.allCases.map(\.rawValue))
     family("skills.problem.*.detail", SkillProblem.Kind.allCases.map(\.rawValue))
-    family("skills.fix.*", ["no_description", "unused", "broken_link", "duplicate_name", "missing_folder", "reveal"])
+    family("skills.fix.*", ["no_description", "unused", "broken_link", "duplicate_name", "missing_folder", "moved_folder", "reveal"])
     family("skills.links.reason.*", ["exists", "export_only"])
 
     // Every error the engine may name (PUBLIC_ERRORS in engine/src/main.rs) and the database client's own.

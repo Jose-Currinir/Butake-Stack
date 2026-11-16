@@ -25,7 +25,7 @@ fn rename_plan_lists_links_and_conflicts_and_apply_does_the_same() {
     env.link("a", "claude");
     env.link("a", "codex");
     // The new name is taken in Codex's folder by something else.
-    let taken = env.link_path(".codex/skills", "b");
+    let taken = env.link_path(".agents/skills", "b");
     fs::create_dir_all(&taken).unwrap();
     let request = json!({"id": "a", "newId": "b"});
     let plan = env.ok(
@@ -35,14 +35,14 @@ fn rename_plan_lists_links_and_conflicts_and_apply_does_the_same() {
     assert_eq!(
         strs(&plan["remove"]),
         vec![
-            path(&env, ".claude/skills", "a"),
-            path(&env, ".codex/skills", "a")
+            path(&env, ".agents/skills", "a"),
+            path(&env, ".claude/skills", "a")
         ]
     );
     assert_eq!(plan["create"], json!([path(&env, ".claude/skills", "b")]));
     assert_eq!(
         plan["conflicts"],
-        json!([{"path": path(&env, ".codex/skills", "b"), "reason": "exists"}])
+        json!([{"path": path(&env, ".agents/skills", "b"), "reason": "exists"}])
     );
     // Planning changes nothing, and applying needs confirmation.
     assert!(env.skills_dir().join("a").exists() && !env.skills_dir().join("b").exists());
@@ -58,7 +58,7 @@ fn rename_plan_lists_links_and_conflicts_and_apply_does_the_same() {
         json!({"id": "a", "newId": "b", "confirmed": true}),
     );
     assert!(fs::symlink_metadata(env.link_path(".claude/skills", "a")).is_err());
-    assert!(fs::symlink_metadata(env.link_path(".codex/skills", "a")).is_err());
+    assert!(fs::symlink_metadata(env.link_path(".agents/skills", "a")).is_err());
     assert!(env
         .link_path(".claude/skills", "b")
         .join("SKILL.md")
@@ -100,7 +100,7 @@ fn delete_plan_lists_the_links_it_removes() {
     env.create("a");
     env.link("a", "claude");
     // A link of someone else with the same name is not listed nor removed.
-    let other = env.link_path(".codex/skills", "a");
+    let other = env.link_path(".agents/skills", "a");
     fs::create_dir_all(other.parent().unwrap()).unwrap();
     std::os::unix::fs::symlink(env.temp.path(), &other).unwrap();
     let plan = env.ok("skillsDelete", json!({"id": "a", "plan": true}));
@@ -165,14 +165,14 @@ fn restore_plan_lists_the_links_it_recreates_and_the_taken_names() {
         .as_str()
         .unwrap()
         .to_string();
-    let taken = env.link_path(".codex/skills", "a");
+    let taken = env.link_path(".agents/skills", "a");
     fs::create_dir_all(&taken).unwrap();
     let plan = env.ok("skillsRestore", json!({"trashId": trash, "plan": true}));
     assert_eq!(plan["create"], json!([path(&env, ".claude/skills", "a")]));
     assert_eq!(plan["remove"], json!([]));
     assert_eq!(
         plan["conflicts"],
-        json!([{"path": path(&env, ".codex/skills", "a"), "reason": "exists"}])
+        json!([{"path": path(&env, ".agents/skills", "a"), "reason": "exists"}])
     );
     // Planning leaves the trash as it was; restoring needs confirmation.
     assert!(env.store.root().join("skills-trash").join(&trash).exists());

@@ -61,7 +61,7 @@ fn apply_links_to_the_real_copy_and_remove_only_own_links() {
 fn a_conflict_is_left_alone_and_reported() {
     let env = env();
     env.create("a");
-    let path = env.link_path(".codex/skills", "a");
+    let path = env.link_path(".agents/skills", "a");
     fs::create_dir_all(&path).unwrap();
     fs::write(path.join("mio.txt"), "no tocar").unwrap();
     let request =

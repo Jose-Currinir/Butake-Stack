@@ -15,6 +15,7 @@ struct SkillLinkSheet: View {
         case .delete: L("skills.links.titleDelete")
         case .restore: L("skills.links.titleRestore")
         case .removeAgent: L("skills.links.titleRemoveAgent")
+        case .migrate: L("skills.links.titleMigrate")
         case .links:
             switch request.enabled {
             case true?: L("skills.links.titleActivate")
@@ -30,6 +31,7 @@ struct SkillLinkSheet: View {
         case .delete: L("skills.links.deleteApply")
         case .restore: L("skills.links.restoreApply")
         case .removeAgent: L("skills.links.removeAgentApply")
+        case .migrate: L("skills.links.migrateApply")
         case .links: L("skills.links.apply")
         }
     }
@@ -41,6 +43,7 @@ struct SkillLinkSheet: View {
         case .delete: L("skills.deleteDetail")
         case .restore: L("skills.links.restoreNote")
         case .removeAgent: L("skills.agent.removeDetail")
+        case .migrate: L("skills.links.migrateNote")
         case .links: nil
         }
     }

@@ -83,6 +83,12 @@ struct SkillProblemRow: View {
             if let skill { button(L("skills.fix.duplicate_name")) { tool.sheet = .rename(skill.id) } }
         case .conflict:
             if let path = problem.path { button(L("skills.fix.reveal")) { reveal(path) } }
+        case .movedFolder:
+            if let agent {
+                button(L("skills.fix.moved_folder")) {
+                    tool.requestLinks(SkillLinkRequest(skill: "", operation: .migrate(agent: agent.id), subject: agent.name))
+                }
+            }
         case .missingFolder:
             if let agent, !agent.builtin {
                 button(L("skills.fix.missing_folder")) { tool.sheet = .agent(agent.id) }

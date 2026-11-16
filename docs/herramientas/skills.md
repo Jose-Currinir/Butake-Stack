@@ -25,8 +25,8 @@ Herramientas) quita los enlaces que Stack creó en las carpetas de las IA y borr
 - **Grupos:** Personal, Trabajo y Butake de partida; se crean, renombran, reordenan y eliminan. Las
   carpetas son planas: el grupo y las etiquetas viven solo en `index.json`, así que mover una skill de
   grupo o renombrar un grupo nunca toca un enlace.
-- **IA incluidas:** Claude (`~/.claude/skills`), Codex (`~/.codex/skills`) y Gemini
-  (`~/.gemini/skills`) por enlace; ChatGPT solo por exportación. Se pueden agregar IA propias con
+- **IA incluidas:** Claude (`~/.claude/skills`), Codex (`~/.agents/skills`, la carpeta que Codex
+  lee; la comparten otras IA) y Gemini (`~/.gemini/skills`) por enlace; ChatGPT solo por exportación. Se pueden agregar IA propias con
   nombre y carpeta (`skillsAgentSave`).
 - **Plantillas:** En blanco, Commits y Publicar app (`templates.rs`). El `SKILL.md` queda portable: su
   encabezado trae solo `name` y `description`; lo propio de Stack no va en el archivo.
@@ -65,6 +65,7 @@ Tres columnas, como las demás herramientas:
 | `duplicate_name` | Dos skills tienen el mismo `name` |
 | `unused` | La skill no está enlazada a ninguna IA |
 | `missing_folder` | Falta la carpeta de una skill o de una IA propia |
+| `moved_folder` | Quedan enlaces de Stack en `~/.codex/skills`, la carpeta que Codex usaba antes (`agent`, `path`); «Mover enlaces…» abre la hoja de enlaces con el plan |
 
 ## Métodos del motor
 
@@ -85,6 +86,8 @@ Tres columnas, como las demás herramientas:
 | `skillsAgentRemove {id, plan?, confirmed}` | Quita una IA propia y sus enlaces |
 | `skillsLinkPlan {changes}` o `{skill, enabled}` | Lo que se crearía, se quitaría y chocaría; no escribe nada |
 | `skillsLinkApply {…, confirmed}` | Aplica el plan y actualiza `agents` y `enabled` en el índice |
+| `skillsLinkPlan {migrate: "codex"}` | Mover los enlaces de `~/.codex/skills` a `~/.agents/skills`: `create` lleva las rutas nuevas, `remove` las viejas y `conflicts` los nombres ocupados en la carpeta nueva |
+| `skillsLinkApply {migrate: "codex", confirmed}` | Hace exactamente ese plan: crea el enlace nuevo y solo entonces quita el viejo; sin `confirmed` responde `confirmation_required` |
 
 Los cuatro métodos con `plan?` (renombrar, eliminar, restaurar y quitar una IA propia) responden
 `plan: true` con `{create, remove, conflicts}`, la misma forma que `skillsLinkPlan`, sin escribir nada
@@ -131,6 +134,11 @@ al Llavero.
 - Cada cambio de enlaces se planifica (`skillsLinkPlan`), se muestra con las rutas exactas y se aplica
   solo con `confirmed`; renombrar, eliminar, restaurar y quitar una IA también se planifican (`plan: true`), se
   muestran con las rutas exactas en la misma hoja y exigen `confirmed`.
+- `~/.agents/skills` es una carpeta compartida entre IA: lo que otras herramientas pusieron ahí
+  (carpetas reales, enlaces ajenos) es `conflict` (`exists`) y no se toca. En `~/.codex/skills` solo se
+  mueven (por plan y `confirmed`) los enlaces que resuelven a la carpeta de esa skill en `skills/`;
+  cualquier otra cosa allí, incluidas las skills propias de Codex, ni se lista ni se toca. Un índice
+  guardado con la carpeta anterior de Codex se corrige al cargarlo (`agents::normalize`).
 - Eliminar va a una papelera restaurable que se purga a los 30 días; «Eliminar datos…» borra además la
   papelera.
 - Pruebas y QA solo con un HOME y una carpeta de datos temporales; el motor recibe el HOME por
@@ -145,6 +153,7 @@ al Llavero.
 - Solo un enlace por IA y skill, con el id como nombre: no hay nombres distintos por IA.
 - ChatGPT no tiene carpeta: solo se exporta texto, y los archivos de apoyo van por nombre, sin su
   contenido.
+- Los enlaces que Stack hizo antes en `~/.codex/skills` no se mueven solos: la salud los señala.
 - No lee las carpetas actuales de las IA ni importa skills que ya estén ahí: se crean en Stack o se
   colocan en `skills/<id>/` (se adoptan).
 - Restaurar («Deshacer») muestra antes los enlaces que recrea y exige `confirmed`; solo donde el

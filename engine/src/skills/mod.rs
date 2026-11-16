@@ -25,7 +25,11 @@ use model::{fail, valid_id, Ctx, Entry, Group, Index};
 use serde_json::{json, Value};
 use std::{fs, path::Path};
 
-/// Requests of the skills tool (`skills*`); the caller checked that the tool is on.
+/// Requests of the skills tool (`skills*`). `skillsLinkPlan` / `skillsLinkApply` also take
+/// `{migrate: "codex"}`: it moves the links of `~/.codex/skills` that resolve into Stack's skills
+/// folder to the current Codex folder (`~/.agents/skills`), planned as `{create, remove, conflicts}`
+/// and applied only with `confirmed`; nothing else in the old folder is listed or touched.
+/// The caller checked that the tool is on.
 pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Value> {
     let home = Store::home().ok_or_else(|| anyhow::anyhow!("home_unavailable"))?;
     dispatch_in(store, &home, method, request)
@@ -146,6 +150,19 @@ pub(crate) fn dispatch_in(
         "skillsAgentRemove" => {
             require(confirmed)?;
             agent_remove(&ctx, &mut index, &id)
+        }
+        "skillsLinkPlan" if request["migrate"].is_string() => {
+            let agent = text("migrate");
+            let (moves, taken) = links::migration(&ctx, &index, &agent)?;
+            Ok(links::migration_plan_json(&moves, &taken))
+        }
+        "skillsLinkApply" if request["migrate"].is_string() => {
+            require(confirmed)?;
+            let agent = text("migrate");
+            let (moves, taken) = links::migration(&ctx, &index, &agent)?;
+            let result = links::migrate(&ctx, &mut index, &agent, &moves, &taken)?;
+            index::save(&ctx, &index)?;
+            Ok(result)
         }
         "skillsLinkPlan" => {
             let parsed = links::parse(request, &index)?;
