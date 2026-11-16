@@ -69,6 +69,9 @@ Lista en `git::METHODS` (`engine/src/git/mod.rs`). `path` es el repositorio (o l
 | `gitRepositoryAdd` | `path` | — | Sí |
 | `gitRepositoryForget` | `path` | — | Sí |
 | `gitClone` | `path` (padre), `url`, `name` | `clone` | Sí |
+| `gitSshAccess` | `url`; responde si la dirección usa SSH, su servidor y puerto, si el servidor está en `~/.ssh/known_hosts` y si hay una clave que ofrecer (en el agente o una por omisión de `~/.ssh`) | — | Sí |
+| `gitSshFingerprints` | `url`; las huellas que el servidor presenta ahora y si son las que publica su proveedor | — | Sí |
+| `gitSshTrust` | `url`, `fingerprints` (las que vio el usuario), `confirmed`; agrega el servidor a `~/.ssh/known_hosts` | — | Sí |
 | `gitInit` | `path` (padre), `name`, `develop` | `init` | Sí |
 | `gitPublish` | `url`, `branches`, `replaceOrigin`, `confirmed` | `publish` | Sí |
 | `gitOpen` | `limit`, `stats`; lo anota en recientes (hasta 20) | `open` | Sí |
@@ -142,6 +145,27 @@ caracteres como máximo. Solo los `git*` aceptan solicitudes de más de 1 MiB (h
 - `butakestack://tool/git`: abre la herramienta (apagada, Ajustes › Herramientas con su fila).
 - `butakestack://git?path=<repositorio>` (por ejemplo `butakestack://git/open?path=/Users/ana/codigo/tienda`):
   abre ese repositorio si la herramienta está encendida; si no, se comporta como `tool/git`.
+
+## Acceso por SSH al clonar
+
+El `ssh` de Git no puede preguntar nada (sin terminal): en un Mac sin `~/.ssh/known_hosts` ni claves, un
+clon por SSH fallaba sin salida dentro de la app. «Clonar…» pregunta antes con `gitSshAccess` y muestra lo
+que falta, cada cosa con su acción:
+
+- **Servidor sin confirmar** (`clone_host_unknown`): «Revisar huella…» lee las huellas con `ssh-keyscan`,
+  las muestra y, al aceptar, `gitSshTrust` vuelve a leerlas y solo si siguen siendo las mismas las agrega a
+  `~/.ssh/known_hosts` (0600; `~/.ssh` 0700 si no existía). Para `github.com` y `bitbucket.org` (puerto 22)
+  se comparan además con las que publica cada proveedor (`OFFICIAL` en `engine/src/git/access.rs`): un
+  servidor que responde por esos nombres con otra clave se rechaza aunque el usuario acepte. «Clonar» queda
+  desactivado mientras el servidor no esté confirmado.
+- **Sin clave que ofrecer**: con claves en Stack, «Usar una clave» carga la elegida en el agente (dura lo
+  que la sesión del Mac); sin ninguna, lleva a Ajustes › Claves SSH.
+- **Clave no registrada** (`clone_ssh_denied`): copiar la clave pública y abrir la página de claves SSH del
+  proveedor. Stack no la registra por la API: la ficha no pide ese permiso.
+- **HTTPS sin credenciales** (`clone_auth`): explica que la ficha no va a Git (R19) y ofrece pasar a SSH.
+
+Nada de esto lee una clave privada ni entrega la ficha a Git. Las pruebas usan una carpeta personal
+temporal y las claves públicas de los proveedores como texto, sin red (`engine/src/git/tests/access.rs`).
 
 ## Límites conocidos
 

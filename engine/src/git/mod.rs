@@ -11,6 +11,7 @@
 //! What a Stack project knows about its repository (branch, pending changes, worktrees) stays in
 //! `web/projects/git.rs`, part of the base, and needs no tool.
 
+mod access;
 mod actions;
 mod branches;
 mod console;
@@ -51,6 +52,9 @@ pub const METHODS: &[&str] = &[
     "gitRepositoryAdd",
     "gitRepositoryForget",
     "gitClone",
+    "gitSshAccess",
+    "gitSshFingerprints",
+    "gitSshTrust",
     "gitInit",
     "gitPublish",
     "gitOpen",
@@ -136,6 +140,25 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> anyhow::Result<
             // A failure to remember it never fails the opening.
             let _ = repositories::opened(store, &root);
             Ok(json!(value))
+        }
+        // What a clone over SSH needs on this Mac (no folder involved).
+        "gitSshAccess" | "gitSshFingerprints" | "gitSshTrust" => {
+            let home = Store::home().ok_or_else(|| anyhow::anyhow!("invalid_path"))?;
+            let url = text(request, "url");
+            Ok(match method {
+                "gitSshAccess" => json!(access::ssh_access(
+                    &home,
+                    std::env::var_os("SSH_AUTH_SOCK").as_deref(),
+                    url
+                )?),
+                "gitSshFingerprints" => json!(access::host_fingerprints(url)?),
+                _ => {
+                    confirmed(request, "Confirma que confías en el servidor.")?;
+                    let seen = list(request, "fingerprints", "Faltan las huellas que viste.")?;
+                    access::trust_host(&home, url, &seen)?;
+                    json!(true)
+                }
+            })
         }
         _ => Ok(block(run(method, request))?),
     }

@@ -78,7 +78,17 @@ pub async fn clone(parent: &Path, url: &str, name: &str) -> Result<String> {
         // so retrying does not stop at "already exists".
         let _ = std::fs::remove_dir_all(&target);
         let detail = failure.detail.to_lowercase();
-        if detail.contains("authentication") || detail.contains("permission denied") || detail.contains("could not read username") {
+        if detail.contains("host key verification failed") {
+            error(
+                "clone_host_unknown",
+                "Este Mac todavía no confía en ese servidor. Revisa su huella y confía en él antes de clonar por SSH.",
+            )
+        } else if detail.contains("permission denied (publickey") {
+            error(
+                "clone_ssh_denied",
+                "El servidor no aceptó ninguna clave SSH de este Mac. Registra tu clave pública en tu cuenta de ese servidor y vuelve a intentar.",
+            )
+        } else if detail.contains("authentication") || detail.contains("permission denied") || detail.contains("could not read username") {
             error(
                 "clone_auth",
                 "El servidor pidió credenciales. Configura tu llave SSH o el gestor de credenciales de Git y vuelve a intentar.",

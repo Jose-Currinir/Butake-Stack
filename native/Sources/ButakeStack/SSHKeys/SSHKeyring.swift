@@ -185,6 +185,14 @@ struct SSHAgentState: Codable, Sendable {
             }
         }
     }
+    /// Puts a key in the agent whether it is protected or not: Git's own `ssh` only finds Stack's
+    /// keys there. A protected one asks for its passphrase as `ensureAgent` does.
+    func offerToAgent(_ key: SSHKey) async -> Bool {
+        if key.encrypted == true { return await ensureAgent(key.id) }
+        if let state: SSHAgentState = try? await store.call(["method": "sshKeyAgent"]) { agent = state }
+        if !agent.available { store.errorMessage = L("error.ssh_agent_missing"); return false }
+        return await loadIntoAgent(key.id, passphrase: "", quiet: false)
+    }
     @discardableResult func loadIntoAgent(_ id: String, passphrase: String, quiet: Bool) async -> Bool {
         do {
             let _: Bool = try await store.call(["method": "sshKeyAgentLoad", "id": id, "passphrase": passphrase])

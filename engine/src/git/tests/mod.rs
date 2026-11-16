@@ -2,6 +2,7 @@
 //! folder made by the test, and every Git process runs with a private HOME and global
 //! configuration, without system configuration or SSH agent (`runner::isolate`): nothing touches
 //! the user's repositories, configuration, keys or the network.
+mod access;
 mod actions;
 mod commits;
 mod console;

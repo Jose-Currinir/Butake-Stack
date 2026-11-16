@@ -21,6 +21,11 @@ struct GitCloneSheet: View {
     @State private var name = ""
     @State private var failure: String?
     @State private var running: Task<Bool, Never>?
+    /// What an SSH address still needs on this Mac, and the code of a clone refused for access.
+    @State private var access: GitSSHAccess?
+    @State private var refused: String?
+    /// How many notices about that access show: the sheet grows with them over the list.
+    @State private var accessNotices = 0
 
     /// The folder chosen for clones, when the user brought it from the former app.
     static let parentKey = "git.cloneParent"
@@ -45,11 +50,12 @@ struct GitCloneSheet: View {
     }
     private var target: String { (parent as NSString).appendingPathComponent(name) }
     private var exists: Bool { !name.isEmpty && FileManager.default.fileExists(atPath: target) }
-    private var canClone: Bool { !url.isEmpty && GitRepositoryName.valid(name) && !exists && running == nil }
+    private var canClone: Bool { !url.isEmpty && GitRepositoryName.valid(name) && !exists && running == nil && access?.blocked != true }
 
     var body: some View {
         SheetFrame(title: L("git.clone.title"), symbol: Symbols.gitClone, detail: L("git.clone.detail"),
-                   note: failure ?? (exists ? String(format: L("git.clone.exists"), name) : nil), width: 600, height: 640,
+                   note: failure ?? (exists ? String(format: L("git.clone.exists"), name) : nil), width: 600,
+                   height: 640 + (source == .account ? CGFloat(accessNotices) * 92 : 0),
                    actionTitle: L("git.clone.action"), actionSymbol: Symbols.gitClone, actionID: "git.clone.run",
                    canAct: canClone, cancelID: "git.clone.cancel") {
             await clone()
@@ -65,6 +71,8 @@ struct GitCloneSheet: View {
                         .textFieldStyle(.roundedBorder)
                         .accessibilityIdentifier("git.clone.address")
                 }
+                GitCloneAccessNotice(url: url, access: access, refused: refused, refresh: { await readAccess() },
+                                     useSSH: source == .account && !useSSH ? { useSSH = true } : nil, shown: $accessNotices, hosting: hosting)
                 Form {
                     if source == .account {
                         Picker(L("git.clone.protocol"), selection: $useSSH) {
@@ -82,6 +90,13 @@ struct GitCloneSheet: View {
         }
         .cancelling(running.map { task in { task.cancel() } }, help: L("git.clone.cancelHelp"))
         .task { await start() }
+        .task(id: url) {
+            // Typing an address: wait for it to settle before asking the engine.
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            refused = nil
+            await readAccess()
+        }
         .onChange(of: provider) { Task { await loadRepositories() } }
         .onChange(of: chosen) { if let repository { name = Self.folderName(repository.fullName) } }
         .onChange(of: address) { if source == .address { name = Self.folderName(address) } }
@@ -128,10 +143,22 @@ struct GitCloneSheet: View {
         }
     }
 
+    private func readAccess() async {
+        let asked = url
+        let found = asked.isEmpty ? nil : await hosting.sshAccess(url: asked, store: StackStore.shared)
+        if asked == url { access = found }
+    }
+
     private func start() async {
+        #if DEBUG
+        if let typed = GitHostingQA.cloneAddress, typed != "first" { source = .address; address = typed; return }
+        #endif
         if !hosting.accountsLoaded { await hosting.loadAccounts() }
         if let first = hosting.connectedProviders.first { provider = first } else { source = .address }
         await loadRepositories()
+        #if DEBUG
+        if GitHostingQA.cloneAddress == "first" { chosen = repositories.first?.id }
+        #endif
     }
 
     private func loadRepositories() async {
@@ -151,6 +178,7 @@ struct GitCloneSheet: View {
     /// Clones (stoppable) and opens the new repository; false keeps the sheet with the reason.
     private func clone() async -> Bool {
         failure = nil
+        refused = nil
         let store = StackStore.shared
         let (url, parent, name) = (self.url, self.parent, self.name)
         let task = Task<Bool, Never> {
@@ -162,6 +190,10 @@ struct GitCloneSheet: View {
             } catch {
                 let failure = GitFailure(error)
                 if !failure.cancelled { self.failure = failure.detail.isEmpty ? failure.title : "\(failure.title): \(failure.detail)" }
+                if ["clone_host_unknown", "clone_ssh_denied", "clone_auth"].contains(failure.code) {
+                    refused = failure.code
+                    await readAccess()
+                }
                 return false
             }
         }
