@@ -62,9 +62,13 @@ enum EnvSection: String, CaseIterable, Identifiable {
 struct EnvironmentsView: View {
     @Bindable var store: StackStore
     let project: Project
-    @State private var selected: String?
-    @State private var draft: [Row] = []
-    @State private var dirty = false
+    @State var selected: String?
+    @State var draft: [Row] = []
+    @State var dirty = false
+    /// Text mode (`EnvTextMode.swift`): the environment as one `.env` text, with ⌘F.
+    @AppStorage("env.textMode") var textMode = false
+    @State var text = ""
+    @State var findRequests = 0
     @State private var creating = false
     @State private var confirmProduction = false
     @State private var confirmDelete = false
@@ -73,7 +77,7 @@ struct EnvironmentsView: View {
     @State private var editingSecret: Row?
     /// Which secrets have a value in the Keychain, read once per load (not on every redraw: a long
     /// .env made every keystroke query the Keychain dozens of times).
-    @State private var storedSecrets: Set<String> = []
+    @State var storedSecrets: Set<String> = []
     /// The environment just applied while processes run: they take it only when restarted.
     @State private var offerRestart: EnvEnvironment?
     @State private var creatingDatabase = false
@@ -87,6 +91,8 @@ struct EnvironmentsView: View {
         /// A new secret value typed by the user, written to the Keychain on save.
         var newSecret: String?
         var original: String?
+        /// Typed in text mode and not classified yet (see `classifyTyped`).
+        var fromText = false
     }
 
     var state: EnvState? { store.envs[project.id] }
@@ -106,8 +112,11 @@ struct EnvironmentsView: View {
 
     var body: some View {
         Group {
-            if environments.isEmpty { emptyState } else { content }
+            if environments.isEmpty { emptyState } else if textMode { textContent } else { content }
         }
+        .onChange(of: draft) { _, _ in followDraft() }
+        .onChange(of: storedSecrets) { _, _ in if textMode, !dirty { renderText() } }
+        .onChange(of: textMode) { _, _ in modeChanged() }
         .task(id: project.id) { await store.loadEnvs(project.id); load() }
         .onChange(of: selected) { _, _ in load() }
         .sheet(isPresented: $creating) {
@@ -189,35 +198,50 @@ struct EnvironmentsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// What is wrong with this environment, one notice each; both modes show them.
+    @ViewBuilder var notices: some View {
+        if let guardProblem { Notice(.error, guardProblem) }
+        if !missingPorts.isEmpty {
+            Notice(.error, String(format: L("env.portMissing"), missingPorts.joined(separator: ", ")), detail: L("env.portMissingDetail"))
+        }
+        if let pending = state?.publicPending, !pending.isEmpty {
+            Notice(.warning, String(format: L("env.publicPending"), pending.map(projectTitle).joined(separator: ", ")), detail: L("env.publicPendingDetail"))
+        }
+        if let active = state?.site.activeEnvironment, let outdated = state?.site.outdated, !outdated.isEmpty {
+            Notice(.warning, String(format: L("env.portOutdated"), outdated.map(projectTitle).joined(separator: ", ")), detail: L("env.portOutdatedDetail")) {
+                Button {
+                    if active.kind == .production { selected = active.id; confirmProduction = true } else { Task { await activate(active) } }
+                } label: { Label(L("env.reapply"), systemImage: Symbols.reload) }
+                .buttonStyle(.bordered).disabled(store.busy != nil || missingPorts.contains { outdated.contains($0) })
+                .accessibilityIdentifier("env.reapply")
+            }
+        }
+    }
+    @ViewBuilder var missingNotice: some View {
+        if !missing.isEmpty {
+            Notice(.warning, String(format: L("env.missing"), missing.count), detail: missing.joined(separator: ", ")) {
+                Button { Task { await addMissing() } } label: { Label(L("env.addMissing"), systemImage: Symbols.add) }
+                    .buttonStyle(.bordered).accessibilityIdentifier("env.addMissing")
+            }
+        }
+    }
+    var environmentPicker: some View {
+        Picker(L("env.editing"), selection: Binding(get: { current?.id }, set: { id in if !dirty || confirmDiscard() { selected = id } })) {
+            ForEach(environments) { env in
+                Label(env.title, systemImage: env.kind.symbol).tag(Optional(env.id))
+            }
+        }
+        .help(L("env.securityNote"))
+        .accessibilityIdentifier("env.select")
+    }
+
     // MARK: The environment, its status and its variables by section
     private var content: some View {
         Form {
-            if let guardProblem { Section { Notice(.error, guardProblem) } }
-            if !missingPorts.isEmpty {
-                Section { Notice(.error, String(format: L("env.portMissing"), missingPorts.joined(separator: ", ")), detail: L("env.portMissingDetail")) }
-            }
-            if let pending = state?.publicPending, !pending.isEmpty {
-                Section { Notice(.warning, String(format: L("env.publicPending"), pending.map(projectTitle).joined(separator: ", ")), detail: L("env.publicPendingDetail")) }
-            }
-            if let active = state?.site.activeEnvironment, let outdated = state?.site.outdated, !outdated.isEmpty {
-                Section {
-                    Notice(.warning, String(format: L("env.portOutdated"), outdated.map(projectTitle).joined(separator: ", ")), detail: L("env.portOutdatedDetail")) {
-                        Button {
-                            if active.kind == .production { selected = active.id; confirmProduction = true } else { Task { await activate(active) } }
-                        } label: { Label(L("env.reapply"), systemImage: Symbols.reload) }
-                        .buttonStyle(.bordered).disabled(store.busy != nil || missingPorts.contains { outdated.contains($0) })
-                        .accessibilityIdentifier("env.reapply")
-                    }
-                }
-            }
+            ForEach(subviews: notices) { notice in Section { notice } }
             Section {
-                Picker(L("env.editing"), selection: Binding(get: { current?.id }, set: { id in if !dirty || confirmDiscard() { selected = id } })) {
-                    ForEach(environments) { env in
-                        Label(env.title, systemImage: env.kind.symbol).tag(Optional(env.id))
-                    }
-                }
-                .help(L("env.securityNote"))
-                .accessibilityIdentifier("env.select")
+                environmentPicker
+                modePicker(labeled: true)
                 LabeledContent(L("env.activeLabel")) {
                     if let active = state?.site.activeEnvironment { Chip(env: active) } else { Text(L("env.none")) }
                 }
@@ -233,14 +257,7 @@ struct EnvironmentsView: View {
                 }
                 actions
             }
-            if !missing.isEmpty {
-                Section {
-                    Notice(.warning, String(format: L("env.missing"), missing.count), detail: missing.joined(separator: ", ")) {
-                        Button { Task { await addMissing() } } label: { Label(L("env.addMissing"), systemImage: Symbols.add) }
-                            .buttonStyle(.bordered).accessibilityIdentifier("env.addMissing")
-                    }
-                }
-            }
+            if !missing.isEmpty { Section { missingNotice } }
             ForEach(sections, id: \.0) { section, rows in
                 Section(L("env.section.\(section.rawValue)")) {
                     ForEach(rows, id: \.wrappedValue.id) { row in
@@ -265,7 +282,7 @@ struct EnvironmentsView: View {
 
     /// The environment's actions: more (new, database, history, download, export, delete), save and
     /// activate, the one prominent action of the tab.
-    private var actions: some View {
+    var actions: some View {
         HStack(spacing: 10) {
             Menu {
                 Button { creating = true } label: { Label(L("env.new"), systemImage: Symbols.add) }.accessibilityIdentifier("env.new")
@@ -420,6 +437,7 @@ struct EnvironmentsView: View {
     }
     /// Secrets to the Keychain first, then keys and plain values to the store.
     private func save() async {
+        await classifyTyped()
         guard dirty, let current, var site = state?.site, let index = site.environments.firstIndex(where: { $0.id == current.id }) else { return }
         let keys = draft.map { $0.key.trimmingCharacters(in: .whitespaces) }
         guard !keys.contains(where: \.isEmpty), Set(keys).count == keys.count else { store.errorMessage = L("env.invalidKeys"); return }

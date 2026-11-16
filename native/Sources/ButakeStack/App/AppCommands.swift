@@ -44,6 +44,7 @@ struct AppCommands: Commands {
     @FocusedValue(\.selectedProject) private var project
     @FocusedValue(\.sidebarProject) private var listed
     @FocusedValue(\.sidebarSearch) private var search
+    @FocusedValue(\.textFinder) private var finder
     @FocusedValue(\.projectSettings) private var projectSettings
 
     static let website = URL(string: "https://jose-currinir.github.io/Butake-Stack/")!
@@ -69,7 +70,7 @@ struct AppCommands: Commands {
         }
         CommandGroup(after: .pasteboard) {
             Divider()
-            Button(L("menu.find")) { search?.focus() }.keyboardShortcut("f").disabled(search == nil)
+            Button(L("menu.find")) { find() }.keyboardShortcut("f").disabled(search == nil && finder == nil)
         }
         SidebarCommands()
         CommandGroup(after: .toolbar) {
@@ -140,6 +141,14 @@ struct AppCommands: Commands {
         } else if byKey, let responder, let event = NSApp.currentEvent {
             responder.keyDown(with: event)
         }
+    }
+
+    /// ⌘F: the find bar of the page's editor, or of the code editor that has the keyboard; else the
+    /// sidebar's search.
+    private func find() {
+        if let finder { finder.show() }
+        else if let view = NSApp.keyWindow?.firstResponder as? NSTextView, view.usesFindBar { CodeEditor.showFindBar(view) }
+        else { search?.focus() }
     }
 
     /// Navigation and sheets happen in the main window, opened (or brought forward) first.

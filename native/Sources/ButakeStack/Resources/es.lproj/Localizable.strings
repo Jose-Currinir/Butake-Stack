@@ -976,6 +976,7 @@
 "env.portRestartTitle" = "¿Reiniciar los procesos con el puerto nuevo?";
 "env.portRestartDetail" = "El puerto de %@ cambió y el .env de estos proyectos ya lo tiene, pero sus procesos en marcha siguen con el anterior hasta reiniciarse: %@.";
 "env.portRestarted" = "Los procesos de %@ se reiniciaron con el puerto nuevo de %@.";
+"env.view" = "Vista";
 "env.kind.local" = "Local";
 "env.kind.development" = "Desarrollo";
 "env.kind.testing" = "Pruebas";
@@ -1013,6 +1014,11 @@
 "env.section.frontend" = "Front-end";
 "env.section.services" = "Servicios externos";
 "env.section.other" = "Otras variables";
+"env.view.list" = "Lista";
+"env.view.text" = "Texto";
+"env.view.help" = "Lista: una fila por variable. Texto: el entorno completo como un .env, con búsqueda (⌘F).";
+"env.text.label" = "Variables del entorno";
+"env.text.note" = "Los secretos se ven como %@ y siguen en el Llavero: deja la línea así para conservar el valor o escribe uno nuevo. Solo se guardan las líneas NOMBRE=valor (los comentarios no). ⌘F busca.";
 
 /* Servicios */
 "category.database" = "Bases de datos";

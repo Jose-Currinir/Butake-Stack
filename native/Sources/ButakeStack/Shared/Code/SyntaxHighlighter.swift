@@ -2,13 +2,14 @@ import AppKit
 
 /// Language of a file for its syntax colors, from its name.
 enum CodeLanguage: Hashable, Sendable {
-    case php, blade, javascript, typescript, python, swift, rust, go, java, kotlin, ruby, csharp, c, css, html, markdown, json, yaml, toml, shell, sql, plain
+    case php, blade, javascript, typescript, python, swift, rust, go, java, kotlin, ruby, csharp, c, css, html, markdown, json, yaml, toml, shell, sql, dotenv, plain
 
     static func of(_ path: String?) -> CodeLanguage {
         guard let path else { return .plain }
         let name = (path as NSString).lastPathComponent.lowercased()
         if name.hasSuffix(".blade.php") { return .blade }
-        if name == "dockerfile" || name == "makefile" || name.hasPrefix(".env") { return .shell }
+        if name.hasPrefix(".env") { return .dotenv }
+        if name == "dockerfile" || name == "makefile" { return .shell }
         switch (name as NSString).pathExtension {
         case "php": return .php
         case "js", "mjs", "cjs", "jsx", "vue", "svelte", "astro": return .javascript
@@ -116,7 +117,7 @@ struct SyntaxHighlighter: Sendable {
         // Block comments (/* … */, <!-- … -->, Blade {{-- … --}}) spanning lines.
         let opener = language.markup ? (language == .blade ? "{{--" : "<!--") : "/*"
         let closer = language.markup ? (language == .blade ? "--}}" : "-->") : "*/"
-        if language != .plain, language != .python, language != .yaml, language != .markdown {
+        if language != .plain, language != .python, language != .yaml, language != .markdown, language != .dotenv {
             var cursor = 0
             while cursor < full.length {
                 if inBlockComment {
@@ -143,6 +144,7 @@ struct SyntaxHighlighter: Sendable {
             return spans
         }
         if language == .plain { return spans }
+        if language == .dotenv { return dotenv(text) }
         // Strings first (comment markers inside them are ignored), then line comments.
         let strings = Self.string.matches(in: line, range: full).map(\.range)
         if let marker = language.lineComment {
@@ -174,6 +176,56 @@ struct SyntaxHighlighter: Sendable {
             else if typed, let first = word.unicodeScalars.first, CharacterSet.uppercaseLetters.contains(first), word.count > 1 { add(match.range, colors.type, protect: true) }
         }
         for match in Self.call.matches(in: line, range: full) { add(match.range, colors.function) }
+        return spans
+    }
+
+    // MARK: .env
+
+    private static let envReference = try! NSRegularExpression(pattern: #"\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*|\{(?:port|public):[^}]*\}"#)
+    private static let envNumber = try! NSRegularExpression(pattern: #"^-?\d+(?:\.\d+)?$"#)
+    private static let envConstants: Set<String> = ["true", "false", "null", "yes", "no", "on", "off", "(true)", "(false)", "(null)", "(empty)"]
+
+    /// A `.env` line: the name, a dim `=`, and the value by what it is (quoted text, a number, a
+    /// switch, an address, a hidden secret), with `${NAME}` and `{port:…}` references on top.
+    private func dotenv(_ text: NSString) -> [(NSRange, NSColor)] {
+        let length = text.length
+        var start = 0
+        while start < length, text.character(at: start) == 32 || text.character(at: start) == 9 { start += 1 }
+        guard start < length else { return [] }
+        if text.character(at: start) == 35 { return [(NSRange(location: start, length: length - start), colors.comment)] } // "#"
+        let equals = text.range(of: "=")
+        guard equals.location != NSNotFound, equals.location > start else { return [] }
+        var spans: [(NSRange, NSColor)] = []
+        var key = NSRange(location: start, length: equals.location - start)
+        if text.substring(with: key).hasPrefix("export ") {
+            spans.append((NSRange(location: start, length: 6), colors.keyword))
+            key = NSRange(location: start + 7, length: key.length - 7)
+        }
+        spans.append((key, colors.tag))
+        spans.append((equals, colors.comment))
+        var value = NSRange(location: equals.location + 1, length: length - equals.location - 1)
+        guard value.length > 0 else { return spans }
+        let first = text.character(at: value.location)
+        let quoted = first == 34 || first == 39 // " '
+        if !quoted {
+            // A trailing comment starts at " #".
+            let hash = text.range(of: " #", range: value)
+            if hash.location != NSNotFound {
+                spans.append((NSRange(location: hash.location, length: length - hash.location), colors.comment))
+                value.length = hash.location - value.location
+            }
+        }
+        let content = text.substring(with: value).trimmingCharacters(in: .whitespaces)
+        let color: NSColor? =
+            quoted ? colors.string
+            : content.allSatisfy({ $0 == "•" }) && !content.isEmpty ? colors.comment
+            : Self.envConstants.contains(content.lowercased()) ? colors.keyword
+            : Self.envNumber.firstMatch(in: content, range: NSRange(location: 0, length: (content as NSString).length)) != nil ? colors.number
+            : content.contains("://") ? colors.function
+            : colors.string
+        if let color { spans.append((value, color)) }
+        // Later spans win: a reference keeps its own color inside any value.
+        for match in Self.envReference.matches(in: text as String, range: value) { spans.append((match.range, colors.variable)) }
         return spans
     }
 }
