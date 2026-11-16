@@ -118,3 +118,67 @@ private let listJSON = """
         #expect(error.code == "plugin_disabled")
     }
 }
+
+/// `skillsImportScan` answers the candidates with their sources.
+@Test func skillsImportScanDecodes() throws {
+    let found = try JSONDecoder().decode([ImportCandidate].self, from: Data(
+        #"""
+        [{"id": "notas", "name": "Notas", "description": "Toma notas", "identical": true, "valid": true, "hidden": false,
+          "sources": [{"agent": "claude", "path": "/qa/.claude/skills/notas", "kind": "folder"},
+                      {"agent": "codex", "path": "/qa/.agents/skills/notas", "kind": "link"}]},
+         {"id": "Mi Skill", "name": "Mi Skill", "description": "", "identical": false, "valid": false, "reason": "skills_invalid_id",
+          "hidden": false, "sources": [{"agent": "gemini", "path": "/qa/.gemini/skills/Mi Skill", "kind": "folder"}]},
+         {"id": ".sistema", "name": ".sistema", "description": "", "identical": true, "valid": false, "reason": "skills_invalid_id",
+          "hidden": true, "sources": []}]
+        """#.utf8))
+    #expect(found.count == 3 && found[0].sources.map(\.kind) == ["folder", "link"] && found[0].sources[1].isLink)
+    #expect(found[0].preselected && found[0].reason == nil)
+    #expect(!found[1].preselected && found[1].reason == "skills_invalid_id" && !found[1].identical)
+    #expect(found[2].hidden && !found[2].preselected)
+}
+
+/// `skillsImportPlan` and `skillsImportApply` answers.
+@Test func skillsImportPlanAndResultDecode() throws {
+    let plan = try JSONDecoder().decode(ImportPlan.self, from: Data(
+        #"""
+        {"copy": [{"from": "/qa/.claude/skills/notas", "id": "notas"}],
+         "replace": ["/qa/.claude/skills/notas", "/qa/.agents/skills/notas"],
+         "trash": ["/qa/.claude/skills/notas"], "unlink": ["/qa/.agents/skills/notas"],
+         "conflicts": [{"path": "/qa/.gemini/skills/notas", "reason": "not_chosen"}]}
+        """#.utf8))
+    #expect(plan.copy == [ImportPlan.Copy(from: "/qa/.claude/skills/notas", id: "notas")])
+    #expect(plan.replace.count == 2 && plan.trash.count == 1 && plan.unlink == ["/qa/.agents/skills/notas"])
+    #expect(plan.conflicts.first?.reason == "not_chosen")
+
+    let skill = #"{"id": "notas", "name": "Notas", "description": "", "group": "personal", "tags": [], "enabled": true, "agents": ["claude", "codex"], "files": [], "modified": 1760000000}"#
+    let result = try JSONDecoder().decode(ImportResult.self, from: Data(
+        #"{"imported": [\#(skill)], "conflicts": [{"path": "/qa/x", "reason": "cannot_move"}]}"#.utf8))
+    #expect(result.imported.map(\.id) == ["notas"] && result.imported[0].agents == ["claude", "codex"])
+    #expect(result.conflicts.map(\.reason) == ["cannot_move"])
+}
+
+/// The import trash: its entries, the undo plan and the plan to empty it.
+@Test func skillsImportTrashDecodes() throws {
+    let list = try JSONDecoder().decode([ImportTrashEntry].self, from: Data(
+        #"""
+        [{"trashId": "import-notas-1760000000", "id": "notas", "created": 1760000000, "path": "/qa/skills-trash/import-notas-1760000000",
+          "sources": [{"agent": "claude", "path": "/qa/.claude/skills/notas", "kind": "folder"}]}]
+        """#.utf8))
+    #expect(list[0].trashId == "import-notas-1760000000" && list[0].createdDate == Date(timeIntervalSince1970: 1_760_000_000))
+    #expect(ImportConfirmation.undo(list[0]).id != ImportConfirmation.empty(list).id)
+
+    let undo = try JSONDecoder().decode(ImportUndoPlan.self, from: Data(
+        #"""
+        {"restore": [{"from": "/qa/t/sources/0", "to": "/qa/.claude/skills/notas"}],
+         "relink": [{"path": "/qa/.agents/skills/notas", "target": "/qa/otro/notas"}],
+         "remove": ["/qa/.claude/skills/notas"], "trash": ["/qa/skills/notas"],
+         "conflicts": [{"path": "/qa/skills/notas", "reason": "changed"}]}
+        """#.utf8))
+    #expect(undo.restore.first?.to == "/qa/.claude/skills/notas" && undo.relink.first?.target == "/qa/otro/notas")
+    #expect(undo.remove.count == 1 && undo.trash == ["/qa/skills/notas"] && undo.conflicts.first?.reason == "changed")
+
+    let empty = try JSONDecoder().decode(ImportEmptyPlan.self, from: Data(#"{"delete": ["/qa/skills-trash/import-notas-1760000000"]}"#.utf8))
+    #expect(empty.delete.count == 1)
+    let undone = try JSONDecoder().decode(ImportUndoResult.self, from: Data(#"{"restored": ["/qa/a"], "conflicts": []}"#.utf8))
+    #expect(undone.restored == ["/qa/a"] && undone.conflicts.isEmpty)
+}

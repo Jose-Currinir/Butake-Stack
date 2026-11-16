@@ -24,6 +24,12 @@ fn every_method_answers_plugin_disabled_while_off_and_the_tool_registers() {
         "skillsLinkApply",
         "skillsHealth",
         "skillsExport",
+        "skillsImportScan",
+        "skillsImportPlan",
+        "skillsImportApply",
+        "skillsImportTrashList",
+        "skillsImportUndo",
+        "skillsImportTrashEmpty",
     ] {
         assert_eq!(plugins::tool_of(method), Some("skills"), "{method}");
         let request = json!({"id": "x", "confirmed": true});

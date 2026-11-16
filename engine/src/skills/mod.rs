@@ -9,6 +9,7 @@
 mod agents;
 mod export;
 mod health;
+mod import;
 mod index;
 mod links;
 mod model;
@@ -36,7 +37,7 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Value> {
 }
 
 /// Removes every link into Stack's skills folder and then the skills themselves (what «Borrar los
-/// datos» of the tool does). Links of other origin are never touched.
+/// datos» of the tool does). Links of other origin are never touched, nor is the import trash.
 pub fn delete_all(store: &Store) -> Result<()> {
     if let Some(home) = Store::home() {
         if let Ok(ctx) = Ctx::new(store, &home) {
@@ -51,6 +52,10 @@ pub fn delete_all(store: &Store) -> Result<()> {
         let dir = store.directory(name)?;
         for item in fs::read_dir(&dir)?.flatten() {
             let path = item.path();
+            // The import trash holds the user's original folders: only «Vaciar papelera» removes it.
+            if name == "skills-trash" && import::is_import(&path) {
+                continue;
+            }
             if item.file_type()?.is_dir() {
                 fs::remove_dir_all(&path)?;
             } else {
@@ -71,6 +76,9 @@ pub fn has_data(store: &Store) -> bool {
 
 /// A request that only asks for a plan (`plan: true`) never writes, so it takes no lock.
 fn mutates(method: &str, request: &Value) -> bool {
+    if method.starts_with("skillsImport") {
+        return import::mutates(method, request);
+    }
     if request["plan"] == true && is_planned(method) {
         return false;
     }
@@ -140,6 +148,7 @@ pub(crate) fn dispatch_in(
             index::save(&ctx, &index)?;
             skill_json(&ctx, &index, &restored)
         }
+        m if m.starts_with("skillsImport") => import::dispatch(&ctx, &mut index, m, request),
         "skillsGroupSave" => group_save(&ctx, &mut index, request),
         "skillsGroupDelete" => group_delete(&ctx, &mut index, &id, &text("moveTo")),
         "skillsAgentSave" => {

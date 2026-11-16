@@ -22,6 +22,8 @@ private struct SkillsSheets: ViewModifier {
                 case .rename(let id): RenameSkillSheet(tool: tool, skillID: id)
                 case .agent(let id): CustomAgentSheet(tool: tool, agentID: id)
                 case .links(let request): SkillLinkSheet(tool: tool, request: request)
+                case .importExisting: ImportSkillsSheet(tool: tool)
+                case .importTrash: ImportTrashSheet(tool: tool)
                 }
             }
     }

@@ -17,7 +17,7 @@ Texto completo de cada requisito en `docs/21719-gestor-entornos-requisitos.md`.
 | R20 | Importación propuesta por un enlace sin acceso por sí sola | Revisión 2026-11-14 (P-38) |
 | R21 | Resumen de importación sin contenido y material sensible sin leer | Revisión 2026-11-14 (P-40) |
 | R22 | Renombrar o mover un proyecto sin secretos huérfanos ni copias | Revisión 2026-11-14 (P-41) |
-| R23 | Skills: texto del usuario solo en la carpeta de Stack, enlaces solo hacia las carpetas de las IA bajo el HOME | Revisión 2026-11-16 (herramienta Skills) |
+| R23 | Skills: texto del usuario solo en la carpeta de Stack, enlaces solo hacia las carpetas de las IA bajo el HOME; importar sin borrar | Revisión 2026-11-16 (herramienta Skills; A3 importar) |
 
 Las revisiones siguen en orden cronológico, de la más antigua a la más nueva.
 
@@ -251,6 +251,17 @@ secretos; borrado completo; procedimiento de incidentes; pruebas automáticas.
   devuelve el texto: el hallazgo lleva solo skill, IA y carpeta. R23 ampliado. Sin datos nuevos: la postura no
   cambia. Pruebas: `engine/src/skills/tests/health_export.rs`
   (`health_reports_paths_to_unlinked_agents`, `health_agent_path_counts_only_own_id_and_text_files`).
+- **Revisión 2026-11-16 (A3, importar skills existentes):** R23 ampliado con su única excepción a «solo se quitan
+  enlaces que resuelven a `skills/`»: importar reemplaza una carpeta real o un enlace ajeno de la carpeta de una
+  IA por un enlace a Stack. Nunca borra (la carpeta se mueve a la papelera de importación, sin copiar y borrar),
+  cada ruta se muestra antes de `confirmed`, un fallo revierte esa skill, la papelera de importación se
+  conserva hasta que el usuario la vacía (ni la purga de 30 días ni «Eliminar datos…» la tocan) y el borrado
+  definitivo solo ocurre en «Vaciar papelera de importación» con `confirmed` y la lista exacta. Deshacer solo
+  procede si la copia de Stack no cambió. Sin datos nuevos: la postura no cambia. Pruebas con HOME temporal:
+  `engine/src/skills/tests/import.rs` y `import_trash.rs` (`scan_writes_nothing`,
+  `the_plan_lists_exactly_what_the_apply_does`, `no_file_is_ever_deleted`,
+  `the_import_trash_is_not_purged_by_age_but_deleted_skills_are`,
+  `emptying_the_import_trash_needs_confirmed_and_removes_only_the_listed_folders`).
 - Sin datos personales nuevos que Stack procese por su cuenta ni envíos fuera del Mac: la postura no cambia
   (EIPD no obligatoria). Pruebas con HOME y carpeta de datos temporales y skills inventadas:
   `engine/src/skills/tests/` (`skills.rs`, `links.rs`, `trash_groups.rs`, `health_export.rs`, `dispatch.rs`).

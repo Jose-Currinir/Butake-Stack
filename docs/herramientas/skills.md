@@ -108,7 +108,7 @@ eliminar y quitar una IA solo quitan; restaurar solo crea, y los nombres ocupado
 
 Códigos propios: `skills_invalid_id`, `skills_exists`, `skills_not_found`, `skills_invalid_group`,
 `skills_group_not_empty`, `skills_invalid_folder`, `skills_too_large`, `skills_link_conflict` y
-`skills_agent_builtin`; además `confirmation_required`, `invalid_name` y `unsafe_store_path`.
+`skills_agent_builtin`, `skills_import_choice_required`, `skills_import_choice_invalid`, `skills_import_verify` y `skills_import_failed`; además `confirmation_required`, `invalid_name` y `unsafe_store_path`.
 
 ## Datos que guarda
 
@@ -124,6 +124,46 @@ Todo en la carpeta de datos de Stack:
 Fuera de la carpeta de datos, Stack solo crea enlaces simbólicos en las carpetas de las IA. Una
 carpeta bajo `skills/` con `SKILL.md` y sin entrada en el índice se adopta en el primer grupo. Nada va
 al Llavero.
+
+## Importar skills existentes
+
+Para skills que ya están en las carpetas de las IA (Claude, Codex, Gemini y las IA propias; nunca Kiro ni
+ChatGPT, que solo exportan). En la app: «Más» › «Importar skills existentes…», o el botón de la pantalla sin
+skills. Primero se elige qué importar, luego se ve el plan con todas las rutas y solo entonces se aplica.
+
+| Método | Qué hace |
+|---|---|
+| `skillsImportScan {}` | Solo lee. Responde `[{id, name, description, sources:[{agent, path, kind}], identical, valid, reason?, hidden}]`. Candidato: una entrada con `SKILL.md` que no es un enlace a la carpeta `skills/` de Stack. `kind` es `folder` o `link`. Las entradas que resuelven a la misma carpeta real, o cuyos árboles tienen los mismos bytes (hash de cada archivo regular; los enlaces de dentro no se siguen), son un candidato con varias fuentes. El mismo nombre con contenido distinto es `identical: false`. `valid: false` con `reason` `skills_invalid_id`, `skills_exists` o `skills_too_large`. Un nombre que empieza con punto (p. ej. `.sistema`) sale con `hidden: true`; como no cumple la regla de ids, tampoco es importable. Con topes de entradas, archivos y bytes |
+| `skillsImportPlan {ids, group, choices:[{id, from}]}` | No cambia nada. `{copy:[{from, id}], replace, trash, unlink, conflicts:[{path, reason}]}`: `replace` es cada ruta que pasa a ser un enlace a Stack; `trash` las carpetas reales que van a la papelera de importación; `unlink` los enlaces ajenos, de los que solo se quita el enlace (su destino no se toca); `conflicts` las fuentes no elegidas (`not_chosen`), los ids inválidos y las rutas que no se pueden mover (`cannot_move`, p. ej. otro volumen). Solo se planifican los `ids` pedidos: una entrada oculta no entra si no se nombra. Un candidato con copias distintas necesita `from` (una de sus rutas): sin él, `skills_import_choice_required`; con una ruta que no es suya, `skills_import_choice_invalid` |
+| `skillsImportApply {…, confirmed}` | Sin `confirmed`, `confirmation_required`. Hace exactamente el plan y responde `{imported:[skill], conflicts}` |
+| `skillsImportTrashList {}` | Las entradas de la papelera de importación: `[{trashId, id, created, path, sources}]` |
+| `skillsImportUndo {trashId, plan?, confirmed}` | Deshace una importación (ver abajo). El plan responde `{restore:[{from, to}], relink:[{path, target}], remove, trash, conflicts}` |
+| `skillsImportTrashEmpty {trashIds, plan?, confirmed}` | «Vaciar papelera de importación»: el plan responde `{delete:[rutas]}`; con `confirmed` borra solo esas carpetas y responde `{removed}` |
+
+Al aplicar, cada skill se hace por separado:
+
+1. Se copia la fuente elegida a una carpeta temporal dentro de la carpeta de datos, sin seguir enlaces, y se
+   verifica el hash de cada archivo.
+2. Se renombra a `skills/<id>` y entra en el índice (grupo elegido, activada, con las IA donde estaba).
+3. Cada fuente se reemplaza por un enlace a la copia de Stack. Una carpeta real se **mueve** (rename) a
+   `skills-trash/import-<id>-<epoch>/sources/<n>`, con un `entry.json` (ruta original, IA, hash de la
+   copia); un enlace ajeno solo se quita (y se guarda adónde apuntaba).
+4. Si algo falla, esa skill se revierte entera (copia, enlaces nuevos, carpetas devueltas, entrada del
+   índice); las demás siguen.
+5. No se borra nada: si mover una carpeta a la papelera falla (p. ej. otro volumen), esa fuente es un
+   conflicto y queda intacta. No hay copiar y borrar.
+
+La papelera de importación no se purga por antigüedad (a diferencia de la de skills eliminadas): queda
+hasta que el usuario la vacía, y «Eliminar datos…» de la herramienta tampoco la toca. «Deshacer» una
+importación mueve las carpetas originales a su lugar, vuelve a crear los enlaces ajenos, quita los enlaces
+a Stack y manda la skill de Stack a la papelera de skills (30 días), solo si esa copia no cambió desde la
+importación; si cambió, o una ruta original está ocupada, responde `{restored: [], conflicts}` y no hace
+nada. Vaciar es el único borrado definitivo y exige `confirmed` con la lista exacta de carpetas.
+
+La hoja de la app muestra por skill desde dónde se copia, cada ruta que cambia («va a la papelera» o «solo se
+quita el enlace»), las fuentes que quedan como están, y una advertencia general: otros programas con
+enlaces a esas carpetas ahora llegarán a la carpeta de Stack. Códigos propios: `skills_import_choice_required`,
+`skills_import_choice_invalid`, `skills_import_verify` y `skills_import_failed`.
 
 ## Seguridad (R23)
 
@@ -143,13 +183,17 @@ al Llavero.
 - Cada cambio de enlaces se planifica (`skillsLinkPlan`), se muestra con las rutas exactas y se aplica
   solo con `confirmed`; renombrar, eliminar, restaurar y quitar una IA también se planifican (`plan: true`), se
   muestran con las rutas exactas en la misma hoja y exigen `confirmed`.
+- Única excepción a «solo se quitan enlaces que resuelven a `skills/`»: «Importar skills existentes…»
+  reemplaza una carpeta real o un enlace ajeno por un enlace a Stack. Nunca borra (la carpeta real se mueve a
+  la papelera de importación), muestra cada ruta antes de `confirmed`, la papelera se conserva hasta que el
+  usuario la vacía y el borrado definitivo solo ocurre en «Vaciar papelera de importación» con `confirmed`.
 - `~/.agents/skills` es una carpeta compartida entre IA: lo que otras herramientas pusieron ahí
   (carpetas reales, enlaces ajenos) es `conflict` (`exists`) y no se toca. En `~/.codex/skills` solo se
   mueven (por plan y `confirmed`) los enlaces que resuelven a la carpeta de esa skill en `skills/`;
   cualquier otra cosa allí, incluidas las skills propias de Codex, ni se lista ni se toca. Un índice
   guardado con la carpeta anterior de Codex se corrige al cargarlo (`agents::normalize`).
 - Eliminar va a una papelera restaurable que se purga a los 30 días; «Eliminar datos…» borra además la
-  papelera.
+  papelera de skills, pero nunca la papelera de importación (ver «Importar skills existentes»).
 - Pruebas y QA solo con un HOME y una carpeta de datos temporales; el motor recibe el HOME por
   parámetro (`dispatch_in`) y las pruebas no tocan las carpetas reales de ninguna IA.
 
@@ -172,8 +216,8 @@ ajustes de Kiro; si el usuario quiere cargar una carpeta de Stack, es una decisi
 - ChatGPT y Kiro no tienen carpeta en Stack: solo se exporta texto, y los archivos de apoyo van por nombre, sin su
   contenido.
 - Los enlaces que Stack hizo antes en `~/.codex/skills` no se mueven solos: la salud los señala.
-- No lee las carpetas actuales de las IA ni importa skills que ya estén ahí: se crean en Stack o se
-  colocan en `skills/<id>/` (se adoptan).
+- Solo lee las carpetas de las IA para «Importar skills existentes…» (ver abajo); fuera de eso no las
+  recorre. Una skill también se puede colocar a mano en `skills/<id>/` (se adopta).
 - Restaurar («Deshacer») muestra antes los enlaces que recrea y exige `confirmed`; solo donde el
   nombre sigue libre, los ocupados se omiten y se informan como conflicto.
 - Pruebas: motor en `engine/src/skills/tests/`; app en `SkillsTests.swift`.

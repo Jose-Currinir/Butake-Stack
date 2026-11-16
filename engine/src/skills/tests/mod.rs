@@ -1,6 +1,8 @@
 //! The skills tool with a temporary Stack folder and a temporary home: nothing of the real AI folders.
 mod dispatch;
 mod health_export;
+mod import;
+mod import_trash;
 mod links;
 mod migration;
 mod plans;

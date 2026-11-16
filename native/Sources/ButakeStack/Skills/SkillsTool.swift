@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The sheets of the Skills tool, all presented by the detail (`SkillsSheets`).
 enum SkillsSheet: Identifiable {
-    case newSkill, groups, move(String), rename(String), agent(String?), links(SkillLinkRequest)
+    case newSkill, groups, move(String), rename(String), agent(String?), links(SkillLinkRequest), importExisting, importTrash
 
     var id: String {
         switch self {
@@ -14,6 +14,8 @@ enum SkillsSheet: Identifiable {
         case .rename(let id): "rename.\(id)"
         case .agent(let id): "agent.\(id ?? "")"
         case .links(let request): "links.\(request.id)"
+        case .importExisting: "import"
+        case .importTrash: "importTrash"
         }
     }
 }
@@ -117,7 +119,7 @@ enum SkillsSheet: Identifiable {
 
     /// Asks the engine, reads the list again and says what was done. False when it failed (the
     /// engine's message is already shown).
-    @discardableResult private func change(_ label: String, done: String? = nil, _ work: @escaping @MainActor () async throws -> Void) async -> Bool {
+    @discardableResult func change(_ label: String, done: String? = nil, _ work: @escaping @MainActor () async throws -> Void) async -> Bool {
         var ok = false
         await store.run(label) {
             try await work()

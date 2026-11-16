@@ -43,6 +43,8 @@ struct SkillPage: View {
             } actions: {
                 Button { tool.sheet = .newSkill } label: { Label(L("skills.newEllipsis"), systemImage: Symbols.add) }
                     .buttonStyle(.borderedProminent).accessibilityIdentifier("skills.detail.empty.new")
+                Button { tool.sheet = .importExisting } label: { Label(L("skills.sheet.import.menu"), systemImage: Symbols.importing) }
+                    .buttonStyle(.bordered).accessibilityIdentifier("skills.detail.empty.import")
             }
         } else {
             ContentUnavailableView(L("skills.noSelection"), systemImage: Symbols.skill, description: Text(L("skills.noSelectionDetail")))
@@ -90,9 +92,13 @@ struct SkillPage: View {
             } label: { Label(L("skills.exportEllipsis"), systemImage: Symbols.share) }
                 .disabled(tool.selected == nil).help(L("skills.exportHelp")).accessibilityIdentifier("skills.toolbar.export")
             Menu {
-                if let skill = tool.selected { SkillMoreMenu(tool: tool, skill: skill) }
+                if let skill = tool.selected {
+                    SkillMoreMenu(tool: tool, skill: skill)
+                    Divider()
+                }
+                SkillImportMenu(tool: tool)
             } label: { Label(L("skills.more"), systemImage: Symbols.more) }
-                .disabled(tool.selected == nil).help(L("skills.more")).accessibilityIdentifier("skills.toolbar.more")
+                .help(L("skills.more")).accessibilityIdentifier("skills.toolbar.more")
         }
     }
 }
@@ -106,6 +112,17 @@ struct SkillExportMenu: View {
             .accessibilityIdentifier("skills.menu.exportCopy")
         Button { Task { await tool.saveExport(skill) } } label: { Label(L("skills.export.saveEllipsis"), systemImage: Symbols.save) }
             .accessibilityIdentifier("skills.menu.exportSave")
+    }
+}
+
+/// «Importar skills existentes…» and the import trash, in the toolbar's «Más» (no skill needed).
+struct SkillImportMenu: View {
+    let tool: SkillsTool
+    var body: some View {
+        Button { tool.sheet = .importExisting } label: { Label(L("skills.sheet.import.menu"), systemImage: Symbols.importing) }
+            .accessibilityIdentifier("skills.menu.import")
+        Button { tool.sheet = .importTrash } label: { Label(L("skills.sheet.import.trashMenu"), systemImage: Symbols.delete) }
+            .accessibilityIdentifier("skills.menu.importTrash")
     }
 }
 

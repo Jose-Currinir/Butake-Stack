@@ -28,7 +28,11 @@ pub fn purge(ctx: &Ctx) {
     for item in read.flatten() {
         let name = item.file_name().to_string_lossy().to_string();
         let old = parse_id(&name).is_some_and(|(_, epoch)| epoch < limit);
-        if old && item.file_type().is_ok_and(|t| t.is_dir()) {
+        // The import trash is never purged: it stays until the user empties it.
+        if old
+            && item.file_type().is_ok_and(|t| t.is_dir())
+            && !super::import::is_import(&item.path())
+        {
             let _ = fs::remove_dir_all(item.path());
         }
     }
