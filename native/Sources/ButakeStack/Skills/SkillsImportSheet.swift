@@ -115,11 +115,13 @@ struct ImportSkillsSheet: View {
             }
             if !item.identical && item.valid {
                 Picker(L("skills.sheet.import.copyFrom"), selection: Binding(get: { choices[item.id] ?? "" }, set: { choices[item.id] = $0 })) {
+                    // The AI's name is enough to choose (each has one folder); the path is in the plan and the help.
                     ForEach(item.sources, id: \.path) { source in
-                        Text("\(tool.agent(source.agent)?.name ?? source.agent) · \(SkillLinkSheet.shown(source.path))").tag(source.path)
+                        Text(tool.agent(source.agent)?.name ?? source.agent).tag(source.path)
                     }
                 }
-                .font(.uiCaption).accessibilityIdentifier("skills.sheet.import.source.\(item.id)")
+                .help(choices[item.id].map(SkillLinkSheet.shown) ?? "")
+                .accessibilityIdentifier("skills.sheet.import.source.\(item.id)")
                 Text(L("skills.sheet.import.differentDetail")).font(.uiCaption).foregroundStyle(.secondary)
             }
         }
