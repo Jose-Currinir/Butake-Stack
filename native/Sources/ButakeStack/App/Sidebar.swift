@@ -265,8 +265,10 @@ private struct GroupRow: View {
                 Text(group.name).lineLimit(1)
                 Spacer()
                 if running > 0 {
-                    Text("\(running)").font(.caption.weight(.bold)).foregroundStyle(Brand.success)
-                        .padding(.horizontal, 5).padding(.vertical, 1).background(Brand.success.opacity(0.14), in: Capsule())
+                    // White on solid green: it reads the same on a plain row and over the selection's
+                    // color (green on a faint green could not be read on the selected row).
+                    Text("\(running)").font(.caption.weight(.bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 5).padding(.vertical, 1).background(Brand.success, in: Capsule())
                         .help(String(format: L("groups.running"), running))
                 }
                 Text("\(members.count)").font(.subheadline.weight(.medium)).foregroundStyle(.secondary).monospacedDigit()

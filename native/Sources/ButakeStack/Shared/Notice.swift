@@ -98,7 +98,10 @@ private struct NoticeLayout: Layout {
             let text = subviews[0].sizeThatFits(ProposedViewSize(width: max(0, width - actions.width - (actions.width > 0 ? spacing : 0)), height: nil))
             return CGSize(width: width, height: max(text.height, actions.height))
         }
-        let text = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        // Never measured narrower than `minText`: asked for its smallest size (width 0, as the window
+        // does to find its minimum), the text would wrap to a letter per line and report a height
+        // taller than the window, which then starts its columns under the title bar (P-15).
+        let text = subviews[0].sizeThatFits(ProposedViewSize(width: max(width, minText), height: nil))
         return CGSize(width: width, height: text.height + spacing + actions.height)
     }
 
