@@ -23,6 +23,8 @@ enum Symbols {
     static let utilities = "arrow.down.app"
     /// AI assistants: the IA work profile and its utilities.
     static let ai = "sparkles"
+    /// How an assistant's session is doing: context and the plan's limits.
+    static let usage = "gauge.with.needle"
     /// A remote place: a Git remote, the Google Cloud command line that is missing.
     static let cloud = "cloud.fill"
     /// Líneas de comandos de nube (Componentes › Utilidades): the providers' command lines.

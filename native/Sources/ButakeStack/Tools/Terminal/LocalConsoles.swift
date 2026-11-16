@@ -91,7 +91,8 @@ struct LocalLaunch: Hashable, Sendable {
 
     /// How `program` starts in `directory`: the shell as a login shell; an assistant through the
     /// login shell (so it finds what the user's profile adds to PATH), which then becomes it. The
-    /// command line is fixed: the program's path goes as an argument, never inside the script.
+    /// command line is fixed: the program's path goes as an argument, never inside the script, and
+    /// so does what the session adds after it (`TerminalSession.watchUsage`).
     static func launch(_ program: LocalProgram, directory: String, project: String? = nil, projectEnvironment: [String: String] = [:]) -> LocalLaunch {
         let shell = loginShell()
         let environment = environment(shell: shell, project: projectEnvironment)
@@ -103,7 +104,7 @@ struct LocalLaunch: Hashable, Sendable {
         guard ["zsh", "bash", "sh", "ksh", "dash"].contains(name) else {
             return LocalLaunch(program: program.id, executable: executable, directory: directory, environment: environment, project: project)
         }
-        return LocalLaunch(program: program.id, executable: shell, arguments: ["-l", "-i", "-c", "exec \"$0\"", executable],
+        return LocalLaunch(program: program.id, executable: shell, arguments: ["-l", "-i", "-c", "exec \"$0\" \"$@\"", executable],
                            directory: directory, environment: environment, project: project)
     }
 

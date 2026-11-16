@@ -81,12 +81,22 @@ private struct SessionLaunch: Codable, Sendable { var executable: String; var ar
     @ObservationIgnored let view: LocalProcessTerminalView
     @ObservationIgnored private var bridge: SessionBridge?
     @ObservationIgnored var appliedSignature = ""
+    /// What the assistant of this session reports about its consumption (`AssistantUsage`); nil
+    /// while it has reported nothing, and always for a program that reports none.
+    var usage: AssistantUsage?
+    /// Stack asked the assistant for its status in this launch (not when the user has a status
+    /// line of their own, which Stack leaves alone).
+    var usageReported = false
+    @ObservationIgnored private var report: AssistantUsageReport?
+    @ObservationIgnored private var usageWatch: Task<Void, Never>?
 
     init(kind: TerminalKind, title: String) {
         self.kind = kind
         self.title = title
         view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 640, height: 400))
         view.optionAsMetaKey = true
+        // The scroll bar as in the rest of the app: no track of its own over the theme's background.
+        view.subviews.compactMap { $0 as? NSScroller }.forEach { $0.scrollerStyle = .overlay }
         let bridge = SessionBridge(session: self)
         self.bridge = bridge
         view.processDelegate = bridge
@@ -108,7 +118,7 @@ private struct SessionLaunch: Codable, Sendable { var executable: String; var ar
             // A folder that is gone (a project moved away) starts in the home folder instead.
             var folder: ObjCBool = false
             let present = FileManager.default.fileExists(atPath: launch.directory, isDirectory: &folder) && folder.boolValue
-            view.startProcess(executable: launch.executable, args: launch.arguments, environment: launch.environment,
+            view.startProcess(executable: launch.executable, args: launch.arguments + watchUsage(of: launch), environment: launch.environment,
                               execName: launch.execName, currentDirectory: present ? launch.directory : NSHomeDirectory())
         case .ssh(let id):
             do {
@@ -126,6 +136,40 @@ private struct SessionLaunch: Codable, Sendable { var executable: String; var ar
         started = .now
     }
 
+    /// Asks the assistant of `launch` to report its status to a file of this session and follows
+    /// it while the session runs; the arguments that go after the program's own (none for a
+    /// program that reports no status, or when the user has their own status line).
+    private func watchUsage(of launch: LocalLaunch) -> [String] {
+        endUsage()
+        guard AssistantUsageSource.of(launch.program)?.reportsStatus == true, !AssistantUsageReport.userHasStatusLine(),
+              let report = AssistantUsageReport.make(id: id) else { return [] }
+        self.report = report
+        usageReported = true
+        usageWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard let self, !Task.isCancelled else { return }
+                if let usage = report.read(), usage != self.usage { self.usage = usage }
+            }
+        }
+        return report.arguments
+    }
+    private func endUsage() {
+        usageWatch?.cancel()
+        usageWatch = nil
+        report?.remove()
+        report = nil
+        usageReported = false
+        usage = nil
+    }
+
+    /// Types one of the assistant's own commands («/usage») in the session and runs it.
+    func run(command: String) {
+        guard running else { return }
+        view.send(txt: command)
+        Task { try? await Task.sleep(for: .milliseconds(150)); if running { view.send(txt: "\r") }; focus() }
+    }
+
     func reconnect() async {
         view.getTerminal().resetToInitialState()
         view.feed(text: "\u{1b}[2J\u{1b}[H")
@@ -140,6 +184,7 @@ private struct SessionLaunch: Codable, Sendable { var executable: String; var ar
         let members = SessionReaper.members(of: leader)
         view.terminate()
         running = false
+        endUsage()
         ending = Task.detached { await SessionReaper.end(leader: leader, members: members) }
     }
     @ObservationIgnored var ending: Task<Void, Never>?
@@ -154,6 +199,7 @@ private struct SessionLaunch: Codable, Sendable { var executable: String; var ar
 
     func terminated(_ code: Int32?) {
         running = false
+        endUsage()
         exitCode = code ?? -1
         // A refused host key makes ssh exit with 255 at once: compare the server again.
         if let id = kind.hostID, code == 255, let started, Date.now.timeIntervalSince(started) < 20 {
@@ -183,6 +229,9 @@ private struct SessionLaunch: Codable, Sendable { var executable: String; var ar
         guard signature != appliedSignature else { return }
         appliedSignature = signature
         view.font = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        // SwiftTerm sizes the grid for the new font over the whole width, scroller included: the
+        // last columns would be drawn under it. Sizing it again as a resize does leaves the room.
+        view.setFrameSize(view.frame.size)
         view.installColors(theme.ansi.prefix(16).map(\.termColor))
         view.nativeBackgroundColor = theme.background.nsColor
         view.nativeForegroundColor = theme.foreground.nsColor

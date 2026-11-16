@@ -72,7 +72,8 @@ enum WorkspaceTabKind: Hashable { case terminal, sftp(String) }
     }
     var symbol: String {
         if browser != nil { return Symbols.folder }
-        return focusedSession?.kind.isLocal == true ? Symbols.terminal : Symbols.server
+        guard let launch = focusedSession?.kind.launch else { return Symbols.server }
+        return launch.program == LocalProgram.shellID ? Symbols.terminal : Symbols.ai
     }
     var ended: Bool { !sessions.isEmpty && sessions.allSatisfy { !$0.running && $0.exitCode != nil } }
     /// The saved host the tab belongs to (nil for a local shell).

@@ -9,6 +9,18 @@ import SwiftUI
 struct WorkspaceTabBar: View {
     @Bindable var workspace: SSHWorkspace
     var body: some View {
+        HStack(spacing: 0) {
+            tabs
+            // How the assistant of the session shown is doing, when it is one.
+            if let session = workspace.current?.focusedSession, let source = AssistantUsageSource.of(session.kind.launch?.program) {
+                AssistantUsageButton(session: session, source: source).padding(.horizontal, 10).id(session.id)
+            }
+        }
+        .overlay(alignment: .bottom) { Divider() }
+        .accessibilityIdentifier("ssh.tabs")
+    }
+
+    private var tabs: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 4) {
                 ForEach(Array(workspace.tabs.enumerated()), id: \.element.id) { index, tab in
@@ -23,8 +35,6 @@ struct WorkspaceTabBar: View {
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
         }
-        .overlay(alignment: .bottom) { Divider() }
-        .accessibilityIdentifier("ssh.tabs")
     }
 }
 
