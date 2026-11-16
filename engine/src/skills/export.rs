@@ -1,4 +1,4 @@
-//! Skills as text ready to paste into an AI that has no skills folder (ChatGPT).
+//! Skills as text ready to paste into an AI that has no skills folder (ChatGPT, Kiro).
 use super::model::{fail, Ctx, Index};
 use super::skill_file;
 use anyhow::Result;

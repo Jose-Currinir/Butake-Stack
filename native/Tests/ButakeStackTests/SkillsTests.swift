@@ -10,7 +10,8 @@ private let listJSON = """
    {"id": "publicar", "name": "Publicar", "description": "", "group": "trabajo", "tags": [],
     "enabled": false, "agents": [], "files": [], "modified": 1760000100}],
  "agents": [{"id": "claude", "name": "Claude", "folder": "~/.claude/skills", "mode": "link", "builtin": true, "exists": false},
-            {"id": "chatgpt", "name": "ChatGPT", "folder": null, "mode": "export", "builtin": true, "exists": false}],
+            {"id": "chatgpt", "name": "ChatGPT", "folder": null, "mode": "export", "builtin": true, "exists": false},
+            {"id": "kiro", "name": "Kiro", "folder": null, "mode": "export", "builtin": true, "exists": false}],
  "tags": ["git"]}
 """
 
@@ -20,6 +21,7 @@ private let listJSON = """
     #expect(state.groups.map(\.id) == ["personal", "trabajo"] && state.tags == ["git"])
     #expect(state.skills[0].agents == ["claude"] && state.skills[0].files == ["helper.sh"] && !state.skills[1].enabled)
     #expect(state.agents[0].linksFolder && !state.agents[1].linksFolder && state.agents[1].folder == nil)
+    #expect(state.agents[2].id == "kiro" && !state.agents[2].linksFolder && state.agents[2].folder == nil)
     #expect(state.skills[0].matches("COMMITS") && state.skills[0].matches("git") && !state.skills[0].matches("nada"))
 
     let problems = try JSONDecoder().decode([SkillProblem].self, from: Data(

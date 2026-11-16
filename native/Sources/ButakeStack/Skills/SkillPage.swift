@@ -82,7 +82,7 @@ struct SkillPage: View {
     }
 }
 
-/// «Exportar…»: the skill as text for ChatGPT, or as a Markdown file.
+/// «Exportar…»: the skill as text for ChatGPT or Kiro, or as a Markdown file.
 struct SkillExportMenu: View {
     let tool: SkillsTool
     let skill: Skill

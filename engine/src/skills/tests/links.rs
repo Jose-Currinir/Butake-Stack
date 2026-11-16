@@ -93,6 +93,60 @@ fn a_conflict_is_left_alone_and_reported() {
 }
 
 #[test]
+fn kiro_is_export_only_and_never_touches_its_folder() {
+    let env = env();
+    env.create("a");
+    let list = env.ok("skillsList", json!({}));
+    let kiro = list["agents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == "kiro")
+        .unwrap();
+    assert_eq!(kiro["name"], "Kiro");
+    assert_eq!(kiro["mode"], "export");
+    assert_eq!(kiro["builtin"], true);
+    assert!(kiro["folder"].is_null());
+    // Asking to link it is refused; nothing is created and the skill is not recorded as linked.
+    let request = json!({"changes": [{"skill": "a", "agent": "kiro", "on": true}]});
+    let plan = env.ok("skillsLinkPlan", request.clone());
+    assert_eq!(plan["conflicts"][0]["reason"], "export_only");
+    assert_eq!(plan["create"], json!([]));
+    let done = env.ok(
+        "skillsLinkApply",
+        json!({"changes": request["changes"], "confirmed": true}),
+    );
+    assert_eq!(done["created"], json!([]));
+    assert_eq!(
+        env.ok("skillsList", json!({}))["skills"][0]["agents"],
+        json!([])
+    );
+    assert!(!env.home.join(".kiro").exists());
+    // It cannot be redefined as a custom AI.
+    assert_eq!(
+        env.code(
+            "skillsAgentSave",
+            json!({"id": "kiro", "name": "Kiro", "folder": "~/.kiro/crew/skills"})
+        ),
+        "skills_agent_builtin"
+    );
+    // Export works, and an index saved before Kiro existed still lists it.
+    let text = env.ok("skillsExport", json!({"id": "a", "format": "markdown"}));
+    assert!(text["text"].as_str().unwrap().starts_with("# a\n"));
+    let path = env.skills_dir().join("index.json");
+    let mut index: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    index["agents"] = json!({});
+    std::fs::write(&path, index.to_string()).unwrap();
+    let list = env.ok("skillsList", json!({}));
+    assert!(list["agents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|a| a["id"] == "kiro" && a["mode"] == "export"));
+    assert!(!env.home.join(".kiro").exists());
+}
+
+#[test]
 fn disabling_removes_links_and_enabling_brings_them_back() {
     let env = env();
     env.create("a");

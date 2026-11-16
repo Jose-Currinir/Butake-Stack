@@ -240,6 +240,11 @@ secretos; borrado completo; procedimiento de incidentes; pruebas automáticas.
   `~/.codex/skills` se mueven solo por el par plan/`confirmed` (`migrate`), con las rutas exactas, y solo si
   resuelven a `skills/` de Stack; el resto de esa carpeta no se lista ni se toca. La salud (`moved_folder`) lo
   ofrece. Sin datos nuevos: la postura no cambia. Pruebas: `engine/src/skills/tests/migration.rs`.
+- **Revisión 2026-11-16 (A2, Kiro):** Kiro entra como IA incluida solo de exportación (sin carpeta): el escáner
+  de Kiro Crew descarta un enlace de `~/.kiro/crew/skills` que resuelve fuera de sus raíces, y la regla es
+  nunca copiar. Stack no lee ni escribe `~/.kiro` ni los ajustes de otra IA (`skills.extra_paths` es del
+  usuario). Sin datos nuevos: la postura no cambia. Pruebas: `engine/src/skills/tests/links.rs`
+  (`kiro_is_export_only_and_never_touches_its_folder`).
 - Sin datos personales nuevos que Stack procese por su cuenta ni envíos fuera del Mac: la postura no cambia
   (EIPD no obligatoria). Pruebas con HOME y carpeta de datos temporales y skills inventadas:
   `engine/src/skills/tests/` (`skills.rs`, `links.rs`, `trash_groups.rs`, `health_export.rs`, `dispatch.rs`).

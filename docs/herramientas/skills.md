@@ -26,7 +26,7 @@ Herramientas) quita los enlaces que Stack creó en las carpetas de las IA y borr
   carpetas son planas: el grupo y las etiquetas viven solo en `index.json`, así que mover una skill de
   grupo o renombrar un grupo nunca toca un enlace.
 - **IA incluidas:** Claude (`~/.claude/skills`), Codex (`~/.agents/skills`, la carpeta que Codex
-  lee; la comparten otras IA) y Gemini (`~/.gemini/skills`) por enlace; ChatGPT solo por exportación. Se pueden agregar IA propias con
+  lee; la comparten otras IA) y Gemini (`~/.gemini/skills`) por enlace; ChatGPT y Kiro solo por exportación. Se pueden agregar IA propias con
   nombre y carpeta (`skillsAgentSave`).
 - **Plantillas:** En blanco, Commits y Publicar app (`templates.rs`). El `SKILL.md` queda portable: su
   encabezado trae solo `name` y `description`; lo propio de Stack no va en el archivo.
@@ -45,7 +45,7 @@ Tres columnas, como las demás herramientas:
   etiqueta y por IA, y «Grupos…» al pie.
 - **Lista:** las skills del ámbito elegido.
 - **Detalle:** nombre, descripción, grupo, etiquetas, última modificación y archivos de apoyo; una
-  sección «IA» con un interruptor por IA (ChatGPT ofrece «Copiar texto»; las IA propias, Editar y
+  sección «IA» con un interruptor por IA (ChatGPT y Kiro ofrecen «Copiar texto»; las IA propias, Editar y
   Quitar) y el editor de `SKILL.md` (⌘S guarda).
 - **Barra de herramientas:** «Nueva skill…» (con plantilla), Duplicar, Exportar… (copiar o guardar un
   `.md`) y «⋯» (Mover a grupo…, Renombrar…, Desactivar o Activar, Eliminar…).
@@ -96,7 +96,7 @@ exactamente eso. Sin `confirmed` responden `confirmation_required`. El plan de r
 enlaces del id anterior y crea los del nuevo (un nombre ocupado en la carpeta de una IA es conflicto);
 eliminar y quitar una IA solo quitan; restaurar solo crea, y los nombres ocupados son conflicto.
 | `skillsHealth` | La lista de problemas de arriba |
-| `skillsExport {id}` o `{ids, format}` | Texto Markdown (nombre, descripción, instrucciones y nombres de los archivos de apoyo) para pegar en ChatGPT; hasta 50 skills |
+| `skillsExport {id}` o `{ids, format}` | Texto Markdown (nombre, descripción, instrucciones y nombres de los archivos de apoyo) para pegar en ChatGPT o Kiro; hasta 50 skills |
 
 Códigos propios: `skills_invalid_id`, `skills_exists`, `skills_not_found`, `skills_invalid_group`,
 `skills_group_not_empty`, `skills_invalid_folder`, `skills_too_large`, `skills_link_conflict` y
@@ -148,10 +148,19 @@ al Llavero.
 
 - `butakestack://tool/skills`: abre la herramienta.
 
+## Kiro
+
+Kiro (Kiro Crew) se incluye solo por exportación, nunca por enlace ni copia. Se verificó, leyendo el código
+instalado de Kiro Crew (`skills_discovery.py`), que su escáner descarta un enlace simbólico en
+`~/.kiro/crew/skills` cuyo destino queda fuera de sus raíces de confianza (su paquete y su carpeta de
+apps), salvo que la carpeta esté en su propio ajuste `skills.extra_paths` (Ajustes › Skills). Un enlace a la
+carpeta de datos de Stack se ignoraría sin aviso. Stack no lee ni escribe `~/.kiro` y no cambia los
+ajustes de Kiro; si el usuario quiere cargar una carpeta de Stack, es una decisión suya en Kiro.
+
 ## Límites conocidos
 
 - Solo un enlace por IA y skill, con el id como nombre: no hay nombres distintos por IA.
-- ChatGPT no tiene carpeta: solo se exporta texto, y los archivos de apoyo van por nombre, sin su
+- ChatGPT y Kiro no tienen carpeta en Stack: solo se exporta texto, y los archivos de apoyo van por nombre, sin su
   contenido.
 - Los enlaces que Stack hizo antes en `~/.codex/skills` no se mueven solos: la salud los señala.
 - No lee las carpetas actuales de las IA ni importa skills que ya estén ahí: se crean en Stack o se

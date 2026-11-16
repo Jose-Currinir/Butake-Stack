@@ -4090,6 +4090,7 @@
 "skills.agents.footerOff" = "Activa la skill para enlazarla a una IA.";
 "skills.agent.copyText" = "Copiar texto";
 "skills.agent.exportHelp" = "ChatGPT no lee una carpeta: copia la skill y pégala en sus instrucciones.";
+"skills.agent.exportHelp.kiro" = "Kiro Crew carga skills solo de su carpeta o de una que agregues en su Ajustes › Skills › extra paths; Stack no cambia los ajustes de Kiro. Copia la skill y pégala donde la uses.";
 "skills.agent.addEllipsis" = "Agregar IA…";
 "skills.agent.editEllipsis" = "Editar…";
 "skills.agent.removeEllipsis" = "Quitar…";

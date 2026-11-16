@@ -5,7 +5,9 @@ use anyhow::Result;
 use serde_json::{json, Value};
 use std::path::{Component, Path, PathBuf};
 
-/// id, name, folder (`None` = export only). The Codex folder is the shared `~/.agents/skills` (other
+/// id, name, folder (`None` = export only). Kiro is export only: Kiro Crew's skill scanner drops a
+/// link in `~/.kiro/crew/skills` that resolves outside its own roots (unless the user lists the folder in
+/// its own settings), so Stack neither links there nor reads `~/.kiro`. The Codex folder is the shared `~/.agents/skills` (other
 /// AIs install real skill folders there; those are conflicts and stay untouched). Its former folder
 /// is `LEGACY_CODEX` (see `links::migration`).
 const BUILTIN: &[(&str, &str, Option<&str>)] = &[
@@ -13,6 +15,7 @@ const BUILTIN: &[(&str, &str, Option<&str>)] = &[
     ("codex", "Codex", Some("~/.agents/skills")),
     ("gemini", "Gemini", Some("~/.gemini/skills")),
     ("chatgpt", "ChatGPT", None),
+    ("kiro", "Kiro", None),
 ];
 
 /// Where Stack linked skills for Codex before the shared folder; only read to offer the move.

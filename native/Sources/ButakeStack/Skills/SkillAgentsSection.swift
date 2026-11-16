@@ -16,7 +16,7 @@ struct SkillAgentsSection: View {
                         Button { Task { await tool.copyExport(skill) } } label: { Label(L("skills.agent.copyText"), systemImage: Symbols.copy) }
                             .accessibilityIdentifier("skills.agent.\(agent.id).copy")
                     }
-                    .help(L("skills.agent.exportHelp"))
+                    .help(agent.id == "kiro" ? L("skills.agent.exportHelp.kiro") : L("skills.agent.exportHelp"))
                     .accessibilityIdentifier("skills.agent.\(agent.id)")
                 }
             }

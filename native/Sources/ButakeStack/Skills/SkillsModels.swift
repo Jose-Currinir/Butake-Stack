@@ -28,7 +28,7 @@ struct Skill: Decodable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// An AI assistant skills can be linked to: its folder (`mode` "link") or only exported (ChatGPT).
+/// An AI assistant skills can be linked to: its folder (`mode` "link") or only exported (ChatGPT, Kiro).
 struct SkillAgent: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String

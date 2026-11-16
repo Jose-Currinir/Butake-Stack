@@ -214,7 +214,7 @@ fn templates_update_duplicate_and_tags() {
     let list = env.ok("skillsList", json!({}));
     assert_eq!(list["skills"].as_array().unwrap().len(), 4);
     assert_eq!(list["tags"], json!(["flujo", "git"]));
-    assert_eq!(list["agents"].as_array().unwrap().len(), 4);
+    assert_eq!(list["agents"].as_array().unwrap().len(), 5);
 }
 
 #[test]
