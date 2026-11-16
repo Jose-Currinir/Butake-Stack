@@ -44,6 +44,9 @@ struct ImportSkillsSheet: View {
         candidates = found
         selected = Set(found.filter(\.preselected).map(\.id))
         for item in found where !item.identical { choices[item.id] = item.sources.first?.path }
+        #if DEBUG
+        if QAHooks.skillsImportPlan, canAct { _ = await act() }
+        #endif
     }
 
     private func act() async -> Bool {
