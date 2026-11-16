@@ -10,12 +10,14 @@ struct ImportTrashSheet: View {
 
     var body: some View {
         SheetFrame(title: L("skills.sheet.import.trash.title"), symbol: Symbols.delete, detail: L("skills.sheet.import.trash.detail"),
-                   width: 600, height: 480, actionTitle: L("skills.sheet.import.trash.empty"),
-                   actionID: "skills.sheet.import.trash.empty", canAct: !(entries ?? []).isEmpty, cancelID: "skills.sheet.import.trash.close",
-                   action: {
-                       confirmation = .empty(entries ?? [])
-                       return false
-                   }, content: { content })
+                   width: 600, height: 480, actionTitle: L("common.close"),
+                   actionID: "skills.sheet.import.trash.close", canAct: true, cancelID: nil,
+                   action: { true }, content: { content }, status: {
+                       // Emptying loses the originals for good: a button of its own, never the sheet's default.
+                       Button(role: .destructive) { confirmation = .empty(entries ?? []) } label: { Text(L("skills.sheet.import.trash.empty")) }
+                           .buttonStyle(.bordered).disabled((entries ?? []).isEmpty)
+                           .accessibilityIdentifier("skills.sheet.import.trash.empty")
+                   })
             .task { await reload() }
             .sheet(item: $confirmation) { item in
                 ImportConfirmSheet(tool: tool, confirmation: item) { await reload() }
@@ -82,6 +84,7 @@ struct ImportConfirmSheet: View {
                    actionTitle: isUndo ? L("skills.sheet.import.undo.apply") : L("skills.sheet.import.empty.apply"),
                    actionID: "skills.sheet.import.confirm.apply", canAct: canAct, cancelID: "skills.sheet.import.confirm.cancel",
                    action: { await run() }, content: { content })
+            .destructiveIf(!isUndo)
             .task { await plan() }
     }
 
@@ -147,4 +150,9 @@ struct ImportConfirmSheet: View {
             }
         }
     }
+}
+
+private extension SheetFrame {
+    /// Emptying the trash deletes for good; undoing an import puts things back and stays the default.
+    func destructiveIf(_ condition: Bool) -> Self { condition ? destructiveAction() : self }
 }
