@@ -83,7 +83,7 @@ fn the_plan_lists_exactly_the_stack_links_and_never_foreign_entries() {
     // Foreign things: a bundled real folder, a link elsewhere, a link into Stack with another name.
     fs::create_dir_all(folder.join(".system")).unwrap();
     fs::write(folder.join(".system/SKILL.md"), "mio").unwrap();
-    let elsewhere = env.temp.path().join("otro");
+    let elsewhere = env.root.as_path().join("otro");
     fs::create_dir(&elsewhere).unwrap();
     symlink(&elsewhere, folder.join("ajena")).unwrap();
     symlink(env.skills_dir().join("uno"), folder.join("alias")).unwrap();

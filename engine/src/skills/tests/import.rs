@@ -117,13 +117,13 @@ fn scan_writes_nothing() {
     let real = folder(&env, ".agents/skills", "b", &[]);
     link(&env, ".gemini/skills", "b", &real);
     env.ok("skillsList", json!({}));
-    let before = snap(env.temp.path());
+    let before = snap(env.root.as_path());
     let found = env.ok("skillsImportScan", json!({}));
     assert_eq!(found.as_array().unwrap().len(), 2);
     let ask = json!({"ids": ["a", "b"], "group": "personal"});
     env.ok("skillsImportPlan", ask);
     env.ok("skillsImportTrashList", json!({}));
-    assert_eq!(snap(env.temp.path()), before);
+    assert_eq!(snap(env.root.as_path()), before);
 }
 
 #[test]
@@ -265,7 +265,7 @@ fn the_plan_lists_exactly_what_the_apply_does() {
     all.sort();
     assert_eq!(paths(&plan["replace"]), all);
     assert_eq!(plan["conflicts"], json!([]));
-    let before = snap(env.temp.path());
+    let before = snap(env.root.as_path());
     let mut run = request;
     run["confirmed"] = json!(true);
     let done = env.ok("skillsImportApply", run);
@@ -276,10 +276,10 @@ fn the_plan_lists_exactly_what_the_apply_does() {
         vec!["claude", "codex", "gemini"]
     );
     // Each planned path is now a link to Stack's copy; the foreign target is intact.
-    let after = snap(env.temp.path());
+    let after = snap(env.root.as_path());
     let stack = format!("->{}", env.skills_dir().join("a").display());
     for path in &all {
-        let rel = Path::new(path).strip_prefix(env.temp.path()).unwrap();
+        let rel = Path::new(path).strip_prefix(env.root.as_path()).unwrap();
         assert_eq!(after[&rel.to_string_lossy().to_string()], stack);
     }
     assert_eq!(fs::read_to_string(outside.join("n.md")).unwrap(), "n");
@@ -293,7 +293,7 @@ fn the_plan_lists_exactly_what_the_apply_does() {
     let mut expected: Vec<String> = all
         .iter()
         .map(|p| {
-            let rel = Path::new(p).strip_prefix(env.temp.path()).unwrap();
+            let rel = Path::new(p).strip_prefix(env.root.as_path()).unwrap();
             rel.to_string_lossy().to_string()
         })
         .collect();

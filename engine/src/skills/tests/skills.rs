@@ -134,7 +134,7 @@ fn invalid_ids_paths_and_sizes_are_refused() {
 fn skill_files_are_never_read_through_links() {
     let env = env();
     env.create("a");
-    let secret = env.temp.path().join("secret.txt");
+    let secret = env.root.as_path().join("secret.txt");
     std::fs::write(&secret, "sentinel").unwrap();
     let file = env.skills_dir().join("a/SKILL.md");
     std::fs::remove_file(&file).unwrap();
@@ -150,7 +150,7 @@ fn skill_files_are_never_read_through_links() {
     assert_eq!(std::fs::read_to_string(&secret).unwrap(), "sentinel");
     // The folder itself as a link is refused too.
     let folder = env.skills_dir().join("b");
-    std::os::unix::fs::symlink(env.temp.path(), &folder).unwrap();
+    std::os::unix::fs::symlink(env.root.as_path(), &folder).unwrap();
     assert_eq!(
         env.code("skillsRead", json!({"id": "b"})),
         "skills_not_found"

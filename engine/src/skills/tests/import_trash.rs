@@ -90,14 +90,14 @@ fn undo_with_a_changed_copy_does_nothing() {
     apply(&env, &["a"]);
     let trash_id = first_trash_id(&env);
     fs::write(env.skills_dir().join("a/SKILL.md"), "editado").unwrap();
-    let before = snap(env.temp.path());
+    let before = snap(env.root.as_path());
     let done = env.ok(
         "skillsImportUndo",
         json!({"trashId": trash_id, "confirmed": true}),
     );
     assert_eq!(done["restored"], json!([]));
     assert_eq!(done["conflicts"][0]["reason"], "changed");
-    assert_eq!(snap(env.temp.path()), before);
+    assert_eq!(snap(env.root.as_path()), before);
     assert!(fs::symlink_metadata(&real)
         .unwrap()
         .file_type()

@@ -48,7 +48,7 @@ fn health_reports_each_kind() {
     .unwrap();
     // A link of someone else is not ours to report.
     std::os::unix::fs::symlink(
-        env.temp.path().join("x"),
+        env.root.as_path().join("x"),
         env.link_path(".claude/skills", "ajena"),
     )
     .unwrap();
@@ -198,7 +198,7 @@ fn health_agent_path_counts_only_own_id_and_text_files() {
     let mut big = vec![b' '; super::super::model::MAX_TEXT as usize + 1];
     big.extend_from_slice(path);
     fs::write(dir.join("big.txt"), big).unwrap();
-    let outside = env.temp.path().join("outside.txt");
+    let outside = env.root.as_path().join("outside.txt");
     fs::write(&outside, path).unwrap();
     std::os::unix::fs::symlink(&outside, dir.join("link.txt")).unwrap();
     assert!(agent_paths(&env, "propia").is_empty());

@@ -15,18 +15,28 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 
 pub struct Env {
-    pub temp: tempfile::TempDir,
+    /// Kept only so the folder lives as long as the test; paths come from `root`.
+    _temp: tempfile::TempDir,
+    /// The temporary folder with its links resolved. macOS's default `TMPDIR` (`/var/folders/…`)
+    /// is itself a link to `/private/var/folders/…`, and the engine answers canonical paths, so
+    /// every path a test builds or compares starts here.
+    pub root: PathBuf,
     pub store: Store,
     pub home: PathBuf,
 }
 
 pub fn env() -> Env {
     let temp = tempfile::tempdir().unwrap();
-    let home = temp.path().join("home");
+    let root = temp.path().canonicalize().unwrap();
+    let home = root.join("home");
     std::fs::create_dir_all(&home).unwrap();
-    let store = Store::new(temp.path().join("store")).unwrap();
-    let home = home.canonicalize().unwrap();
-    Env { temp, store, home }
+    let store = Store::new(root.join("store")).unwrap();
+    Env {
+        _temp: temp,
+        root,
+        store,
+        home,
+    }
 }
 
 impl Env {

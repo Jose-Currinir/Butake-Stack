@@ -45,7 +45,7 @@ fn apply_links_to_the_real_copy_and_remove_only_own_links() {
     );
 
     // A link of someone else with the same name is never removed.
-    let other = env.temp.path().join("otro");
+    let other = env.root.as_path().join("otro");
     fs::create_dir(&other).unwrap();
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::os::unix::fs::symlink(&other, &path).unwrap();

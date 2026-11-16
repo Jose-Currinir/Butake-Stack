@@ -102,7 +102,7 @@ fn delete_plan_lists_the_links_it_removes() {
     // A link of someone else with the same name is not listed nor removed.
     let other = env.link_path(".agents/skills", "a");
     fs::create_dir_all(other.parent().unwrap()).unwrap();
-    std::os::unix::fs::symlink(env.temp.path(), &other).unwrap();
+    std::os::unix::fs::symlink(env.root.as_path(), &other).unwrap();
     let plan = env.ok("skillsDelete", json!({"id": "a", "plan": true}));
     assert_eq!(plan["remove"], json!([path(&env, ".claude/skills", "a")]));
     assert_eq!(plan["create"], json!([]));
