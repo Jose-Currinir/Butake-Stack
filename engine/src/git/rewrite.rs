@@ -294,10 +294,20 @@ pub async fn apply(root: &Path, plan: &RewritePlan) -> Result<RewriteResult> {
     }
 }
 
+/// Whether `backup` is a backup of exactly `branch`: after the branch's prefix comes one last
+/// segment (`<epoch>` or `undo-<epoch>`), so `feature/x`'s backups never match branch `feature`.
+fn backup_of(branch: &str, backup: &str) -> bool {
+    let Some(last) = backup.strip_prefix(&format!("{BACKUP_PREFIX}{branch}/")) else {
+        return false;
+    };
+    let number = last.strip_prefix("undo-").unwrap_or(last);
+    !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit())
+}
+
 /// Restores the branch to a backup taken before a rewrite. `--keep` refuses to overwrite local changes.
 pub async fn undo(root: &Path, backup: &str) -> Result<String> {
     let branch = current_branch(root).await?;
-    if !backup.starts_with(&format!("{BACKUP_PREFIX}{branch}/")) || backup.contains("..") {
+    if !backup_of(&branch, backup) {
         return Err(error(
             "invalid_ref",
             "Respaldo inválido para la rama actual.",
@@ -324,4 +334,33 @@ pub async fn undo(root: &Path, backup: &str) -> Result<String> {
     .await?;
     let _ = std::fs::remove_dir_all(scratch(root).await?);
     git(root, &["reset", "--keep", backup]).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::backup_of;
+
+    #[test]
+    fn a_backup_belongs_to_exactly_its_branch() {
+        assert!(backup_of(
+            "feature",
+            "refs/butake/backup/feature/1700000000"
+        ));
+        assert!(backup_of(
+            "feature",
+            "refs/butake/backup/feature/undo-1700000000"
+        ));
+        assert!(backup_of(
+            "feature/x",
+            "refs/butake/backup/feature/x/1700000000"
+        ));
+        // The backups of `feature/x` are not the ones of `feature`.
+        assert!(!backup_of(
+            "feature",
+            "refs/butake/backup/feature/x/1700000000"
+        ));
+        assert!(!backup_of("feature", "refs/butake/backup/feature/"));
+        assert!(!backup_of("feature", "refs/butake/backup/feature/../x"));
+        assert!(!backup_of("feature", "refs/heads/feature"));
+    }
 }

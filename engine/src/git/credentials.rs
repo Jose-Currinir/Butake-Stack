@@ -61,6 +61,28 @@ fn valid_origin(origin: &str) -> bool {
         && (!loopback || host == "127.0.0.1")
 }
 
+/// `scheme://host` as compared with the origin: lower case and without the default HTTPS port
+/// (`https://github.com:443` is `https://github.com`).
+fn same_origin(candidate: &str, origin: &str) -> bool {
+    let plain = |value: &str| {
+        let value = value.to_ascii_lowercase();
+        value.strip_suffix(":443").map_or(value.clone(), |rest| {
+            if value.starts_with("https://") {
+                rest.to_string()
+            } else {
+                value.clone()
+            }
+        })
+    };
+    plain(candidate) == plain(origin)
+}
+
+/// Whether credentials are attached to this request: Git then must not fall back to the user's
+/// own credential managers.
+pub fn active() -> bool {
+    CURRENT.lock().unwrap_or_else(|e| e.into_inner()).is_some()
+}
+
 impl Credentials {
     /// Reads and checks what the app sent. The values never appear in an error.
     pub fn parse(value: &Value) -> Result<Self> {
@@ -93,7 +115,7 @@ impl Credentials {
         };
         let (authority, path) = rest.split_at(rest.find('/').unwrap_or(rest.len()));
         let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
-        path.starts_with('/') && format!("{scheme}://{host}").eq_ignore_ascii_case(&self.origin)
+        path.starts_with('/') && same_origin(&format!("{scheme}://{host}"), &self.origin)
     }
 
     /// What to answer to a question of Git («Username for 'https://host': », «Password for
@@ -107,7 +129,7 @@ impl Credentials {
             return None;
         }
         let host = rest.rsplit_once('@').map_or(rest, |(_, h)| h);
-        if !format!("{scheme}://{host}").eq_ignore_ascii_case(&self.origin) {
+        if !same_origin(&format!("{scheme}://{host}"), &self.origin) {
             return None;
         }
         if prompt.starts_with("Username for ") {
@@ -211,7 +233,7 @@ fn serve(listener: UnixListener, token: String, credentials: Credentials, done: 
         match listener.accept() {
             Ok((mut stream, _)) => {
                 let _ = stream.set_nonblocking(false);
-                let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
                 if !crate::ssh::askpass::same_user(&stream) {
                     continue;
                 }
@@ -236,17 +258,31 @@ fn serve(listener: UnixListener, token: String, credentials: Credentials, done: 
 /// For a network command (`clone`, `fetch`, `pull`, `push`) of a request that brought
 /// credentials: turns Git's credential managers off for it and points its askpass at this binary.
 /// Call it before the subcommand's arguments are added; keep the session until Git ends.
-pub fn attach(command: &mut tokio::process::Command, args: &[&str]) -> Option<Session> {
+pub fn attach(command: &mut tokio::process::Command, args: &[&str]) -> Result<Option<Session>> {
     if !matches!(
         args.first().copied(),
         Some("clone" | "push" | "pull" | "fetch")
     ) {
-        return None;
+        return Ok(None);
     }
-    let credentials = CURRENT.lock().unwrap_or_else(|e| e.into_inner()).clone()?;
+    let Some(credentials) = CURRENT.lock().unwrap_or_else(|e| e.into_inner()).clone() else {
+        return Ok(None);
+    };
+    // Without the helper Git would run with the user's own credential managers and could use
+    // another account's token: the transfer is refused instead.
+    let unavailable = || {
+        error(
+            "credential_helper_unavailable",
+            "No se pudo preparar el acceso con tu cuenta conectada. Vuelve a intentar.",
+        )
+    };
     // Unix socket paths are short (104 bytes): the per-user temporary folder, never the store.
-    let dir = std::env::temp_dir().join(format!("bga-{}", random_hex(8).ok()?));
-    std::fs::DirBuilder::new().mode(0o700).create(&dir).ok()?;
+    let dir =
+        std::env::temp_dir().join(format!("bga-{}", random_hex(8).map_err(|_| unavailable())?));
+    std::fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&dir)
+        .map_err(|_| unavailable())?;
     let socket = dir.join("s");
     let done = Arc::new(AtomicBool::new(false));
     let mut session = Session {
@@ -254,10 +290,10 @@ pub fn attach(command: &mut tokio::process::Command, args: &[&str]) -> Option<Se
         server: None,
         dir,
     };
-    let listener = UnixListener::bind(&socket).ok()?;
-    listener.set_nonblocking(true).ok()?;
-    let token = random_hex(24).ok()?;
-    let exe = std::env::current_exe().ok()?;
+    let listener = UnixListener::bind(&socket).map_err(|_| unavailable())?;
+    listener.set_nonblocking(true).map_err(|_| unavailable())?;
+    let token = random_hex(24).map_err(|_| unavailable())?;
+    let exe = std::env::current_exe().map_err(|_| unavailable())?;
     command
         // An empty value clears the list: no manager offers another credential or stores this one.
         .args(["-c", "credential.helper="])
@@ -267,5 +303,22 @@ pub fn attach(command: &mut tokio::process::Command, args: &[&str]) -> Option<Se
     session.server = Some(std::thread::spawn(move || {
         serve(listener, token, credentials, done)
     }));
-    Some(session)
+    Ok(Some(session))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_origin;
+
+    #[test]
+    fn the_default_https_port_is_the_same_origin() {
+        assert!(same_origin("https://github.com:443", "https://github.com"));
+        assert!(same_origin("https://GitHub.com", "https://github.com:443"));
+        assert!(!same_origin(
+            "https://github.com:8443",
+            "https://github.com"
+        ));
+        assert!(!same_origin("http://127.0.0.1:443", "http://127.0.0.1"));
+        assert!(!same_origin("https://evil.example", "https://github.com"));
+    }
 }

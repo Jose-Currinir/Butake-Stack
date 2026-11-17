@@ -247,3 +247,29 @@ async fn console_subcommand_runs_the_checked_command_only() {
     assert_eq!(std::fs::read_to_string(&todo).unwrap(), "pick abc\n");
     assert_eq!(write_plan(&[plan.into()]), 1);
 }
+
+#[test]
+fn queries_accept_only_complete_reading_forms() {
+    let args = |text: &str| -> Vec<String> { text.split(' ').map(String::from).collect() };
+    for refused in [
+        "remote -v add x url",
+        "remote -v remove origin",
+        "remote get-url origin extra",
+        "config --get user.name --unset",
+        "config --list --add a b",
+        "stash list drop",
+        "stash list --output=/tmp/x",
+        "worktree list --porcelain add",
+        "tag --list -d v1",
+    ] {
+        assert!(check_query(&args(refused)).is_err(), "{refused}");
+    }
+    for ok in [
+        "config --get user.name",
+        "stash list --format=%gd",
+        "worktree list --porcelain",
+        "tag --list --sort=-creatordate --format=%(refname:short)",
+    ] {
+        assert!(check_query(&args(ok)).is_ok(), "{ok}");
+    }
+}

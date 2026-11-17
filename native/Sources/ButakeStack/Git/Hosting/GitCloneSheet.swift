@@ -192,7 +192,7 @@ struct GitCloneSheet: View {
             } catch {
                 let failure = GitFailure(error)
                 if !failure.cancelled { self.failure = failure.detail.isEmpty ? failure.title : "\(failure.title): \(failure.detail)" }
-                if ["clone_host_unknown", "clone_ssh_denied", "clone_auth"].contains(failure.code) {
+                if ["clone_host_unknown", "clone_ssh_denied", "clone_auth", "token_rejected", "token_forbidden"].contains(failure.code) {
                     refused = failure.code
                     await readAccess()
                 }

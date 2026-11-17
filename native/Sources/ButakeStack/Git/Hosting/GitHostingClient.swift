@@ -36,6 +36,14 @@ actor GitHostingClient {
 
     func send<T: Decodable>(_ provider: GitHostingProvider, _ endpoint: String, method: String = "GET", body: [String: Any]? = nil,
                             credentials: GitHostingCredentials) async throws -> T {
+        try await sendPage(provider, endpoint, method: method, body: body, credentials: credentials).value
+    }
+
+    /// `send` that also says where the next page of a list is (GitHub's `Link` header).
+    private func sendPage<T: Decodable>(_ provider: GitHostingProvider, _ endpoint: String, method: String = "GET", body: [String: Any]? = nil,
+                                        credentials: GitHostingCredentials) async throws -> (value: T, next: String?) {
+        // `endpoint` is relative to the provider's API, or the absolute `next` link the provider itself
+        // gave (checked below like any other address: the token only goes to the provider's API).
         guard !endpoint.contains(".."), !endpoint.hasPrefix("/"), let url = URL(string: endpoint, relativeTo: endpoints.apiBase(provider))?.absoluteURL,
               endpoints.allows(url, for: provider) else {
             throw GitHostingFailure(.invalid, provider: provider)
@@ -62,48 +70,82 @@ actor GitHostingClient {
             if (error as? URLError)?.code == .cancelled { throw CancellationError() }
             throw GitHostingFailure(.offline, provider: provider)
         }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200...299).contains(status) else { throw Self.failure(status: status, data: data, provider: provider, token: credentials.token) }
-        if T.self == GitHostingIgnored.self || data.isEmpty { return try JSONDecoder().decode(T.self, from: Data("{}".utf8)) }
-        do { return try JSONDecoder().decode(T.self, from: data) } catch { throw GitHostingFailure(.invalid, provider: provider) }
+        let http = response as? HTTPURLResponse
+        let status = http?.statusCode ?? 0
+        guard (200...299).contains(status) else { throw Self.failure(status: status, data: data, provider: provider, token: credentials.token, headers: http) }
+        let next = Self.nextLink(http?.value(forHTTPHeaderField: "Link"))
+        // An empty answer reads as `{}`; whichever way the decoding fails it is an unreadable answer.
+        do {
+            if T.self == GitHostingIgnored.self || data.isEmpty { return (try JSONDecoder().decode(T.self, from: Data("{}".utf8)), next) }
+            return (try JSONDecoder().decode(T.self, from: data), next)
+        } catch { throw GitHostingFailure(.invalid, provider: provider) }
+    }
+
+    /// The `rel="next"` address of a `Link` header.
+    static func nextLink(_ header: String?) -> String? {
+        for part in (header ?? "").split(separator: ",") where part.contains("rel=\"next\"") {
+            guard let open = part.firstIndex(of: "<"), let close = part.firstIndex(of: ">"), open < close else { continue }
+            return String(part[part.index(after: open)..<close])
+        }
+        return nil
     }
 
     /// The code of an HTTP error and the provider's short message, without the token (in case the
     /// provider echoed it) and at most 300 characters.
-    static func failure(status: Int, data: Data, provider: GitHostingProvider, token: String) -> GitHostingFailure {
+    static func failure(status: Int, data: Data, provider: GitHostingProvider, token: String, headers: HTTPURLResponse? = nil) -> GitHostingFailure {
         let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         var message = (object?["message"] as? String) ?? ((object?["error"] as? [String: Any])?["message"] as? String) ?? ""
         if !token.isEmpty { message = message.replacingOccurrences(of: token, with: "••••") }
         message = String(message.prefix(300))
+        // The limit is read from the headers (the wording of the message changes and is in English).
+        let retry = retryDate(headers)
+        let exhausted = headers?.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0"
         let code: GitHostingFailure.Code = switch status {
         case 401: .unauthorized
-        case 403: message.localizedCaseInsensitiveContains("rate limit") ? .rateLimited : .forbidden
+        case 403: exhausted || retry != nil || message.localizedCaseInsensitiveContains("rate limit") ? .rateLimited : .forbidden
         case 404: .notFound
         case 429: .rateLimited
         case 400, 405, 409, 422: .rejected
         default: .offline
         }
-        return GitHostingFailure(code, provider: provider, detail: message)
+        return GitHostingFailure(code, provider: provider, detail: message, retryAfter: code == .rateLimited ? retry : nil)
     }
 
-    /// Every page of a GitHub list (`per_page` already in the endpoint), up to `pages`.
-    private func githubAll<T: Decodable>(_ endpoint: String, perPage: Int = 100, pages: Int = 5, credentials: GitHostingCredentials) async throws -> [T] {
+    /// When the provider says to try again: `Retry-After` (seconds) or `X-RateLimit-Reset` (epoch).
+    static func retryDate(_ headers: HTTPURLResponse?, now: Date = Date()) -> Date? {
+        if let seconds = headers?.value(forHTTPHeaderField: "Retry-After").flatMap({ TimeInterval($0) }), seconds >= 0 {
+            return now.addingTimeInterval(min(seconds, 3_600))
+        }
+        if let epoch = headers?.value(forHTTPHeaderField: "X-RateLimit-Reset").flatMap({ TimeInterval($0) }), headers?.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0" {
+            let date = Date(timeIntervalSince1970: epoch)
+            return date > now ? min(date, now.addingTimeInterval(3_600)) : nil
+        }
+        return nil
+    }
+
+    /// Every page of a GitHub list (`per_page` already in the endpoint), following the `Link` header up to `pages`.
+    private func githubAll<T: Decodable>(_ endpoint: String, pages: Int = 10, credentials: GitHostingCredentials) async throws -> [T] {
         var all: [T] = []
-        for page in 1...pages {
-            let items: [T] = try await send(.github, endpoint + (endpoint.contains("?") ? "&" : "?") + "page=\(page)", credentials: credentials)
-            all += items
-            if items.count < perPage { break }
+        var address: String? = endpoint
+        for _ in 1...pages {
+            guard let current = address else { break }
+            let page: (value: [T], next: String?) = try await sendPage(.github, current, credentials: credentials)
+            all += page.value
+            address = page.next
         }
         return all
     }
 
-    /// Every page of a Bitbucket list, up to `pages`.
-    private func bitbucketAll<T: Decodable>(_ endpoint: String, pages: Int = 5, credentials: GitHostingCredentials) async throws -> [T] {
+    /// Every page of a Bitbucket list, following each answer's own `next` address up to `pages`
+    /// (some lists page by cursor, where a page number does not work).
+    private func bitbucketAll<T: Decodable>(_ endpoint: String, pages: Int = 10, credentials: GitHostingCredentials) async throws -> [T] {
         var all: [T] = []
-        for page in 1...pages {
-            let result: BBPage<T> = try await send(.bitbucket, endpoint + (endpoint.contains("?") ? "&" : "?") + "page=\(page)", credentials: credentials)
+        var address: String? = endpoint
+        for _ in 1...pages {
+            guard let current = address else { break }
+            let result: BBPage<T> = try await send(.bitbucket, current, credentials: credentials)
             all += result.values
-            if result.next == nil || result.values.isEmpty { break }
+            address = result.values.isEmpty ? nil : result.next
         }
         return all
     }
@@ -118,7 +160,8 @@ actor GitHostingClient {
             return GitHostingAccount(provider: .github, login: user.login, name: user.name ?? "", email: "")
         case .bitbucket:
             let user: BBUser = try await send(.bitbucket, "user", credentials: credentials)
-            let login = user.username ?? user.nickname ?? credentials.email
+            // The nickname is a free name («Ana Pérez»): when it is not a plain one, the email identifies the account.
+            let login = [user.username, user.nickname].compactMap { $0 }.first(where: GitHostedRepository.validPart) ?? credentials.email
             guard GitHostedRepository.validPart(login) || login.contains("@") else { throw GitHostingFailure(.invalid, provider: provider) }
             return GitHostingAccount(provider: .bitbucket, login: login, name: user.display_name ?? "", email: credentials.email)
         }
@@ -126,15 +169,21 @@ actor GitHostingClient {
 
     // MARK: Pull requests
 
-    func pullRequests(_ repo: GitHostedRepository, state: GitPullRequestState, credentials: GitHostingCredentials) async throws -> [GitPullRequest] {
+    /// `source`: only the pull requests that bring that branch (asked of the provider, so one
+    /// beyond the 50 most recent is found too).
+    func pullRequests(_ repo: GitHostedRepository, state: GitPullRequestState, source: String? = nil,
+                      credentials: GitHostingCredentials) async throws -> [GitPullRequest] {
+        let encode = { (value: String) in value.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? "" }
         switch repo.provider {
         case .github:
-            let pulls: [GHPull] = try await send(.github, "repos/\(repo.path)/pulls?state=\(state == .open ? "open" : "closed")&per_page=50&sort=updated&direction=desc",
+            let head = source.map { "&head=\(encode("\(repo.owner):\($0)"))" } ?? ""
+            let pulls: [GHPull] = try await send(.github, "repos/\(repo.path)/pulls?state=\(state == .open ? "open" : "closed")&per_page=50&sort=updated&direction=desc\(head)",
                                                  credentials: credentials)
             return pulls.map(\.pullRequest).filter { $0.state == state }
         case .bitbucket:
             let remote = ["open": "OPEN", "merged": "MERGED", "closed": "DECLINED"][state.rawValue] ?? "OPEN"
-            let page: BBPage<BBPull> = try await send(.bitbucket, "repositories/\(repo.path)/pullrequests?state=\(remote)&pagelen=50&sort=-updated_on",
+            let query = source.map { "&q=" + encode("source.branch.name=\"" + $0.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\"") } ?? ""
+            let page: BBPage<BBPull> = try await send(.bitbucket, "repositories/\(repo.path)/pullrequests?state=\(remote)&pagelen=50&sort=-updated_on\(query)",
                                                       credentials: credentials)
             return page.values.map(\.pullRequest)
         }
@@ -251,11 +300,13 @@ actor GitHostingClient {
         }
     }
 
-    /// Joins the pull request into its target, keeping the source branch.
-    func merge(_ repo: GitHostedRepository, pr: Int, credentials: GitHostingCredentials) async throws {
+    /// Joins the pull request into its target, keeping the source branch. `head`: the last commit
+    /// the user saw; GitHub refuses (409) when the branch moved since, instead of merging what was not reviewed.
+    func merge(_ repo: GitHostedRepository, pr: Int, head: String? = nil, credentials: GitHostingCredentials) async throws {
         switch repo.provider {
         case .github:
-            let _: GitHostingIgnored = try await send(.github, "repos/\(repo.path)/pulls/\(pr)/merge", method: "PUT", body: [:], credentials: credentials)
+            let _: GitHostingIgnored = try await send(.github, "repos/\(repo.path)/pulls/\(pr)/merge", method: "PUT",
+                                                      body: head.map { ["sha": $0] } ?? [:], credentials: credentials)
         case .bitbucket:
             let _: GitHostingIgnored = try await send(.bitbucket, "repositories/\(repo.path)/pullrequests/\(pr)/merge", method: "POST",
                                                       body: ["close_source_branch": false], credentials: credentials)
@@ -285,7 +336,8 @@ actor GitHostingClient {
         switch provider {
         case .github:
             let user: GHUser = try await send(.github, "user", credentials: credentials)
-            let orgs: [GHOrg] = (try? await githubAll("user/orgs?per_page=100", credentials: credentials)) ?? []
+            // A failure is not hidden: a list of owners without the organizations would look complete.
+            let orgs: [GHOrg] = try await githubAll("user/orgs?per_page=100", credentials: credentials)
             return ([user.login] + orgs.map(\.login)).filter(GitHostedRepository.validPart)
         case .bitbucket:
             let values: [BBWorkspaceAccess] = try await bitbucketAll("user/workspaces?pagelen=100", credentials: credentials)
@@ -343,12 +395,23 @@ actor GitHostingClient {
         case .bitbucket:
             do {
                 let restrictions: [BBRestriction] = try await bitbucketAll("repositories/\(repo.path)/branch-restrictions?kind=push&pagelen=100", credentials: credentials)
+                // A rule by branching model applies to the branches of that type: it needs the model to
+                // know whether this one is. When it cannot be read, the answer is «unknown», never «protected».
+                var model: BBBranchingModel?
+                if restrictions.contains(where: { $0.branch_match_kind == "branching_model" }) {
+                    model = try? await send(.bitbucket, "repositories/\(repo.path)/branching-model", credentials: credentials)
+                }
+                var undecided = false
                 let blocked = restrictions.contains { restriction in
-                    if restriction.branch_match_kind == "branching_model" { return restriction.branch_type == "production" }
+                    if restriction.branch_match_kind == "branching_model" {
+                        guard let model, let type = restriction.branch_type else { undecided = true; return false }
+                        guard let known = model.type(of: branch) else { undecided = model.unresolved; return false }
+                        return known == type
+                    }
                     guard let pattern = restriction.pattern else { return false }
                     return NSPredicate(format: "SELF LIKE %@", pattern).evaluate(with: branch)
                 }
-                return blocked ? .protected : .open
+                return blocked ? .protected : undecided ? .unknown : .open
             } catch { return lookup(error) }
         }
     }

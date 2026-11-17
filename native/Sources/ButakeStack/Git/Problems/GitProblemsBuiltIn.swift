@@ -153,7 +153,7 @@ import Foundation
 
     /// A failure of reaching the remote: offline, refused credentials, a wrong address, time out.
     static func isUnreachable(_ failure: GitFailure) -> Bool {
-        ["pull_remote_unreachable", "ssh_denied", "https_denied", "timeout", "clone_auth", "clone_not_found"].contains(failure.code)
+        ["pull_remote_unreachable", "ssh_denied", "https_denied", "timeout", "clone_auth", "clone_not_found", "token_rejected", "token_forbidden", "clone_offline"].contains(failure.code)
             || [L("git.message.offline"), L("git.message.remoteAccess"), L("git.message.sshKey"), L("git.message.authentication"),
                 L("git.message.remoteNotFound"), L("git.message.timeout")].contains(failure.detail)
     }

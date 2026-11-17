@@ -179,7 +179,7 @@ pub async fn copy_commits(root: &Path, target: &str, hashes: &[String]) -> Resul
                 format!("Hay conflictos al copiar a {target}. Quedaste en {target}: resuélvelos, pulsa «Continuar» y luego vuelve a {original}."),
             ));
         }
-        if failure.detail.contains("empty") && skipped < ordered.len() {
+        if skipped < ordered.len() && is_empty_pick(root).await {
             // Already applied on the target: skip it and let the rest of the sequence continue.
             skipped += 1;
             outcome = git(root, &["cherry-pick", "--skip"]).await;
@@ -365,4 +365,16 @@ pub async fn branch_details(root: &Path, name: &str, base: &str) -> Result<Value
         "tracking": tracking, "creation": creation, "authors": authors, "commits": commits,
         "files": files,
     }))
+}
+
+/// A cherry-pick stopped halfway that changes nothing: the commit is already on the target branch.
+/// Decided by Git's state (`CHERRY_PICK_HEAD` and an index equal to `HEAD`), never by its wording.
+async fn is_empty_pick(root: &Path) -> bool {
+    git(
+        root,
+        &["rev-parse", "--verify", "--quiet", "CHERRY_PICK_HEAD"],
+    )
+    .await
+    .is_ok()
+        && git(root, &["diff", "--cached", "--quiet"]).await.is_ok()
 }

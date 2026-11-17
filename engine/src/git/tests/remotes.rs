@@ -2,7 +2,8 @@
 //! `example.invalid` addresses that are refused before any network access.
 use super::repository;
 use crate::git::remotes::{
-    access_failure, clone, init_repository, publish, validate_clone_url, without_credentials,
+    access_failure, clone, init_repository, publish, stored_address, validate_clone_url,
+    without_credentials,
 };
 use crate::git::runner::{error, git};
 use crate::git::status::snapshot;
@@ -162,4 +163,47 @@ async fn publish_keeps_another_origin_and_protected_main() {
         .code,
         "protected_branch"
     );
+}
+
+#[test]
+fn addresses_with_a_password_or_token_are_refused() {
+    for bad in [
+        "https://user:ghp_secret@github.com/a/b.git",
+        "https://ghp_secretsecret@github.com/a/b.git",
+        "https://ATBB0123456789abcdef@bitbucket.org/a/b.git",
+        "https://0123456789abcdef0123456789abcdef01@github.com/a/b.git",
+        "ssh://git:clave@example.invalid/a/b.git",
+    ] {
+        let failure = validate_clone_url(bad).unwrap_err();
+        assert_eq!(failure.code, "invalid_url", "{bad}");
+        assert!(!failure.detail.contains("secret"), "{bad}");
+    }
+    for ok in [
+        "ssh://git@ssh.bitbucket.org/equipo/app.git",
+        "git@ssh.bitbucket.org:equipo/app.git",
+        "https://github.com/a/b.git",
+        // Bitbucket's own «Clone» address carries the user's name: accepted, stored without it.
+        "https://usuario@bitbucket.org/a/b.git",
+    ] {
+        assert!(validate_clone_url(ok).is_ok(), "{ok}");
+    }
+    assert_eq!(
+        stored_address("https://usuario@bitbucket.org/a/b.git"),
+        "https://bitbucket.org/a/b.git"
+    );
+    assert_eq!(
+        stored_address("git@ssh.bitbucket.org:equipo/app.git"),
+        "git@ssh.bitbucket.org:equipo/app.git"
+    );
+}
+
+#[test]
+fn access_failures_say_who_refused() {
+    let token = |text: &str| access_failure(error("git_failed", text)).code;
+    // Without a token of the connected account the user's own Git setup is the cause.
+    assert_eq!(
+        token("fatal: Authentication failed for 'https://x'"),
+        "https_denied"
+    );
+    assert_eq!(token("Permission denied (publickey)."), "ssh_denied");
 }

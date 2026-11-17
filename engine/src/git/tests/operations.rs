@@ -337,3 +337,61 @@ async fn grep_finds_text_in_the_files() {
     .unwrap();
     assert_eq!(output.trim(), "a:b.txt\x002\x00buscar aquí");
 }
+
+#[tokio::test]
+async fn ignoring_a_file_keeps_a_gitignore_that_is_not_utf8() {
+    let temp = sandbox().await;
+    let root = temp.path();
+    let original = b"# configuraci\xf3n\n*.log\n".to_vec();
+    std::fs::write(root.join(".gitignore"), &original).unwrap();
+    execute(root, Action::IgnorePath, "notas.txt", false)
+        .await
+        .unwrap();
+    let after = std::fs::read(root.join(".gitignore")).unwrap();
+    assert!(
+        after.starts_with(&original),
+        "the existing lines stay as they were"
+    );
+    assert!(after.ends_with(b"/notas.txt\n"));
+}
+
+#[tokio::test]
+async fn a_remote_branch_is_deleted_only_through_a_remote_of_the_repository() {
+    let temp = sandbox().await;
+    let root = temp.path();
+    git(
+        root,
+        &["remote", "add", "origin", "https://example.invalid/a.git"],
+    )
+    .await
+    .unwrap();
+    for wrong in ["https://example.invalid/a.git/feature", "otro/feature"] {
+        assert_eq!(
+            execute(root, Action::DeleteRemoteBranch, wrong, true)
+                .await
+                .unwrap_err()
+                .code,
+            "invalid_ref",
+            "{wrong}"
+        );
+    }
+    let failure = execute(
+        root,
+        Action::AddRemote,
+        "web\nhttps://usuario:clave@example.invalid/a.git",
+        false,
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(failure.code, "invalid_url");
+}
+
+#[tokio::test]
+async fn a_failed_commit_explains_itself_from_stdout() {
+    let temp = sandbox().await;
+    let failure = execute(temp.path(), Action::Commit, "sin cambios", false)
+        .await
+        .unwrap_err();
+    assert_eq!(failure.code, "git_failed");
+    assert!(!failure.detail.is_empty(), "Git wrote it to stdout");
+}

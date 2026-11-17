@@ -48,12 +48,18 @@ struct GitHostingFailure: Error, Equatable, Sendable, LocalizedError {
     let code: Code
     let provider: GitHostingProvider?
     let detail: String
+    /// For `rateLimited`: when the provider lets requests through again.
+    let retryAfter: Date?
 
-    init(_ code: Code, provider: GitHostingProvider? = nil, detail: String = "") {
-        self.code = code; self.provider = provider; self.detail = detail
+    init(_ code: Code, provider: GitHostingProvider? = nil, detail: String = "", retryAfter: Date? = nil) {
+        self.code = code; self.provider = provider; self.detail = detail; self.retryAfter = retryAfter
     }
 
-    var title: String { String(format: L("git.hosting.error.\(code.rawValue)"), provider?.title ?? L("git.hosting.provider")) }
+    var title: String {
+        let text = String(format: L("git.hosting.error.\(code.rawValue)"), provider?.title ?? L("git.hosting.provider"))
+        guard let retryAfter else { return text }
+        return text + " " + String(format: L("git.hosting.error.retryAt"), retryAfter.formatted(date: .omitted, time: .shortened))
+    }
     var errorDescription: String? { detail.isEmpty ? title : "\(title)\n\(detail)" }
 }
 

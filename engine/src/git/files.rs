@@ -53,11 +53,20 @@ fn read(path: &Path) -> Result<String> {
             "El editor abre archivos de hasta 2 MB: abre este en tu editor de código.",
         ));
     }
-    let text = std::fs::read_to_string(path).map_err(|_| {
-        error(
-            "binary_file",
-            "Este archivo no es texto que el editor pueda abrir: ábrelo en tu editor de código.",
-        )
+    let bytes =
+        std::fs::read(path).map_err(|_| error("read_failed", "No se pudo leer el archivo."))?;
+    let text = String::from_utf8(bytes).map_err(|failure| {
+        if failure.as_bytes().contains(&0) {
+            error(
+                "binary_file",
+                "Este archivo no es texto que el editor pueda abrir: ábrelo en tu editor de código.",
+            )
+        } else {
+            error(
+                "file_not_utf8",
+                "Este archivo no está en UTF-8 (por ejemplo, Latin-1): el editor no lo abre para no dañarlo. Ábrelo en tu editor de código.",
+            )
+        }
     })?;
     if text.contains('\0') {
         return Err(error(

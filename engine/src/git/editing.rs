@@ -123,12 +123,23 @@ pub async fn conflict(root: &Path, file: &str) -> Result<ConflictVersions> {
         // A side that does not exist (added on one branch only) reads as empty; other encodings are shown lossy.
         versions.push(git_lossy(root, &["show", &spec]).await.unwrap_or_default());
     }
-    let working = std::fs::read_to_string(full).map_err(|_| {
-        error(
-            "binary_conflict",
-            "Este archivo requiere un resolvedor externo compatible con su formato.",
-        )
-    })?;
+    let working = std::fs::read(full)
+        .map_err(|_| error("read_failed", "No se pudo leer el archivo."))
+        .and_then(|bytes| {
+            String::from_utf8(bytes).map_err(|failure| {
+                if failure.as_bytes().contains(&0) {
+                    error(
+                        "binary_conflict",
+                        "Este archivo requiere un resolvedor externo compatible con su formato.",
+                    )
+                } else {
+                    error(
+                        "file_not_utf8",
+                        "Este archivo no está en UTF-8: resuelve el conflicto en tu editor de código.",
+                    )
+                }
+            })
+        })?;
     Ok(ConflictVersions {
         base: versions.remove(0),
         ours: versions.remove(0),

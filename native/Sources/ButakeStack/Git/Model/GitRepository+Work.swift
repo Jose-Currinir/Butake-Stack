@@ -116,6 +116,7 @@ extension GitRepository {
         let paths = targets.filter { !$0.conflicted }.map(\.path)
         guard !paths.isEmpty, operation == nil else { return }
         await chain?.value
+        guard operation == nil else { return }
         let current = GitOperation(title: GitAction.discard.progressTitle, cancellable: false)
         operation = current
         defer { if operation?.id == current.id { operation = nil } }

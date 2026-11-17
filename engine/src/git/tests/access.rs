@@ -135,3 +135,24 @@ fn a_provider_is_trusted_only_with_the_keys_it_publishes() {
         );
     }
 }
+
+#[test]
+fn the_new_bitbucket_ssh_name_has_the_same_published_keys() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path();
+    let keys = format!("ssh.bitbucket.org {BITBUCKET_KEY}\n");
+    let prints = fingerprints_of(&keys).unwrap();
+    trust_scanned(home, "ssh.bitbucket.org", 22, &prints, &keys, &prints).unwrap();
+    let fake = format!("ssh.bitbucket.org {GITHUB_KEY}\n");
+    let other = fingerprints_of(&fake).unwrap();
+    assert_eq!(
+        trust_scanned(home, "ssh.bitbucket.org", 22, &other, &fake, &other)
+            .unwrap_err()
+            .code,
+        "ssh_host_changed"
+    );
+    assert_eq!(
+        ssh_endpoint("git@ssh.bitbucket.org:a/b.git"),
+        Some(("ssh.bitbucket.org".to_string(), 22))
+    );
+}

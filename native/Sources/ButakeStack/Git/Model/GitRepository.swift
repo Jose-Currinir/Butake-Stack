@@ -229,12 +229,17 @@ import SwiftUI
                 let text: String = try await self.store.call(request)
                 guard generation == self.diffGeneration else { return }
                 self.diffGeneration += 1
+                let current = self.diffGeneration
                 self.diffText = text
-                let content = Self.content(text, file: file, root: self.root)
+                // Reading an image can be slow: off the main actor.
+                let root = self.root
+                let content = await Task.detached { Self.content(text, file: file, root: root) }.value
+                guard current == self.diffGeneration else { return }
                 if content != self.diff { self.diff = content }
             } catch {
                 guard generation == self.diffGeneration else { return }
-                self.diff = .unchanged
+                let failure = GitFailure(error)
+                if !failure.cancelled { self.diff = .failed(failure) }
             }
         }
     }
@@ -243,7 +248,10 @@ import SwiftUI
     nonisolated static func content(_ text: String, file: GitFile, root: String) -> GitDiffContent {
         if file.untracked {
             if text == "[Archivo binario]" {
-                if let image = NSImage(contentsOfFile: (root as NSString).appendingPathComponent(file.path)), image.isValid {
+                // The image must be inside the repository (a link out of it is not followed).
+                let rootURL = URL(fileURLWithPath: root).resolvingSymlinksInPath()
+                let url = rootURL.appendingPathComponent(file.path).resolvingSymlinksInPath()
+                if url.path.hasPrefix(rootURL.path + "/"), let image = NSImage(contentsOf: url), image.isValid {
                     return .image(before: nil, after: image)
                 }
                 return .binary

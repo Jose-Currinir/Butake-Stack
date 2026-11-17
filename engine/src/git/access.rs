@@ -13,26 +13,29 @@ use std::{
     process::{Command, Stdio},
 };
 
+const GITHUB_PRINTS: &[&str] = &[
+    "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU",
+    "SHA256:p2QAMXNIC1TJYWeIOttrVc98/R1BUFWu3/LiyKgUfQM",
+    "SHA256:uNiVztksCsDhcc0u9e8BujQXVUpKZIDTMczCvj3tD2s",
+];
+/// Bitbucket Cloud publishes the same keys for `bitbucket.org` and `ssh.bitbucket.org`
+/// (`bitbucket.org/site/ssh` lists both names with identical keys).
+const BITBUCKET_PRINTS: &[&str] = &[
+    "SHA256:ybgmFkzwOSotHTHLJgHO0QN8L0xErw6vd0VhFA9m3SM",
+    "SHA256:FC73VB6C4OQLSCrjEayhMp9UMxS97caD/Yyi2bhW/J0",
+    "SHA256:46OSHA1Rmj8E8ERTC6xkNcmGOw9oFxYr0WF6zWW8l1E",
+];
+
 /// The SHA-256 fingerprints each provider publishes for its SSH host keys (GitHub: «GitHub's SSH
-/// key fingerprints» and `api.github.com/meta`; Bitbucket Cloud: `bitbucket.org/site/ssh`). A
-/// server that answers for one of these names with any other key is refused.
-const OFFICIAL: &[(&str, &[&str])] = &[
-    (
-        "github.com",
-        &[
-            "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU",
-            "SHA256:p2QAMXNIC1TJYWeIOttrVc98/R1BUFWu3/LiyKgUfQM",
-            "SHA256:uNiVztksCsDhcc0u9e8BujQXVUpKZIDTMczCvj3tD2s",
-        ],
-    ),
-    (
-        "bitbucket.org",
-        &[
-            "SHA256:ybgmFkzwOSotHTHLJgHO0QN8L0xErw6vd0VhFA9m3SM",
-            "SHA256:FC73VB6C4OQLSCrjEayhMp9UMxS97caD/Yyi2bhW/J0",
-            "SHA256:46OSHA1Rmj8E8ERTC6xkNcmGOw9oFxYr0WF6zWW8l1E",
-        ],
-    ),
+/// key fingerprints» and `api.github.com/meta`; Bitbucket Cloud: `bitbucket.org/site/ssh`), by
+/// server name and the ports it serves SSH on. A server that answers for one of these names with
+/// any other key is refused.
+const OFFICIAL: &[(&str, &[u16], &[&str])] = &[
+    ("github.com", &[22], GITHUB_PRINTS),
+    // GitHub's SSH over the HTTPS port (for proxies) presents the same keys.
+    ("ssh.github.com", &[22, 443], GITHUB_PRINTS),
+    ("bitbucket.org", &[22], BITBUCKET_PRINTS),
+    ("ssh.bitbucket.org", &[22], BITBUCKET_PRINTS),
 ];
 
 /// The private keys `ssh` offers on its own, in `~/.ssh`.
@@ -155,12 +158,12 @@ fn sha256_of(fingerprint: &str) -> &str {
         .unwrap_or("")
 }
 
-/// The fingerprints the provider publishes for `host`, when it is one Stack knows (port 22 only).
+/// The fingerprints the provider publishes for `host`, when it is one Stack knows on that port.
 fn official(host: &str, port: u16) -> Option<&'static [&'static str]> {
     OFFICIAL
         .iter()
-        .find(|(name, _)| *name == host && port == 22)
-        .map(|(_, prints)| *prints)
+        .find(|(name, ports, _)| *name == host && ports.contains(&port))
+        .map(|(_, _, prints)| *prints)
 }
 
 fn all_official(host: &str, port: u16, prints: &[String]) -> Option<bool> {

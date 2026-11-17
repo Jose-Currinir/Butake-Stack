@@ -41,6 +41,24 @@ struct BBStatus: Decodable { var key: String; var name: String?; var state: Stri
 struct BBRepo: Decodable { var full_name: String; var updated_on: String?; var is_private: Bool?; var description: String?; var links: BBLinks }
 struct BBWorkspace: Decodable { var slug: String? }
 struct BBWorkspaceAccess: Decodable { var workspace: BBWorkspace? }
+/// Bitbucket's branching model: the branches it names and the prefixes of the other types.
+struct BBBranchingModel: Decodable {
+    var development: Named?
+    var production: Named?
+    var branch_types: [Kind]?
+    struct Named: Decodable { var branch: BBRevision.Name?; var use_mainbranch: Bool? }
+    struct Kind: Decodable { var kind: String; var prefix: String }
+
+    /// The model names a branch it cannot resolve (the repository's main branch, not given here).
+    var unresolved: Bool { [development, production].contains { $0 != nil && $0?.branch == nil } }
+
+    /// The type of `branch` in the model («production», «development», «feature»…), nil when it has none.
+    func type(of branch: String) -> String? {
+        if production?.branch?.name == branch { return "production" }
+        if development?.branch?.name == branch { return "development" }
+        return branch_types?.first { !$0.prefix.isEmpty && branch.hasPrefix($0.prefix) }?.kind
+    }
+}
 struct BBRestriction: Decodable { var kind: String; var pattern: String?; var branch_match_kind: String?; var branch_type: String? }
 /// An answer whose content does not matter (a POST that only has to succeed).
 struct GitHostingIgnored: Decodable {}

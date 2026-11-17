@@ -111,7 +111,11 @@ struct GitMigrationSource: Equatable, Sendable {
         if let parent = source.cloneParent, UserDefaults.standard.string(forKey: GitCloneSheet.parentKey) == nil {
             UserDefaults.standard.set(parent, forKey: GitCloneSheet.parentKey)
         }
+        #if DEBUG
         if !StackStore.qaWindow { UserDefaults.standard.set(true, forKey: Self.doneKey) }
+        #else
+        UserDefaults.standard.set(true, forKey: Self.doneKey)
+        #endif
         let result = GitMigrationResult(added: added, known: already, missing: source.missing, failed: failed)
         self.result = result
         return result

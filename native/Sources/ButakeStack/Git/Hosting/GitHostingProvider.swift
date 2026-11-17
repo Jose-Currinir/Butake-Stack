@@ -80,7 +80,7 @@ struct GitHostedRepository: Hashable, Sendable {
         var found: (GitHostingProvider, String)?
         for provider in GitHostingProvider.allCases {
             let host = endpoints.webHost(provider).lowercased()
-            let hosts = [host] + (host == "github.com" ? ["ssh.github.com"] : host == "bitbucket.org" ? ["altssh.bitbucket.org"] : [])
+            let hosts = [host] + (host == "github.com" ? ["ssh.github.com"] : host == "bitbucket.org" ? ["ssh.bitbucket.org", "altssh.bitbucket.org"] : [])
             for candidate in hosts {
                 for prefix in ["git@\(candidate):", "https://\(candidate)/", "ssh://git@\(candidate)/", "ssh://git@\(candidate):22/", "ssh://git@\(candidate):443/"]
                 where lowered.hasPrefix(prefix) {
@@ -115,6 +115,8 @@ struct GitHostedRepository: Hashable, Sendable {
     /// The SSH and HTTPS clone addresses of a repository on this provider.
     static func cloneAddresses(provider: GitHostingProvider, path: String, endpoints: GitHostingEndpoints) -> (ssh: String, https: String) {
         let host = endpoints.webHost(provider)
-        return ("git@\(host):\(path).git", "https://\(host)/\(path).git")
+        // Bitbucket Cloud moves SSH to `ssh.bitbucket.org`; `bitbucket.org` stays a valid name for reading remotes.
+        let sshHost = host == "bitbucket.org" ? "ssh.bitbucket.org" : host
+        return ("git@\(sshHost):\(path).git", "https://\(host)/\(path).git")
     }
 }

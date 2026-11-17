@@ -31,6 +31,7 @@ mod words;
 mod worktrees;
 
 pub use console::{run_console, write_plan};
+pub use remotes::{stored_address, validate_clone_url};
 pub use runner::{public_detail, GitError};
 
 use crate::core::store::Store;

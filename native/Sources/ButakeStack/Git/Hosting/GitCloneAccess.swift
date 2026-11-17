@@ -80,8 +80,10 @@ struct GitCloneAccessNotice: View {
     private var provider: GitHostingProvider? { GitHostedRepository(remote: url, endpoints: hosting.endpoints)?.provider }
     private var where_: String { provider?.title ?? access?.host ?? "" }
     private var needsPublic: Bool { refused == "clone_ssh_denied" || offered != nil }
+    /// The server refused the HTTPS sign-in: no account, or the connected one's token was rejected or lacks permission.
+    private static func tokenRefused(_ code: String?) -> Bool { ["clone_auth", "token_rejected", "token_forbidden"].contains(code ?? "") }
     private var count: Int {
-        guard let access, access.ssh else { return refused == "clone_auth" ? 1 : 0 }
+        guard let access, access.ssh else { return Self.tokenRefused(refused) ? 1 : 0 }
         return (access.hostKnown ? 0 : 1) + (!access.identities || needsPublic ? 1 : 0)
     }
 
@@ -90,7 +92,7 @@ struct GitCloneAccessNotice: View {
             if let access, access.ssh {
                 if !access.hostKnown { hostNotice(access) }
                 if !access.identities { keyNotice } else if needsPublic { publicNotice }
-            } else if refused == "clone_auth" {
+            } else if Self.tokenRefused(refused) {
                 let connected = provider.flatMap { hosting.account(for: $0) } != nil
                 Notice(.warning, L(connected ? "git.access.token.title" : "git.access.https.title"),
                        detail: connected ? String(format: L("git.access.token.detail"), where_) : L("git.access.https.detail")) {

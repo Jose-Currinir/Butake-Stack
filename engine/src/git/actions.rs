@@ -336,7 +336,12 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
                 .split_once('/')
                 .ok_or_else(|| error("invalid_ref", "Elige una rama remota."))?;
             validate_branch(root, short).await?;
-            if remote.starts_with('-') || short == primary_branch(root).await || short == "develop"
+            // Only a remote of this repository: any other value would become the push destination.
+            let remotes = git(root, &["remote"]).await?;
+            if remote.starts_with('-') || !remotes.lines().any(|name| name == remote) {
+                return Err(error("invalid_ref", "Elige una rama de un remoto de este repositorio."));
+            }
+            if short == primary_branch(root).await || short == "develop"
             {
                 return Err(error(
                     "protected_branch",
@@ -418,6 +423,8 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
         AbortOperation => {
             let flag = match operation(root).await?.as_str() {
                 "merge" => "merge",
+                // `rebase-apply` is also the state of `git am`, which has its own abort.
+                "rebase" if is_mailbox_apply(root).await => "am",
                 "rebase" => "rebase",
                 "cherry-pick" => "cherry-pick",
                 "revert" => "revert",
@@ -468,7 +475,17 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
             if url.is_empty() || url.starts_with('-') || url.contains(char::is_whitespace) {
                 return Err(error("invalid_url", "La dirección del remoto no es válida."));
             }
-            git(root, &["remote", "add", name, url]).await
+            if super::remotes::embeds_credentials(url) {
+                return Err(error(
+                    "invalid_url",
+                    "Quita el usuario y la clave de la dirección: Stack usa tu cuenta conectada.",
+                ));
+            }
+            git(
+                root,
+                &["remote", "add", name, &super::remotes::stored_address(url)],
+            )
+            .await
         }
         RemoveRemote => {
             validate_remote(root, value).await?;
@@ -513,6 +530,28 @@ fn nothing_halfway() -> GitError {
 }
 
 /// The operation halfway, finished without an editor: Git's prepared message is kept.
+/// The "rebase" found is really `git am` halfway: its folder (`rebase-apply`) holds `applying`
+/// and not `rebasing`.
+async fn is_mailbox_apply(root: &Path) -> bool {
+    let Ok(paths) = git(
+        root,
+        &[
+            "rev-parse",
+            "--git-path",
+            "rebase-apply/applying",
+            "--git-path",
+            "rebase-apply/rebasing",
+        ],
+    )
+    .await
+    else {
+        return false;
+    };
+    let mut lines = paths.lines().map(|line| root.join(line.trim()));
+    let (applying, rebasing) = (lines.next(), lines.next());
+    applying.is_some_and(|path| path.exists()) && !rebasing.is_some_and(|path| path.exists())
+}
+
 async fn continue_operation(root: &Path) -> Result<String> {
     let current = operation(root).await?;
     if current.is_empty() {
@@ -526,6 +565,9 @@ async fn continue_operation(root: &Path) -> Result<String> {
     }
     let editor = [("GIT_EDITOR", "true")];
     match current.as_str() {
+        "rebase" if is_mailbox_apply(root).await => {
+            git_env(root, &["am", "--continue"], &editor).await
+        }
         "merge" => git_env(root, &["commit", "--no-edit"], &editor).await,
         "rebase" => git_env(root, &["rebase", "--continue"], &editor).await,
         "cherry-pick" => git_env(root, &["cherry-pick", "--continue"], &editor).await,
@@ -595,14 +637,28 @@ async fn ignore_path(root: &Path, value: &str) -> Result<String> {
         }
         pattern.push(character);
     }
-    let current = std::fs::read_to_string(&ignore).unwrap_or_default();
-    if !current.lines().any(|line| line == pattern) {
-        let separator = if current.is_empty() || current.ends_with('\n') {
-            ""
-        } else {
-            "\n"
-        };
-        std::fs::write(&ignore, format!("{current}{separator}{pattern}\n"))
+    // Raw bytes: a .gitignore that is not UTF-8 (a Latin-1 comment) is appended to, never rewritten.
+    let current = match std::fs::read(&ignore) {
+        Ok(bytes) => bytes,
+        Err(failure) if failure.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(_) => return Err(error("write_failed", "No se pudo leer .gitignore.")),
+    };
+    let present = current
+        .split(|byte| *byte == b'\n')
+        .any(|line| line == pattern.as_bytes());
+    if !present {
+        use std::io::Write;
+        let mut addition = Vec::new();
+        if !current.is_empty() && !current.ends_with(b"\n") {
+            addition.push(b'\n');
+        }
+        addition.extend_from_slice(pattern.as_bytes());
+        addition.push(b'\n');
+        std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&ignore)
+            .and_then(|mut file| file.write_all(&addition))
             .map_err(|_| error("write_failed", "No se pudo escribir .gitignore."))?;
     }
     let in_index = git(root, &["ls-files", "--cached", "--", value])

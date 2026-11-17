@@ -236,7 +236,7 @@ import Testing
     }
     }
     // Accessibility identifiers written the same way; they are not texts.
-    let identifiers: Set<String> = ["git.diff.text", "git.diff.image", "git.diff.sections", "git.diff.tooLarge", "git.diff.unchanged",
+    let identifiers: Set<String> = ["git.diff.text", "git.diff.image", "git.diff.sections", "git.diff.tooLarge", "git.diff.unchanged", "git.diff.failed",
                                     "git.editor.text", "git.tree.list"]
     let missing = Set(keys).subtracting(identifiers).filter { localized($0) == nil }
     #expect(missing.isEmpty, "Missing texts: \(missing.sorted().joined(separator: ", "))")

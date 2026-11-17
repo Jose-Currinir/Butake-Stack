@@ -13,6 +13,8 @@ enum GitDiffContent: Equatable {
     case tooLarge(lines: Int?)
     /// Nothing changed.
     case unchanged
+    /// The diff could not be read (shown as a warning, never as «sin cambios»).
+    case failed(GitFailure)
 }
 
 /// The diff of one file, with every state it can be in: the text with old and new numbers, changes
@@ -60,6 +62,11 @@ struct GitDiffView: View {
                 tooLarge(lines: lines, action: onShowAnyway)
             case .unchanged:
                 unchanged
+            case .failed(let failure):
+                Notice(.warning, failure.title, detail: failure.detail.isEmpty ? nil : failure.detail)
+                    .padding(16)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .accessibilityIdentifier("git.diff.failed")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -131,10 +131,11 @@ private struct GitCommitList: View {
         .environment(\.defaultMinListRowHeight, GitCommitRow.height)
         .themedScroll()
         .accessibilityIdentifier("git.history.list")
+        .safeAreaInset(edge: .top, spacing: 0) { GitHistoryFailureNotice(history: history) }
         .overlay {
             if history.searching && commits.isEmpty {
                 ProgressView()
-            } else if commits.isEmpty {
+            } else if commits.isEmpty, history.readFailure == nil {
                 if !history.search.isEmpty {
                     ContentUnavailableView {
                         Label(L("git.history.noResults"), systemImage: Symbols.search)
@@ -251,16 +252,29 @@ private struct GitContentMatchList: View {
         .listStyle(.sidebar)
         .themedScroll()
         .accessibilityIdentifier("git.history.matches")
+        .safeAreaInset(edge: .top, spacing: 0) { GitHistoryFailureNotice(history: history) }
         .overlay {
             if history.searching && matches.isEmpty {
                 ProgressView()
-            } else if matches.isEmpty {
+            } else if matches.isEmpty, history.readFailure == nil {
                 ContentUnavailableView {
                     Label(L("git.history.noResults"), systemImage: Symbols.search)
                 } description: {
                     Text(history.searchNote ?? String(format: L("git.history.noContentDetail"), history.search))
                 }
             }
+        }
+    }
+}
+
+/// Why the history or a search failed, above the list (an empty list would read as «sin resultados»).
+private struct GitHistoryFailureNotice: View {
+    let history: GitHistory
+    var body: some View {
+        if let failure = history.readFailure {
+            Notice(.error, failure.title, detail: failure.detail.isEmpty ? nil : failure.detail)
+                .padding(8)
+                .accessibilityIdentifier("git.history.failure")
         }
     }
 }

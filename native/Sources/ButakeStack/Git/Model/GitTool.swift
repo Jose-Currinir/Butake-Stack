@@ -23,6 +23,9 @@ import SwiftUI
     var summaries: [String: GitRepositorySummary] = [:]
 
     @ObservationIgnored private var store: StackStore { .shared }
+    /// Whether the repositories added to a project of several parts exist on disk, read when the
+    /// list loads (not on every evaluation of `entries`).
+    @ObservationIgnored private var missingPaths: [String: Bool] = [:]
     /// The last repository open, reopened with the tool (a preference of this Mac; QA never writes it).
     private static let lastKey = "git.repository"
 
@@ -58,6 +61,8 @@ import SwiftUI
         do {
             let next: GitRepositoryList = try await store.call(["method": "gitRepositories"])
             if next != list { list = next }
+            let paths = store.composites.flatMap(\.repositories)
+            missingPaths = await Task.detached { Dictionary(paths.map { ($0, !FileManager.default.fileExists(atPath: $0 + "/.git")) }, uniquingKeysWith: { first, _ in first }) }.value
         } catch {
             // A list left on screen stops its reading: that is not an error to show.
             let failure = GitFailure(error)
@@ -72,10 +77,17 @@ import SwiftUI
             + list.added.map { GitRepositoryEntry(path: $0.path, name: $0.name, project: nil, missing: $0.missing) }
         var known = Set(base.map(\.path))
         let extra = store.composites.flatMap(\.repositories).filter { known.insert($0).inserted }.map { path in
-            GitRepositoryEntry(path: path, name: URL(fileURLWithPath: path).lastPathComponent, project: nil,
-                               missing: !FileManager.default.fileExists(atPath: path + "/.git"))
+            GitRepositoryEntry(path: path, name: URL(fileURLWithPath: path).lastPathComponent, project: nil, missing: missing(path))
         }
         return base + extra
+    }
+
+    /// Whether a part's repository is gone: read once per list load, then remembered.
+    private func missing(_ path: String) -> Bool {
+        if let known = missingPaths[path] { return known }
+        let value = !FileManager.default.fileExists(atPath: path + "/.git")
+        missingPaths[path] = value
+        return value
     }
 
     /// The project of several parts a repository belongs to: one of its parts', or added to it.
@@ -87,8 +99,8 @@ import SwiftUI
 
     /// The repositories of a project of several parts: its parts' (in their order), then the ones
     /// added to it.
-    func entries(of group: ProjectGroup) -> [GitRepositoryEntry] {
-        let all = entries
+    func entries(of group: ProjectGroup, in all: [GitRepositoryEntry]? = nil) -> [GitRepositoryEntry] {
+        let all = all ?? entries
         let parts = group.sites.compactMap { id in all.first { $0.project == id } }
         let added = group.repositories.compactMap { path in all.first { $0.path == path && $0.project == nil } }
         return parts + added
@@ -141,7 +153,11 @@ import SwiftUI
             next.watch()
             next.selectedFile = next.files.first(where: { !$0.conflicted })?.path
             repository = next
+            #if DEBUG
             if !StackStore.qaWindow { UserDefaults.standard.set(snapshot.root, forKey: Self.lastKey) }
+            #else
+            UserDefaults.standard.set(snapshot.root, forKey: Self.lastKey)
+            #endif
             await loadList()
         } catch {
             let failure = GitFailure(error)
@@ -165,6 +181,8 @@ import SwiftUI
     }
 
     func add(_ path: String) async {
+        // A repository cloned or added since the last list load is no longer missing.
+        missingPaths = [:]
         do {
             let next: GitRepositoryList = try await store.call(["method": "gitRepositoryAdd", "path": path])
             list = next
@@ -187,7 +205,11 @@ import SwiftUI
     func close() {
         repository?.stopWatching()
         repository = nil
+        #if DEBUG
         if !StackStore.qaWindow { UserDefaults.standard.removeObject(forKey: Self.lastKey) }
+        #else
+        UserDefaults.standard.removeObject(forKey: Self.lastKey)
+        #endif
     }
 
     /// The tool was turned off: nothing keeps watching its folders. The last repository is still
