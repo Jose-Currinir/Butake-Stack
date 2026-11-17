@@ -1029,15 +1029,27 @@ mod tests {
     async fn children_of_a_wrapper_that_left_get_their_grace() {
         let temp = tempfile::tempdir().unwrap();
         let done = temp.path().join("done");
+        let ready = temp.path().join("ready");
+        // The child says it is ready once its trap is set: a TERM sent before that would kill it
+        // with the default action, which is not what is being tested.
         let script = format!(
-            "(trap 'sleep 1; echo graceful > {}; exit 0' TERM; while :; do sleep 0.1; done) & exit 0",
-            done.display()
+            "(trap 'sleep 1; echo graceful > {}; exit 0' TERM; : > {}; while :; do sleep 0.1; done) & exit 0",
+            done.display(),
+            ready.display()
         );
         let mut command = tokio::process::Command::new("/bin/sh");
         command.args(["-c", &script]).process_group(0);
         let mut child = command.spawn().unwrap();
         let pid = child.id().unwrap();
         child.wait().await.unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while !ready.exists() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the child never set its trap"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
         settle_group(pid, Duration::from_secs(10)).await;
         assert_eq!(std::fs::read_to_string(&done).unwrap().trim(), "graceful");
         assert!(!crate::core::watch::group_alive(pid as i32));
