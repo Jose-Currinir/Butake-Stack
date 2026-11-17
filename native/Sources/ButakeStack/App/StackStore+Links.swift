@@ -19,8 +19,7 @@ extension StackStore {
         case "project":
             handleProjectLink(url)
         case "open":
-            guard let path = components?.queryItems?.first(where: { $0.name == "path" })?.value, path.hasPrefix("/") else { return }
-            let standard = URL(fileURLWithPath: path).standardizedFileURL.path
+            guard let standard = Self.linkedFolder(components?.queryItems?.first(where: { $0.name == "path" })?.value) else { return }
             if let project = projects.first(where: { $0.path == standard }) { openSite(project.id) }
             else { Task { await detect(standard) } }
         // butakestack://tool/<id>, …/ssh/<host> and …/db/<connection>: they only show it; a link
@@ -36,8 +35,8 @@ extension StackStore {
             if url.path == "/import", pluginEnabled("vault") { VaultSession.shared.propose(components?.queryItems) }
         // butakestack://git/open?path=<repositorio>: the Git tool with that repository open.
         case "git":
-            if let path = components?.queryItems?.first(where: { $0.name == "path" })?.value, path.hasPrefix("/"), pluginEnabled("git") {
-                GitTool.shared.show(URL(fileURLWithPath: path).standardizedFileURL.path)
+            if let path = Self.linkedFolder(components?.queryItems?.first(where: { $0.name == "path" })?.value), pluginEnabled("git") {
+                GitTool.shared.show(path)
             } else {
                 openTool("git")
             }
@@ -59,6 +58,14 @@ extension StackStore {
             if DatabaseClient.shared.connection(id) != nil { DatabaseClient.shared.selection = DBSelection(connection: id) }
         default: route = .home
         }
+    }
+
+    /// The folder a link names: an absolute path, normalized, that exists and is a folder. Anything else is ignored.
+    nonisolated static func linkedFolder(_ path: String?) -> String? {
+        guard let path, path.hasPrefix("/"), !path.contains("\0") else { return nil }
+        let standard = URL(fileURLWithPath: path).standardizedFileURL.path
+        var isFolder: ObjCBool = false
+        return FileManager.default.fileExists(atPath: standard, isDirectory: &isFolder) && isFolder.boolValue ? standard : nil
     }
 
     /// A tool's page; a tool that is off opens Ajustes › Herramientas with its row highlighted.
