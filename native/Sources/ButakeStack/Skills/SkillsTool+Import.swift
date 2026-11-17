@@ -27,7 +27,7 @@ extension SkillsTool {
         var request = importPayload("skillsImportApply", ids: ids, group: group, choices: choices)
         request["confirmed"] = true
         var result: ImportResult?
-        await change(L("skills.sheet.import.applying")) {
+        await change(L("skills.sheet.import.applying"), health: true) {
             result = try await StackStore.shared.call(request)
         }
         guard let result else { return false }
@@ -51,7 +51,7 @@ extension SkillsTool {
 
     func applyUndo(_ entry: ImportTrashEntry) async -> Bool {
         var result: ImportUndoResult?
-        await change(L("skills.sheet.import.undoing")) {
+        await change(L("skills.sheet.import.undoing"), health: true) {
             result = try await StackStore.shared.call(["method": "skillsImportUndo", "trashId": entry.trashId, "confirmed": true])
         }
         guard let result else { return false }

@@ -15,6 +15,8 @@ use serde_json::Value;
 #[cfg(test)]
 pub(crate) use apply::FAIL_AFTER_FIRST;
 pub(super) use record::is_import;
+#[cfg(test)]
+pub(crate) use tree::DIGESTS;
 
 /// Methods that only read, or answer `plan: true`, take no lock.
 pub fn mutates(method: &str, request: &Value) -> bool {

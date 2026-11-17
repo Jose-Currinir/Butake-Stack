@@ -365,3 +365,32 @@ fn emptying_the_import_trash_needs_confirmed_and_removes_only_the_listed_folders
     assert_eq!(snap(&trash_dir(&env)), expected);
     assert!(env.skills_dir().join("a").exists());
 }
+
+/// The plan and the apply read only the folders of the requested skills: the others are not hashed.
+#[test]
+fn plan_and_apply_hash_only_the_requested_skills() {
+    use crate::skills::import::DIGESTS;
+    let env = env();
+    for name in ["a", "b", "c", "d"] {
+        folder(&env, ".claude/skills", name, &[("n.md", name)]);
+    }
+    let digests = || DIGESTS.with(|n| n.get());
+    let before = digests();
+    env.ok(
+        "skillsImportPlan",
+        json!({"ids": ["a"], "group": "personal"}),
+    );
+    assert_eq!(digests() - before, 1, "the plan hashes `a` only");
+    // The full scan still looks at everything.
+    let before = digests();
+    env.ok("skillsImportScan", json!({}));
+    assert_eq!(digests() - before, 4);
+    // Apply: one hash in the plan it rebuilds, one of the source and one of the copy to verify it.
+    let before = digests();
+    apply(&env, &["a"]);
+    assert_eq!(digests() - before, 3);
+    // Unrequested skills are untouched.
+    assert!(fs::symlink_metadata(env.link_path(".claude/skills", "b"))
+        .unwrap()
+        .is_dir());
+}

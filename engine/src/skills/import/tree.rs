@@ -6,6 +6,12 @@ use anyhow::Result;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs, io::Read, os::unix::fs::OpenOptionsExt, path::Path};
 
+#[cfg(test)]
+thread_local! {
+    /// Test hook: the folders hashed on this thread.
+    pub static DIGESTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 const MAX_DEPTH: usize = 6;
 const MAX_FILES: usize = 500;
 pub const MAX_BYTES: u64 = 10 * 1024 * 1024;
@@ -76,6 +82,8 @@ fn walk(base: &Path, dir: &Path, depth: usize, tree: &mut Tree) -> Result<()> {
 
 /// Hashes the folder `root` (a real folder, not a link).
 pub fn digest(root: &Path) -> Result<Tree> {
+    #[cfg(test)]
+    DIGESTS.with(|n| n.set(n.get() + 1));
     let mut tree = Tree {
         files: BTreeMap::new(),
         bytes: 0,

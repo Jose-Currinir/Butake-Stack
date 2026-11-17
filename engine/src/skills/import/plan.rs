@@ -77,7 +77,7 @@ fn movable(ctx: &Ctx, source: &Source) -> bool {
 /// (`skills_import_choice_required`, or `skills_import_choice_invalid` when `from` is not one of its
 /// sources). Only listed ids are planned, so hidden entries are never taken by default.
 pub fn build(ctx: &Ctx, index: &Index, request: &Request) -> Result<Plan> {
-    let candidates = scan::scan(ctx, index);
+    let candidates = scan::scan_only(ctx, index, Some(&request.ids));
     let mut plan = Plan {
         group: request.group.clone(),
         items: vec![],

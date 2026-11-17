@@ -98,6 +98,12 @@ fn hash_of(cache: &mut Digests, total: &mut u64, real: &Path) -> (Option<String>
 /// Every candidate, by name: entries with the same real folder or the same bytes are one source
 /// list; the same name with different bytes is one candidate with `identical: false`.
 pub fn scan(ctx: &Ctx, index: &Index) -> Vec<Candidate> {
+    scan_only(ctx, index, None)
+}
+
+/// Like [`scan`], but with `only` it looks at (and hashes) just the entries with those names: the
+/// plan and the apply need nothing else.
+pub fn scan_only(ctx: &Ctx, index: &Index, only: Option<&[String]>) -> Vec<Candidate> {
     let root = ctx.root.canonicalize().unwrap_or_else(|_| ctx.root.clone());
     let mut found: BTreeMap<String, Vec<Source>> = BTreeMap::new();
     for agent in agents::all(index) {
@@ -110,6 +116,7 @@ pub fn scan(ctx: &Ctx, index: &Index) -> Vec<Candidate> {
         let mut names: Vec<String> = read
             .flatten()
             .filter_map(|i| i.file_name().to_str().map(String::from))
+            .filter(|name| only.is_none_or(|ids| ids.contains(name)))
             .collect();
         names.sort();
         names.truncate(MAX_ENTRIES);

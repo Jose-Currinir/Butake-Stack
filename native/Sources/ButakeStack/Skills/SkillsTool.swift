@@ -48,6 +48,9 @@ enum SkillsSheet: Identifiable {
     /// Names a rename could not link because the AI folder already had them; shown until dismissed.
     var renameConflicts: [SkillLinkPlan.Conflict] = []
 
+    /// How many times the health of the skills was asked for (it rereads the files of every skill).
+    private(set) var healthRequests = 0
+
     private var store: StackStore { .shared }
 
     var skills: [Skill] { state?.skills ?? [] }
@@ -86,8 +89,19 @@ enum SkillsSheet: Identifiable {
     }
 
     func scopeChanged() {
-        if scope == .health { selection = nil } else { keepSelectionVisible() }
+        if scope == .health {
+            selection = nil
+            // «Salud» is only computed when it is opened (it rereads the files of every skill).
+            healthTask = Task { await loadProblems() }
+        } else {
+            keepSelectionVisible()
+        }
     }
+
+    private var healthTask: Task<Void, Never>?
+
+    /// Waits for the health request that opening «Salud» started.
+    func waitForHealth() async { await healthTask?.value }
 
     /// Changes the selection from the list; with unsaved text in the editor it asks first.
     func requestSelection(_ id: String?) {
@@ -151,6 +165,7 @@ enum SkillsSheet: Identifiable {
     }
 
     func loadProblems() async {
+        healthRequests += 1
         if let list: [SkillProblem] = try? await store.call(["method": "skillsHealth"]) { problems = list }
     }
 
@@ -164,7 +179,10 @@ enum SkillsSheet: Identifiable {
 
     /// Asks the engine, reads the list again and says what was done. False when it failed (the
     /// engine's message is already shown).
-    @discardableResult func change(_ label: String, done: String? = nil, _ work: @escaping @MainActor () async throws -> Void) async -> Bool {
+    /// `health`: the change touches links (or the files «Salud» reads about them), so the findings are
+    /// asked for again; otherwise only while «Salud» is on screen.
+    @discardableResult func change(_ label: String, done: String? = nil, health: Bool = false,
+                                   _ work: @escaping @MainActor () async throws -> Void) async -> Bool {
         var ok = false
         await store.run(label) {
             try await work()
@@ -172,7 +190,7 @@ enum SkillsSheet: Identifiable {
         }
         guard ok else { return false }
         if let state: SkillsState = try? await store.call(["method": "skillsList"]) { apply(state) }
-        await loadProblems()
+        if health || scope == .health { await loadProblems() }
         if let done { store.notify(done) }
         return true
     }
@@ -236,7 +254,7 @@ enum SkillsSheet: Identifiable {
 
     private func rename(_ skill: Skill, to newId: String) async -> Bool {
         var result: SkillRenameResult?
-        let renamed = await change(L("skills.renaming"), done: L("skills.renamed")) {
+        let renamed = await change(L("skills.renaming"), done: L("skills.renamed"), health: true) {
             result = try await self.store.call(["method": "skillsRename", "id": skill.id, "newId": newId, "confirmed": true])
         }
         if renamed { selection = newId }
@@ -247,7 +265,7 @@ enum SkillsSheet: Identifiable {
     private func delete(_ skill: Skill) async -> Bool {
         struct Trashed: Decodable { let trashId: String }
         var trashed: Trashed?
-        await change(L("skills.deleting")) {
+        await change(L("skills.deleting"), health: true) {
             trashed = try await self.store.call(["method": "skillsDelete", "id": skill.id, "confirmed": true])
         }
         guard let trashed else { return false }
@@ -256,7 +274,7 @@ enum SkillsSheet: Identifiable {
     }
 
     private func restore(trashId: String) async -> Bool {
-        let restored = await change(L("skills.restoring"), done: L("skills.restored")) {
+        let restored = await change(L("skills.restoring"), done: L("skills.restored"), health: true) {
             let back: Skill = try await self.store.call(["method": "skillsRestore", "trashId": trashId, "confirmed": true])
             self.selection = back.id
         }
@@ -306,13 +324,13 @@ enum SkillsSheet: Identifiable {
     }
 
     func saveAgent(id: String, name: String, folder: String) async -> Bool {
-        await change(L("skills.agent.saving"), done: L("skills.agent.saved")) {
+        await change(L("skills.agent.saving"), done: L("skills.agent.saved"), health: true) {
             let _: [SkillAgent] = try await self.store.call(["method": "skillsAgentSave", "id": id, "name": name, "folder": folder])
         }
     }
 
     private func removeAgent(id: String) async -> Bool {
-        await change(L("skills.agent.removing"), done: L("skills.agent.removed")) {
+        await change(L("skills.agent.removing"), done: L("skills.agent.removed"), health: true) {
             let _: [SkillAgent] = try await self.store.call(["method": "skillsAgentRemove", "id": id, "confirmed": true])
         }
     }
@@ -345,7 +363,7 @@ enum SkillsSheet: Identifiable {
 
     private func applyLinks(_ request: SkillLinkRequest) async -> SkillLinkResult? {
         var result: SkillLinkResult?
-        await change(L("skills.links.applying")) {
+        await change(L("skills.links.applying"), health: true) {
             result = try await self.store.call(request.payload(method: "skillsLinkApply", confirmed: true))
         }
         if let result { store.notify(result.conflicts.isEmpty ? L("skills.links.applied") : L("skills.links.appliedWithConflicts")) }

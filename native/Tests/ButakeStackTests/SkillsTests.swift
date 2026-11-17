@@ -242,3 +242,21 @@ private let listJSON = """
     #expect(list.map(\.id) == list.map(\.trashId))
     #expect(list.map(\.skill) == ["notas", "notas"])
 }
+
+/// «Salud» rereads the files of every skill: a change asks for it only when it touches links or while
+/// «Salud» is open, and opening «Salud» asks for it.
+@MainActor @Test func healthIsRequestedOnlyWhenItCanChange() async {
+    let tool = SkillsTool()
+    await tool.change("x") {}
+    #expect(tool.healthRequests == 0)
+    await tool.change("x", health: true) {}
+    #expect(tool.healthRequests == 1)
+    tool.scope = .health
+    await tool.change("x") {}
+    #expect(tool.healthRequests == 2)
+    tool.scope = .all
+    tool.scope = .health
+    tool.scopeChanged()
+    await tool.waitForHealth()
+    #expect(tool.healthRequests == 3)
+}
