@@ -211,9 +211,18 @@ pub fn files(dir: &Path) -> Vec<String> {
     out
 }
 
-/// Copies a skill folder without following links (they are skipped), within fixed limits.
-pub fn copy_tree(from: &Path, to: &Path) -> Result<()> {
-    fn go(from: &Path, to: &Path, depth: usize, files: &mut usize, bytes: &mut u64) -> Result<()> {
+/// Copies a skill folder without following links (they are skipped), within fixed limits. Answers
+/// the relative paths it left out (links and special files; sorted, at most 200).
+pub fn copy_tree(from: &Path, to: &Path) -> Result<Vec<String>> {
+    fn go(
+        base: &Path,
+        from: &Path,
+        to: &Path,
+        depth: usize,
+        files: &mut usize,
+        bytes: &mut u64,
+        skipped: &mut Vec<String>,
+    ) -> Result<()> {
         if depth > 6 {
             return fail("skills_too_large");
         }
@@ -223,7 +232,15 @@ pub fn copy_tree(from: &Path, to: &Path) -> Result<()> {
             let kind = item.file_type()?;
             let target = to.join(item.file_name());
             if kind.is_dir() {
-                go(&item.path(), &target, depth + 1, files, bytes)?;
+                go(
+                    base,
+                    &item.path(),
+                    &target,
+                    depth + 1,
+                    files,
+                    bytes,
+                    skipped,
+                )?;
             } else if kind.is_file() {
                 *files += 1;
                 *bytes += item.metadata()?.len();
@@ -233,9 +250,16 @@ pub fn copy_tree(from: &Path, to: &Path) -> Result<()> {
                 fs::copy(item.path(), &target)?;
                 let mode = item.metadata()?.permissions().mode() & 0o700;
                 fs::set_permissions(&target, fs::Permissions::from_mode(mode | 0o600))?;
+            } else if skipped.len() < 200 {
+                let path = item.path();
+                let rel = path.strip_prefix(base).unwrap_or(&path);
+                skipped.push(rel.to_string_lossy().to_string());
             }
         }
         Ok(())
     }
-    go(from, to, 0, &mut 0, &mut 0)
+    let mut skipped = vec![];
+    go(from, from, to, 0, &mut 0, &mut 0, &mut skipped)?;
+    skipped.sort();
+    Ok(skipped)
 }

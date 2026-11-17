@@ -144,11 +144,13 @@ private let listJSON = """
         {"copy": [{"from": "/qa/.claude/skills/notas", "id": "notas"}],
          "replace": ["/qa/.claude/skills/notas", "/qa/.agents/skills/notas"],
          "trash": ["/qa/.claude/skills/notas"], "unlink": ["/qa/.agents/skills/notas"],
+         "warnings": [{"id": "notas", "skipped": ["enlace", "deep/roto"]}],
          "conflicts": [{"path": "/qa/.gemini/skills/notas", "reason": "not_chosen"}]}
         """#.utf8))
     #expect(plan.copy == [ImportPlan.Copy(from: "/qa/.claude/skills/notas", id: "notas")])
     #expect(plan.replace.count == 2 && plan.trash.count == 1 && plan.unlink == ["/qa/.agents/skills/notas"])
     #expect(plan.conflicts.first?.reason == "not_chosen")
+    #expect(plan.warnings == [ImportPlan.Warning(id: "notas", skipped: ["enlace", "deep/roto"])])
 
     let skill = #"{"id": "notas", "name": "Notas", "description": "", "group": "personal", "tags": [], "enabled": true, "agents": ["claude", "codex"], "files": [], "modified": 1760000000}"#
     let result = try JSONDecoder().decode(ImportResult.self, from: Data(

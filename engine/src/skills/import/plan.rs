@@ -20,6 +20,8 @@ pub struct Item {
     pub real: PathBuf,
     /// Sources that become links to Stack's copy.
     pub replace: Vec<Source>,
+    /// Links and special files inside the chosen folder that the copy leaves out.
+    pub skipped: Vec<String>,
 }
 
 pub struct Plan {
@@ -120,6 +122,7 @@ pub fn build(ctx: &Ctx, index: &Index, request: &Request) -> Result<Plan> {
             from: chosen.path.clone(),
             real: chosen.real.clone(),
             replace,
+            skipped: chosen.skipped.clone(),
         });
     }
     Ok(plan)
@@ -148,6 +151,10 @@ pub fn json(plan: &Plan) -> Value {
         "replace": paths(None),
         "trash": paths(Some(false)),
         "unlink": paths(Some(true)),
+        "warnings": plan.items.iter()
+            .filter(|i| !i.skipped.is_empty())
+            .map(|i| json!({"id": i.id, "skipped": i.skipped}))
+            .collect::<Vec<_>>(),
         "conflicts": conflicts_json(&plan.conflicts),
     })
 }

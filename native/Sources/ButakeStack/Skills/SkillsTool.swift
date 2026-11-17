@@ -177,9 +177,16 @@ enum SkillsSheet: Identifiable {
 
     func duplicate(_ skill: Skill) async {
         let copy = SkillIDs.unique("\(skill.id.prefix(56))-\(L("skills.copySuffix"))", taken: Set(skills.map(\.id)))
-        if await change(L("skills.duplicating"), done: L("skills.duplicated"), {
-            let _: Skill = try await self.store.call(["method": "skillsDuplicate", "id": skill.id, "newId": copy])
-        }) { selection = copy }
+        struct Duplicated: Decodable { let skipped: [String]? }
+        var skipped: [String] = []
+        if await change(L("skills.duplicating"), {
+            let made: Duplicated = try await self.store.call(["method": "skillsDuplicate", "id": skill.id, "newId": copy])
+            skipped = made.skipped ?? []
+        }) {
+            // Links and special files are never copied: say so instead of passing it as a full copy.
+            store.notify(skipped.isEmpty ? L("skills.duplicated") : String(format: L("skills.duplicatedSkipped"), skipped.count))
+            selection = copy
+        }
     }
 
     private func rename(_ skill: Skill, to newId: String) async -> Bool {

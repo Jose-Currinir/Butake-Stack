@@ -28,6 +28,8 @@ pub struct Source {
     pub real: PathBuf,
     /// Digest of the tree; `None` when it is too large to hash.
     pub hash: Option<String>,
+    /// Links and special files inside the folder: an import leaves them out.
+    pub skipped: Vec<String>,
 }
 
 pub struct Candidate {
@@ -67,27 +69,30 @@ fn source_of(ctx: &Ctx, root: &Path, agent: &str, path: &Path) -> Option<Source>
             target,
             real,
             hash: None,
+            skipped: vec![],
         })
 }
 
-fn hash_of(
-    cache: &mut BTreeMap<PathBuf, Option<String>>,
-    total: &mut u64,
-    real: &Path,
-) -> Option<String> {
+type Digests = BTreeMap<PathBuf, (Option<String>, Vec<String>)>;
+
+fn hash_of(cache: &mut Digests, total: &mut u64, real: &Path) -> (Option<String>, Vec<String>) {
     if let Some(known) = cache.get(real) {
         return known.clone();
     }
-    let hash = if *total > MAX_TOTAL {
+    let digest = if *total > MAX_TOTAL {
         None
     } else {
-        tree::digest(real).ok().map(|t| {
-            *total += t.bytes;
-            t.hash
-        })
+        tree::digest(real).ok()
     };
-    cache.insert(real.to_path_buf(), hash.clone());
-    hash
+    let found = match digest {
+        Some(t) => {
+            *total += t.bytes;
+            (Some(t.hash), t.skipped)
+        }
+        None => (None, vec![]),
+    };
+    cache.insert(real.to_path_buf(), found.clone());
+    found
 }
 
 /// Every candidate, by name: entries with the same real folder or the same bytes are one source
@@ -118,7 +123,7 @@ pub fn scan(ctx: &Ctx, index: &Index) -> Vec<Candidate> {
     let mut list = vec![];
     for (name, mut sources) in found.into_iter().take(MAX_CANDIDATES) {
         for source in sources.iter_mut() {
-            source.hash = hash_of(&mut cache, &mut total, &source.real);
+            (source.hash, source.skipped) = hash_of(&mut cache, &mut total, &source.real);
         }
         let identical = sources.iter().all(|s| s.hash == sources[0].hash);
         let (meta, unreadable) = match skill_file::read_text(&sources[0].real) {
@@ -162,10 +167,14 @@ pub fn json(list: &[Candidate]) -> Value {
                     .sources
                     .iter()
                     .map(|s| {
-                        json!({
+                        let mut source = json!({
                             "agent": s.agent, "path": s.path.to_string_lossy(),
                             "kind": if s.link { "link" } else { "folder" },
-                        })
+                        });
+                        if !s.skipped.is_empty() {
+                            source["skipped"] = json!(s.skipped);
+                        }
+                        source
                     })
                     .collect();
                 let mut item = json!({

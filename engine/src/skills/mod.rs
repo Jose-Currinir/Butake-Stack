@@ -412,20 +412,29 @@ fn duplicate(ctx: &Ctx, index: &mut Index, id: &str, new_id: &str) -> Result<Val
         return fail("skills_not_found");
     }
     let to = ctx.dir(new_id)?;
-    let copied = skill_file::copy_tree(&from, &to).and_then(|()| {
+    let copied = skill_file::copy_tree(&from, &to).and_then(|skipped| {
         let text = skill_file::read_text(&to)?;
-        skill_file::write_text(&to, &skill_file::rename_in_text(&text, id, new_id))
+        skill_file::write_text(&to, &skill_file::rename_in_text(&text, id, new_id))?;
+        Ok(skipped)
     });
-    if let Err(error) = copied {
-        let _ = fs::remove_dir_all(&to);
-        return Err(error);
-    }
+    let skipped = match copied {
+        Ok(skipped) => skipped,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&to);
+            return Err(error);
+        }
+    };
     let mut entry = index.skills[id].clone();
     entry.agents.clear();
     entry.enabled = true;
     index.skills.insert(new_id.to_string(), entry);
     index::save(ctx, index)?;
-    skill_json(ctx, index, new_id)
+    let mut skill = skill_json(ctx, index, new_id)?;
+    // Links and special files are never copied: the answer says which ones were left out.
+    if !skipped.is_empty() {
+        skill["skipped"] = json!(skipped);
+    }
+    Ok(skill)
 }
 
 fn rename(ctx: &Ctx, index: &mut Index, id: &str, new_id: &str) -> Result<Value> {

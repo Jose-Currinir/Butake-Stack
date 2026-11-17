@@ -1,5 +1,6 @@
 //! Digest of a skill folder for the import: every regular file is hashed, links are never followed
-//! and never counted (the copy skips them too), with the same limits as `skill_file::copy_tree`.
+//! and never counted (the copy skips them too, so they are listed in `skipped` to warn about them),
+//! with the same limits as `skill_file::copy_tree`.
 use crate::skills::model::fail;
 use anyhow::Result;
 use sha2::{Digest, Sha256};
@@ -13,6 +14,8 @@ pub struct Tree {
     /// Relative path of every regular file with the SHA-256 of its bytes.
     pub files: BTreeMap<String, String>,
     pub bytes: u64,
+    /// Relative path of every link and special file the copy leaves out (sorted, at most 200).
+    pub skipped: Vec<String>,
     /// One digest of the whole listing.
     pub hash: String,
 }
@@ -60,6 +63,12 @@ fn walk(base: &Path, dir: &Path, depth: usize, tree: &mut Tree) -> Result<()> {
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_default();
             tree.files.insert(rel, file_hash(&path)?);
+        } else if tree.skipped.len() < 200 {
+            let rel = path
+                .strip_prefix(base)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default();
+            tree.skipped.push(rel);
         }
     }
     Ok(())
@@ -70,9 +79,11 @@ pub fn digest(root: &Path) -> Result<Tree> {
     let mut tree = Tree {
         files: BTreeMap::new(),
         bytes: 0,
+        skipped: vec![],
         hash: String::new(),
     };
     walk(root, root, 0, &mut tree)?;
+    tree.skipped.sort();
     let mut all = Sha256::new();
     for (rel, hash) in &tree.files {
         all.update(rel.as_bytes());

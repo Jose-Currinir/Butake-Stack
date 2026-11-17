@@ -6,6 +6,8 @@ struct ImportSource: Decodable, Hashable, Sendable {
     let path: String
     /// "folder" or "link".
     let kind: String
+    /// Links and special files inside the folder that an import leaves out.
+    let skipped: [String]?
 
     var isLink: Bool { kind == "link" }
 }
@@ -29,13 +31,16 @@ struct ImportCandidate: Decodable, Identifiable, Hashable, Sendable {
 
 /// `skillsImportPlan`: what the import does. `replace` is every source that becomes a link to Stack's
 /// copy: `trash` the real folders (moved to the import trash), `unlink` the links of other origin
-/// (only the link goes). `conflicts` stay as they are.
+/// (only the link goes). `conflicts` stay as they are. `warnings` lists, per skill, the links and special
+/// files inside its folder that the copy leaves out (links are never followed).
 struct ImportPlan: Decodable, Sendable {
     struct Copy: Decodable, Hashable, Sendable { let from: String; let id: String }
+    struct Warning: Decodable, Hashable, Sendable { let id: String; let skipped: [String] }
     let copy: [Copy]
     let replace: [String]
     let trash: [String]
     let unlink: [String]
+    let warnings: [Warning]
     let conflicts: [SkillLinkPlan.Conflict]
 }
 

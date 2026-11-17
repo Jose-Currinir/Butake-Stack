@@ -41,6 +41,45 @@ fn the_copy_is_byte_identical_and_inner_links_are_not_followed() {
 }
 
 #[test]
+fn links_and_special_files_inside_a_skill_are_warned_not_silently_skipped() {
+    let env = env();
+    let real = folder(&env, ".claude/skills", "a", &[("deep/er/data.txt", "x")]);
+    let elsewhere = env.home.join("fuera");
+    fs::create_dir_all(&elsewhere).unwrap();
+    symlink(&elsewhere, real.join("enlace")).unwrap();
+    symlink(elsewhere.join("x"), real.join("deep/er/roto")).unwrap();
+    let fifo = std::ffi::CString::new(real.join("tuberia").to_string_lossy().as_bytes()).unwrap();
+    assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+    folder(&env, ".claude/skills", "limpia", &[("n.md", "n")]);
+    let skipped = json!(["deep/er/roto", "enlace", "tuberia"]);
+    let found = env.ok("skillsImportScan", json!({}));
+    assert_eq!(find(&found, "a")["sources"][0]["skipped"], skipped);
+    assert!(find(&found, "limpia")["sources"][0]["skipped"].is_null());
+    let ask = json!({"ids": ["a", "limpia"], "group": "personal"});
+    let plan = env.ok("skillsImportPlan", ask);
+    assert_eq!(plan["warnings"], json!([{"id": "a", "skipped": skipped}]));
+    // The warning is only information: the import still copies everything that is a file.
+    let done = apply(&env, &["a"]);
+    assert_eq!(done["imported"].as_array().unwrap().len(), 1);
+    assert!(env.skills_dir().join("a/deep/er/data.txt").exists());
+    assert!(fs::symlink_metadata(env.skills_dir().join("a/enlace")).is_err());
+}
+
+#[test]
+fn duplicating_a_skill_with_links_answers_what_was_not_copied() {
+    let env = env();
+    env.create("a");
+    let outside = env.home.join("fuera");
+    fs::create_dir_all(&outside).unwrap();
+    symlink(&outside, env.skills_dir().join("a/enlace")).unwrap();
+    let copy = env.ok("skillsDuplicate", json!({"id": "a", "newId": "b"}));
+    assert_eq!(copy["skipped"], json!(["enlace"]));
+    env.create("c");
+    let plain = env.ok("skillsDuplicate", json!({"id": "c", "newId": "d"}));
+    assert!(plain["skipped"].is_null());
+}
+
+#[test]
 fn folders_go_to_the_import_trash_and_undo_brings_everything_back() {
     let env = env();
     let real = folder(&env, ".claude/skills", "a", &[("n.md", "n")]);

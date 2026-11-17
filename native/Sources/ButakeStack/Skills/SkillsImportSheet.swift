@@ -158,6 +158,23 @@ struct ImportPlanView: View {
             .accessibilityIdentifier("skills.sheet.import.plan.copy")
             paths(L("skills.sheet.import.plan.trash"), plan.trash, id: "trash")
             paths(L("skills.sheet.import.plan.unlink"), plan.unlink, id: "unlink")
+            if !plan.warnings.isEmpty {
+                Section {
+                    ForEach(plan.warnings, id: \.self) { warning in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(warning.id).font(.uiCallout)
+                            Text(Self.omitted(warning.skipped)).font(.uiCaption).foregroundStyle(.secondary)
+                                .lineLimit(3).truncationMode(.tail).help(warning.skipped.joined(separator: "\n"))
+                        }
+                        .accessibilityIdentifier("skills.sheet.import.plan.skipped.\(warning.id)")
+                    }
+                } header: {
+                    Text(L("skills.sheet.import.plan.skipped"))
+                } footer: {
+                    SettingsFooter(L("skills.sheet.import.plan.skippedDetail"))
+                }
+                .accessibilityIdentifier("skills.sheet.import.plan.skipped")
+            }
             if !plan.conflicts.isEmpty {
                 Section {
                     ForEach(plan.conflicts, id: \.self) { conflict in
@@ -186,6 +203,12 @@ struct ImportPlanView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// The omitted paths, the first few by name.
+    static func omitted(_ paths: [String]) -> String {
+        let shown = paths.prefix(5).joined(separator: ", ")
+        return paths.count > 5 ? String(format: L("skills.sheet.import.plan.skippedMore"), shown, paths.count - 5) : shown
     }
 
     @ViewBuilder private func paths(_ title: String, _ list: [String], id: String) -> some View {

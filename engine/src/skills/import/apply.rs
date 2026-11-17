@@ -82,7 +82,8 @@ fn copy(ctx: &Ctx, item: &Item) -> Result<String> {
         fs::remove_dir_all(&temp)?;
     }
     let made = (|| {
-        skill_file::copy_tree(&item.real, &temp)?;
+        // What the copy leaves out was already warned about in the plan.
+        let _skipped = skill_file::copy_tree(&item.real, &temp)?;
         let (from, to) = (tree::digest(&item.real)?, tree::digest(&temp)?);
         if from.files != to.files {
             return fail("skills_import_verify");

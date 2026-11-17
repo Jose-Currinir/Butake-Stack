@@ -4049,6 +4049,7 @@
 "skills.modified" = "Modificada";
 "skills.files" = "Archivos de apoyo";
 "skills.editor" = "Texto de la skill";
+"skills.duplicatedSkipped" = "Skill duplicada; %d enlaces o archivos especiales no se copiaron";
 "skills.scope.health" = "Salud";
 "skills.group.empty" = "Grupo vacío";
 "skills.group.emptyDetail" = "Mueve una skill a este grupo o crea una nueva.";
@@ -4249,6 +4250,9 @@
 "skills.sheet.import.empty.delete" = "Se borrarán para siempre estas carpetas";
 "skills.sheet.import.emptying" = "Vaciando la papelera…";
 "skills.sheet.import.emptied" = "Papelera de importación vaciada";
+"skills.sheet.import.plan.skipped" = "Lo que no se copia";
+"skills.sheet.import.plan.skippedDetail" = "Los enlaces y los archivos especiales dentro de una skill no se copian ni se siguen: la copia de Stack no los tendrá.";
+"skills.sheet.import.plan.skippedMore" = "%@ y %d más";
 
 /* Ajustes */
 "settings.theme" = "Tema";
