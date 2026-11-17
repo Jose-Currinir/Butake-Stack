@@ -571,3 +571,18 @@ func unmarkedValuesAreSecretUnlessTheNameIsClearlyPublic(name: String, value: St
     // What is stored does not change.
     #expect(VaultEnvironment.allCases.map(\.rawValue) == ["none", "test", "prod"])
 }
+
+/// Only a keystore looks for a JDK: any other kind is read without starting `java_home` or any other process.
+@Test func onlyAKeystoreLooksForAKeytool() {
+    nonisolated(unsafe) var lookups = 0
+    func looked() -> URL? { lookups += 1; return nil }
+    for kind in [VaultItemKind.note, .serviceAccount, .envFile, .appStoreKey, .googleServices] {
+        _ = VaultInspector.inspect(item: VaultItem(container: UUID(), kind: kind, name: "x"), data: Data("{}".utf8), fileName: "x", keytool: looked())
+    }
+    #expect(lookups == 0)
+    var keystore = VaultItem(container: UUID(), kind: .androidKeystore, name: "x.jks")
+    keystore.fields = [VaultField(role: .storePassword, value: "inventada", secret: true)]
+    let disk = VaultDisk(root: FileManager.default.temporaryDirectory.appendingPathComponent("vault-keytool-\(UUID().uuidString)"))
+    let meta = VaultInspector.inspect(item: keystore, data: Data("no es un llavero".utf8), fileName: "x.jks", keytool: looked(), disk: disk)
+    #expect(lookups == 1 && meta.problem == "vault.meta.noJava")
+}

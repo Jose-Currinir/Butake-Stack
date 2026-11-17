@@ -54,8 +54,9 @@ enum VaultInspector {
 
     // MARK: Metadata
 
-    /// `keytool`: Stack's own JDK, when one is installed; without it the fingerprints are left out.
-    static func inspect(item: VaultItem, data: Data, fileName: String, keytool: URL? = nil, disk: VaultDisk? = nil) -> VaultMetadata {
+    /// `keytool`: Stack's own JDK, when one is installed; without it the fingerprints are left out. It is looked up
+    /// (an `autoclosure`) only for a keystore: every other kind never starts a process to find a JDK.
+    static func inspect(item: VaultItem, data: Data, fileName: String, keytool: @autoclosure () -> URL? = nil, disk: VaultDisk? = nil) -> VaultMetadata {
         switch item.kind {
         case .provisioningProfile: return provisioningProfile(data)
         case .iosCertificate: return certificate(data, password: item.field(.password)?.value ?? "", fileName: fileName)
@@ -68,7 +69,7 @@ enum VaultInspector {
             return meta
         case .androidKeystore:
             guard let disk else { return VaultMetadata() }
-            guard let keytool else { return VaultMetadata(problem: "vault.meta.noJava") }
+            guard let keytool = keytool() else { return VaultMetadata(problem: "vault.meta.noJava") }
             let password = item.field(.storePassword)?.value ?? ""
             guard !password.isEmpty else { return VaultMetadata(problem: "vault.meta.needsPassword") }
             return keystore(data, fileName: fileName, password: password, alias: item.field(.alias)?.value, keytool: keytool, disk: disk)
@@ -243,17 +244,35 @@ enum VaultInspector {
     /// The `keytool` to read keystores with: Stack's own JDK, else the system's (`java_home`), else none.
     static func keytool() -> URL? { stackKeytool() ?? systemKeytool() }
 
+    /// What `java_home` answered, and when: a JDK is looked up once, and a «none» again only after a minute.
+    private nonisolated(unsafe) static var systemAnswer: (tool: URL?, date: Date)?
+    private static let systemLock = NSLock()
+
     /// The JDK macOS knows of, asked to `java_home` (never `/usr/bin/keytool`, whose stub offers to
-    /// install Java when there is none).
-    static func systemKeytool() -> URL? {
+    /// install Java when there is none). The answer is kept and `java_home` has a time limit.
+    static func systemKeytool(timeout: TimeInterval = 5) -> URL? {
+        if let known = systemLock.withLock({ systemAnswer }), known.tool != nil || Date().timeIntervalSince(known.date) < 60 { return known.tool }
+        let found = askJavaHome(timeout: timeout)
+        systemLock.withLock { systemAnswer = (found, Date()) }
+        return found
+    }
+
+    private static func askJavaHome(timeout: TimeInterval) -> URL? {
+        guard FileManager.default.isExecutableFile(atPath: "/usr/libexec/java_home") else { return nil }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/libexec/java_home")
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice
-        guard FileManager.default.isExecutableFile(atPath: "/usr/libexec/java_home"), (try? process.run()) != nil else { return nil }
-        let data = output.fileHandleForReading.readDataToEndOfFile()
+        guard (try? process.run()) != nil else { return nil }
+        nonisolated(unsafe) var data = Data()
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async { data = output.fileHandleForReading.readDataToEndOfFile(); done.signal() }
+        if done.wait(timeout: .now() + timeout) == .timedOut {
+            process.terminate(); process.waitUntilExit()
+            return nil
+        }
         process.waitUntilExit()
         let home = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         guard process.terminationStatus == 0, home.hasPrefix("/") else { return nil }
@@ -295,7 +314,10 @@ enum VaultInspector {
         nonisolated(unsafe) var bytes = Data()
         let done = DispatchSemaphore(value: 0)
         reader.async { bytes = output.fileHandleForReading.readDataToEndOfFile(); done.signal() }
-        if done.wait(timeout: deadline) == .timedOut { process.terminate(); return VaultMetadata(problem: "vault.meta.unreadable") }
+        if done.wait(timeout: deadline) == .timedOut {
+            process.terminate(); process.waitUntilExit()
+            return VaultMetadata(problem: "vault.meta.unreadable")
+        }
         process.waitUntilExit()
         let text = String(decoding: bytes, as: UTF8.self)
         guard process.terminationStatus == 0 else {
