@@ -29,6 +29,8 @@ private struct VaultItemSheet: View {
     @State private var item: VaultItem
     @State private var newFile: URL?
     @State private var saving = false
+    /// Secret fields of a saved item shown in plain text after the user passed the same presence check as «Mostrar».
+    @State private var revealedFields: Set<UUID> = []
     init(vault: VaultSession, original: VaultItem) {
         self.vault = vault
         self.original = original
@@ -36,6 +38,11 @@ private struct VaultItemSheet: View {
     }
     var isNew: Bool { vault.index.item(original.id) == nil }
     var isApp: Bool { vault.index.container(item.container)?.kind == .app }
+    /// A saved secret value stays masked, and its «Secreto» mark fixed, until it is revealed.
+    func isLocked(_ field: VaultField) -> Bool { !isNew && !revealedFields.contains(field.id) && original.hasSecretValue(field.id) }
+    func reveal(_ field: VaultField) async {
+        if await vault.revealForEditing(field, of: original) { revealedFields.insert(field.id) }
+    }
     var body: some View {
         SheetFrame(title: isNew ? L("vault.newItem") : L("vault.editItem"),
                    symbol: item.kind.symbol,
@@ -83,7 +90,8 @@ private struct VaultItemSheet: View {
                                     Text(field.title).font(.uiCallout.weight(.medium))
                                 }
                                 Spacer()
-                                Toggle(L("vault.secret"), isOn: $field.secret).toggleStyle(.checkbox).accessibilityIdentifier("vault.sheet.item.field.\(position).secret")
+                                Toggle(L("vault.secret"), isOn: $field.secret).toggleStyle(.checkbox).disabled(isLocked(field))
+                                    .accessibilityIdentifier("vault.sheet.item.field.\(position).secret")
                                 Button(role: .destructive) { item.fields.removeAll { $0.id == field.id } } label: {
                                     Label(L("vault.removeField"), systemImage: Symbols.remove).labelStyle(.iconOnly)
                                 }
@@ -91,11 +99,18 @@ private struct VaultItemSheet: View {
                             }
                             HStack {
                                 Group {
-                                    if field.secret { SecureField("", text: $field.value, prompt: Text(L("vault.value"))) }
+                                    if field.secret && !revealedFields.contains(field.id) { SecureField("", text: $field.value, prompt: Text(L("vault.value"))) }
                                     else { TextField("", text: $field.value, prompt: Text(L("vault.value"))) }
                                 }
                                 .labelsHidden().textFieldStyle(.roundedBorder)
                                 .accessibilityIdentifier("vault.sheet.item.field.\(position).value")
+                                if isLocked(field) {
+                                    Button { Task { await reveal(field) } } label: {
+                                        Label(L("vault.reveal"), systemImage: Symbols.reveal).labelStyle(.iconOnly)
+                                    }
+                                    .buttonStyle(.borderless).help(L("vault.reveal"))
+                                    .accessibilityIdentifier("vault.sheet.item.field.\(position).reveal")
+                                }
                                 TextField("", text: Binding(get: { field.envVar ?? "" }, set: { field.envVar = $0.isEmpty ? nil : $0 }), prompt: Text(L("vault.envVar")))
                                     .labelsHidden().textFieldStyle(.roundedBorder)
                                     .font(.uiCallout.monospaced()).frame(width: 240).accessibilityIdentifier("vault.sheet.item.field.\(position).env")

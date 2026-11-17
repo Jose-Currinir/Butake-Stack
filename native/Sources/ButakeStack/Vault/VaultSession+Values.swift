@@ -23,6 +23,13 @@ extension VaultSession {
 
     func hide(_ field: VaultField) { revealed[field.id] = nil }
 
+    /// Showing a saved secret inside the edit sheet is a reveal like any other: presence first, and it is logged.
+    func revealForEditing(_ field: VaultField, of item: VaultItem) async -> Bool {
+        guard await confirmPresence(L("vault.auth.reveal"), fresh: false) else { return false }
+        disk.append(VaultAccessEntry(action: .reveal, target: item.id))
+        return true
+    }
+
     func copy(_ field: VaultField, of item: VaultItem) async {
         if field.secret { guard await confirmPresence(L("vault.auth.copy"), fresh: false) else { return } }
         touch()

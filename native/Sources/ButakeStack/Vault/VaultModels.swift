@@ -254,6 +254,8 @@ struct VaultItem: Codable, Sendable, Identifiable, Hashable {
     var account: String?
 
     func field(_ role: VaultField.Role) -> VaultField? { fields.first { $0.role == role } }
+    /// True when that field is secret and holds a value: the edit sheet keeps it masked until the user is confirmed present.
+    func hasSecretValue(_ fieldID: UUID) -> Bool { fields.contains { $0.id == fieldID && $0.secret && !$0.value.isEmpty } }
 
     private enum CodingKeys: String, CodingKey {
         case id, container, section, kind, kindDetail, name, files, fields, notes, environment, created, updated, metadata, account
