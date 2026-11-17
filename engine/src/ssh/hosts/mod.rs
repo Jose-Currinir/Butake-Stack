@@ -18,8 +18,8 @@ use crate::{
     core::fsutil::write_private,
     core::store::Store,
     ssh::common::{
-        alive, fingerprints_of, identity_file, is_ssh, known_hosts, known_hosts_option, port_open,
-        ssh_error, ssh_fingerprints, trust_scanned,
+        alive, fingerprints_of, identity_file, is_forward_process, known_hosts, known_hosts_option,
+        port_open, ssh_error, ssh_fingerprints, trust_scanned,
     },
 };
 use anyhow::{bail, ensure, Result};

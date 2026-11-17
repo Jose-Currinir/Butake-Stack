@@ -50,6 +50,8 @@ pub fn known_hosts_option(store: &Store) -> Result<String> {
 }
 
 pub fn alive(pid: i32) -> bool {
+    // SAFETY: `kill` with signal 0 only checks that the process exists; `pid > 0` is checked first,
+    // so it can never address a process group (0, negative) or every process (-1).
     pid > 0 && unsafe { libc::kill(pid, 0) } == 0
 }
 
@@ -61,6 +63,18 @@ pub fn is_ssh(pid: i32) -> bool {
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().ends_with("ssh"))
         .unwrap_or(false)
+}
+
+/// A forward's own `ssh -N`: an ssh that leads its process group (forwards start with
+/// `process_group(0)`), which another ssh that was handed the same pid later never does.
+pub fn is_forward_process(pid: i32) -> bool {
+    is_ssh(pid) && leads_process_group(pid)
+}
+
+fn leads_process_group(pid: i32) -> bool {
+    // SAFETY: `getpgid` only reads the process group of `pid` (no memory is passed); `pid > 0`
+    // is checked first.
+    pid > 0 && unsafe { libc::getpgid(pid) } == pid
 }
 
 pub fn port_open(port: u16) -> bool {
@@ -231,5 +245,30 @@ mod known_line_tests {
         ] {
             assert!(plain_known_host_line(line).is_none(), "{line:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod forward_process_tests {
+    use super::*;
+    use std::os::unix::process::CommandExt;
+
+    #[test]
+    fn only_a_process_that_leads_its_group_can_be_a_forward() {
+        let spawn = |own_group: bool| {
+            let mut command = Command::new("/bin/sleep");
+            command.arg("30");
+            if own_group {
+                command.process_group(0);
+            }
+            command.spawn().unwrap()
+        };
+        let (mut led, mut shared) = (spawn(true), spawn(false));
+        assert!(leads_process_group(led.id() as i32));
+        // In the group of the caller: a session of the user's, never a forward Stack started.
+        assert!(!leads_process_group(shared.id() as i32));
+        assert!(!leads_process_group(0) && !leads_process_group(-1));
+        let _ = (led.kill(), shared.kill());
+        let _ = (led.wait(), shared.wait());
     }
 }

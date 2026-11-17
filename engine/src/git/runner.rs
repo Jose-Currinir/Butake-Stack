@@ -494,6 +494,8 @@ mod tests {
             .parse()
             .unwrap();
         // The background child is gone (or a zombie of its ended group, never still sleeping).
+        // SAFETY: signal 0 only checks that the process exists; `pid` was written by the test's
+        // own child and is positive.
         let alive = unsafe { libc::kill(pid, 0) } == 0;
         assert!(!alive || !crate::core::watch::group_alive(pid), "{pid}");
     }

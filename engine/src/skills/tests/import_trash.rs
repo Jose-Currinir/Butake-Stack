@@ -49,6 +49,7 @@ fn links_and_special_files_inside_a_skill_are_warned_not_silently_skipped() {
     symlink(&elsewhere, real.join("enlace")).unwrap();
     symlink(elsewhere.join("x"), real.join("deep/er/roto")).unwrap();
     let fifo = std::ffi::CString::new(real.join("tuberia").to_string_lossy().as_bytes()).unwrap();
+    // SAFETY: `fifo` is a valid NUL-terminated path that outlives the call.
     assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
     folder(&env, ".claude/skills", "limpia", &[("n.md", "n")]);
     let skipped = json!(["deep/er/roto", "enlace", "tuberia"]);

@@ -251,7 +251,10 @@ fn parse_listing(text: &str, dir: &str, today: (i64, u32, u32)) -> Vec<Entry> {
 
 fn today() -> (i64, u32, u32) {
     let mut now: libc::time_t = 0;
+    // SAFETY: `tm` is plain integers (and a nullable pointer) for which all-zero bytes are valid.
     let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    // SAFETY: `now` and `tm` are valid, distinct and writable for the whole call; `localtime_r`
+    // is the reentrant variant and keeps no pointer to them.
     unsafe {
         libc::time(&mut now);
         libc::localtime_r(&now, &mut tm);

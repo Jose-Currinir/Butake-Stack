@@ -63,7 +63,10 @@ pub(crate) fn same_user(stream: &std::os::unix::net::UnixStream) -> bool {
     use std::os::unix::io::AsRawFd;
     let mut uid: libc::uid_t = 0;
     let mut gid: libc::gid_t = 0;
+    // SAFETY: the descriptor is open for as long as `stream` is borrowed, and `uid` and `gid` are
+    // valid for writes; getpeereid reads nothing else.
     let ok = unsafe { libc::getpeereid(stream.as_raw_fd(), &mut uid, &mut gid) } == 0;
+    // SAFETY: `geteuid` takes no arguments, touches no memory and cannot fail.
     ok && uid == unsafe { libc::geteuid() }
 }
 
