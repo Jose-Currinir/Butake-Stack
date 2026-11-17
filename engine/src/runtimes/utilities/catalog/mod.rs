@@ -126,8 +126,9 @@ fn mysql_url(version: &str) -> String {
 }
 
 enum Verify {
-    /// The vendor publishes no checksum; only HTTPS protects the download (shown in the UI).
-    HttpsOnly,
+    /// The vendor publishes no checksum: the SHA-256 of a release is fixed here (see `TYPESENSE`).
+    /// `None` is a version Stack has not pinned: refused (`checksum_missing`).
+    Pinned(Option<&'static str>),
     /// SHA-256 taken from the GitHub release asset's `digest` (`api` = release endpoint).
     GithubDigest(String),
     Sha256,
@@ -168,6 +169,15 @@ enum Build {
     /// OpenSSL (static), then PostgreSQL and its `contrib` modules, into the version folder.
     Postgres,
 }
+
+/// Typesense publishes no checksum or signature for its macOS builds (`dl.typesense.org` has no
+/// `.sha256` and its GitHub releases carry no assets), so the releases Stack installs are pinned
+/// with the SHA-256 of the archive downloaded from `https://dl.typesense.org/releases/<version>/
+/// typesense-server-<version>-darwin-arm64.tar.gz`. A new release is added here after checking it.
+pub(super) const TYPESENSE: &[(&str, &str)] = &[(
+    "30.2",
+    "7d8d6d0c33930ad20ea23dd184250547b16615944be891b2078e8a075152fa7e",
+)];
 
 fn source(tool: &str, version: &str) -> Source {
     match tool {
@@ -259,8 +269,13 @@ fn source(tool: &str, version: &str) -> Source {
         "typesense" => Source {
             archive: format!("typesense-server-{version}-darwin-arm64.tar.gz"),
             url: format!("https://dl.typesense.org/releases/{version}/typesense-server-{version}-darwin-arm64.tar.gz"),
-            checksum_url: "https".into(),
-            verify: Verify::HttpsOnly,
+            checksum_url: String::new(),
+            verify: Verify::Pinned(
+                TYPESENSE
+                    .iter()
+                    .find(|(pinned, _)| *pinned == version)
+                    .map(|(_, sum)| *sum),
+            ),
             strip: false,
             build: Build::None,
             layout: Layout::TarIntoBin,
@@ -335,7 +350,6 @@ pub fn plan(tool: &str) -> Vec<&'static str> {
     let src = source(tool, "1.0.0.0");
     let verify = match src.verify {
         Verify::Codesign(_) => "verifySignature",
-        Verify::HttpsOnly => "verifySource",
         _ => "verifySum",
     };
     match src.build {

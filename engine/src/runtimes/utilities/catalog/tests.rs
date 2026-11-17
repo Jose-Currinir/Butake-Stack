@@ -144,3 +144,21 @@ fn a_jdk_version_without_a_patch_number_is_refused() {
     let error = install(&store, "jdk", "21.0", false).unwrap_err();
     assert_eq!(error.to_string(), "invalid_version");
 }
+
+/// Typesense has no published checksum: only the pinned releases have one, the others are
+/// refused before anything is downloaded.
+#[test]
+fn typesense_is_installed_only_with_a_pinned_checksum() {
+    for (version, sum) in TYPESENSE {
+        assert!(
+            matches!(source("typesense", version).verify, Verify::Pinned(Some(s)) if s == *sum)
+        );
+        assert_eq!(sum.len(), 64);
+        assert!(sum.bytes().all(|c| c.is_ascii_hexdigit()));
+    }
+    assert!(matches!(
+        source("typesense", "99.0").verify,
+        Verify::Pinned(None)
+    ));
+    assert_eq!(plan("typesense"), ["download", "verifySum", "install"]);
+}
