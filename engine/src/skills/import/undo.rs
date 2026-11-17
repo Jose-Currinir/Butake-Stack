@@ -34,6 +34,31 @@ fn free_for(ctx: &Ctx, id: &str, path: &Path) -> bool {
     links::is_link_to(ctx, path, id) || links::is_absent(path)
 }
 
+/// Where an import may put an original back: directly inside the folder of an AI Stack knows
+/// (the trash record is a file on disk and is not trusted for the destination).
+fn inside_agent_folder(ctx: &Ctx, index: &Index, path: &Path) -> bool {
+    let Some((parent, name)) = path.parent().zip(path.file_name()) else {
+        return false;
+    };
+    let Ok(parent) = parent.canonicalize() else {
+        return false;
+    };
+    name != ".."
+        && crate::skills::agents::all(index).iter().any(|agent| {
+            crate::skills::agents::folder(ctx, agent)
+                .ok()
+                .flatten()
+                .is_some_and(|folder| folder == parent)
+        })
+}
+
+/// `sources/<number>`: the only shape the import writes into its trash entry.
+fn valid_stored(stored: &str) -> bool {
+    stored
+        .strip_prefix("sources/")
+        .is_some_and(|n| !n.is_empty() && n.len() <= 6 && n.bytes().all(|c| c.is_ascii_digit()))
+}
+
 pub fn plan(ctx: &Ctx, index: &Index, trash_id: &str) -> Result<Undo> {
     let (dir, saved) = record::read(ctx, trash_id)?;
     let id = saved.id.clone();
@@ -60,6 +85,13 @@ pub fn plan(ctx: &Ctx, index: &Index, trash_id: &str) -> Result<Undo> {
     }
     for source in &saved.sources {
         let original = PathBuf::from(&source.path);
+        if !original.is_absolute()
+            || !inside_agent_folder(ctx, index, &original)
+            || source.stored.as_deref().is_some_and(|s| !valid_stored(s))
+        {
+            undo.conflicts.push((source.path.clone(), "changed".into()));
+            continue;
+        }
         if !free_for(ctx, &id, &original) {
             undo.conflicts.push((source.path.clone(), "exists".into()));
             continue;
@@ -144,7 +176,11 @@ pub fn apply(ctx: &Ctx, index: &mut Index, undo: &Undo) -> Result<Value> {
     let mut conflicts = vec![];
     for (path, target) in &undo.relink {
         if symlink(target, path).is_err() {
-            conflicts.push((path.to_string_lossy().to_string(), "exists".to_string()));
+            // The target is said too: the record is discarded below, and it is all that is left.
+            conflicts.push((
+                format!("{} → {}", path.to_string_lossy(), target.to_string_lossy()),
+                "exists".to_string(),
+            ));
         }
     }
     record::discard(&undo.dir);
