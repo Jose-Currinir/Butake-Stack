@@ -123,7 +123,9 @@ Todo en la carpeta de datos de Stack:
 
 Fuera de la carpeta de datos, Stack solo crea enlaces simbólicos en las carpetas de las IA. Una
 carpeta bajo `skills/` con `SKILL.md` y sin entrada en el índice se adopta en el primer grupo. Nada va
-al Llavero.
+al Llavero. Si el usuario mueve la carpeta de datos (`migrate-data`), el plan y la migración incluyen,
+con su reversión, esos enlaces (`place: skills`): los que apuntan a `skills/` de la carpeta anterior, en las
+carpetas de las IA integradas y propias; los demás enlaces no se tocan.
 
 ## Importar skills existentes
 
