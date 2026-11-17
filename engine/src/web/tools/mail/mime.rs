@@ -107,8 +107,13 @@ pub(super) fn parameters(value: &str) -> (String, Vec<(String, String)>) {
                     let raw = encoded.as_bytes();
                     let mut i = 0;
                     while i < raw.len() {
-                        if raw[i] == b'%' && i + 2 < raw.len() {
-                            if let Ok(b) = u8::from_str_radix(&encoded[i + 1..i + 3], 16) {
+                        if raw[i] == b'%' {
+                            // Decode on bytes: a multibyte character after `%` is not a boundary.
+                            let hex = raw
+                                .get(i + 1..i + 3)
+                                .and_then(|h| std::str::from_utf8(h).ok())
+                                .and_then(|h| u8::from_str_radix(h, 16).ok());
+                            if let Some(b) = hex {
                                 bytes.push(b);
                                 i += 3;
                                 continue;

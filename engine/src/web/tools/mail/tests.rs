@@ -134,3 +134,18 @@ async fn speaks_smtp() {
         "credentials never stored"
     );
 }
+
+#[test]
+fn rfc2231_values_survive_percent_before_multibyte_text() {
+    use super::mime::parameters;
+    let name = |value: &str| {
+        let (_, params) = parameters(value);
+        params.into_iter().find(|(n, _)| n == "filename").unwrap().1
+    };
+    // Used to panic: the slice after `%` cut through a multibyte character.
+    assert_eq!(name("attachment; filename*=UTF-8''%€x"), "%€x");
+    assert_eq!(name("attachment; filename*=UTF-8''a%1éz"), "a%1éz");
+    // A escape that ends the value is decoded too.
+    assert_eq!(name("attachment; filename*=UTF-8''a%41"), "aA");
+    assert_eq!(name("attachment; filename*=UTF-8''%"), "%");
+}
