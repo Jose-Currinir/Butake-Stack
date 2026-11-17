@@ -209,12 +209,13 @@ fn csv_field(value: &Option<String>) -> String {
     }
 }
 
-/// A portable SQL string literal (MySQL also reads backslashes as escapes).
+/// A portable SQL string literal. A MySQL value with a backslash is written in hex: restored on a
+/// server with `NO_BACKSLASH_ESCAPES` a doubled backslash would come back as two.
 fn sql_field(dialect: Dialect, value: &Option<String>) -> String {
     match value {
         None => "NULL".into(),
-        Some(v) if dialect == Dialect::MySql => {
-            format!("'{}'", v.replace('\\', "\\\\").replace('\'', "''"))
+        Some(v) if dialect == Dialect::MySql && v.contains('\\') => {
+            crate::db::sql::literal(dialect, v)
         }
         Some(v) => format!("'{}'", v.replace('\'', "''")),
     }
