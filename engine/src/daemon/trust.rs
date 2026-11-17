@@ -134,17 +134,18 @@ pub fn status(store: &Store) -> Result<Value> {
     )
 }
 
-/// Writes `/etc/resolver/<tld>` for every local TLD. The file is prepared in the store and copied
-/// by macOS's administrator dialog (`osascript … with administrator privileges`); the only shell
-/// text is fixed, every value goes through AppleScript's `quoted form of` and is validated first.
+/// Writes `/etc/resolver/<tld>` for every local TLD through macOS's administrator dialog
+/// (`osascript … with administrator privileges`). The content travels in the command itself, built
+/// from the validated port: no file in the user's reach is read as root after the dialog. The only
+/// shell text is fixed, every value goes through AppleScript's `quoted form of` and is validated.
 pub fn install_resolvers(store: &Store, confirmed: bool) -> Result<Value> {
     ensure!(confirmed, "confirmation_required");
     let config = store.config()?;
     config.validate()?;
     let content = resolver_content(config.ports.dns);
-    let staging = store.directory("config")?.join("resolver");
-    write_private(&staging, &content)?;
     if simulated() {
+        let staging = store.directory("config")?.join("resolver");
+        write_private(&staging, &content)?;
         let dir = resolver_dir(store);
         fs::create_dir_all(&dir)?;
         for tld in &config.tld {
@@ -152,8 +153,7 @@ pub fn install_resolvers(store: &Store, confirmed: bool) -> Result<Value> {
         }
         return Ok(json!({"applied": true, "simulated": true}));
     }
-    let staging = staging.canonicalize()?;
-    let arguments = resolver_arguments(&staging, &config.tld)?;
+    let arguments = resolver_arguments(&content, &config.tld)?;
     let status = Command::new("/usr/bin/osascript")
         .args(&arguments)
         .env_clear()
@@ -165,13 +165,12 @@ pub fn install_resolvers(store: &Store, confirmed: bool) -> Result<Value> {
     Ok(json!({"applied": true, "simulated": false}))
 }
 
-/// Arguments for osascript: a fixed script, then the source file and each TLD as `argv` items.
-pub fn resolver_arguments(source: &Path, tlds: &[String]) -> Result<Vec<String>> {
-    let source = source
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("invalid_path"))?;
+/// Arguments for osascript: a fixed script, then the file content and each TLD as `argv` items.
+pub fn resolver_arguments(content: &str, tlds: &[String]) -> Result<Vec<String>> {
     ensure!(
-        source.starts_with('/') && !source.chars().any(char::is_control),
+        !content.is_empty()
+            && content.len() <= 1024
+            && content.chars().all(|c| c == '\n' || !c.is_control()),
         "invalid_path"
     );
     ensure!(
@@ -184,10 +183,11 @@ pub fn resolver_arguments(source: &Path, tlds: &[String]) -> Result<Vec<String>>
     );
     let script = [
         "on run argv",
-        "set source to quoted form of item 1 of argv",
+        "set body to quoted form of item 1 of argv",
         "set command to \"/bin/mkdir -p /etc/resolver\"",
         "repeat with index from 2 to count of argv",
-        "set command to command & \" && /usr/bin/install -m 0644 -o root -g wheel \" & source & \" \" & quoted form of (\"/etc/resolver/\" & item index of argv)",
+        "set target to quoted form of (\"/etc/resolver/\" & item index of argv)",
+        "set command to command & \" && /usr/bin/printf %s \" & body & \" > \" & target & \" && /usr/sbin/chown root:wheel \" & target & \" && /bin/chmod 0644 \" & target",
         "end repeat",
         "do shell script command with administrator privileges with prompt \"Stack necesita permiso para que macOS envíe los dominios locales a su DNS.\"",
         "end run",
@@ -196,7 +196,7 @@ pub fn resolver_arguments(source: &Path, tlds: &[String]) -> Result<Vec<String>>
         .iter()
         .flat_map(|line| ["-e".to_string(), line.to_string()])
         .collect();
-    arguments.push(source.into());
+    arguments.push(content.into());
     arguments.extend(tlds.iter().cloned());
     Ok(arguments)
 }
@@ -264,25 +264,22 @@ mod tests {
 
     #[test]
     fn osascript_gets_values_as_arguments_only() {
-        let args = resolver_arguments(
-            Path::new("/tmp/My Store/resolver"),
-            &["test".into(), "dev".into()],
-        )
-        .unwrap();
-        let script: Vec<&String> = args.iter().skip(1).step_by(2).take(8).collect();
+        let content = resolver_content(1053);
+        let args = resolver_arguments(&content, &["test".into(), "dev".into()]).unwrap();
+        let script: Vec<&String> = args.iter().skip(1).step_by(2).take(9).collect();
         assert!(script
             .iter()
-            .all(|line| !line.contains("My Store") && !line.contains("test")));
+            .all(|line| !line.contains("1053") && !line.contains("test")));
         assert!(args
             .iter()
             .any(|a| a.contains("quoted form of item 1 of argv")));
-        assert_eq!(
-            &args[args.len() - 3..],
-            ["/tmp/My Store/resolver", "test", "dev"]
-        );
-        assert!(resolver_arguments(Path::new("/tmp/x"), &["te st".into()]).is_err());
-        assert!(resolver_arguments(Path::new("/tmp/x"), &["a\"; rm".into()]).is_err());
-        assert!(resolver_arguments(Path::new("relative"), &["test".into()]).is_err());
+        assert_eq!(&args[args.len() - 3..], [content.as_str(), "test", "dev"]);
+        // No file of the user's is named, so none can change after the dialog.
+        assert!(!args.iter().any(|a| a.contains("/install ")));
+        assert!(resolver_arguments(&content, &["te st".into()]).is_err());
+        assert!(resolver_arguments(&content, &["a\"; rm".into()]).is_err());
+        assert!(resolver_arguments("", &["test".into()]).is_err());
+        assert!(resolver_arguments("a\u{7}b", &["test".into()]).is_err());
         let trust = trust_arguments(Path::new("/s/root.crt"), Path::new("/k/login.keychain-db"));
         assert!(
             !trust.iter().any(|a| a == "-d"),
