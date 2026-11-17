@@ -23,10 +23,12 @@ fn swift_and_react_native_are_registered_without_a_server() {
         assert!(store.list().unwrap().iter().any(|p| p.id == project.id));
     }
     let package = store.get("paquete").unwrap();
-    assert!(package
-        .processes
-        .iter()
-        .any(|p| p.program == "swift" && p.args == ["test"]));
+    assert!(
+        package
+            .processes
+            .iter()
+            .any(|p| p.program == "swift" && p.args == ["test"])
+    );
 }
 
 #[test]
@@ -70,7 +72,9 @@ fn set_env_leaves_the_file_owner_only() {
         fs::metadata(&env).unwrap().permissions().mode() & 0o777,
         0o600
     );
-    assert!(fs::read_to_string(&env)
-        .unwrap()
-        .contains("DB_PASSWORD=secreto-de-prueba"));
+    assert!(
+        fs::read_to_string(&env)
+            .unwrap()
+            .contains("DB_PASSWORD=secreto-de-prueba")
+    );
 }

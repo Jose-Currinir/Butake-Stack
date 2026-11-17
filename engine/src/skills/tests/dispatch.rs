@@ -1,6 +1,6 @@
 use crate::app::plugins;
 use crate::core::store::Store;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 #[test]
 fn every_method_answers_plugin_disabled_while_off_and_the_tool_registers() {
@@ -39,10 +39,12 @@ fn every_method_answers_plugin_disabled_while_off_and_the_tool_registers() {
     }
     // Nothing was written while it was off.
     assert!(!store.root().join("skills").exists());
-    assert!(!plugins::catalog(&store)
-        .unwrap()
-        .iter()
-        .any(|p| p.id == "skills" && p.enabled));
+    assert!(
+        !plugins::catalog(&store)
+            .unwrap()
+            .iter()
+            .any(|p| p.id == "skills" && p.enabled)
+    );
     plugins::set_enabled(&store, "skills", true).unwrap();
     plugins::require(&store, "skills").unwrap();
 }

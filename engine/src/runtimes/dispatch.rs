@@ -2,7 +2,7 @@
 
 use crate::{core::store::Store, daemon, runtimes, web};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Requests of this domain; `None` when `method` is not one of them.
 pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<Value>> {
@@ -348,10 +348,12 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<V
                 .into_iter()
                 .map(|mut v| {
                     let spec = v["requirement"].as_str().unwrap_or("").to_string();
-                    v["compatible"] = json!(lines
-                        .iter()
-                        .filter(|l| runtimes::languages::python::satisfies(&spec, l))
-                        .collect::<Vec<_>>());
+                    v["compatible"] = json!(
+                        lines
+                            .iter()
+                            .filter(|l| runtimes::languages::python::satisfies(&spec, l))
+                            .collect::<Vec<_>>()
+                    );
                     v
                 })
                 .collect();

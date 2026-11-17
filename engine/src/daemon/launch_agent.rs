@@ -1,6 +1,6 @@
 use crate::core::store::Store;
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use std::{fs, process::Command};
 
 fn escape(value: &str) -> String {

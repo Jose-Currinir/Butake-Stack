@@ -18,8 +18,8 @@ use crate::{
     core::store::Store,
     daemon::supervisor::{ProcessSpec, Supervisor, SupervisorReader},
 };
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use std::{
     fs::{self, OpenOptions},
     os::{
@@ -33,7 +33,7 @@ use std::{
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::{UnixListener, UnixStream},
-    sync::{watch, Mutex},
+    sync::{Mutex, watch},
 };
 
 const MAX_FRAME: u64 = 1_048_576;

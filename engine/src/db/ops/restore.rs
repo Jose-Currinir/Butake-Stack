@@ -364,9 +364,11 @@ mod tests {
         let reach = scan(&script[..], 1 << 20);
         assert_eq!(reach.tables, ["users", "orders"]);
         assert_eq!(reach.databases, ["other", "third"]);
-        assert!(reach
-            .statements
-            .contains(&"DROP TABLE public.orders".to_string()));
+        assert!(
+            reach
+                .statements
+                .contains(&"DROP TABLE public.orders".to_string())
+        );
         assert!(reach.complete);
         // Only the start is read of a very long script.
         assert!(!scan(&script[..], 20).complete);
@@ -377,12 +379,14 @@ mod tests {
         let (temp, target) = fake("psql", 0);
         let plain = temp.path().join("dump.sql");
         std::fs::write(&plain, "INSERT INTO t VALUES (1);\n".repeat(2000)).unwrap();
-        assert!(Command::new("/usr/bin/gzip")
-            .arg("-kf")
-            .arg(&plain)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            Command::new("/usr/bin/gzip")
+                .arg("-kf")
+                .arg(&plain)
+                .status()
+                .unwrap()
+                .success()
+        );
         let gz = temp.path().join("dump.sql.gz");
         let bytes = std::fs::read(&gz).unwrap();
         std::fs::write(&gz, &bytes[..bytes.len() / 2]).unwrap();
@@ -419,9 +423,11 @@ mod tests {
             !args.contains("centinela-clave"),
             "the password is no argument"
         );
-        assert!(std::fs::read_to_string(temp.path().join("input"))
-            .unwrap()
-            .contains("CREATE TABLE"));
+        assert!(
+            std::fs::read_to_string(temp.path().join("input"))
+                .unwrap()
+                .contains("CREATE TABLE")
+        );
     }
 
     #[test]

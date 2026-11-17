@@ -20,7 +20,7 @@ use crate::core::fsutil::write_private;
 use crate::core::json;
 use crate::core::time::now_secs;
 use crate::{core::model::Project, core::store::Store};
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, io::Write, path::PathBuf, process::Stdio};
 
@@ -513,19 +513,19 @@ pub fn activate(
     json::write(&path(store, id)?, &site)?;
     audit(store, id, &env.id, "activar", "", actor)?;
     // Laravel: a cached config would keep the old values.
-    if project.path.join("artisan").exists() {
-        if let Ok(chain) = crate::web::projects::scaffold::Toolchain::new(
+    if project.path.join("artisan").exists()
+        && let Ok(chain) = crate::web::projects::scaffold::Toolchain::new(
             store,
             project.runtime.get("php").map(String::as_str),
             None,
             &format!("env-{id}"),
-        ) {
-            let _ = chain.runner.run(
-                &project.path,
-                &chain.php,
-                &["artisan", "optimize:clear", "--no-interaction"],
-            );
-        }
+        )
+    {
+        let _ = chain.runner.run(
+            &project.path,
+            &chain.php,
+            &["artisan", "optimize:clear", "--no-interaction"],
+        );
     }
     Ok(site)
 }

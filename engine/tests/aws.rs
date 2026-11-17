@@ -1,7 +1,7 @@
 //! The AWS tool end to end, with made-up files and a fake `aws` in a temporary home (never the
 //! owner's `~/.aws` nor AWS itself).
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     io::Write,
@@ -149,9 +149,11 @@ fn aws_profiles_never_return_secrets_and_the_cli_gets_a_clean_environment() {
                "profile": {"name": "acme-dev", "region": "sa-east-1", "accountId": "111122223333", "roleName": "Desarrollo"}}),
     );
     assert_eq!(saved["ok"], true, "{saved}");
-    assert!(fs::read_to_string(&setup.config)
-        .unwrap()
-        .contains("sso_role_name = Desarrollo\nregion = sa-east-1\n\n[sso-session acme]"));
+    assert!(
+        fs::read_to_string(&setup.config)
+            .unwrap()
+            .contains("sso_role_name = Desarrollo\nregion = sa-east-1\n\n[sso-session acme]")
+    );
     assert_eq!(
         fs::read_dir(setup.store.join("aws-backups"))
             .unwrap()
@@ -222,11 +224,13 @@ fn all_gone(pids: &[i32]) -> bool {
 }
 
 fn signal(pid: u32, signal: &str) {
-    assert!(Command::new("/bin/kill")
-        .args([signal, &pid.to_string()])
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new("/bin/kill")
+            .args([signal, &pid.to_string()])
+            .status()
+            .unwrap()
+            .success()
+    );
 }
 
 /// «Iniciar sesión…» never leaves AWS CLI behind: the app's stop (SIGTERM), the time limit, the

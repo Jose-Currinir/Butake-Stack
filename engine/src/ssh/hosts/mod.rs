@@ -22,7 +22,7 @@ use crate::{
         port_open, ssh_error, ssh_fingerprints, trust_scanned,
     },
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,

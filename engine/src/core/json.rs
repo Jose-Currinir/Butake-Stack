@@ -1,8 +1,8 @@
 //! JSON files on disk: read whole, written pretty-printed through a private atomic write.
 
 use super::fsutil;
-use anyhow::{ensure, Result};
-use serde::{de::DeserializeOwned, Serialize};
+use anyhow::{Result, ensure};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{fs, path::Path};
 
 /// Reads and parses a JSON file.

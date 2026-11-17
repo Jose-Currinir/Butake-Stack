@@ -3,14 +3,13 @@
 //! (`ini.rs`) and saves what changed with a backup first (`super::save`).
 
 use super::{
-    helper,
+    Files, helper,
     ini::Document,
     keychain::Secrets,
     profiles::{self, Kind},
-    Files,
 };
 use crate::core::store::Store;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Deserialize;
 use serde_json::Value;
 use std::path::Path;
@@ -577,12 +576,14 @@ mod tests {
             .unwrap()
             .path();
         assert_eq!(fs::read_to_string(&backup).unwrap(), CONFIG);
-        assert!(backup
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .starts_with("config-20"));
+        assert!(
+            backup
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("config-20")
+        );
         for path in [&backup, &f.files.config] {
             assert_eq!(
                 fs::metadata(path).unwrap().permissions().mode() & 0o777,
@@ -619,7 +620,9 @@ mod tests {
             .unwrap();
         assert_eq!(
             f.credentials(),
-            format!("{CREDENTIALS}\n[texto]\naws_access_key_id = AKIAEJEMPLO00001\naws_secret_access_key = secreto/de+ejemplo/0001\n")
+            format!(
+                "{CREDENTIALS}\n[texto]\naws_access_key_id = AKIAEJEMPLO00001\naws_secret_access_key = secreto/de+ejemplo/0001\n"
+            )
         );
         assert_eq!(f.config(), CONFIG);
         // Keychain: the keys go there, the config file points at the engine.
@@ -638,9 +641,11 @@ mod tests {
             f.program.display()
         )));
         assert!(!f.config().contains("secreto") && !f.credentials().contains("seguro"));
-        assert!(String::from_utf8(f.secrets.get("seguro").unwrap().unwrap())
-            .unwrap()
-            .contains("secreto/de+ejemplo/0001"));
+        assert!(
+            String::from_utf8(f.secrets.get("seguro").unwrap().unwrap())
+                .unwrap()
+                .contains("secreto/de+ejemplo/0001")
+        );
         // Single sign-on with a new session, and a role from an existing profile.
         f.changes()
             .create(
@@ -727,9 +732,10 @@ mod tests {
                 },
             )
             .unwrap();
-        assert!(f
-            .config()
-            .contains("[profile acme-desarrollo]\nsso_session = acme"));
+        assert!(
+            f.config()
+                .contains("[profile acme-desarrollo]\nsso_session = acme")
+        );
         assert!(f.config().contains("source_profile = acme-desarrollo\n"));
         // A Keychain profile moves its item and its line.
         f.changes()
@@ -775,15 +781,18 @@ mod tests {
         f.changes()
             .set_default("acme-prod", Some("anterior"))
             .unwrap();
-        assert!(f
-            .config()
-            .contains("[profile anterior]\nregion = us-east-1\noutput = json\n"));
-        assert!(f
-            .config()
-            .contains("[default]\nrole_arn = arn:aws:iam::444455556666:role/Despliegue\n"));
-        assert!(f
-            .credentials()
-            .starts_with("[anterior]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\n"));
+        assert!(
+            f.config()
+                .contains("[profile anterior]\nregion = us-east-1\noutput = json\n")
+        );
+        assert!(
+            f.config()
+                .contains("[default]\nrole_arn = arn:aws:iam::444455556666:role/Despliegue\n")
+        );
+        assert!(
+            f.credentials()
+                .starts_with("[anterior]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\n")
+        );
     }
 
     #[test]

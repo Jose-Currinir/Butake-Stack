@@ -2,11 +2,11 @@
 //! where it comes from, the sign-in session's expiry and the projects that use each profile. No
 //! field carries a secret: of an access key only its last four characters.
 
-use super::{helper, ini::Document, Files};
+use super::{Files, helper, ini::Document};
 use crate::core::{hash, store::Store, time};
 use anyhow::Result;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]

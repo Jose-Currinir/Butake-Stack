@@ -3,7 +3,7 @@
 //! server's fingerprints and adds them to `~/.ssh/known_hosts` only once the user accepts them.
 //! Nothing here reads a private key or sends anything but a key scan to the server.
 use super::remotes::validate_clone_url;
-use super::runner::{error, Result};
+use super::runner::{Result, error};
 use crate::core::validate;
 use serde::Serialize;
 use std::{
@@ -236,7 +236,9 @@ pub fn trust_scanned(
     if all_official(host, port, prints) == Some(false) {
         return Err(error(
             "ssh_host_changed",
-            format!("{host} presenta una huella que su proveedor no publica. No se agregó a los servidores de confianza: puede haber alguien entre este Mac y el servidor."),
+            format!(
+                "{host} presenta una huella que su proveedor no publica. No se agregó a los servidores de confianza: puede haber alguien entre este Mac y el servidor."
+            ),
         ));
     }
     let name = known_name(host, port);

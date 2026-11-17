@@ -84,7 +84,13 @@ pub(super) fn place_codex(
             signature::verify_code(&path, OPENAI_TEAM, false)?;
         }
         signature::verify_notarized(&stage.join("bin/codex"), false)?;
-        devtools::log(store, "codex", &format!("SHA-256 verificado ({sha256}); firma de OpenAI ({OPENAI_TEAM}) y notarización de Apple verificadas"));
+        devtools::log(
+            store,
+            "codex",
+            &format!(
+                "SHA-256 verificado ({sha256}); firma de OpenAI ({OPENAI_TEAM}) y notarización de Apple verificadas"
+            ),
+        );
         std::os::unix::fs::symlink("bin/codex", stage.join("codex"))?;
         progress::check()
     })();
@@ -118,11 +124,7 @@ pub(super) fn place_codex(
 // ---- Claude Code ----
 
 pub(super) fn claude_platform() -> &'static str {
-    if arm() {
-        "darwin-arm64"
-    } else {
-        "darwin-x64"
-    }
+    if arm() { "darwin-arm64" } else { "darwin-x64" }
 }
 
 /// The SHA-256 the release manifest lists for `platform`, after checking it is that version's.
@@ -179,7 +181,13 @@ pub(super) fn place_claude_code(
     );
     signature::verify_code(binary, ANTHROPIC_TEAM, false)?;
     signature::verify_notarized(binary, false)?;
-    devtools::log(store, "claude-code", &format!("SHA-256 verificado ({sha256}); firma de Anthropic ({ANTHROPIC_TEAM}) y notarización de Apple verificadas"));
+    devtools::log(
+        store,
+        "claude-code",
+        &format!(
+            "SHA-256 verificado ({sha256}); firma de Anthropic ({ANTHROPIC_TEAM}) y notarización de Apple verificadas"
+        ),
+    );
     progress::check()?;
     progress::fixed_step("install");
     let home = home()?;
@@ -296,10 +304,10 @@ pub(super) fn place_app(store: &Store, spec: &App, zip: &Path, version: &str) ->
         Ok(json!({"version": version, "path": target}))
     })();
     let _ = fs::remove_dir_all(&unpacked);
-    if result.is_err() {
-        if let Ok(applications) = applications() {
-            let _ = fs::remove_dir_all(applications.join(&staging));
-        }
+    if result.is_err()
+        && let Ok(applications) = applications()
+    {
+        let _ = fs::remove_dir_all(applications.join(&staging));
     }
     result
 }

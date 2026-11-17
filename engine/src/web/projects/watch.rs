@@ -2,9 +2,9 @@
 //! projects that appear in it are offered to the user (never added on their own). Projects the
 //! user turned down are remembered and not offered again.
 use crate::core::store::Store;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{collections::BTreeSet, path::PathBuf};
 
 const MAX_FOLDERS: usize = 30;

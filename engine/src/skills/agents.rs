@@ -1,8 +1,8 @@
 //! The AIs that get skills: built-in ones, custom ones, and the validation of their folders.
-use super::model::{fail, valid_id, AgentCfg, Ctx, Index};
+use super::model::{AgentCfg, Ctx, Index, fail, valid_id};
 use crate::core::validate;
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::{Component, Path, PathBuf};
 
 /// id, name, folder (`None` = export only). Kiro is export only: Kiro Crew's skill scanner drops a
@@ -158,12 +158,11 @@ pub fn save(ctx: &Ctx, index: &mut Index, id: &str, name: &str, raw_folder: &str
     }
     let path = resolve(ctx, raw_folder)?;
     for other in all(index) {
-        if other.id != id {
-            if let Ok(Some(existing)) = folder(ctx, &other) {
-                if existing == path {
-                    return fail("skills_invalid_folder");
-                }
-            }
+        if other.id != id
+            && let Ok(Some(existing)) = folder(ctx, &other)
+            && existing == path
+        {
+            return fail("skills_invalid_folder");
         }
     }
     if let Some(old) = index.agents.get(id) {

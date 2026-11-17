@@ -1,4 +1,4 @@
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde_json::json;
 use std::{
     collections::VecDeque,

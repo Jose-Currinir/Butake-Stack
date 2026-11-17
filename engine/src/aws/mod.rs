@@ -19,8 +19,8 @@ mod keychain;
 mod profiles;
 
 use crate::core::{fsutil, store::Store, time, watch as core_watch};
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use std::{
     fs,
     os::unix::fs::PermissionsExt,
@@ -163,11 +163,11 @@ fn save(store: &Store, path: &Path, before: &str, text: &str, kind: &str) -> Res
     }
     backup(store, path, kind)?;
     let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    if let Some(folder) = target.parent() {
-        if !folder.exists() {
-            fs::create_dir_all(folder)?;
-            fs::set_permissions(folder, fs::Permissions::from_mode(0o700))?;
-        }
+    if let Some(folder) = target.parent()
+        && !folder.exists()
+    {
+        fs::create_dir_all(folder)?;
+        fs::set_permissions(folder, fs::Permissions::from_mode(0o700))?;
     }
     fsutil::write_private(&target, text)
 }

@@ -93,10 +93,12 @@ async fn copy_commits_skips_applied_ones_and_returns_from_detached_head() {
     assert_eq!(copied, 1);
     assert_eq!(git(root, &["rev-parse", "HEAD"]).await.unwrap(), head);
     assert!(git(root, &["symbolic-ref", "-q", "HEAD"]).await.is_err());
-    assert!(git(root, &["log", "-1", "--format=%s", "other"])
-        .await
-        .unwrap()
-        .contains("feat: b"));
+    assert!(
+        git(root, &["log", "-1", "--format=%s", "other"])
+            .await
+            .unwrap()
+            .contains("feat: b")
+    );
     // Nothing new at all: reported as such, and still back where it started.
     assert_eq!(
         copy_commits(root, "other", &[applied])

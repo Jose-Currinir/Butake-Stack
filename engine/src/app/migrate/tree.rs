@@ -1,7 +1,7 @@
 //! The folder as a tree: its size, a verifiable backup (APFS clones on the same volume, copies
 //! checked by SHA-256 otherwise) and the free space of a volume.
 
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{
     collections::BTreeMap,
     ffi::CString,

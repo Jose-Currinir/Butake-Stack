@@ -6,8 +6,8 @@ use serde::Serialize;
 use std::{
     path::Path,
     sync::{
-        atomic::{AtomicBool, AtomicI32, Ordering},
         Arc,
+        atomic::{AtomicBool, AtomicI32, Ordering},
     },
     time::Duration,
 };
@@ -216,7 +216,9 @@ async fn run(
             let _ = child.start_kill();
             return Err(error(
                 "timeout",
-                format!("Git excedió {seconds} segundos. Verifica el acceso a la carpeta y actualiza antes de reintentar."),
+                format!(
+                    "Git excedió {seconds} segundos. Verifica el acceso a la carpeta y actualiza antes de reintentar."
+                ),
             ));
         }
     };

@@ -8,11 +8,12 @@
 //! that profile at this subcommand.
 
 use super::{
+    Files,
     ini::Document,
     keychain::{Keychain, Secrets},
-    profiles, Files,
+    profiles,
 };
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde_json::json;
 use std::{
     ffi::OsString,

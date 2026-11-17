@@ -1,9 +1,9 @@
 //! Symlinks from the AI folders to the real copy of each skill. Planned first, applied only with
 //! `confirmed`; only links that resolve into Stack's skills folder are ever removed.
 use super::agents;
-use super::model::{fail, valid_id, Ctx, Index};
+use super::model::{Ctx, Index, fail, valid_id};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     path::{Component, Path, PathBuf},
@@ -162,17 +162,9 @@ pub fn plan(ctx: &Ctx, index: &Index, request: &Request) -> Result<Plan> {
         };
         let path = folder.join(&change.skill);
         let action = if is_link_to(ctx, &path, &change.skill) {
-            if want {
-                Action::Skip
-            } else {
-                Action::Remove
-            }
+            if want { Action::Skip } else { Action::Remove }
         } else if absent(&path) {
-            if want {
-                Action::Create
-            } else {
-                Action::Skip
-            }
+            if want { Action::Create } else { Action::Skip }
         } else if want {
             Action::Conflict("exists")
         } else {

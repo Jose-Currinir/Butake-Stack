@@ -95,10 +95,10 @@ pub(super) fn create_javascript(
         }
     }
     ensure!(target.is_dir(), "scaffold_step_failed");
-    if !target.join(".nvmrc").exists() {
-        if let Some(major) = node_major(&node_bin) {
-            fs::write(target.join(".nvmrc"), format!("{major}\n"))?;
-        }
+    if !target.join(".nvmrc").exists()
+        && let Some(major) = node_major(&node_bin)
+    {
+        fs::write(target.join(".nvmrc"), format!("{major}\n"))?;
     }
     if options.git {
         git_init(&runner, &target, notes);
@@ -118,7 +118,12 @@ pub(super) fn create_basic(
     let style = "body{font:16px/1.5 -apple-system,system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1rem;color:#111;background:#fff}@media(prefers-color-scheme:dark){body{color:#eee;background:#111}}";
     match options.kind.as_str() {
         "php" => {
-            fs::write(target.join("index.php"), format!("<?php\n$title = '{title}';\n?><!doctype html>\n<html lang=\"es\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title><?= htmlspecialchars($title) ?></title><style>{style}</style></head>\n<body><h1><?= htmlspecialchars($title) ?></h1><p>PHP <?= PHP_VERSION ?> desde Stack.</p></body>\n</html>\n"))?;
+            fs::write(
+                target.join("index.php"),
+                format!(
+                    "<?php\n$title = '{title}';\n?><!doctype html>\n<html lang=\"es\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title><?= htmlspecialchars($title) ?></title><style>{style}</style></head>\n<body><h1><?= htmlspecialchars($title) ?></h1><p>PHP <?= PHP_VERSION ?> desde Stack.</p></body>\n</html>\n"
+                ),
+            )?;
             fs::write(target.join(".gitignore"), "/vendor/\n.env\n")?;
         }
         "node" => {
@@ -130,7 +135,12 @@ pub(super) fn create_basic(
                 target.join("package.json"),
                 serde_json::to_string_pretty(&package)? + "\n",
             )?;
-            fs::write(target.join("server.js"), format!("import {{ createServer }} from 'node:http'\n\n// Stack assigns PORT and HOST; the .test address points here.\nconst port = Number(process.env.PORT ?? 3000)\nconst host = process.env.HOST ?? '127.0.0.1'\n\ncreateServer((request, response) => {{\n  response.writeHead(200, {{ 'content-type': 'text/html; charset=utf-8' }})\n  response.end(`<!doctype html><title>{title}</title><style>{style}</style><h1>{title}</h1><p>Node ${{process.version}} desde Stack.</p>`)\n}}).listen(port, host, () => console.log(`http://${{host}}:${{port}}`))\n"))?;
+            fs::write(
+                target.join("server.js"),
+                format!(
+                    "import {{ createServer }} from 'node:http'\n\n// Stack assigns PORT and HOST; the .test address points here.\nconst port = Number(process.env.PORT ?? 3000)\nconst host = process.env.HOST ?? '127.0.0.1'\n\ncreateServer((request, response) => {{\n  response.writeHead(200, {{ 'content-type': 'text/html; charset=utf-8' }})\n  response.end(`<!doctype html><title>{title}</title><style>{style}</style><h1>{title}</h1><p>Node ${{process.version}} desde Stack.</p>`)\n}}).listen(port, host, () => console.log(`http://${{host}}:${{port}}`))\n"
+                ),
+            )?;
             fs::write(target.join(".gitignore"), "node_modules/\n.env\n")?;
             let (node_bin, _) = node_runner(store, &format!("create-{}", options.name))?;
             if let Some(major) = node_major(&node_bin) {
@@ -138,7 +148,12 @@ pub(super) fn create_basic(
             }
         }
         _ => {
-            fs::write(target.join("index.html"), format!("<!doctype html>\n<html lang=\"es\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>{title}</title><style>{style}</style></head>\n<body><h1>{title}</h1><p>Sitio estático servido por Stack.</p></body>\n</html>\n"))?;
+            fs::write(
+                target.join("index.html"),
+                format!(
+                    "<!doctype html>\n<html lang=\"es\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>{title}</title><style>{style}</style></head>\n<body><h1>{title}</h1><p>Sitio estático servido por Stack.</p></body>\n</html>\n"
+                ),
+            )?;
         }
     }
     if options.git {

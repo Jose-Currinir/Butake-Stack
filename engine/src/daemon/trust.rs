@@ -8,8 +8,8 @@
 //! changed: `/etc/resolver` and the trust are simulated inside the store (`simulated/`).
 use crate::core::fsutil::write_private;
 use crate::{core::model::StackConfig, core::store::Store};
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     fs,
@@ -267,12 +267,15 @@ mod tests {
         let content = resolver_content(1053);
         let args = resolver_arguments(&content, &["test".into(), "dev".into()]).unwrap();
         let script: Vec<&String> = args.iter().skip(1).step_by(2).take(9).collect();
-        assert!(script
-            .iter()
-            .all(|line| !line.contains("1053") && !line.contains("test")));
-        assert!(args
-            .iter()
-            .any(|a| a.contains("quoted form of item 1 of argv")));
+        assert!(
+            script
+                .iter()
+                .all(|line| !line.contains("1053") && !line.contains("test"))
+        );
+        assert!(
+            args.iter()
+                .any(|a| a.contains("quoted form of item 1 of argv"))
+        );
         assert_eq!(&args[args.len() - 3..], [content.as_str(), "test", "dev"]);
         // No file of the user's is named, so none can change after the dialog.
         assert!(!args.iter().any(|a| a.contains("/install ")));

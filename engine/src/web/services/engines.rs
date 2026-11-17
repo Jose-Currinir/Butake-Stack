@@ -6,7 +6,7 @@ use crate::{
     core::fsutil::write_private, core::model::StackConfig, core::store::Store,
     runtimes::utilities::catalog,
 };
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{collections::BTreeMap, fs, path::Path, path::PathBuf, process::Command, process::Stdio};
 
 pub struct Recipe {
@@ -115,10 +115,10 @@ pub(crate) fn secret(store: &Store, engine: &str, name: &str) -> Result<String> 
     let dir = store.directory("config")?.join(engine);
     fs::create_dir_all(&dir)?;
     let path = dir.join(name);
-    if let Ok(value) = fs::read_to_string(&path) {
-        if value.len() >= 24 {
-            return Ok(value.trim().to_string());
-        }
+    if let Ok(value) = fs::read_to_string(&path)
+        && value.len() >= 24
+    {
+        return Ok(value.trim().to_string());
     }
     let value = random_hex(24)?;
     write_private(&path, &value)?;

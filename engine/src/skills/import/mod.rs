@@ -8,7 +8,7 @@ mod scan;
 mod tree;
 mod undo;
 
-use super::model::{fail, Ctx, Index};
+use super::model::{Ctx, Index, fail};
 use anyhow::Result;
 use serde_json::Value;
 

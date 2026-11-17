@@ -6,15 +6,15 @@
 //! to the same user, and removes the socket when the tool exits. Passphrases are never logged.
 use crate::core::rand::random_hex;
 use crate::core::store::Store;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{
     io::{Read, Write},
     os::unix::{fs::DirBuilderExt, net::UnixListener},
     path::PathBuf,
     process::{Command, Output, Stdio},
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     time::{Duration, Instant},
 };

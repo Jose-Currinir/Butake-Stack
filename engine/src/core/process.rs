@@ -418,11 +418,13 @@ mod tests {
         assert_eq!(ended.len(), 2);
         assert!(ended.iter().all(|pid| !alive(*pid)), "{ended:?}");
         // No record is left behind.
-        assert!(!std::fs::read_dir(temp.path()).unwrap().any(|e| e
-            .unwrap()
-            .path()
-            .extension()
-            .is_some_and(|x| x == "json")));
+        assert!(
+            !std::fs::read_dir(temp.path()).unwrap().any(|e| e
+                .unwrap()
+                .path()
+                .extension()
+                .is_some_and(|x| x == "json"))
+        );
 
         let error = capture_until(
             Command::new("/nonexistent/x"),

@@ -96,7 +96,12 @@ pub(super) fn create_python(
         runner.run(&target, &python_bin, &["manage.py", "migrate", "--noinput"])?;
     } else {
         let title = options.name.replace('"', "");
-        fs::write(target.join("main.py"), format!("from fastapi import FastAPI\n\napp = FastAPI(title=\"{title}\")\n\n\n@app.get(\"/\")\ndef inicio():\n    return {{\"mensaje\": \"Hola desde FastAPI y Stack\"}}\n\n\n@app.get(\"/salud\")\ndef salud():\n    return {{\"estado\": \"ok\"}}\n"))?;
+        fs::write(
+            target.join("main.py"),
+            format!(
+                "from fastapi import FastAPI\n\napp = FastAPI(title=\"{title}\")\n\n\n@app.get(\"/\")\ndef inicio():\n    return {{\"mensaje\": \"Hola desde FastAPI y Stack\"}}\n\n\n@app.get(\"/salud\")\ndef salud():\n    return {{\"estado\": \"ok\"}}\n"
+            ),
+        )?;
     }
     if !target.join(".gitignore").exists() {
         fs::write(
@@ -134,7 +139,10 @@ pub(super) fn create_rust(
             &cargo,
             &["add", "axum", "tokio", "--features", "tokio/full"],
         )?;
-        fs::write(target.join("src/main.rs"), "use axum::{routing::get, Router};\n\n#[tokio::main]\nasync fn main() {\n    // Stack assigns PORT and HOST; the .test address points here.\n    let port = std::env::var(\"PORT\").unwrap_or_else(|_| \"3000\".into());\n    let host = std::env::var(\"HOST\").unwrap_or_else(|_| \"127.0.0.1\".into());\n    let app = Router::new()\n        .route(\"/\", get(|| async { \"Hola desde Rust y Stack\" }))\n        .route(\"/salud\", get(|| async { \"ok\" }));\n    let listener = tokio::net::TcpListener::bind(format!(\"{host}:{port}\")).await.unwrap();\n    println!(\"http://{host}:{port}\");\n    axum::serve(listener, app).await.unwrap();\n}\n")?;
+        fs::write(
+            target.join("src/main.rs"),
+            "use axum::{routing::get, Router};\n\n#[tokio::main]\nasync fn main() {\n    // Stack assigns PORT and HOST; the .test address points here.\n    let port = std::env::var(\"PORT\").unwrap_or_else(|_| \"3000\".into());\n    let host = std::env::var(\"HOST\").unwrap_or_else(|_| \"127.0.0.1\".into());\n    let app = Router::new()\n        .route(\"/\", get(|| async { \"Hola desde Rust y Stack\" }))\n        .route(\"/salud\", get(|| async { \"ok\" }));\n    let listener = tokio::net::TcpListener::bind(format!(\"{host}:{port}\")).await.unwrap();\n    println!(\"http://{host}:{port}\");\n    axum::serve(listener, app).await.unwrap();\n}\n",
+        )?;
         // Compiled once now, so the first start of the site is quick.
         runner.run(&target, &cargo, &["build"])?;
     }
@@ -232,10 +240,10 @@ pub(super) fn create_react_native(
             ],
         )?;
     }
-    if !target.join(".nvmrc").exists() {
-        if let Some(major) = node_major(&node) {
-            fs::write(target.join(".nvmrc"), format!("{major}\n"))?;
-        }
+    if !target.join(".nvmrc").exists()
+        && let Some(major) = node_major(&node)
+    {
+        fs::write(target.join(".nvmrc"), format!("{major}\n"))?;
     }
     if options.git {
         git_init(&runner, &target, notes);

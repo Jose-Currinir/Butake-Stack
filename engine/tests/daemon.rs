@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
@@ -115,13 +115,15 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     // The rustc of the toolchain running the tests (RUSTC, else the one in PATH), never a fixed
     // path: CI runners keep it elsewhere than ~/.cargo/bin.
     let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
-    assert!(Command::new(rustc)
-        .arg(&source)
-        .args(["--edition=2021", "-o"])
-        .arg(runtime.join("php"))
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new(rustc)
+            .arg(&source)
+            .args(["--edition=2021", "-o"])
+            .arg(runtime.join("php"))
+            .status()
+            .unwrap()
+            .success()
+    );
     let processes: Vec<_> = ["sleep", "fail", "tree", "flood", "slow-stop"]
         .iter()
         .map(|name| json!({"name":name,"program":"php","args":[name],"autostart":false}))
@@ -206,14 +208,19 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     line.clear();
     snapshots.read_line(&mut line).unwrap();
     let snapshot: Value = serde_json::from_str(&line).unwrap();
-    assert!(snapshot["processes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|entry| entry["spec"]["id"] == "demo.sleep" && entry["status"]["state"] == "running"));
-    assert!(snapshot["processes"][0]["spec"]
-        .get("environment")
-        .is_none());
+    assert!(
+        snapshot["processes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["spec"]["id"] == "demo.sleep"
+                && entry["status"]["state"] == "running")
+    );
+    assert!(
+        snapshot["processes"][0]["spec"]
+            .get("environment")
+            .is_none()
+    );
     watch.kill().unwrap();
     watch.wait().unwrap();
 
@@ -236,10 +243,12 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     .unwrap();
     let captured = dumps.next();
     assert_eq!(captured.as_array().unwrap().len(), 1);
-    assert!(captured[0]["lines"].as_array().unwrap()[0]
-        .as_str()
-        .unwrap()
-        .starts_with("array:7"));
+    assert!(
+        captured[0]["lines"].as_array().unwrap()[0]
+            .as_str()
+            .unwrap()
+            .starts_with("array:7")
+    );
     assert_eq!(call(&socket, "clearDumps", "")["ok"], true);
     assert_eq!(dumps.next(), json!([]));
     drop(dumps);
@@ -297,17 +306,21 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     }
     let started = Instant::now();
     let stack = call(&socket, "stackStatus", "");
-    assert!(stack["value"]["processes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|entry| entry["spec"]["id"] == "demo.slow-stop"
-            && entry["status"]["state"] == "stopping"));
-    assert!(call(&socket, "logs", "demo.slow-stop")["value"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|line| line == "shutdown in progress"));
+    assert!(
+        stack["value"]["processes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["spec"]["id"] == "demo.slow-stop"
+                && entry["status"]["state"] == "stopping")
+    );
+    assert!(
+        call(&socket, "logs", "demo.slow-stop")["value"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|line| line == "shutdown in progress")
+    );
     assert!(started.elapsed() < Duration::from_secs(2));
     assert_eq!(
         slow_logs.next(),
@@ -338,9 +351,11 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     let tail = call(&socket, "logs", "demo.flood");
     assert!(tail["value"].as_array().unwrap().len() <= 2000);
     for entry in fs::read_dir(home.join("logs")).unwrap() {
-        assert!(!fs::read_to_string(entry.unwrap().path())
-            .unwrap()
-            .contains("synthetic-test-value"));
+        assert!(
+            !fs::read_to_string(entry.unwrap().path())
+                .unwrap()
+                .contains("synthetic-test-value")
+        );
     }
     let flood_pid = status(&socket, "demo.flood")["pid"].as_u64().unwrap() as u32;
     assert_eq!(call(&socket, "start", "demo.tree")["ok"], true);
@@ -414,12 +429,14 @@ fn isolated_agent_preview_cannot_apply() {
             );
             let path = temp.path().join("preview.plist");
             fs::write(&path, plist).unwrap();
-            assert!(Command::new("/usr/bin/plutil")
-                .arg("-lint")
-                .arg(path)
-                .status()
-                .unwrap()
-                .success());
+            assert!(
+                Command::new("/usr/bin/plutil")
+                    .arg("-lint")
+                    .arg(path)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
         } else {
             assert_eq!(response["ok"], false);
         }

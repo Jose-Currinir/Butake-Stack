@@ -4,7 +4,7 @@
 //! run without a terminal through `gitRun`, or inside a tab of Stack's Terminal through the
 //! `git-console` subcommand (the PTY belongs to the Terminal, not to this tool).
 use super::protection::{current_branch, main_protected, primary_branch};
-use super::runner::{error, git, isolate, isolate_std, Result};
+use super::runner::{Result, error, git, isolate, isolate_std};
 use super::status::snapshot;
 use super::words;
 use serde::{Deserialize, Serialize};
@@ -263,7 +263,10 @@ pub fn prepare(
 ) -> Result<PreparedCommand> {
     known(command)?;
     if library(command) {
-        return Err(error("library_command", "Esta entrada documenta una biblioteca o componente servidor; no es una acción CLI autónoma."));
+        return Err(error(
+            "library_command",
+            "Esta entrada documenta una biblioteca o componente servidor; no es una acción CLI autónoma.",
+        ));
     }
     let args = words::split(arguments).ok_or_else(|| {
         error(
@@ -362,7 +365,10 @@ pub fn prepare(
         "update-ref" | "symbolic-ref" | "fast-import" | "receive-pack"
     ) && (args.iter().any(|a| a == "--stdin") || command == "fast-import")
     {
-        return Err(error("protected_branch", "Este modo admite referencias por stdin y requiere una herramienta externa con revisión explícita de main."));
+        return Err(error(
+            "protected_branch",
+            "Este modo admite referencias por stdin y requiere una herramienta externa con revisión explícita de main.",
+        ));
     }
     if matches!(command, "push" | "send-pack") {
         if args.iter().any(|a| {
@@ -592,7 +598,10 @@ pub async fn rebase_candidates(root: &Path, base: &str) -> Result<RebaseCandidat
     let range = format!("{base}..{head}");
     let merges = git(root, &["rev-list", "--merges", &range]).await?;
     if !merges.trim().is_empty() {
-        return Err(error("merge_plan", "Entre esos commits hay combinaciones de ramas, que no se reordenan desde aquí. Elige commits posteriores a la última combinación."));
+        return Err(error(
+            "merge_plan",
+            "Entre esos commits hay combinaciones de ramas, que no se reordenan desde aquí. Elige commits posteriores a la última combinación.",
+        ));
     }
     let raw = git(
         root,

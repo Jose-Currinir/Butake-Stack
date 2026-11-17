@@ -2,11 +2,11 @@ use crate::core::store::Store;
 use crate::core::time::now_secs;
 use crate::{
     core::model::validate_id,
-    daemon::logs::{self, Logs, LOG_LIMIT},
+    daemon::logs::{self, LOG_LIMIT, Logs},
 };
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::process::CommandExt;
 use std::{
@@ -18,7 +18,7 @@ use std::{
 };
 use tokio::{
     process::{Child, Command},
-    sync::{broadcast, watch, Mutex},
+    sync::{Mutex, broadcast, watch},
     task::JoinHandle,
 };
 
@@ -159,10 +159,10 @@ impl Supervisor {
         // start order, so editing one site never restarts the others.
         let mut keep = std::collections::HashSet::new();
         for spec in &specs {
-            if let Some(entry) = self.entries.get(&spec.id) {
-                if entry.spec == *spec {
-                    keep.insert(spec.id.clone());
-                }
+            if let Some(entry) = self.entries.get(&spec.id)
+                && entry.spec == *spec
+            {
+                keep.insert(spec.id.clone());
             }
         }
         let interrupted: Vec<String> = specs
@@ -825,9 +825,11 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
-        assert!(std::fs::read_to_string(&out)
-            .unwrap()
-            .starts_with("|del-proyecto|"));
+        assert!(
+            std::fs::read_to_string(&out)
+                .unwrap()
+                .starts_with("|del-proyecto|")
+        );
         // Blocked: not started by reload, and a manual start says why.
         supervisor
             .reload(vec![job(

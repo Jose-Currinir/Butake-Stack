@@ -1,7 +1,7 @@
 use crate::core::json;
-use crate::core::model::{validate_id, Project, StackConfig};
-use anyhow::{ensure, Result};
-use serde::{de::DeserializeOwned, Serialize};
+use crate::core::model::{Project, StackConfig, validate_id};
+use anyhow::{Result, ensure};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{
     fs::{self, OpenOptions},
     os::fd::AsRawFd,
@@ -216,10 +216,10 @@ impl Store {
         let mut out = vec![];
         let config = self.config()?;
         for id in self.ids()? {
-            if self.get_with(&config, &id).is_err() {
-                if let Ok(project) = self.read::<Project>(&self.project_path(&id)?) {
-                    out.push(project);
-                }
+            if self.get_with(&config, &id).is_err()
+                && let Ok(project) = self.read::<Project>(&self.project_path(&id)?)
+            {
+                out.push(project);
             }
         }
         out.sort_by(|a, b| a.id.cmp(&b.id));
@@ -256,10 +256,10 @@ impl Store {
         let mut ids = vec![];
         for entry in fs::read_dir(self.directory("projects")?)? {
             let path = entry?.path();
-            if path.extension().is_some_and(|ext| ext == "json") {
-                if let Some(id) = path.file_stem().and_then(|s| s.to_str()) {
-                    ids.push(id.to_string());
-                }
+            if path.extension().is_some_and(|ext| ext == "json")
+                && let Some(id) = path.file_stem().and_then(|s| s.to_str())
+            {
+                ids.push(id.to_string());
             }
         }
         Ok(ids)

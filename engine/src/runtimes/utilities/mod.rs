@@ -29,9 +29,9 @@ use crate::{
     core::{archive, download, fsutil, hash, process, progress, signature},
     runtimes::utilities::devtools::{arm, asset_digest, asset_url, home, listed_hash},
 };
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     io::Read,

@@ -1,5 +1,5 @@
 //! The patch of one changed file, as shown and as `git apply` needs it.
-use super::runner::{error, git, git_bytes, git_lossy, Result};
+use super::runner::{Result, error, git, git_bytes, git_lossy};
 use super::status::{status, validate_path};
 use std::path::Path;
 

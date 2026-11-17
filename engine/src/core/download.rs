@@ -2,7 +2,7 @@
 //! limit and a size limit, and an empty environment.
 
 use super::{hash, progress};
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use std::{
     io::Read,
     path::Path,

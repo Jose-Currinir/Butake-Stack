@@ -22,8 +22,8 @@ mod tests;
 
 use crate::core::{store::Store, validate};
 use anyhow::Result;
-use model::{fail, valid_id, Ctx, Entry, Group, Index};
-use serde_json::{json, Value};
+use model::{Ctx, Entry, Group, Index, fail, valid_id};
+use serde_json::{Value, json};
 use std::{fs, path::Path};
 
 /// Requests of the skills tool (`skills*`). The caller checked that the tool is on.
@@ -44,11 +44,11 @@ pub fn delete_all(store: &Store) -> Result<()> {
 /// `delete_all` with the home whose AI folders hold the links: tests pass a temporary one, so they
 /// never read the owner's folders.
 pub fn delete_all_in(store: &Store, home: &Path) -> Result<()> {
-    if let Ok(ctx) = Ctx::new(store, home) {
-        if let Ok(index) = index::load(&ctx) {
-            for id in index.skills.keys() {
-                links::remove_all(&ctx, &index, id);
-            }
+    if let Ok(ctx) = Ctx::new(store, home)
+        && let Ok(index) = index::load(&ctx)
+    {
+        for id in index.skills.keys() {
+            links::remove_all(&ctx, &index, id);
         }
     }
     delete_all_folders(store)
@@ -383,10 +383,10 @@ fn create(ctx: &Ctx, index: &mut Index, request: &Value) -> Result<Value> {
 fn update(ctx: &Ctx, index: &mut Index, request: &Value) -> Result<Value> {
     let id = request["id"].as_str().unwrap_or("");
     ensure_skill(index, id)?;
-    if let Some(group) = request["group"].as_str() {
-        if !index.has_group(group) {
-            return fail("skills_invalid_group");
-        }
+    if let Some(group) = request["group"].as_str()
+        && !index.has_group(group)
+    {
+        return fail("skills_invalid_group");
     }
     let tags = if request.get("tags").is_some_and(|t| !t.is_null()) {
         Some(clean_tags(request)?)

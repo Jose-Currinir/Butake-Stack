@@ -8,8 +8,8 @@ use crate::{
     core::{download, progress, store::Store},
     runtimes::utilities::{catalog, devtools},
 };
-use anyhow::{bail, ensure, Context, Result};
-use serde_json::{json, Value};
+use anyhow::{Context, Result, bail, ensure};
+use serde_json::{Value, json};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -166,16 +166,16 @@ pub fn terminal_status(store: &Store) -> Value {
         ("python", "python3"),
     ] {
         let link = bin.join(name);
-        if let Ok(target) = fs::read_link(&link) {
-            if ours(&link, store) {
-                let runtimes = store.root().join("runtimes");
-                let version = target
-                    .strip_prefix(&runtimes)
-                    .ok()
-                    .and_then(|r| r.iter().nth(1))
-                    .map(|v| v.to_string_lossy().into_owned());
-                out.insert(language.into(), json!({"version": version}));
-            }
+        if let Ok(target) = fs::read_link(&link)
+            && ours(&link, store)
+        {
+            let runtimes = store.root().join("runtimes");
+            let version = target
+                .strip_prefix(&runtimes)
+                .ok()
+                .and_then(|r| r.iter().nth(1))
+                .map(|v| v.to_string_lossy().into_owned());
+            out.insert(language.into(), json!({"version": version}));
         }
     }
     Value::Object(out)
@@ -497,18 +497,20 @@ pub fn swift_toolchains(include_available: bool) -> Result<Value> {
                 .unwrap_or(Value::Null);
         // The newest patch of each minor line (6.4.2, 6.3.3…), newest first.
         let mut seen = std::collections::HashSet::new();
-        available = json!(all["toolchains"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter(|t| t["version"]["type"] == "stable")
-            .filter(|t| seen.insert((
-                t["version"]["major"].as_u64(),
-                t["version"]["minor"].as_u64()
-            )))
-            .take(6)
-            .map(|t| json!({"name": t["version"]["name"], "installed": t["installed"]}))
-            .collect::<Vec<_>>());
+        available = json!(
+            all["toolchains"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|t| t["version"]["type"] == "stable")
+                .filter(|t| seen.insert((
+                    t["version"]["major"].as_u64(),
+                    t["version"]["minor"].as_u64()
+                )))
+                .take(6)
+                .map(|t| json!({"name": t["version"]["name"], "installed": t["installed"]}))
+                .collect::<Vec<_>>()
+        );
     }
     let toolchains: Vec<Value> = list["toolchains"].as_array().into_iter().flatten()
         .map(|t| json!({"name": t["version"]["name"], "kind": t["version"]["type"], "default": t["isDefault"]})).collect();

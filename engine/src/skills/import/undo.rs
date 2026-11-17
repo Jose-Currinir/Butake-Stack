@@ -4,10 +4,10 @@
 //! anyway and nothing goes to the trash; a copy that exists and changed blocks the undo. Emptying is the only permanent removal of the whole import.
 use super::record::{self, Saved};
 use super::{plan::conflicts_json, tree};
-use crate::skills::model::{fail, Ctx, Index};
+use crate::skills::model::{Ctx, Index, fail};
 use crate::skills::{index as store_index, links, skill_file, trash};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     os::unix::fs::symlink,

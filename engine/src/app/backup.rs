@@ -10,8 +10,8 @@ use crate::{
     web::projects::envs,
     web::projects::git,
 };
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use std::{
     fs,
     io::Read,

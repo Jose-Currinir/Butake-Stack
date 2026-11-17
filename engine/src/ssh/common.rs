@@ -3,7 +3,7 @@
 
 use crate::core::store::Store;
 use crate::core::{fsutil::write_private, validate};
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use std::{
     io::Write,
     net::TcpStream,

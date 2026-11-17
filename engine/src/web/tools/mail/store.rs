@@ -2,7 +2,7 @@
 use crate::core::fsutil::private_options;
 use crate::core::model::MailConfig;
 use crate::core::time::now_millis;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{
     fs,
     io::Write,

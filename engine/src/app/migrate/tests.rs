@@ -6,7 +6,7 @@ use super::*;
 use std::{
     cell::RefCell,
     collections::BTreeMap,
-    os::unix::fs::{symlink, PermissionsExt},
+    os::unix::fs::{PermissionsExt, symlink},
 };
 
 #[derive(Default)]
@@ -48,9 +48,11 @@ impl Control for Fake {
             .push(format!("start {}", name(root)));
         // The agent always comes back on the folder its plist names.
         if agent {
-            assert!(fs::read_to_string(plist)
-                .unwrap()
-                .contains(&format!("{}<", root.display())));
+            assert!(
+                fs::read_to_string(plist)
+                    .unwrap()
+                    .contains(&format!("{}<", root.display()))
+            );
         }
         if self.fail_start_in.as_deref() == Some(root) {
             bail!("migration_start_failed:[{{\"id\":\"stack.mysql\",\"running\":false}}]");
@@ -110,8 +112,18 @@ fn home() -> Home {
         &layout.launch_agent(),
         &format!("<plist><key>BUTAKE_STACK_HOME</key><string>{o}</string></plist>\n"),
     );
-    w(&home.join(".zprofile"), &format!("export A=1\n# >>> Butake Stack >>>\nexport PHPRC=\"{o}/config/php/current\"\n# <<< Butake Stack <<<\n"));
-    w(&home.join(".aws/config"), &format!("[profile dentro]\ncredential_process = \"{o}/bin/ayuda\" aws-credential dentro\n# {o}\n[profile fuera]\ncredential_process = \"/Applications/Stack.app/Contents/Resources/butake-stack\" aws-credential fuera\n"));
+    w(
+        &home.join(".zprofile"),
+        &format!(
+            "export A=1\n# >>> Butake Stack >>>\nexport PHPRC=\"{o}/config/php/current\"\n# <<< Butake Stack <<<\n"
+        ),
+    );
+    w(
+        &home.join(".aws/config"),
+        &format!(
+            "[profile dentro]\ncredential_process = \"{o}/bin/ayuda\" aws-credential dentro\n# {o}\n[profile fuera]\ncredential_process = \"/Applications/Stack.app/Contents/Resources/butake-stack\" aws-credential fuera\n"
+        ),
+    );
     fs::create_dir_all(home.join(".local/bin")).unwrap();
     symlink(
         old.join("runtimes/node/22/bin/node"),
@@ -244,10 +256,12 @@ fn the_plan_changes_nothing_and_lists_every_path() {
         8 + 3,
         "{places:?}: never data/, logs/ or foreign links"
     );
-    assert!(plan["backup"]
-        .as_str()
-        .unwrap()
-        .contains("Butake Stack (copia "));
+    assert!(
+        plan["backup"]
+            .as_str()
+            .unwrap()
+            .contains("Butake Stack (copia ")
+    );
 }
 
 #[test]
@@ -290,8 +304,10 @@ fn a_migration_moves_the_folder_and_rewrites_every_path() {
         format!("arranca en {o}\n")
     );
     assert!(read(h.layout.launch_agent()).contains(&format!("<string>{n}</string>")));
-    assert!(read(h.layout.home.join(".zprofile"))
-        .contains(&format!("PHPRC=\"{n}/config/php/current\"")));
+    assert!(
+        read(h.layout.home.join(".zprofile"))
+            .contains(&format!("PHPRC=\"{n}/config/php/current\""))
+    );
     let aws = read(h.layout.home.join(".aws/config"));
     assert!(
         aws.contains(&format!("credential_process = \"{n}/bin/ayuda\""))
@@ -422,9 +438,11 @@ fn a_run_cut_short_resumes_and_a_finished_one_does_nothing() {
     assert_eq!(plan(&h.layout, &fake).unwrap()["state"], "resume");
     let resumed = run(&h.layout, &fake, Cut::None).unwrap();
     assert_eq!(resumed["ok"], true, "{resumed}");
-    assert!(fs::read_to_string(h.layout.launch_agent())
-        .unwrap()
-        .contains(&format!("{}<", h.layout.new.display())));
+    assert!(
+        fs::read_to_string(h.layout.launch_agent())
+            .unwrap()
+            .contains(&format!("{}<", h.layout.new.display()))
+    );
     let after = snapshot(&h.layout.home, &everything);
     let again = run(&h.layout, &fake, Cut::None).unwrap();
     assert_eq!(

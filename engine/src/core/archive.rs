@@ -2,7 +2,7 @@
 //! unpacks anything goes through here: system tools with a cleared environment, no ownership
 //! from the archive, and a walk over the result before it is trusted.
 
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{fs, path::Path, process::Command};
 
 /// The engine's stdout is its JSON channel: a tool's own output must never reach it.
@@ -136,15 +136,17 @@ mod tests {
         fs::create_dir_all(&src).unwrap();
         fs::write(src.join("file"), "x").unwrap();
         let tgz = dir.join("pkg.tar.gz");
-        assert!(Command::new("/usr/bin/tar")
-            .args(["-czf"])
-            .arg(&tgz)
-            .arg("-C")
-            .arg(dir.join("pkg"))
-            .arg("inner")
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            Command::new("/usr/bin/tar")
+                .args(["-czf"])
+                .arg(&tgz)
+                .arg("-C")
+                .arg(dir.join("pkg"))
+                .arg("inner")
+                .status()
+                .unwrap()
+                .success()
+        );
         tgz
     }
 
@@ -169,14 +171,16 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("a.txt"), "x").unwrap();
         let zip = dir.path().join("a.zip");
-        assert!(Command::new("/usr/bin/zip")
-            .arg("-q")
-            .arg(&zip)
-            .arg("a.txt")
-            .current_dir(dir.path())
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            Command::new("/usr/bin/zip")
+                .arg("-q")
+                .arg(&zip)
+                .arg("a.txt")
+                .current_dir(dir.path())
+                .status()
+                .unwrap()
+                .success()
+        );
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
         extract_zip(&zip, &out, "boom").unwrap();
@@ -192,20 +196,24 @@ mod tests {
         fs::write(app.join("Info.plist"), "x").unwrap();
         std::os::unix::fs::symlink("Info.plist", app.join("Current")).unwrap();
         let zip = dir.path().join("a.zip");
-        assert!(Command::new("/usr/bin/ditto")
-            .args(["-c", "-k", "--keepParent"])
-            .arg(dir.path().join("A.app"))
-            .arg(&zip)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            Command::new("/usr/bin/ditto")
+                .args(["-c", "-k", "--keepParent"])
+                .arg(dir.path().join("A.app"))
+                .arg(&zip)
+                .status()
+                .unwrap()
+                .success()
+        );
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
         extract_app_zip(&zip, &out, "boom").unwrap();
-        assert!(fs::symlink_metadata(out.join("A.app/Contents/Current"))
-            .unwrap()
-            .file_type()
-            .is_symlink());
+        assert!(
+            fs::symlink_metadata(out.join("A.app/Contents/Current"))
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         copy_tree(&out.join("A.app"), &dir.path().join("B.app"), "boom").unwrap();
         assert!(dir.path().join("B.app/Contents/Info.plist").is_file());
         fs::write(dir.path().join("bad.pkg"), "x").unwrap();

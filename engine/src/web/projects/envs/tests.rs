@@ -90,9 +90,11 @@ fn port_changes_reach_the_env_of_projects_that_name_it() {
     // The project is gone: the `.env` stays and says why.
     store.delete("api").unwrap();
     let refreshed = refresh_port_dependents(&store, "api", "qa").unwrap();
-    assert!(refreshed
-        .iter()
-        .any(|r| r.id == "web" && r.state == "missing"));
+    assert!(
+        refreshed
+            .iter()
+            .any(|r| r.id == "web" && r.state == "missing")
+    );
     assert_eq!(load(&store, "web").unwrap().outdated, ["api"]);
     let audit = fs::read_to_string(store.directory("logs").unwrap().join("env-audit.log")).unwrap();
     assert!(audit.contains("\"actualizar\"") && !audit.contains("centinela"));
@@ -306,20 +308,24 @@ fn activation_writes_private_env_without_leaking_and_locks_production() {
     // The secret is in the .env only: never in the store or the audit log.
     let audit_log = fs::read_to_string(store.root().join("logs/env-audit.log")).unwrap();
     assert!(!stored.contains("valor-ficticio") && !audit_log.contains("valor-ficticio"));
-    assert!(fs::read_to_string(store.root().join("envs/demo.json"))
-        .unwrap()
-        .find("valor-ficticio")
-        .is_none());
+    assert!(
+        fs::read_to_string(store.root().join("envs/demo.json"))
+            .unwrap()
+            .find("valor-ficticio")
+            .is_none()
+    );
     // Production needs explicit confirmation, and then holds the site's processes.
-    assert!(activate(
-        &store,
-        "demo",
-        "produccion",
-        &BTreeMap::new(),
-        false,
-        "tester"
-    )
-    .is_err());
+    assert!(
+        activate(
+            &store,
+            "demo",
+            "produccion",
+            &BTreeMap::new(),
+            false,
+            "tester"
+        )
+        .is_err()
+    );
     assert!(!production_active(&store, "demo"));
     activate(
         &store,
@@ -349,25 +355,31 @@ fn activation_writes_private_env_without_leaking_and_locks_production() {
     )
     .unwrap();
     let file = out.path().join(".env.local");
-    assert!(fs::read_to_string(&file)
-        .unwrap()
-        .contains("DB_PASSWORD=valor-ficticio"));
+    assert!(
+        fs::read_to_string(&file)
+            .unwrap()
+            .contains("DB_PASSWORD=valor-ficticio")
+    );
     assert_eq!(
         fs::metadata(&file).unwrap().permissions().mode() & 0o777,
         0o600
     );
-    assert!(!fs::read_to_string(store.root().join("logs/env-audit.log"))
-        .unwrap()
-        .contains("valor-ficticio"));
-    assert!(export(
-        &store,
-        "demo",
-        "local",
-        &secrets,
-        &out.path().join("otro.txt"),
-        "tester"
-    )
-    .is_err());
+    assert!(
+        !fs::read_to_string(store.root().join("logs/env-audit.log"))
+            .unwrap()
+            .contains("valor-ficticio")
+    );
+    assert!(
+        export(
+            &store,
+            "demo",
+            "local",
+            &secrets,
+            &out.path().join("otro.txt"),
+            "tester"
+        )
+        .is_err()
+    );
     // What activation writes is what a backend reads back.
     let read = read_dotenv(&file);
     assert_eq!(
@@ -413,15 +425,17 @@ fn refuses_secrets_when_env_is_tracked_by_git() {
     let guard = git_guard(&project);
     assert!(guard.repository && guard.tracked);
     // Downloading into the repository needs the file to be ignored.
-    assert!(export(
-        &store,
-        "demo",
-        "local",
-        &secrets,
-        &project.path.join(".env.local"),
-        "tester"
-    )
-    .is_err());
+    assert!(
+        export(
+            &store,
+            "demo",
+            "local",
+            &secrets,
+            &project.path.join(".env.local"),
+            "tester"
+        )
+        .is_err()
+    );
     fs::write(project.path.join(".gitignore"), ".env.*\n").unwrap();
     export(
         &store,
@@ -441,13 +455,15 @@ fn git_checks_never_run_the_fsmonitor_of_the_repository() {
     use std::os::unix::fs::PermissionsExt;
     let (temp, store, project) = store_with_site();
     let git = |args: &[&str]| {
-        assert!(Command::new("/usr/bin/git")
-            .arg("-C")
-            .arg(&project.path)
-            .args(args)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            Command::new("/usr/bin/git")
+                .arg("-C")
+                .arg(&project.path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
     };
     git(&["init", "-q"]);
     let marker = temp.path().join("fsmonitor-ran");
@@ -520,10 +536,12 @@ fn merging_moved_keys_keeps_the_rest_and_never_stores_values() {
     let stored: SiteEnvironments =
         serde_json::from_str(&fs::read_to_string(store.root().join("envs/demo.json")).unwrap())
             .unwrap();
-    assert!(stored.environments[0]
-        .entries
-        .iter()
-        .all(|e| e.value.is_empty()));
+    assert!(
+        stored.environments[0]
+            .entries
+            .iter()
+            .all(|e| e.value.is_empty())
+    );
 }
 
 /// A `.env` that is a FIFO nobody writes to must not block the reader (the supervisor reads it

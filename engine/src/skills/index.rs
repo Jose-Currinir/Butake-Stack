@@ -1,6 +1,6 @@
 //! `index.json`: groups, per-skill metadata and agents. Written atomically (0600) by the engine only.
 use super::agents;
-use super::model::{valid_id, Ctx, Entry, Group, Index, INDEX_VERSION};
+use super::model::{Ctx, Entry, Group, INDEX_VERSION, Index, valid_id};
 use crate::core::json;
 use anyhow::Result;
 use std::{collections::BTreeMap, fs};

@@ -214,10 +214,11 @@ pub fn dump(store: &Store, target: &Target, request: &Value) -> Result<Value> {
         }
     }
     drop(sink);
-    if let Some(mut child) = gzip {
-        if !child.wait()?.success() && failure.is_none() {
-            failure = Some("dump_failed".into());
-        }
+    if let Some(mut child) = gzip
+        && !child.wait()?.success()
+        && failure.is_none()
+    {
+        failure = Some("dump_failed".into());
     }
     drop(secret);
     progress.report(written, "", true);
@@ -257,10 +258,10 @@ fn broken_views(target: &Target, databases: &[String]) -> Result<Vec<String>> {
                     .get(2)
                     .and_then(|kind| kind.as_deref())
                     .is_some_and(|kind| kind.eq_ignore_ascii_case("error"));
-                if let Some(name) = row.first().cloned().flatten().filter(|_| error) {
-                    if !broken.contains(&name) {
-                        broken.push(name);
-                    }
+                if let Some(name) = row.first().cloned().flatten().filter(|_| error)
+                    && !broken.contains(&name)
+                {
+                    broken.push(name);
                 }
             }
         }

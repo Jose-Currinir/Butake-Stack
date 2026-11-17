@@ -76,7 +76,9 @@ pub(super) async fn session<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Un
         let upper = text.to_ascii_uppercase();
         let verb = upper.split_whitespace().next().unwrap_or("").to_string();
         let reply: String = match verb.as_str() {
-            "EHLO" => format!("250-butake-stack\r\n250-SIZE {MAX_MESSAGE}\r\n250-8BITMIME\r\n250-SMTPUTF8\r\n250 AUTH PLAIN LOGIN\r\n"),
+            "EHLO" => format!(
+                "250-butake-stack\r\n250-SIZE {MAX_MESSAGE}\r\n250-8BITMIME\r\n250-SMTPUTF8\r\n250 AUTH PLAIN LOGIN\r\n"
+            ),
             "HELO" => "250 butake-stack\r\n".into(),
             "AUTH" => {
                 // Any credentials are accepted and dropped at once: never stored or logged.
@@ -96,7 +98,9 @@ pub(super) async fn session<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Un
                         read_line(&mut reader, &mut line).await?;
                     }
                     _ => {
-                        writer.write_all(b"504 5.5.4 Unrecognized authentication type\r\n").await?;
+                        writer
+                            .write_all(b"504 5.5.4 Unrecognized authentication type\r\n")
+                            .await?;
                         continue;
                     }
                 }
@@ -122,7 +126,9 @@ pub(super) async fn session<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Un
                 if from.is_none() || recipients.is_empty() {
                     "503 5.5.1 RCPT first\r\n".into()
                 } else {
-                    writer.write_all(b"354 End data with <CR><LF>.<CR><LF>\r\n").await?;
+                    writer
+                        .write_all(b"354 End data with <CR><LF>.<CR><LF>\r\n")
+                        .await?;
                     let mut data = Vec::new();
                     let mut too_large = false;
                     // A line longer than the read limit arrives in pieces: only the first one
@@ -137,7 +143,11 @@ pub(super) async fn session<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Un
                         if first_piece && (line == b".\r\n" || line == b".\n") {
                             break;
                         }
-                        let content = if first_piece && line.starts_with(b"..") { &line[1..] } else { &line[..] };
+                        let content = if first_piece && line.starts_with(b"..") {
+                            &line[1..]
+                        } else {
+                            &line[..]
+                        };
                         if data.len() + content.len() > MAX_MESSAGE {
                             too_large = true;
                         } else {
@@ -151,7 +161,10 @@ pub(super) async fn session<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Un
                     } else {
                         let dir = dir.clone();
                         let config = config.clone();
-                        let saved = tokio::task::spawn_blocking(move || save(&dir, &envelope, &to, &data, &config)).await;
+                        let saved = tokio::task::spawn_blocking(move || {
+                            save(&dir, &envelope, &to, &data, &config)
+                        })
+                        .await;
                         match saved {
                             Ok(Ok(id)) => format!("250 2.0.0 OK {id}\r\n"),
                             _ => "451 4.3.0 Could not store the message\r\n".into(),

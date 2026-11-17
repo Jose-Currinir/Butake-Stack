@@ -69,15 +69,17 @@ fn fake_source(dir: &Path, name: &str, version: &str, clobber: bool) -> (PathBuf
     )
     .unwrap();
     let archive = dir.join(format!("{name}-{version}.tar.gz"));
-    assert!(Command::new("/usr/bin/tar")
-        .arg("-czf")
-        .arg(&archive)
-        .arg("-C")
-        .arg(dir)
-        .arg(format!("{name}-{version}"))
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new("/usr/bin/tar")
+            .arg("-czf")
+            .arg(&archive)
+            .arg("-C")
+            .arg(dir)
+            .arg(format!("{name}-{version}"))
+            .status()
+            .unwrap()
+            .success()
+    );
     let sum = crate::core::hash::sha256_file(&archive).unwrap();
     (archive, sum)
 }
@@ -149,9 +151,11 @@ fn installs_records_carries_and_removes_without_network() {
     assert_eq!(names.get("citext"), Some(&None));
     // Listed: the catalog's entries and the bundled ones (not the one a catalog entry placed).
     let listed = postgres(&store, &engine).unwrap();
-    assert!(listed
-        .iter()
-        .any(|e| e.id == "citext" && e.kind == "bundled" && !e.removable));
+    assert!(
+        listed
+            .iter()
+            .any(|e| e.id == "citext" && e.kind == "bundled" && !e.removable)
+    );
     assert!(listed.iter().all(|e| e.id != "demo"));
     let postgis = listed.iter().find(|e| e.id == "postgis").unwrap();
     assert!(postgis.supported && postgis.installed.is_none() && postgis.downloads.len() == 6);
@@ -260,9 +264,11 @@ fn a_project_says_what_its_databases_lack() {
         steps,
         json!(["downloadSource", "verifySum", "build", "install"])
     );
-    assert!(dispatch(&store, "installSteps", &json!({"tool": "node"}))
-        .unwrap()
-        .is_none());
+    assert!(
+        dispatch(&store, "installSteps", &json!({"tool": "node"}))
+            .unwrap()
+            .is_none()
+    );
     assert!(dispatch(&store, "other", &json!({})).unwrap().is_none());
     // Changing anything needs the user's confirmation.
     for method in [

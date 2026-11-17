@@ -6,7 +6,7 @@ use crate::{
     db::client::{self, Target},
     db::sql::{self, Dialect},
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use std::{
     io::{BufRead, BufReader, BufWriter, Read, Write},
     path::Path,
@@ -405,7 +405,12 @@ pub fn export(
         }
         Dialect::Sqlite => {
             let c = target.command("sqlite3", database, None)?;
-            (c, format!(".headers on\n.mode csv\n.nullvalue {NULL_MARK}\nPRAGMA query_only = ON;\n{select}\n;\n"))
+            (
+                c,
+                format!(
+                    ".headers on\n.mode csv\n.nullvalue {NULL_MARK}\nPRAGMA query_only = ON;\n{select}\n;\n"
+                ),
+            )
         }
     };
     let (partial, file) = Partial::create(path)?;

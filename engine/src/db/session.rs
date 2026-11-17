@@ -15,10 +15,10 @@ use crate::core::fsutil::write_private;
 use crate::core::rand::random_u64;
 use crate::{
     core::store::Store,
-    db::client::{self, RunOutput, Target, MAX_ROWS},
+    db::client::{self, MAX_ROWS, RunOutput, Target},
     db::sql::{self, Dialect, ResultSet},
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{

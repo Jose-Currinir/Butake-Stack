@@ -3,7 +3,7 @@
 //! migrations) and the matching tasks run with the stack's own PHP, Composer and Node.
 //! Git always runs as `/usr/bin/git` with arguments (no shell) and never with optional locks.
 use crate::{core::model::Project, core::store::Store, web::projects::scaffold::Toolchain};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Serialize;
 use std::{
     path::{Path, PathBuf},
@@ -309,7 +309,9 @@ mod tests {
     use super::*;
     #[test]
     fn parses_status_worktrees_and_changes() {
-        let info = parse_status("# branch.oid 0123456789abcdef0123456789abcdef01234567\n# branch.head develop\n# branch.upstream origin/develop\n# branch.ab +2 -1\n1 .M N... 100644 100644 100644 a b app.php\n? nuevo.txt\n");
+        let info = parse_status(
+            "# branch.oid 0123456789abcdef0123456789abcdef01234567\n# branch.head develop\n# branch.upstream origin/develop\n# branch.ab +2 -1\n1 .M N... 100644 100644 100644 a b app.php\n? nuevo.txt\n",
+        );
         assert_eq!(
             (info.branch.as_str(), info.changes, info.ahead, info.behind),
             ("develop", 2, 2, 1)
@@ -318,7 +320,9 @@ mod tests {
             parse_status("# branch.oid (initial)\n# branch.head (detached)\n").branch,
             ""
         );
-        let list = parse_worktrees("worktree /a\nHEAD 1\nbranch refs/heads/main\n\nworktree /b\nHEAD 2\nbranch refs/heads/feature/login\n\nworktree /c\nHEAD 3\ndetached\n");
+        let list = parse_worktrees(
+            "worktree /a\nHEAD 1\nbranch refs/heads/main\n\nworktree /b\nHEAD 2\nbranch refs/heads/feature/login\n\nworktree /c\nHEAD 3\ndetached\n",
+        );
         assert_eq!(
             list,
             vec![
@@ -329,7 +333,9 @@ mod tests {
         );
         assert_eq!(slug("Feature/Login_Nuevo"), "feature-login-nuevo");
         assert_eq!(slug("///"), "");
-        let changes = classify("composer.lock\napp/x.php\ndatabase/migrations/2026_a.php\ndatabase/migrations/2026_b.php\n");
+        let changes = classify(
+            "composer.lock\napp/x.php\ndatabase/migrations/2026_a.php\ndatabase/migrations/2026_b.php\n",
+        );
         assert_eq!(
             changes,
             BranchChanges {

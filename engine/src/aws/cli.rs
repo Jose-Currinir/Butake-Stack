@@ -4,10 +4,10 @@
 //! that names the two files Stack shows, a time limit, and a way for the app to stop it. Its own messages are never returned:
 //! they become one of a few fixed codes.
 
-use super::{helper, Files};
+use super::{Files, helper};
 use crate::core::cli_tool::{CliTool, Codes};
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
     time::Duration,
@@ -196,13 +196,34 @@ mod tests {
     #[test]
     fn messages_become_codes() {
         for (message, code) in [
-            ("The config profile (nadie) could not be found", "aws_profile_not_found"),
-            ("Error when retrieving token from sso: Token has expired and refresh failed", "aws_session_expired"),
-            ("Could not connect to the endpoint URL: \"https://sts.amazonaws.com/\"", "aws_offline"),
-            ("Unable to locate credentials. You can configure credentials by running \"aws configure\".", "aws_profile_incomplete"),
-            ("An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation", "aws_invalid_credentials"),
-            ("An error occurred (AccessDenied) when calling the AssumeRole operation", "aws_access_denied"),
-            ("Error when retrieving credentials from custom-process: Stack: x", "aws_process_failed"),
+            (
+                "The config profile (nadie) could not be found",
+                "aws_profile_not_found",
+            ),
+            (
+                "Error when retrieving token from sso: Token has expired and refresh failed",
+                "aws_session_expired",
+            ),
+            (
+                "Could not connect to the endpoint URL: \"https://sts.amazonaws.com/\"",
+                "aws_offline",
+            ),
+            (
+                "Unable to locate credentials. You can configure credentials by running \"aws configure\".",
+                "aws_profile_incomplete",
+            ),
+            (
+                "An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation",
+                "aws_invalid_credentials",
+            ),
+            (
+                "An error occurred (AccessDenied) when calling the AssumeRole operation",
+                "aws_access_denied",
+            ),
+            (
+                "Error when retrieving credentials from custom-process: Stack: x",
+                "aws_process_failed",
+            ),
             ("algo raro", "aws_check_failed"),
         ] {
             assert_eq!(translate(message), code, "{message}");

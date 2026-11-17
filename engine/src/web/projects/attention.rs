@@ -10,7 +10,7 @@ use crate::core::{
     store::Store,
 };
 use crate::runtimes::{languages::node_range, utilities::catalog};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Serialize;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -323,10 +323,10 @@ fn node(
     {
         asks.push((".nvmrc", range));
     }
-    if let Some(range) = package["engines"]["node"].as_str() {
-        if node_range::satisfies(range, "0.0.0").is_some() {
-            asks.push(("package.json", range.to_string()));
-        }
+    if let Some(range) = package["engines"]["node"].as_str()
+        && node_range::satisfies(range, "0.0.0").is_some()
+    {
+        asks.push(("package.json", range.to_string()));
     }
     let gives = |version: &str| {
         asks.iter()

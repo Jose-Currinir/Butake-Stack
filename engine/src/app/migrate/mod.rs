@@ -19,11 +19,11 @@ mod rewrite;
 mod tests;
 mod tree;
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 pub use control::{Control, Live};
 use rewrite::Change;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -294,13 +294,12 @@ fn run_locked(layout: &Layout, control: &dyn Control, cut: Cut) -> Result<Value>
         ..Journal::default()
     };
     // A run cut short before the move left at most a partial backup of its own.
-    if let Some(previous) = self::journal(&layout.old) {
-        if let Some(partial) = previous
+    if let Some(previous) = self::journal(&layout.old)
+        && let Some(partial) = previous
             .backup
             .filter(|b| previous.phase != "reverted" && b.to_string_lossy().ends_with(".partial"))
-        {
-            let _ = fs::remove_dir_all(partial);
-        }
+    {
+        let _ = fs::remove_dir_all(partial);
     }
     let plan = plan(layout, control)?;
     ensure!(plan["sameVolume"] == true, "migration_cross_volume");
@@ -339,10 +338,10 @@ fn run_locked(layout: &Layout, control: &dyn Control, cut: Cut) -> Result<Value>
                 "stop"
             };
             journal.phase = "reverted".into();
-            if let Some(b) = &journal.backup {
-                if b.to_string_lossy().ends_with(".partial") {
-                    journal.backup = None;
-                }
+            if let Some(b) = &journal.backup
+                && b.to_string_lossy().ends_with(".partial")
+            {
+                journal.backup = None;
             }
             return Ok(failure(layout, control, journal, step, &error, &layout.old));
         }

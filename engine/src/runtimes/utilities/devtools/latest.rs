@@ -114,12 +114,12 @@ pub fn keep_known(mut latest: Value, previous: Option<(Value, u64)>) -> Value {
         .map(|m| m.keys().cloned().collect())
         .unwrap_or_default();
     for id in missing {
-        if latest.get(&id).is_none() {
-            if let Some(known) = previous.get(&id).filter(|v| !v.is_null()).cloned() {
-                let when = previous["known"][&id].as_u64().unwrap_or(fetched_at);
-                latest[&id] = known;
-                latest["known"][&id] = json!(when);
-            }
+        if latest.get(&id).is_none()
+            && let Some(known) = previous.get(&id).filter(|v| !v.is_null()).cloned()
+        {
+            let when = previous["known"][&id].as_u64().unwrap_or(fetched_at);
+            latest[&id] = known;
+            latest["known"][&id] = json!(when);
         }
     }
     latest

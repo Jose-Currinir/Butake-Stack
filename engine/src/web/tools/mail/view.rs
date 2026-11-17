@@ -1,10 +1,10 @@
 //! What the interface reads: the list of messages, one message in full and its attachments.
-use super::mime::{decode_words, describe, header, leaves, parse_headers, split_headers, Leaf};
+use super::mime::{Leaf, decode_words, describe, header, leaves, parse_headers, split_headers};
 use super::store::{ids, message_path, prune};
 use crate::core::codec;
 use crate::core::model::MailConfig;
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use std::{fs, io::Write, os::unix::fs::OpenOptionsExt, path::Path};
 
 fn summary(id: &str, headers: &[(String, String)], size: u64) -> Value {
@@ -109,12 +109,14 @@ pub fn get(dir: &Path, id: &str) -> Result<Value> {
     value["text"] = json!(text);
     value["html"] = json!(html);
     value["attachments"] = json!(attachments);
-    value["headers"] = json!(headers
-        .iter()
-        .filter(|(n, _)| !n.starts_with("x-butake-"))
-        .take(100)
-        .map(|(n, v)| json!([n, decode_words(v)]))
-        .collect::<Vec<_>>());
+    value["headers"] = json!(
+        headers
+            .iter()
+            .filter(|(n, _)| !n.starts_with("x-butake-"))
+            .take(100)
+            .map(|(n, v)| json!([n, decode_words(v)]))
+            .collect::<Vec<_>>()
+    );
     value["source"] = json!(String::from_utf8_lossy(&raw[..raw.len().min(200_000)]));
     Ok(value)
 }

@@ -3,7 +3,7 @@
 
 use crate::{core::store::Store, daemon, web};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Requests of this domain; `None` when `method` is not one of them.
 pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<Value>> {
@@ -112,10 +112,11 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<V
             // Secret by default for credential-like names (R2); names only, never values.
             let keys: Vec<String> =
                 serde_json::from_value(request["keys"].clone()).unwrap_or_default();
-            Ok(json!(keys
-                .iter()
-                .map(|k| web::projects::envs::looks_secret(k))
-                .collect::<Vec<_>>()))
+            Ok(json!(
+                keys.iter()
+                    .map(|k| web::projects::envs::looks_secret(k))
+                    .collect::<Vec<_>>()
+            ))
         }
         "envAuditLog" => Ok(serde_json::to_value(web::projects::envs::audit_lines(
             store, id,

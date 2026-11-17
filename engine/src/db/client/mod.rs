@@ -21,7 +21,7 @@ use crate::{
     runtimes::utilities::catalog,
     web::services::engines,
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},

@@ -7,7 +7,11 @@ pub(crate) static HOME: &Mutex<()> = &crate::core::progress::TEST_TURN;
 pub(crate) fn sandbox() -> (tempfile::TempDir, Store) {
     let dir = tempfile::tempdir().unwrap();
     fs::create_dir_all(dir.path().join("home")).unwrap();
-    std::env::set_var("BUTAKE_DEVTOOLS_HOME", dir.path().join("home"));
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::set_var("BUTAKE_DEVTOOLS_HOME", dir.path().join("home")) };
     let store = Store::new(dir.path().join("store")).unwrap();
     (dir, store)
 }
@@ -58,7 +62,9 @@ fn versions_sources_and_manifests_are_read_strictly() {
     }
     // ChatGPT's Sparkle feed: the newest full archive, never a delta or another host.
     let item = |version: &str, url: &str| {
-        format!("<item><sparkle:shortVersionString>{version}</sparkle:shortVersionString><enclosure url=\"{url}\" length=\"1\"/><sparkle:deltas><enclosure url=\"{CHATGPT_FILES}ChatGPT1-2-arm64.delta\"/></sparkle:deltas></item>")
+        format!(
+            "<item><sparkle:shortVersionString>{version}</sparkle:shortVersionString><enclosure url=\"{url}\" length=\"1\"/><sparkle:deltas><enclosure url=\"{CHATGPT_FILES}ChatGPT1-2-arm64.delta\"/></sparkle:deltas></item>"
+        )
     };
     let zip = |version: &str| format!("{CHATGPT_FILES}ChatGPT-darwin-arm64-{version}.zip");
     let feed = format!(
@@ -76,9 +82,15 @@ fn versions_sources_and_manifests_are_read_strictly() {
     );
     for bad in [
         item("26.1111.21308", &zip("26.1111.21307")),
-        item("26.1111.21308", &format!("{CHATGPT_FILES}../ChatGPT-darwin-arm64-26.1111.21308.zip")),
+        item(
+            "26.1111.21308",
+            &format!("{CHATGPT_FILES}../ChatGPT-darwin-arm64-26.1111.21308.zip"),
+        ),
         item("26.1111.x", &zip("26.1111.x")),
-        format!("<item><sparkle:shortVersionString>1.2.3</sparkle:shortVersionString><sparkle:deltas><enclosure url=\"{}\"/></sparkle:deltas></item>", zip("1.2.3")),
+        format!(
+            "<item><sparkle:shortVersionString>1.2.3</sparkle:shortVersionString><sparkle:deltas><enclosure url=\"{}\"/></sparkle:deltas></item>",
+            zip("1.2.3")
+        ),
     ] {
         assert!(chatgpt_release(&bad).is_err(), "{bad}");
     }
@@ -89,7 +101,13 @@ fn the_newest_git_release_is_read_from_the_checksum_list() {
     let sum = |c: char| c.to_string().repeat(64);
     let list = format!(
         "-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\n{}  git-2.9.5.tar.gz\n{}  git-2.56.1.tar.gz\n{}  git-2.56.1.tar.xz\n{}  git-2.57.0-rc1.tar.gz\n{}  git-manpages-2.60.0.tar.gz\n{}  git-2.100.0.tar.gz; rm\nzz  git-2.99.0.tar.gz\n{}  git-1.7.tar.gz\n-----BEGIN PGP SIGNATURE-----\n",
-        sum('a'), sum('B'), sum('c'), sum('d'), sum('e'), sum('f'), sum('0')
+        sum('a'),
+        sum('B'),
+        sum('c'),
+        sum('d'),
+        sum('e'),
+        sum('f'),
+        sum('0')
     );
     assert_eq!(
         git_release(&list).unwrap(),
@@ -116,15 +134,17 @@ fn git_tarball(dir: &Path, version: &str, recipe: &str) -> (PathBuf, String) {
     )
     .unwrap();
     let tgz = dir.join(format!("git-{version}.tar.gz"));
-    assert!(Command::new("/usr/bin/tar")
-        .arg("-czf")
-        .arg(&tgz)
-        .arg("-C")
-        .arg(dir.join("src"))
-        .arg(format!("git-{version}"))
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new("/usr/bin/tar")
+            .arg("-czf")
+            .arg(&tgz)
+            .arg("-C")
+            .arg(dir.join("src"))
+            .arg(format!("git-{version}"))
+            .status()
+            .unwrap()
+            .success()
+    );
     let sum = hash::sha256_file(&tgz).unwrap();
     (tgz, sum)
 }
@@ -184,6 +204,8 @@ fn git_reports_its_steps_and_a_cancelled_build_leaves_nothing() {
                 }
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
+            // SAFETY: `raise` takes an integer and touches no memory; the test process handles
+            // SIGTERM (the stop it is testing), so this only asks the code under test to stop.
             unsafe { libc::raise(libc::SIGTERM) };
         }
     });
@@ -212,7 +234,11 @@ fn git_reports_its_steps_and_a_cancelled_build_leaves_nothing() {
         .collect();
     assert_eq!(left, ["9.9.7"]);
     assert_eq!(read_record(&store, "git").unwrap().version, "9.9.7");
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }
 
 #[test]
@@ -237,15 +263,17 @@ fn an_altered_git_source_is_not_built() {
     fs::write(source.join("version"), "9.9.9\n").unwrap();
     fs::write(source.join("Makefile"), "install:\n\tfalse\n").unwrap();
     let tgz = dir.path().join("git-9.9.9.tar.gz");
-    assert!(Command::new("/usr/bin/tar")
-        .arg("-czf")
-        .arg(&tgz)
-        .arg("-C")
-        .arg(dir.path().join("src"))
-        .arg("git-9.9.9")
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new("/usr/bin/tar")
+            .arg("-czf")
+            .arg(&tgz)
+            .arg("-C")
+            .arg(dir.path().join("src"))
+            .arg("git-9.9.9")
+            .status()
+            .unwrap()
+            .success()
+    );
     // Not the published SHA-256: nothing is unpacked.
     let wrong = "0".repeat(64);
     assert_eq!(
@@ -280,7 +308,11 @@ fn an_altered_git_source_is_not_built() {
     assert!(read_record(&store, "git").is_none());
     // With a temporary home Apple's Git is not looked at.
     assert_eq!(git_status()["installed"], false);
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }
 
 #[test]
@@ -313,15 +345,17 @@ fn an_altered_or_foreign_artifact_is_not_installed() {
         fs::copy("/usr/bin/true", pkg.join(program)).unwrap();
     }
     let tgz = dir.path().join("codex.tar.gz");
-    assert!(Command::new("/usr/bin/tar")
-        .arg("-czf")
-        .arg(&tgz)
-        .arg("-C")
-        .arg(&pkg)
-        .arg(".")
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new("/usr/bin/tar")
+            .arg("-czf")
+            .arg(&tgz)
+            .arg("-C")
+            .arg(&pkg)
+            .arg(".")
+            .status()
+            .unwrap()
+            .success()
+    );
     let sum = hash::sha256_file(&tgz).unwrap();
     assert_eq!(
         place_codex(&store, &tgz, &wrong, "0.1.0")
@@ -347,13 +381,15 @@ fn an_altered_or_foreign_artifact_is_not_installed() {
     fs::create_dir_all(&app).unwrap();
     fs::copy("/usr/bin/true", app.join("Claude")).unwrap();
     let zip = dir.path().join("Claude.zip");
-    assert!(Command::new("/usr/bin/ditto")
-        .args(["-c", "-k"])
-        .arg(dir.path().join("app"))
-        .arg(&zip)
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new("/usr/bin/ditto")
+            .args(["-c", "-k"])
+            .arg(dir.path().join("app"))
+            .arg(&zip)
+            .status()
+            .unwrap()
+            .success()
+    );
     assert_eq!(
         place_app(&store, &CLAUDE_DESKTOP, &zip, "5.11492.2")
             .unwrap_err()
@@ -367,24 +403,28 @@ fn an_altered_or_foreign_artifact_is_not_installed() {
         fs::copy("/usr/bin/true", contents.join("MacOS/ChatGPT")).unwrap();
         fs::write(contents.join("Info.plist"), format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>CFBundleExecutable</key><string>ChatGPT</string><key>CFBundleIdentifier</key><string>{}</string><key>CFBundleShortVersionString</key><string>26.1111.21308</string></dict></plist>", CHATGPT.bundle)).unwrap();
     }
-    assert!(Command::new("/usr/bin/codesign")
-        .args(["--force", "--deep", "--sign", "-"])
-        .arg(dir.path().join("foreign/ChatGPT.app"))
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new("/usr/bin/codesign")
+            .args(["--force", "--deep", "--sign", "-"])
+            .arg(dir.path().join("foreign/ChatGPT.app"))
+            .status()
+            .unwrap()
+            .success()
+    );
     assert!(
         signature::verify_code(&dir.path().join("foreign/ChatGPT.app"), OPENAI_TEAM, true).is_err()
     );
     for folder in ["unsigned", "foreign"] {
         let zip = dir.path().join(format!("{folder}.zip"));
-        assert!(Command::new("/usr/bin/ditto")
-            .args(["-c", "-k"])
-            .arg(dir.path().join(folder))
-            .arg(&zip)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            Command::new("/usr/bin/ditto")
+                .args(["-c", "-k"])
+                .arg(dir.path().join(folder))
+                .arg(&zip)
+                .status()
+                .unwrap()
+                .success()
+        );
         assert_eq!(
             place_app(&store, &CHATGPT, &zip, "26.1111.21308")
                 .unwrap_err()
@@ -407,7 +447,11 @@ fn an_altered_or_foreign_artifact_is_not_installed() {
         assert!(fs::symlink_metadata(home.join(path)).is_err(), "{path}");
     }
     assert!(IDS.iter().all(|id| read_record(&store, id).is_none()));
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }
 
 #[test]
@@ -467,7 +511,11 @@ fn only_recorded_paths_inside_the_home_are_removed() {
     assert!(home.join(".aws").is_dir() && home.join(".local/bin/aws").is_file());
     assert!(read_record(&store, "aws").is_none());
     assert!(remove(&store, "rustup").is_err());
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }
 
 /// The real artifacts, when BUTAKE_UTILITY_ARTIFACTS names a folder with them (downloaded by
@@ -639,10 +687,12 @@ fn real_artifacts_install_and_altered_ones_do_not() {
             "osxkeychain"
         );
         remove(&store, "git").unwrap();
-        assert!(!home()
-            .unwrap()
-            .join(".local/share/butake-stack/git")
-            .exists());
+        assert!(
+            !home()
+                .unwrap()
+                .join(".local/share/butake-stack/git")
+                .exists()
+        );
     }
     assert!(
         fs::read_dir(home().unwrap().join(".local/bin"))
@@ -650,5 +700,9 @@ fn real_artifacts_install_and_altered_ones_do_not() {
             .unwrap_or(0)
             == 0
     );
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }

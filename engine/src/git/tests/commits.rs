@@ -1,7 +1,7 @@
 //! Correcting and taking back the last commit: only while it is on no remote branch, never on a
 //! protected main, and without losing its changes.
 use super::{commit_file, repository, sandbox};
-use crate::git::actions::{execute, Action};
+use crate::git::actions::{Action, execute};
 use crate::git::runner::git;
 use crate::git::status::status;
 

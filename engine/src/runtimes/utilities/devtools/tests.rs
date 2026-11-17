@@ -1,5 +1,5 @@
 use super::*;
-use crate::runtimes::utilities::tests::{sandbox, HOME};
+use crate::runtimes::utilities::tests::{HOME, sandbox};
 use std::{os::unix::fs::PermissionsExt, time::Duration};
 
 fn script(path: &Path, body: &str) {
@@ -17,6 +17,8 @@ fn stop_when(file: PathBuf, words: usize) -> std::thread::JoinHandle<()> {
             }
             std::thread::sleep(Duration::from_millis(50));
         }
+        // SAFETY: `raise` takes an integer and touches no memory; the test process handles SIGTERM
+        // (the stop it is testing), so this only asks the code under test to stop.
         unsafe { libc::raise(libc::SIGTERM) };
     })
 }
@@ -30,7 +32,11 @@ fn plans_follow_what_this_mac_already_has() {
     let _guard = HOME.lock().unwrap_or_else(|e| e.into_inner());
     let (dir, _store) = sandbox();
     let home = dir.path().join("home");
-    std::env::set_var("ANDROID_HOME", home.join("sdk"));
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::set_var("ANDROID_HOME", home.join("sdk")) };
     assert_eq!(plan("rustup"), ["download", "verifySum", "runInstaller"]);
     assert_eq!(
         plan("android-sdk")[..3],
@@ -48,8 +54,16 @@ fn plans_follow_what_this_mac_already_has() {
         assert!(known(tool) && !plan(tool).is_empty(), "{tool}");
     }
     assert!(!known("brew"));
-    std::env::remove_var("ANDROID_HOME");
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("ANDROID_HOME") };
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }
 
 /// rustup's own update and a toolchain install run to the end although the app asked to stop
@@ -90,10 +104,16 @@ fn an_official_installer_is_followed_but_not_cut() {
     progress::end();
     assert_eq!(answer.unwrap()[0]["default"], true);
     assert_eq!(steps(&log)["steps"], json!(["toolchain"]));
-    assert!(fs::read_to_string(home.join("rustup-args"))
-        .unwrap()
-        .contains("toolchain install beta"));
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    assert!(
+        fs::read_to_string(home.join("rustup-args"))
+            .unwrap()
+            .contains("toolchain install beta")
+    );
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }
 
 /// Wrangler goes to a folder beside the one in use: a finished install takes its place, and
@@ -120,9 +140,10 @@ fn wrangler_replaces_its_folder_only_when_npm_finished() {
     // A fixed release, and no install scripts of the package or its dependencies.
     let args = fs::read_to_string(home.join("npm-args")).unwrap();
     assert!(args.lines().any(|a| a == "--ignore-scripts"));
-    assert!(args
-        .lines()
-        .any(|a| a == format!("wrangler@{}", install::WRANGLER_VERSION)));
+    assert!(
+        args.lines()
+            .any(|a| a == format!("wrangler@{}", install::WRANGLER_VERSION))
+    );
     let share = home.join(".local/share/butake-stack");
     let target = fs::canonicalize(home.join(".local/bin/wrangler")).unwrap();
     assert_eq!(
@@ -162,7 +183,11 @@ fn wrangler_replaces_its_folder_only_when_npm_finished() {
         fs::read_to_string(share.join("npm/lib/node_modules/wrangler/version")).unwrap(),
         "1\n"
     );
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }
 
 #[test]

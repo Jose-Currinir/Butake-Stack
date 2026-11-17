@@ -6,7 +6,7 @@
 //! to a question about the provider's own origin. Never in an argument, a variable, the remote's
 //! address, Git's configuration, a file, a log or a response; Git's credential managers are off
 //! for that command, so nothing stores it either.
-use super::runner::{error, Result};
+use super::runner::{Result, error};
 use crate::core::{rand::random_hex, validate};
 use serde_json::Value;
 use std::{
@@ -14,8 +14,8 @@ use std::{
     os::unix::{fs::DirBuilderExt, net::UnixListener},
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };

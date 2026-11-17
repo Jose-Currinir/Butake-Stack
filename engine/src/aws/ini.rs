@@ -9,7 +9,7 @@
 //! lines starting with `#` or `;` are comments; an indented line continues the setting above it
 //! (nested settings such as `s3 =` followed by `  max_concurrent_requests = 20`).
 
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 
 /// One section: its header line, the line after its last line, and the name between brackets.
 #[derive(Debug, Clone, PartialEq)]
@@ -202,10 +202,10 @@ impl Document {
     pub fn append(&mut self, name: &str, settings: &[(&str, String)]) -> Result<()> {
         ensure!(self.find(name)?.is_none(), "aws_profile_exists");
         let newline = self.newline();
-        if let Some(last) = self.lines.last_mut() {
-            if !last.ends_with('\n') {
-                last.push_str(newline);
-            }
+        if let Some(last) = self.lines.last_mut()
+            && !last.ends_with('\n')
+        {
+            last.push_str(newline);
         }
         if self.lines.last().is_some_and(|l| !is_blank(l)) {
             self.lines.push(newline.to_string());
@@ -367,9 +367,10 @@ mod tests {
         );
         let mut doc = Document::parse(CONFIG);
         doc.remove("sso-session acme").unwrap();
-        assert!(doc
-            .text()
-            .ends_with("cli_pager =\n\n# La sesión única de Acme\n"));
+        assert!(
+            doc.text()
+                .ends_with("cli_pager =\n\n# La sesión única de Acme\n")
+        );
         let mut doc = Document::parse("[default]\nregion = x");
         doc.append("profile nuevo", &[("region", "us-east-1".into())])
             .unwrap();

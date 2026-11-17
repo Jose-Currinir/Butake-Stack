@@ -29,10 +29,10 @@ pub(super) fn parse_headers(block: &[u8]) -> Vec<(String, String)> {
                 last.1.push(' ');
                 last.1.push_str(line.trim());
             }
-        } else if let Some((name, value)) = line.split_once(':') {
-            if headers.len() < 500 {
-                headers.push((name.trim().to_ascii_lowercase(), value.trim().to_string()));
-            }
+        } else if let Some((name, value)) = line.split_once(':')
+            && headers.len() < 500
+        {
+            headers.push((name.trim().to_ascii_lowercase(), value.trim().to_string()));
         }
     }
     headers
@@ -143,52 +143,53 @@ pub(super) fn leaves(raw: &[u8], depth: usize, out: &mut Vec<Part>) {
     let (head, body) = split_headers(raw);
     let headers = parse_headers(head);
     let (kind, params) = parameters(header(&headers, "content-type").unwrap_or("text/plain"));
-    if kind.starts_with("multipart/") && depth < 10 {
-        if let Some(boundary) = param(&params, "boundary").filter(|b| !b.is_empty()) {
-            let marker = format!("--{boundary}");
-            let text = body;
-            let mut sections: Vec<&[u8]> = vec![];
-            let mut start: Option<usize> = None;
-            let mut position = 0;
-            while position <= text.len() {
-                let end = text[position..]
+    if kind.starts_with("multipart/")
+        && depth < 10
+        && let Some(boundary) = param(&params, "boundary").filter(|b| !b.is_empty())
+    {
+        let marker = format!("--{boundary}");
+        let text = body;
+        let mut sections: Vec<&[u8]> = vec![];
+        let mut start: Option<usize> = None;
+        let mut position = 0;
+        while position <= text.len() {
+            let end = text[position..]
+                .iter()
+                .position(|&b| b == b'\n')
+                .map(|p| position + p + 1)
+                .unwrap_or(text.len());
+            let line = &text[position..end];
+            let trimmed = line.strip_suffix(b"\n").unwrap_or(line);
+            let trimmed = trimmed.strip_suffix(b"\r").unwrap_or(trimmed);
+            // The boundary is the whole line (or it closes with `--`), never a longer word.
+            if trimmed.starts_with(marker.as_bytes())
+                && trimmed[marker.len()..]
                     .iter()
-                    .position(|&b| b == b'\n')
-                    .map(|p| position + p + 1)
-                    .unwrap_or(text.len());
-                let line = &text[position..end];
-                let trimmed = line.strip_suffix(b"\n").unwrap_or(line);
-                let trimmed = trimmed.strip_suffix(b"\r").unwrap_or(trimmed);
-                // The boundary is the whole line (or it closes with `--`), never a longer word.
-                if trimmed.starts_with(marker.as_bytes())
-                    && trimmed[marker.len()..]
-                        .iter()
-                        .all(|b| matches!(b, b' ' | b'\t'))
-                    || trimmed.starts_with(marker.as_bytes())
-                        && trimmed[marker.len()..].starts_with(b"--")
-                {
-                    if let Some(s) = start {
-                        // The line break before the boundary belongs to the boundary.
-                        let mut piece = &text[s..position];
-                        piece = piece.strip_suffix(b"\n").unwrap_or(piece);
-                        piece = piece.strip_suffix(b"\r").unwrap_or(piece);
-                        sections.push(piece);
-                    }
-                    if trimmed[marker.len()..].starts_with(b"--") {
-                        break;
-                    }
-                    start = Some(end);
+                    .all(|b| matches!(b, b' ' | b'\t'))
+                || trimmed.starts_with(marker.as_bytes())
+                    && trimmed[marker.len()..].starts_with(b"--")
+            {
+                if let Some(s) = start {
+                    // The line break before the boundary belongs to the boundary.
+                    let mut piece = &text[s..position];
+                    piece = piece.strip_suffix(b"\n").unwrap_or(piece);
+                    piece = piece.strip_suffix(b"\r").unwrap_or(piece);
+                    sections.push(piece);
                 }
-                if end == text.len() {
+                if trimmed[marker.len()..].starts_with(b"--") {
                     break;
                 }
-                position = end;
+                start = Some(end);
             }
-            for section in sections.into_iter().take(200) {
-                leaves(section, depth + 1, out);
+            if end == text.len() {
+                break;
             }
-            return;
+            position = end;
         }
+        for section in sections.into_iter().take(200) {
+            leaves(section, depth + 1, out);
+        }
+        return;
     }
     let encoding = header(&headers, "content-transfer-encoding")
         .unwrap_or("")

@@ -5,7 +5,7 @@
 use crate::core::json;
 use crate::core::store::Store;
 use crate::core::time::now_secs;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf};
 
@@ -368,9 +368,10 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let store = Store::new(temp.path().join("store")).unwrap();
         let list = catalog(&store).unwrap();
-        assert!(list
-            .iter()
-            .any(|p| p.id == "database-client" && p.installed && p.enabled));
+        assert!(
+            list.iter()
+                .any(|p| p.id == "database-client" && p.installed && p.enabled)
+        );
         assert!(list.iter().any(|p| p.id == "ssh-terminal" && !p.installed));
         assert!(require(&store, "ssh-terminal").is_err());
         set_enabled(&store, "ssh-terminal", true).unwrap();
@@ -432,10 +433,12 @@ mod tests {
             assert!(!enabled(&store, id));
             config.ports.http = 80;
             store.save_config(&config).unwrap();
-            assert!(set_enabled(&store, id, true)
-                .unwrap()
-                .iter()
-                .any(|p| p.id == id && p.enabled));
+            assert!(
+                set_enabled(&store, id, true)
+                    .unwrap()
+                    .iter()
+                    .any(|p| p.id == id && p.enabled)
+            );
             update_receiver_config(&store, |config| {
                 match id {
                     "mail" => config.mail.as_mut().unwrap().enabled = false,
@@ -454,10 +457,12 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let store = Store::new(temp.path().join("store")).unwrap();
         // Off for existing installations and new ones alike.
-        assert!(catalog(&store)
-            .unwrap()
-            .iter()
-            .any(|p| p.id == "git" && !p.installed && !p.enabled && !p.has_data));
+        assert!(
+            catalog(&store)
+                .unwrap()
+                .iter()
+                .any(|p| p.id == "git" && !p.installed && !p.enabled && !p.has_data)
+        );
         assert_eq!(
             require(&store, "git").unwrap_err().to_string(),
             "plugin_disabled"
@@ -467,10 +472,12 @@ mod tests {
         let repository = temp.path().join("repo");
         std::fs::create_dir_all(repository.join(".git")).unwrap();
         crate::git::repositories::opened(&store, &repository).unwrap();
-        assert!(catalog(&store)
-            .unwrap()
-            .iter()
-            .any(|p| p.id == "git" && p.has_data));
+        assert!(
+            catalog(&store)
+                .unwrap()
+                .iter()
+                .any(|p| p.id == "git" && p.has_data)
+        );
         // Removing it keeps its data unless asked; asked, only Stack's list goes.
         remove(&store, "git", false, true).unwrap();
         assert!(crate::git::repositories::has_data(&store));
@@ -501,12 +508,10 @@ mod tests {
                             let name = name.split(" if ").next().unwrap_or("").trim();
                             if let Some(name) =
                                 name.strip_prefix('"').and_then(|n| n.strip_suffix('"'))
+                                && name.chars().all(|c| c.is_ascii_alphanumeric())
+                                && !name.is_empty()
                             {
-                                if name.chars().all(|c| c.is_ascii_alphanumeric())
-                                    && !name.is_empty()
-                                {
-                                    out.insert(name.to_string());
-                                }
+                                out.insert(name.to_string());
                             }
                         }
                     }
@@ -589,9 +594,11 @@ mod tests {
         );
         remove(&store, "vault", false, true).unwrap();
         assert!(!enabled(&store, "vault"));
-        assert!(catalog(&store)
-            .unwrap()
-            .iter()
-            .any(|p| p.id == "vault" && p.installed && !p.enabled));
+        assert!(
+            catalog(&store)
+                .unwrap()
+                .iter()
+                .any(|p| p.id == "vault" && p.installed && !p.enabled)
+        );
     }
 }

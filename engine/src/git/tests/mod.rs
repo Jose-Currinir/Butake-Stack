@@ -15,7 +15,7 @@ mod status;
 mod sync;
 mod worktrees;
 
-use super::actions::{execute, Action};
+use super::actions::{Action, execute};
 use super::runner::git;
 use std::path::Path;
 use tempfile::TempDir;

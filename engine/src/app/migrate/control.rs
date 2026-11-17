@@ -1,8 +1,8 @@
 //! Stopping and starting what uses the data folder: the supervised processes, the daemon and its
 //! LaunchAgent, and the check that nothing else keeps a file open there.
 
-use anyhow::{bail, ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, bail, ensure};
+use serde_json::{Value, json};
 use std::{
     io::{BufRead, Write},
     os::unix::{net::UnixStream, process::CommandExt},

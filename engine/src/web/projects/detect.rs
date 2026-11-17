@@ -1,7 +1,7 @@
 //! Proposes a site configuration from a folder. Of `.env`
 //! only variable names and selected numeric port values are used.
 use crate::core::model::{Project, ProjectKind, ProjectProcess};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Serialize;
 use serde_json::Value;
 use std::{
@@ -45,10 +45,10 @@ pub fn env_summary(project: &Path) -> (BTreeMap<String, String>, Vec<String>) {
         }
         if ENV_PORTS.contains(&key.as_str()) {
             let value = value.trim().trim_matches('"').trim_matches('\'');
-            if let Ok(port) = value.parse::<u16>() {
-                if port != 0 {
-                    values.insert(key.clone(), port.to_string());
-                }
+            if let Ok(port) = value.parse::<u16>()
+                && port != 0
+            {
+                values.insert(key.clone(), port.to_string());
             }
         }
         keys.push(key);

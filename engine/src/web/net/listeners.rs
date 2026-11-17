@@ -2,13 +2,13 @@
 //! (macOS refuses those ports to normal processes on a specific address) and hands them over
 //! through `launch_activate_socket`. Outside launchd the daemon binds the configured ports.
 use crate::core::model::StackConfig;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::{
     net::{TcpListener, UdpSocket},
     os::fd::{AsRawFd, FromRawFd},
 };
 
-extern "C" {
+unsafe extern "C" {
     fn launch_activate_socket(
         name: *const libc::c_char,
         fds: *mut *mut libc::c_int,

@@ -51,7 +51,7 @@ mod ffi {
     pub const NOT_FOUND: OSStatus = -25300;
 
     #[link(name = "CoreFoundation", kind = "framework")]
-    extern "C" {
+    unsafe extern "C" {
         pub static kCFTypeDictionaryKeyCallBacks: CallBacks;
         pub static kCFTypeDictionaryValueCallBacks: CallBacks;
         pub static kCFBooleanTrue: CFTypeRef;
@@ -80,7 +80,7 @@ mod ffi {
     }
 
     #[link(name = "Security", kind = "framework")]
-    extern "C" {
+    unsafe extern "C" {
         pub static kSecClass: CFTypeRef;
         pub static kSecClassGenericPassword: CFTypeRef;
         pub static kSecAttrService: CFTypeRef;
@@ -307,7 +307,9 @@ mod tests {
     #[test]
     #[ignore]
     fn keychain_round_trip_on_the_qa_service() {
-        std::env::set_var("BUTAKE_STACK_HOME", "/nonexistent-qa");
+        // SAFETY: this test is `#[ignore]` and runs alone (`--ignored`, one test): no other thread
+        // reads the environment while it changes.
+        unsafe { std::env::set_var("BUTAKE_STACK_HOME", "/nonexistent-qa") };
         assert_eq!(service(), "cl.butake.stack.aws.qa");
         let keychain = Keychain;
         keychain.delete("prueba-qa").unwrap();

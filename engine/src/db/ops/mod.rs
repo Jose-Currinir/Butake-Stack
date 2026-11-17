@@ -5,11 +5,11 @@
 use crate::{
     core::fsutil::write_private,
     core::store::Store,
-    db::client::{self, query, run_sql, Connection, Target, MAX_ROWS},
-    db::sql::{self, ident, literal, Dialect},
+    db::client::{self, Connection, MAX_ROWS, Target, query, run_sql},
+    db::sql::{self, Dialect, ident, literal},
 };
-use anyhow::{bail, ensure, Result};
-use serde_json::{json, Map, Value};
+use anyhow::{Result, bail, ensure};
+use serde_json::{Map, Value, json};
 use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -474,11 +474,12 @@ mod tests {
             10,
         )
         .unwrap();
-        assert!(out
-            .error
-            .unwrap_or_default()
-            .to_lowercase()
-            .contains("readonly"));
+        assert!(
+            out.error
+                .unwrap_or_default()
+                .to_lowercase()
+                .contains("readonly")
+        );
         assert_eq!(count(&store), 3);
     }
 
@@ -502,13 +503,15 @@ mod tests {
         assert!(dispatch(&store, "dbRun", &typed).unwrap()["error"].is_null());
         assert_eq!(count(&store), 4);
         // Reads need nothing.
-        assert!(dispatch(
-            &store,
-            "dbRun",
-            &json!({"connection": "qa", "sql": "select 1"})
-        )
-        .unwrap()["needsConfirmation"]
-            .is_null());
+        assert!(
+            dispatch(
+                &store,
+                "dbRun",
+                &json!({"connection": "qa", "sql": "select 1"})
+            )
+            .unwrap()["needsConfirmation"]
+                .is_null()
+        );
     }
 
     #[test]
@@ -519,7 +522,10 @@ mod tests {
             {"name": "texto", "type": "text", "nullable": false, "default": "vacía"},
         ]});
         let preview = dispatch(&store, "dbDdl", &create).unwrap();
-        assert_eq!(preview["statements"][0], "CREATE TABLE \"notas\" (\n    \"id\" integer PRIMARY KEY AUTOINCREMENT,\n    \"texto\" text NOT NULL DEFAULT 'vacía'\n)");
+        assert_eq!(
+            preview["statements"][0],
+            "CREATE TABLE \"notas\" (\n    \"id\" integer PRIMARY KEY AUTOINCREMENT,\n    \"texto\" text NOT NULL DEFAULT 'vacía'\n)"
+        );
         let mut run = create.clone();
         run["confirmed"] = json!(true);
         dispatch(&store, "dbDdl", &run).unwrap();
@@ -545,18 +551,22 @@ mod tests {
         )
         .unwrap();
         assert!(plan["raw"].as_str().unwrap().contains("t"));
-        assert!(dispatch(
-            &store,
-            "dbExplain",
-            &json!({"connection": "qa", "sql": "(analyze) select 1"})
-        )
-        .is_err());
-        assert!(dispatch(
-            &store,
-            "dbExplain",
-            &json!({"connection": "qa", "sql": "select 1; select 2"})
-        )
-        .is_err());
+        assert!(
+            dispatch(
+                &store,
+                "dbExplain",
+                &json!({"connection": "qa", "sql": "(analyze) select 1"})
+            )
+            .is_err()
+        );
+        assert!(
+            dispatch(
+                &store,
+                "dbExplain",
+                &json!({"connection": "qa", "sql": "select 1; select 2"})
+            )
+            .is_err()
+        );
     }
 
     #[test]

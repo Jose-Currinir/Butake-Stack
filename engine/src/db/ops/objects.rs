@@ -6,9 +6,18 @@ use super::*;
 pub fn databases(target: &Target) -> Result<Value> {
     let d = dialect(target)?;
     let (database, sql) = match d {
-        Dialect::MySql => ("", "SELECT s.SCHEMA_NAME, COALESCE(SUM(t.DATA_LENGTH + t.INDEX_LENGTH), 0), COUNT(t.TABLE_NAME) FROM information_schema.SCHEMATA s LEFT JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = s.SCHEMA_NAME GROUP BY s.SCHEMA_NAME ORDER BY s.SCHEMA_NAME"),
-        Dialect::Postgres => ("", "SELECT datname, CASE WHEN has_database_privilege(datname, 'CONNECT') THEN pg_database_size(datname) END, NULL FROM pg_database WHERE NOT datistemplate AND datallowconn ORDER BY datname"),
-        Dialect::Sqlite => ("", "SELECT 'main', page_count * page_size, (SELECT COUNT(*) FROM sqlite_master WHERE type = 'table') FROM pragma_page_count(), pragma_page_size()"),
+        Dialect::MySql => (
+            "",
+            "SELECT s.SCHEMA_NAME, COALESCE(SUM(t.DATA_LENGTH + t.INDEX_LENGTH), 0), COUNT(t.TABLE_NAME) FROM information_schema.SCHEMATA s LEFT JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = s.SCHEMA_NAME GROUP BY s.SCHEMA_NAME ORDER BY s.SCHEMA_NAME",
+        ),
+        Dialect::Postgres => (
+            "",
+            "SELECT datname, CASE WHEN has_database_privilege(datname, 'CONNECT') THEN pg_database_size(datname) END, NULL FROM pg_database WHERE NOT datistemplate AND datallowconn ORDER BY datname",
+        ),
+        Dialect::Sqlite => (
+            "",
+            "SELECT 'main', page_count * page_size, (SELECT COUNT(*) FROM sqlite_master WHERE type = 'table') FROM pragma_page_count(), pragma_page_size()",
+        ),
     };
     let set = query(target, database, sql)?;
     Ok(json!(set.rows.iter().map(|r| {
@@ -56,20 +65,34 @@ fn columns_with(
 ) -> Result<(Vec<Value>, Vec<crate::db::sql::ResultSet>)> {
     let d = dialect(target)?;
     let (db, sql) = match d {
-        Dialect::MySql => ("", format!(
-            "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY, EXTRA, COLUMN_COMMENT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = {} AND TABLE_NAME = {} ORDER BY ORDINAL_POSITION",
-            literal(d, database), literal(d, table))),
-        Dialect::Postgres => (database, format!(
-            "SELECT a.attname, format_type(a.atttypid, a.atttypmod), CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END, pg_get_expr(ad.adbin, ad.adrelid), \
+        Dialect::MySql => (
+            "",
+            format!(
+                "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY, EXTRA, COLUMN_COMMENT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = {} AND TABLE_NAME = {} ORDER BY ORDINAL_POSITION",
+                literal(d, database),
+                literal(d, table)
+            ),
+        ),
+        Dialect::Postgres => (
+            database,
+            format!(
+                "SELECT a.attname, format_type(a.atttypid, a.atttypmod), CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END, pg_get_expr(ad.adbin, ad.adrelid), \
              CASE WHEN EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.oid AND i.indisprimary AND a.attnum = ANY(i.indkey)) THEN 'PRI' ELSE '' END, \
              CASE WHEN a.attidentity <> '' THEN 'identity' ELSE '' END, col_description(c.oid, a.attnum) \
              FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace \
              LEFT JOIN pg_attrdef ad ON ad.adrelid = c.oid AND ad.adnum = a.attnum \
              WHERE n.nspname = {} AND c.relname = {} AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum",
-            literal(d, if schema.is_empty() { "public" } else { schema }), literal(d, table))),
-        Dialect::Sqlite => (database, format!(
-            "SELECT name, type, CASE WHEN \"notnull\" = 1 THEN 'NO' ELSE 'YES' END, dflt_value, CASE WHEN pk > 0 THEN 'PRI' ELSE '' END, '', '' FROM pragma_table_info({}) ORDER BY cid",
-            literal(d, table))),
+                literal(d, if schema.is_empty() { "public" } else { schema }),
+                literal(d, table)
+            ),
+        ),
+        Dialect::Sqlite => (
+            database,
+            format!(
+                "SELECT name, type, CASE WHEN \"notnull\" = 1 THEN 'NO' ELSE 'YES' END, dflt_value, CASE WHEN pk > 0 THEN 'PRI' ELSE '' END, '', '' FROM pragma_table_info({}) ORDER BY cid",
+                literal(d, table)
+            ),
+        ),
     };
     let mut statements = vec![sql];
     statements.extend(extra);
@@ -90,8 +113,15 @@ fn columns_with(
 /// Rows the server estimates for a table (no scan): MySQL's TABLE_ROWS, PostgreSQL's reltuples.
 fn estimate_sql(d: Dialect, database: &str, schema: &str, table: &str) -> Option<String> {
     match d {
-        Dialect::MySql => Some(format!("SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = {} AND TABLE_NAME = {}", literal(d, database), literal(d, table))),
-        Dialect::Postgres => Some(format!("SELECT GREATEST(reltuples, 0)::bigint FROM pg_class WHERE oid = to_regclass({})", literal(d, &table_ref(d, database, schema, table)))),
+        Dialect::MySql => Some(format!(
+            "SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = {} AND TABLE_NAME = {}",
+            literal(d, database),
+            literal(d, table)
+        )),
+        Dialect::Postgres => Some(format!(
+            "SELECT GREATEST(reltuples, 0)::bigint FROM pg_class WHERE oid = to_regclass({})",
+            literal(d, &table_ref(d, database, schema, table))
+        )),
         Dialect::Sqlite => None,
     }
 }
@@ -192,19 +222,19 @@ pub(super) fn order_clause(
             }
         ));
     }
-    if parts.is_empty() {
-        if let Some(sort) = request["sort"].as_str().filter(|s| !s.is_empty()) {
-            ensure!(names.iter().any(|n| n == sort), "invalid_filter");
-            parts.push(format!(
-                "{} {}",
-                ident(d, sort),
-                if request["descending"] == true {
-                    "DESC"
-                } else {
-                    "ASC"
-                }
-            ));
-        }
+    if parts.is_empty()
+        && let Some(sort) = request["sort"].as_str().filter(|s| !s.is_empty())
+    {
+        ensure!(names.iter().any(|n| n == sort), "invalid_filter");
+        parts.push(format!(
+            "{} {}",
+            ident(d, sort),
+            if request["descending"] == true {
+                "DESC"
+            } else {
+                "ASC"
+            }
+        ));
     }
     if parts.is_empty() {
         parts = primary_key(columns).iter().map(|k| ident(d, k)).collect();
@@ -299,25 +329,68 @@ pub fn structure(target: &Target, request: &Value) -> Result<Value> {
     };
     let columns = columns(target, database, schema, table)?;
     let (db, statements): (&str, Vec<String>) = match d {
-        Dialect::MySql => ("", vec![
-            format!("SELECT INDEX_NAME, CASE WHEN NON_UNIQUE = 0 THEN 'YES' ELSE 'NO' END, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR ', '), INDEX_TYPE FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = {} AND TABLE_NAME = {} GROUP BY INDEX_NAME, NON_UNIQUE, INDEX_TYPE ORDER BY INDEX_NAME = 'PRIMARY' DESC, INDEX_NAME", literal(d, database), literal(d, table)),
-            format!("SELECT CONSTRAINT_NAME, GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION SEPARATOR ', '), CONCAT(REFERENCED_TABLE_NAME, '(', GROUP_CONCAT(REFERENCED_COLUMN_NAME ORDER BY ORDINAL_POSITION SEPARATOR ', '), ')') FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = {} AND TABLE_NAME = {} AND REFERENCED_TABLE_NAME IS NOT NULL GROUP BY CONSTRAINT_NAME, REFERENCED_TABLE_NAME", literal(d, database), literal(d, table)),
-            format!("SHOW CREATE TABLE {}", table_ref(d, database, schema, table)),
-        ]),
+        Dialect::MySql => (
+            "",
+            vec![
+                format!(
+                    "SELECT INDEX_NAME, CASE WHEN NON_UNIQUE = 0 THEN 'YES' ELSE 'NO' END, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR ', '), INDEX_TYPE FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = {} AND TABLE_NAME = {} GROUP BY INDEX_NAME, NON_UNIQUE, INDEX_TYPE ORDER BY INDEX_NAME = 'PRIMARY' DESC, INDEX_NAME",
+                    literal(d, database),
+                    literal(d, table)
+                ),
+                format!(
+                    "SELECT CONSTRAINT_NAME, GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION SEPARATOR ', '), CONCAT(REFERENCED_TABLE_NAME, '(', GROUP_CONCAT(REFERENCED_COLUMN_NAME ORDER BY ORDINAL_POSITION SEPARATOR ', '), ')') FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = {} AND TABLE_NAME = {} AND REFERENCED_TABLE_NAME IS NOT NULL GROUP BY CONSTRAINT_NAME, REFERENCED_TABLE_NAME",
+                    literal(d, database),
+                    literal(d, table)
+                ),
+                format!(
+                    "SHOW CREATE TABLE {}",
+                    table_ref(d, database, schema, table)
+                ),
+            ],
+        ),
         Dialect::Postgres => {
-            let regclass = format!("to_regclass({})", literal(d, &table_ref(d, database, schema, table)));
-            (database, vec![
-                format!("SELECT i.indexname, CASE WHEN x.indisunique THEN 'YES' ELSE 'NO' END, i.indexdef, '' FROM pg_indexes i JOIN pg_class ic ON ic.relname = i.indexname JOIN pg_namespace n ON n.oid = ic.relnamespace AND n.nspname = i.schemaname JOIN pg_index x ON x.indexrelid = ic.oid WHERE i.schemaname = {} AND i.tablename = {} ORDER BY x.indisprimary DESC, 1", literal(d, schema), literal(d, table)),
-                format!("SELECT conname, pg_get_constraintdef(oid), '' FROM pg_constraint WHERE conrelid = {regclass} AND contype = 'f' ORDER BY 1"),
-                format!("SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = {regclass} AND contype <> 'n' ORDER BY contype = 'p' DESC, conname"),
-                format!("SELECT CASE WHEN c.relkind IN ('v', 'm') THEN pg_get_viewdef(c.oid, true) END, obj_description(c.oid, 'pg_class') FROM pg_class c WHERE c.oid = {regclass}"),
-            ])
+            let regclass = format!(
+                "to_regclass({})",
+                literal(d, &table_ref(d, database, schema, table))
+            );
+            (
+                database,
+                vec![
+                    format!(
+                        "SELECT i.indexname, CASE WHEN x.indisunique THEN 'YES' ELSE 'NO' END, i.indexdef, '' FROM pg_indexes i JOIN pg_class ic ON ic.relname = i.indexname JOIN pg_namespace n ON n.oid = ic.relnamespace AND n.nspname = i.schemaname JOIN pg_index x ON x.indexrelid = ic.oid WHERE i.schemaname = {} AND i.tablename = {} ORDER BY x.indisprimary DESC, 1",
+                        literal(d, schema),
+                        literal(d, table)
+                    ),
+                    format!(
+                        "SELECT conname, pg_get_constraintdef(oid), '' FROM pg_constraint WHERE conrelid = {regclass} AND contype = 'f' ORDER BY 1"
+                    ),
+                    format!(
+                        "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = {regclass} AND contype <> 'n' ORDER BY contype = 'p' DESC, conname"
+                    ),
+                    format!(
+                        "SELECT CASE WHEN c.relkind IN ('v', 'm') THEN pg_get_viewdef(c.oid, true) END, obj_description(c.oid, 'pg_class') FROM pg_class c WHERE c.oid = {regclass}"
+                    ),
+                ],
+            )
         }
-        Dialect::Sqlite => (database, vec![
-            format!("SELECT il.name, CASE WHEN il.\"unique\" = 1 THEN 'YES' ELSE 'NO' END, (SELECT group_concat(ii.name, ', ') FROM pragma_index_info(il.name) ii), il.origin FROM pragma_index_list({}) il", literal(d, table)),
-            format!("SELECT 'fk_' || id, group_concat(\"from\", ', '), \"table\" || '(' || group_concat(\"to\", ', ') || ')' FROM pragma_foreign_key_list({}) GROUP BY id", literal(d, table)),
-            format!("SELECT sql FROM sqlite_master WHERE name = {} UNION ALL SELECT sql FROM sqlite_master WHERE tbl_name = {} AND type = 'index' AND sql IS NOT NULL", literal(d, table), literal(d, table)),
-        ]),
+        Dialect::Sqlite => (
+            database,
+            vec![
+                format!(
+                    "SELECT il.name, CASE WHEN il.\"unique\" = 1 THEN 'YES' ELSE 'NO' END, (SELECT group_concat(ii.name, ', ') FROM pragma_index_info(il.name) ii), il.origin FROM pragma_index_list({}) il",
+                    literal(d, table)
+                ),
+                format!(
+                    "SELECT 'fk_' || id, group_concat(\"from\", ', '), \"table\" || '(' || group_concat(\"to\", ', ') || ')' FROM pragma_foreign_key_list({}) GROUP BY id",
+                    literal(d, table)
+                ),
+                format!(
+                    "SELECT sql FROM sqlite_master WHERE name = {} UNION ALL SELECT sql FROM sqlite_master WHERE tbl_name = {} AND type = 'index' AND sql IS NOT NULL",
+                    literal(d, table),
+                    literal(d, table)
+                ),
+            ],
+        ),
     };
     let out = crate::db::session::read(target, db, &statements, 10_000)?;
     if let Some(error) = out.error {
@@ -411,18 +484,22 @@ mod tests {
             w,
             " WHERE (\"name\"::text ILIKE $b$%50!%!_off'%$b$ ESCAPE '!') AND (\"id\" IS NULL)"
         );
-        assert!(where_clause(
-            Dialect::MySql,
-            &json!([{"column": "x; drop", "op": "eq", "value": "1"}]),
-            &known
-        )
-        .is_err());
-        assert!(where_clause(
-            Dialect::MySql,
-            &json!([{"column": "id", "op": "or 1=1", "value": "1"}]),
-            &known
-        )
-        .is_err());
+        assert!(
+            where_clause(
+                Dialect::MySql,
+                &json!([{"column": "x; drop", "op": "eq", "value": "1"}]),
+                &known
+            )
+            .is_err()
+        );
+        assert!(
+            where_clause(
+                Dialect::MySql,
+                &json!([{"column": "id", "op": "or 1=1", "value": "1"}]),
+                &known
+            )
+            .is_err()
+        );
         let m = where_clause(
             Dialect::MySql,
             &json!([{"column": "id", "op": "eq", "value": "1"}]),
@@ -464,12 +541,14 @@ mod tests {
             order_clause(Dialect::MySql, &json!({}), &names, &columns).unwrap(),
             " ORDER BY `a`"
         );
-        assert!(order_clause(
-            Dialect::MySql,
-            &json!({"sorts": [{"column": "a; drop"}]}),
-            &names,
-            &columns
-        )
-        .is_err());
+        assert!(
+            order_clause(
+                Dialect::MySql,
+                &json!({"sorts": [{"column": "a; drop"}]}),
+                &names,
+                &columns
+            )
+            .is_err()
+        );
     }
 }

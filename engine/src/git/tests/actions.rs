@@ -1,7 +1,7 @@
 //! Typed actions and their guards: protection of the primary branch, confirmations, explicit push
 //! destination, validated references, pulls classified for the assistant.
 use super::{commit_file, repository, sandbox};
-use crate::git::actions::{classify_pull_failure, execute, Action};
+use crate::git::actions::{Action, classify_pull_failure, execute};
 use crate::git::diff::diff;
 use crate::git::protection::{main_protected, set_main_protection, set_remote_protection};
 use crate::git::runner::git;
@@ -40,9 +40,11 @@ async fn actual_git_lifecycle_and_protection() {
             .code,
         "protected_branch"
     );
-    assert!(execute(root, Action::Commit, "blocked", false)
-        .await
-        .is_err());
+    assert!(
+        execute(root, Action::Commit, "blocked", false)
+            .await
+            .is_err()
+    );
     execute(root, Action::SwitchBranch, "develop", false)
         .await
         .unwrap();
@@ -53,9 +55,11 @@ async fn actual_git_lifecycle_and_protection() {
             .code,
         "confirmation_required"
     );
-    assert!(execute(root, Action::CreateBranch, "--evil", false)
-        .await
-        .is_err());
+    assert!(
+        execute(root, Action::CreateBranch, "--evil", false)
+            .await
+            .is_err()
+    );
     assert!(diff(root, "../outside", false).await.is_err());
 }
 
@@ -215,9 +219,11 @@ async fn discard_preserves_index_and_requires_confirmation() {
         .await
         .unwrap();
     assert!(!root.join("new.txt").exists());
-    assert!(execute(root, Action::Discard, "../outside", true)
-        .await
-        .is_err());
+    assert!(
+        execute(root, Action::Discard, "../outside", true)
+            .await
+            .is_err()
+    );
     let limited = snapshot_with(root, 1, false).await.unwrap();
     assert_eq!(limited.commits.len(), 1);
     for i in 0..50 {
@@ -227,11 +233,13 @@ async fn discard_preserves_index_and_requires_confirmation() {
     assert_eq!(stage_paths(root, &bulk, false).await.unwrap(), 50);
     let staged = snapshot_with(root, 10, true).await.unwrap();
     assert_eq!(staged.files.iter().filter(|f| f.index == "A").count(), 50);
-    assert!(staged
-        .stats
-        .unwrap()
-        .iter()
-        .any(|s| s.staged && s.path == "bulk 7.txt" && s.additions == Some(1)));
+    assert!(
+        staged
+            .stats
+            .unwrap()
+            .iter()
+            .any(|s| s.staged && s.path == "bulk 7.txt" && s.additions == Some(1))
+    );
     stage_paths(root, &bulk, true).await.unwrap();
     assert_eq!(
         snapshot(root)
@@ -243,9 +251,11 @@ async fn discard_preserves_index_and_requires_confirmation() {
             .count(),
         50
     );
-    assert!(stage_paths(root, &["missing.txt".into()], false)
-        .await
-        .is_err());
+    assert!(
+        stage_paths(root, &["missing.txt".into()], false)
+            .await
+            .is_err()
+    );
     assert!(stage_paths(root, &["../x".into()], false).await.is_err());
 }
 
@@ -277,9 +287,11 @@ async fn rebase_conflict_is_visible_and_abort_recovers() {
     execute(root, Action::SwitchBranch, "feature/test", false)
         .await
         .unwrap();
-    assert!(execute(root, Action::Rebase, "develop", true)
-        .await
-        .is_err());
+    assert!(
+        execute(root, Action::Rebase, "develop", true)
+            .await
+            .is_err()
+    );
     assert_eq!(snapshot(root).await.unwrap().operation, "rebase");
     execute(root, Action::RebaseAbort, "", true).await.unwrap();
     assert_eq!(git(root, &["rev-parse", "HEAD"]).await.unwrap(), before);
@@ -306,12 +318,14 @@ async fn push_updates_only_current_branch() {
     .await
     .unwrap();
     execute(root, Action::Push, "", true).await.unwrap();
-    assert!(git(
-        remote.path(),
-        &["show-ref", "--verify", "refs/heads/develop"]
-    )
-    .await
-    .is_ok());
+    assert!(
+        git(
+            remote.path(),
+            &["show-ref", "--verify", "refs/heads/develop"]
+        )
+        .await
+        .is_ok()
+    );
     assert!(
         git(remote.path(), &["show-ref", "--verify", "refs/heads/main"])
             .await
@@ -334,9 +348,11 @@ async fn branch_lifecycle_track_rename_delete() {
     execute(root, Action::RenameBranch, "feature/x:feature/y", false)
         .await
         .unwrap();
-    assert!(execute(root, Action::RenameBranch, "master:otra", false)
-        .await
-        .is_err());
+    assert!(
+        execute(root, Action::RenameBranch, "master:otra", false)
+            .await
+            .is_err()
+    );
     assert_eq!(
         execute(root, Action::DeleteBranch, "feature/y", false)
             .await
@@ -373,9 +389,11 @@ async fn branch_lifecycle_track_rename_delete() {
         .await
         .unwrap();
     let (local, _) = parse_branches(&git(root, &["for-each-ref", "--format=%(refname)%09%(HEAD)%09%(upstream:short)%09%(upstream:track,nobracket)%09%(committerdate:unix)", "refs/heads/"]).await.unwrap());
-    assert!(!local
-        .iter()
-        .any(|b| b.name == "solo" || b.name == "feature/y"));
+    assert!(
+        !local
+            .iter()
+            .any(|b| b.name == "solo" || b.name == "feature/y")
+    );
 }
 
 #[tokio::test]
@@ -406,10 +424,12 @@ async fn background_process_left_by_a_hook_does_not_stall_the_commit() {
         .await
         .unwrap();
     assert!(started.elapsed() < Duration::from_secs(15));
-    assert!(git(root, &["log", "-1", "--format=%s"])
-        .await
-        .unwrap()
-        .contains("feat: with hook"));
+    assert!(
+        git(root, &["log", "-1", "--format=%s"])
+            .await
+            .unwrap()
+            .contains("feat: with hook")
+    );
 }
 
 #[tokio::test]
@@ -453,9 +473,11 @@ async fn branch_names_cannot_be_reflog_shortcuts() {
             .code,
         "invalid_ref"
     );
-    assert!(git(root, &["rev-parse", "--verify", "refs/heads/main"])
-        .await
-        .is_ok());
+    assert!(
+        git(root, &["rev-parse", "--verify", "refs/heads/main"])
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]

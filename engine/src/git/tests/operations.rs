@@ -1,7 +1,7 @@
 //! The actions of Historial, Problemas and «Más…»: finishing or cancelling an operation left
 //! halfway, branches and tags at a commit, saved changes, remotes, the identity and ignoring a file.
 use super::{commit_file, sandbox};
-use crate::git::actions::{execute, Action};
+use crate::git::actions::{Action, execute};
 use crate::git::console::check_query;
 use crate::git::editing::{conflict, resolve};
 use crate::git::runner::git;
@@ -81,9 +81,11 @@ async fn a_copy_of_commits_that_collides_is_continued() {
     let picked = commit_file(root, "base.txt", "develop\n", "feat: develop").await;
     git(root, &["switch", "-q", "other"]).await.unwrap();
     commit_file(root, "base.txt", "other\n", "feat: other").await;
-    assert!(execute(root, Action::CherryPick, &picked, true)
-        .await
-        .is_err());
+    assert!(
+        execute(root, Action::CherryPick, &picked, true)
+            .await
+            .is_err()
+    );
     assert_eq!(operation(root).await.unwrap(), "cherry-pick");
     let versions = conflict(root, "base.txt").await.unwrap();
     resolve(root, "base.txt", "both\n", &versions.working)

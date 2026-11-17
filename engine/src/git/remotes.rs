@@ -2,7 +2,7 @@
 //! failures and build the link to a new pull request. URLs leave the engine without credentials.
 use super::actions::validate_branch;
 use super::protection::{main_protected, primary_branch};
-use super::runner::{error, git, GitError, Result};
+use super::runner::{GitError, Result, error, git};
 use std::path::Path;
 
 /// `url` without the user and password of an `http(s)://user:token@host` address (a token pasted
@@ -273,7 +273,9 @@ pub async fn publish(
         if protected && *branch == primary {
             return Err(error(
                 "protected_branch",
-                format!("{primary} está protegida en este repo: súbela mediante un PR o desactiva la protección."),
+                format!(
+                    "{primary} está protegida en este repo: súbela mediante un PR o desactiva la protección."
+                ),
             ));
         }
         if git(

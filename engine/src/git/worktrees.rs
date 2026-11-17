@@ -2,7 +2,7 @@
 //! out. Git does the work with separate arguments; the folder of a new one must not exist yet, the
 //! main working folder is never removed, and a folder with uncommitted changes is never forced out.
 use super::actions::validate_branch;
-use super::runner::{error, git, Result};
+use super::runner::{Result, error, git};
 use std::path::{Component, Path, PathBuf};
 
 /// `path\nbranch`: a new working folder at `path` on `branch` (created from the current commit when

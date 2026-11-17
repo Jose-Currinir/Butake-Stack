@@ -12,13 +12,13 @@
 use crate::core::{
     fsutil::write_private,
     json,
-    model::{validate_id, Project},
+    model::{Project, validate_id},
     process,
     store::Store,
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -228,10 +228,10 @@ pub fn created_id(output: &str) -> Option<String> {
                 }
             })
     };
-    if let Ok(value) = serde_json::from_str::<Value>(output.trim()) {
-        if let Some(id) = value["id"].as_str().filter(|id| uuid(id)) {
-            return Some(id.to_ascii_lowercase());
-        }
+    if let Ok(value) = serde_json::from_str::<Value>(output.trim())
+        && let Some(id) = value["id"].as_str().filter(|id| uuid(id))
+    {
+        return Some(id.to_ascii_lowercase());
     }
     output
         .split(|c: char| !(c.is_ascii_hexdigit() || c == '-'))

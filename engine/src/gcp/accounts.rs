@@ -4,7 +4,7 @@
 
 use super::cli::{Cli, PROJECTS_LIMIT, SHORT_LIMIT};
 use crate::core::validate;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Serialize;
 use serde_json::Value;
 use std::path::Path;

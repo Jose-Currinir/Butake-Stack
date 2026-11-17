@@ -1,11 +1,11 @@
 //! Deleted skills wait 30 days in `skills-trash/<id>-<epoch>/` (`entry.json` + `files/`) so that
 //! «Deshacer» can bring them back with their links.
-use super::model::{fail, valid_id, Ctx, Entry, Index, TRASH_DAYS};
+use super::model::{Ctx, Entry, Index, TRASH_DAYS, fail, valid_id};
 use super::{links, skill_file};
 use crate::core::{json, time::now_secs};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 
 #[derive(Serialize, Deserialize)]

@@ -2,10 +2,10 @@
 //! commits, and «Sincronizar ramas» (what each side lacks, by content, and copying commits).
 use super::actions::{validate_branch, validate_commit};
 use super::protection::{main_protected, primary_branch};
-use super::runner::{error, git, Result};
-use super::status::{has_conflicts, snapshot, Commit};
+use super::runner::{Result, error, git};
+use super::status::{Commit, has_conflicts, snapshot};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
@@ -176,7 +176,9 @@ pub async fn copy_commits(root: &Path, target: &str, hashes: &[String]) -> Resul
         if has_conflicts(root).await? {
             return Err(error(
                 "copy_conflicts",
-                format!("Hay conflictos al copiar a {target}. Quedaste en {target}: resuélvelos, pulsa «Continuar» y luego vuelve a {original}."),
+                format!(
+                    "Hay conflictos al copiar a {target}. Quedaste en {target}: resuélvelos, pulsa «Continuar» y luego vuelve a {original}."
+                ),
             ));
         }
         if skipped < ordered.len() && is_empty_pick(root).await {

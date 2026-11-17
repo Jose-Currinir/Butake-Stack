@@ -4,13 +4,13 @@
 use super::supervisor::{ProcessSpec, SupervisorReader};
 use crate::core::{model::Project, store::Store};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     collections::BTreeSet,
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Mutex,
+        atomic::{AtomicBool, Ordering},
     },
 };
 

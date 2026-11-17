@@ -14,8 +14,8 @@
 //! option (not offered today).
 
 use super::{download, fsutil::write_private, hash, store::Store, time::now_secs};
-use anyhow::{bail, ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, bail, ensure};
+use serde_json::{Value, json};
 use std::{
     fs,
     path::PathBuf,
@@ -215,13 +215,12 @@ fn api_with(store: &Store, url: &str, fresh: u64, transport: Transport) -> Resul
         .and_then(|_| fs::read(&path).ok())
         .and_then(|data| serde_json::from_slice(&data).ok())
         .filter(|c: &Value| c["url"] == url);
-    if let Some(copy) = &copy {
-        if copy["fetched_at"]
+    if let Some(copy) = &copy
+        && copy["fetched_at"]
             .as_u64()
             .is_some_and(|t| now_secs().saturating_sub(t) < fresh)
-        {
-            return Ok(copy["value"].clone());
-        }
+    {
+        return Ok(copy["value"].clone());
     }
     let save = |value: &Value, etag: Option<&str>| {
         let _ = write_private(
@@ -236,11 +235,11 @@ fn api_with(store: &Store, url: &str, fresh: u64, transport: Transport) -> Resul
         // Offline: the copy beats an error.
         Err(error) => return copy.map(|c| c["value"].clone()).ok_or(error),
     };
-    if reply.status == 304 {
-        if let Some(copy) = &copy {
-            save(&copy["value"], etag);
-            return Ok(copy["value"].clone());
-        }
+    if reply.status == 304
+        && let Some(copy) = &copy
+    {
+        save(&copy["value"], etag);
+        return Ok(copy["value"].clone());
     }
     if reply.status == 200 {
         let value: Value =

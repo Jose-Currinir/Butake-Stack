@@ -12,8 +12,8 @@ mod runtimes;
 mod skills;
 mod ssh;
 mod web;
-use anyhow::{bail, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, bail};
+use serde_json::{Value, json};
 use std::io::Read;
 
 fn dispatch(request: Value) -> Result<Value> {
@@ -391,10 +391,10 @@ async fn main() {
     }
     // A persistent read session of the database client (see dbsession.rs).
     if std::env::args().nth(1).as_deref() == Some("dbsession") {
-        if let Err(error) = db::session::serve() {
-            if std::env::var_os("BUTAKE_STACK_DEBUG").is_some() {
-                eprintln!("{error:#}");
-            }
+        if let Err(error) = db::session::serve()
+            && std::env::var_os("BUTAKE_STACK_DEBUG").is_some()
+        {
+            eprintln!("{error:#}");
         }
         return;
     }

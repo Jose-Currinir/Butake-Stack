@@ -4,7 +4,7 @@
 //! is noted in the tool's runs folder; see core/watch.rs). Its own messages are never returned:
 //! the tool turns them into one of its fixed codes.
 use crate::core::process::{self, Captured};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},

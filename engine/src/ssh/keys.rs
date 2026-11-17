@@ -7,7 +7,7 @@ use crate::core::json;
 use crate::core::time::now_secs;
 use crate::core::validate;
 use crate::{core::fsutil::write_private, core::store::Store};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
     os::unix::fs::PermissionsExt,
@@ -384,10 +384,10 @@ pub fn generate(
 pub fn public_key(store: &Store, id: &str) -> Result<String> {
     let private = path(store, id)?;
     let file = folder(store)?.join(format!("{id}.pub"));
-    if let Ok(text) = std::fs::read_to_string(&file) {
-        if !std::fs::symlink_metadata(&file)?.file_type().is_symlink() {
-            return Ok(text.trim().to_string());
-        }
+    if let Ok(text) = std::fs::read_to_string(&file)
+        && !std::fs::symlink_metadata(&file)?.file_type().is_symlink()
+    {
+        return Ok(text.trim().to_string());
     }
     let (_, _, public) = inspect_with(&private, None)?;
     write_private(&file, &format!("{public}\n"))?;
@@ -631,9 +631,11 @@ mod tests {
             std::fs::metadata(&stored).unwrap().permissions().mode() & 0o777,
             0o600
         );
-        assert!(!serde_json::to_string(&list(&store).unwrap())
-            .unwrap()
-            .contains("PRIVATE KEY"));
+        assert!(
+            !serde_json::to_string(&list(&store).unwrap())
+                .unwrap()
+                .contains("PRIVATE KEY")
+        );
         // Same key twice is refused; a passphrase-protected key too.
         assert!(
             import(&store, &source, "otra", "", "")

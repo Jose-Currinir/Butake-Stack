@@ -1,5 +1,5 @@
 //! Staging one block, resolving conflicts and the file viewer.
-use crate::git::actions::{execute, Action};
+use crate::git::actions::{Action, execute};
 use crate::git::diff::diff;
 use crate::git::editing::{conflict, resolve, stage_hunk};
 use crate::git::files::read_file;

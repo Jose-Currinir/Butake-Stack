@@ -1,7 +1,7 @@
 //! A repository's file read for the viewer, with its guards: inside the repository, never `.git`
 //! or a symbolic link, text of 2 MB or less, and the branch and HEAD it was read at.
-use super::runner::{error, git, Result};
-use serde_json::{json, Value};
+use super::runner::{Result, error, git};
+use serde_json::{Value, json};
 use std::path::{Component, Path, PathBuf};
 
 /// Biggest file the viewer reads.

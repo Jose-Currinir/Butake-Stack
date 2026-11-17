@@ -11,15 +11,15 @@
 use crate::{
     core::{
         journal::Journal,
-        model::{rename_references, validate_id, Project},
+        model::{Project, rename_references, validate_id},
         store::Store,
         time::now_secs,
     },
     daemon, web,
 };
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     path::{Path, PathBuf},

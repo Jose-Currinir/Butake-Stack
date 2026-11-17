@@ -32,12 +32,13 @@ pub(super) fn read_state(store: &Store, host: &str, forward: &str) -> Option<For
 }
 
 pub fn stop_forward(store: &Store, host: &str, forward: &str) {
-    if let Some(state) = read_state(store, host, forward) {
-        if alive(state.pid) && is_forward_process(state.pid) {
-            // SAFETY: `alive` guarantees `pid > 0`, so this signals one process only, and
-            // `is_forward_process` that it is a forward's own ssh and not a reused pid.
-            unsafe { libc::kill(state.pid, libc::SIGTERM) };
-        }
+    if let Some(state) = read_state(store, host, forward)
+        && alive(state.pid)
+        && is_forward_process(state.pid)
+    {
+        // SAFETY: `alive` guarantees `pid > 0`, so this signals one process only, and
+        // `is_forward_process` that it is a forward's own ssh and not a reused pid.
+        unsafe { libc::kill(state.pid, libc::SIGTERM) };
     }
     if let Ok(path) = state_file(store, host, forward) {
         let _ = std::fs::remove_file(path.with_extension("log"));

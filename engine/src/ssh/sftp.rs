@@ -14,7 +14,7 @@ use crate::{
     ssh::common::ssh_error,
     ssh::hosts::{self, Host},
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::Serialize;
 use std::{
     io::Write,

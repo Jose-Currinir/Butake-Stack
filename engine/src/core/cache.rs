@@ -4,8 +4,8 @@
 use crate::core::fsutil::write_private;
 use crate::core::store::Store;
 use crate::core::time::now_secs;
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use std::fs;
 
 /// The copy on disk of a catalog, however old, with when it was fetched.

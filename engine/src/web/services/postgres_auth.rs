@@ -13,8 +13,8 @@ use crate::core::fsutil::write_private;
 use crate::web::services::databases::Postgres;
 use crate::web::services::engines::{datadir, secret};
 use crate::{core::model::StackConfig, core::store::Store};
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use std::{fs, path::Path, process::Command, process::Stdio};
 
 const PASSWORD_FILE: &str = "superuser.password";
@@ -253,12 +253,14 @@ mod tests {
         assert_eq!(fs::read_to_string(data.join("pg_hba.conf")).unwrap(), hba);
         assert_eq!(state(&store).unwrap(), "trust");
         assert!(superuser_password(&store).is_none());
-        assert!(!store
-            .directory("config")
-            .unwrap()
-            .join("postgres")
-            .join(PASSWORD_FILE)
-            .exists());
+        assert!(
+            !store
+                .directory("config")
+                .unwrap()
+                .join("postgres")
+                .join(PASSWORD_FILE)
+                .exists()
+        );
         assert!(!data.join(TRUST_BACKUP).exists());
     }
 

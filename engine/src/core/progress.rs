@@ -12,15 +12,15 @@
 //! remove what it left half done (`install_cancelled`).
 
 use super::watch;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::{
     fs::OpenOptions,
     io::Write,
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus},
     sync::{
-        atomic::{AtomicI32, Ordering},
         Mutex,
+        atomic::{AtomicI32, Ordering},
     },
     time::{Duration, Instant},
 };

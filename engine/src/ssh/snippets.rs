@@ -4,7 +4,7 @@
 use crate::core::json;
 use crate::core::validate;
 use crate::{core::store::Store, ssh::hosts};
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

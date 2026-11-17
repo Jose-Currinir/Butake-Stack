@@ -143,10 +143,12 @@ fn undo_with_a_changed_copy_does_nothing() {
     assert_eq!(done["restored"], json!([]));
     assert_eq!(done["conflicts"][0]["reason"], "changed");
     assert_eq!(snap(env.root.as_path()), before);
-    assert!(fs::symlink_metadata(&real)
-        .unwrap()
-        .file_type()
-        .is_symlink());
+    assert!(
+        fs::symlink_metadata(&real)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
 }
 
 /// The trash record is a file on disk: a destination outside the folders of the AIs, or a stored
@@ -174,10 +176,12 @@ fn undo_refuses_a_record_that_points_outside_the_agent_folders() {
         assert_eq!(done["conflicts"][0]["reason"], "changed", "{field}");
         assert_eq!(snap(env.root.as_path()), before, "{field}");
     }
-    assert!(fs::symlink_metadata(&real)
-        .unwrap()
-        .file_type()
-        .is_symlink());
+    assert!(
+        fs::symlink_metadata(&real)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
     assert!(fs::symlink_metadata(&foreign).is_ok());
 }
 
@@ -423,9 +427,11 @@ fn plan_and_apply_hash_only_the_requested_skills() {
     apply(&env, &["a"]);
     assert_eq!(digests() - before, 3);
     // Unrequested skills are untouched.
-    assert!(fs::symlink_metadata(env.link_path(".claude/skills", "b"))
-        .unwrap()
-        .is_dir());
+    assert!(
+        fs::symlink_metadata(env.link_path(".claude/skills", "b"))
+            .unwrap()
+            .is_dir()
+    );
 }
 
 #[test]

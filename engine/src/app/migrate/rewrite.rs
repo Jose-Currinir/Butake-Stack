@@ -2,7 +2,7 @@
 //! rewritten after it, each with its original kept so it can be put back byte for byte.
 
 use super::Layout;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -401,7 +401,9 @@ mod tests {
         );
         assert_eq!(
             rewritten("aws", &aws, old, new).unwrap(),
-            format!("[profile a]\ncredential_process = \"{new}/bin/x\" aws-credential a\nnote = {old}\n")
+            format!(
+                "[profile a]\ncredential_process = \"{new}/bin/x\" aws-credential a\nnote = {old}\n"
+            )
         );
     }
 }

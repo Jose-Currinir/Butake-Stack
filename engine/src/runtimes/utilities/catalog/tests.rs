@@ -93,10 +93,12 @@ fn postgres_without_contrib_is_detected() {
     )
     .unwrap();
     assert!(!text.contains("extensions"));
-    assert!(installed(&store, "node")
-        .unwrap()
-        .iter()
-        .all(|m| m.extensions.is_none()));
+    assert!(
+        installed(&store, "node")
+            .unwrap()
+            .iter()
+            .all(|m| m.extensions.is_none())
+    );
     // A reinstall without `replace` is refused; the plan says it builds from source.
     assert_eq!(
         install(&store, "postgres", "16.16", false)

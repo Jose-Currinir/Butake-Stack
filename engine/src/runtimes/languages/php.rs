@@ -5,7 +5,7 @@ use crate::core::json;
 use crate::core::progress;
 use crate::core::store::Store;
 use crate::core::time::now_secs;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -289,7 +289,9 @@ pub fn generate_ini(store: &Store, series: &str) -> Result<PathBuf> {
         !ca.chars().any(|c| c == '"' || c == '\n' || c == '\r'),
         "invalid_ini_path"
     );
-    let mut ini = format!("memory_limit=256M\nupload_max_filesize=64M\npost_max_size=64M\nerror_reporting=E_ALL & ~E_DEPRECATED & ~E_STRICT\ndisplay_errors=On\nlog_errors=On\nopcache.enable=1\nopcache.enable_cli=1\ncurl.cainfo=\"{ca}\"\nopenssl.cafile=\"{ca}\"\n");
+    let mut ini = format!(
+        "memory_limit=256M\nupload_max_filesize=64M\npost_max_size=64M\nerror_reporting=E_ALL & ~E_DEPRECATED & ~E_STRICT\ndisplay_errors=On\nlog_errors=On\nopcache.enable=1\nopcache.enable_cli=1\ncurl.cainfo=\"{ca}\"\nopenssl.cafile=\"{ca}\"\n"
+    );
     let mode = store
         .config()
         .ok()
@@ -480,9 +482,11 @@ mod tests {
         assert!(xdebug_ini("/x", "evil\nauto_prepend_file=/tmp/x").is_err());
         config.xdebug.clear();
         store.save_config(&config).unwrap();
-        assert!(!fs::read_to_string(generate_ini(&store, "8.2").unwrap())
-            .unwrap()
-            .contains("xdebug"));
+        assert!(
+            !fs::read_to_string(generate_ini(&store, "8.2").unwrap())
+                .unwrap()
+                .contains("xdebug")
+        );
         fs::write(root.join("bin/php"), "tampered").unwrap();
         assert!(self::manifest(&store, "8.2").is_err());
         assert!(!list(&store)[0].verified);

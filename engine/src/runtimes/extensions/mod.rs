@@ -16,9 +16,9 @@ pub mod project;
 
 use crate::core::store::Store;
 use crate::web::services::databases::Postgres;
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// One extension of a component, as the app lists it.
 #[derive(Debug, Clone, Serialize)]

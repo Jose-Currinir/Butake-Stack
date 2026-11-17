@@ -15,7 +15,7 @@ use crate::{
     core::download, core::model::Project, core::store::Store, runtimes::utilities::catalog,
     web::projects::detect,
 };
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{
     fs,
     path::{Path, PathBuf},

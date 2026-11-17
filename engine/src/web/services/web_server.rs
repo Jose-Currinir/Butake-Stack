@@ -6,7 +6,7 @@ use crate::{
     core::store::Store,
     runtimes::{languages::php, utilities::catalog},
 };
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{collections::BTreeSet, fs};
 
 pub fn php_series(project: &Project, config: &StackConfig) -> Option<String> {
@@ -98,22 +98,27 @@ pub fn off_page(project: &Project) -> String {
     let name = html(&project.name);
     let domain = html(project.domains.first().map(String::as_str).unwrap_or(""));
     let id = html(&project.id);
-    format!(concat!(
-        "<!doctype html><html lang=es><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>",
-        "<title>{name} está apagado</title><style>",
-        ":root{{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e5e5ea;--accent:#0b8147}}",
-        "@media (prefers-color-scheme:dark){{:root{{--bg:#111;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989d;--line:#2c2c2e;--accent:#19d79f}}}}",
-        "*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,'Inter',sans-serif}}",
-        ".card{{max-width:440px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:32px;box-shadow:0 20px 50px #0000001a}}",
-        ".state{{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted);padding:4px 10px;border:1px solid var(--line);border-radius:999px}}",
-        ".dot{{width:8px;height:8px;border-radius:50%;background:var(--muted)}}h1{{font-size:26px;line-height:1.2;margin:18px 0 6px}}",
-        "code{{font:14px ui-monospace,SFMono-Regular,monospace;color:var(--muted)}}p{{color:var(--muted);margin:16px 0 24px}}",
-        "a.button{{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;font-weight:600;padding:11px 18px;border-radius:12px}}",
-        "@media (prefers-color-scheme:dark){{a.button{{color:#0b2b20}}}}footer{{margin-top:24px;font-size:12px;color:var(--muted)}}",
-        "</style><main class=card><span class=state><span class=dot></span>Apagado</span><h1>{name}</h1><code>{domain}</code>",
-        "<p>Este sitio está registrado en Stack, pero no se está sirviendo. Enciéndelo desde la app o desde la barra de menús.</p>",
-        "<a class=button href='butakestack://site/{id}'>Abrir en Stack</a><footer>Stack, de Butake · desarrollo local</footer></main></html>"
-    ), name = name, domain = domain, id = id)
+    format!(
+        concat!(
+            "<!doctype html><html lang=es><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>",
+            "<title>{name} está apagado</title><style>",
+            ":root{{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e5e5ea;--accent:#0b8147}}",
+            "@media (prefers-color-scheme:dark){{:root{{--bg:#111;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989d;--line:#2c2c2e;--accent:#19d79f}}}}",
+            "*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,'Inter',sans-serif}}",
+            ".card{{max-width:440px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:32px;box-shadow:0 20px 50px #0000001a}}",
+            ".state{{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted);padding:4px 10px;border:1px solid var(--line);border-radius:999px}}",
+            ".dot{{width:8px;height:8px;border-radius:50%;background:var(--muted)}}h1{{font-size:26px;line-height:1.2;margin:18px 0 6px}}",
+            "code{{font:14px ui-monospace,SFMono-Regular,monospace;color:var(--muted)}}p{{color:var(--muted);margin:16px 0 24px}}",
+            "a.button{{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;font-weight:600;padding:11px 18px;border-radius:12px}}",
+            "@media (prefers-color-scheme:dark){{a.button{{color:#0b2b20}}}}footer{{margin-top:24px;font-size:12px;color:var(--muted)}}",
+            "</style><main class=card><span class=state><span class=dot></span>Apagado</span><h1>{name}</h1><code>{domain}</code>",
+            "<p>Este sitio está registrado en Stack, pero no se está sirviendo. Enciéndelo desde la app o desde la barra de menús.</p>",
+            "<a class=button href='butakestack://site/{id}'>Abrir en Stack</a><footer>Stack, de Butake · desarrollo local</footer></main></html>"
+        ),
+        name = name,
+        domain = domain,
+        id = id
+    )
 }
 
 /// Caddyfile for every PHP site. `skip_install_trust`: Caddy never touches the keychain itself;

@@ -1,5 +1,5 @@
 //! SKILL.md and the folder of a skill: reading without following links, the frontmatter, copies.
-use super::model::{fail, MAX_TEXT};
+use super::model::{MAX_TEXT, fail};
 use crate::core::fsutil;
 use anyhow::Result;
 use std::{

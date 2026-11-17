@@ -29,7 +29,13 @@ pub(super) fn place_aws(store: &Store, pkg: &Path, version: &str) -> Result<Valu
         for program in ["aws", "aws_completer"] {
             signature::verify_code(&payload.join(program), AWS_TEAM, false)?;
         }
-        devtools::log(store, "aws", &format!("firma del paquete y de sus programas (AWS, {AWS_TEAM}) y notarización de Apple verificadas"));
+        devtools::log(
+            store,
+            "aws",
+            &format!(
+                "firma del paquete y de sus programas (AWS, {AWS_TEAM}) y notarización de Apple verificadas"
+            ),
+        );
         progress::check()?;
         progress::fixed_step("install");
         let home = home()?;

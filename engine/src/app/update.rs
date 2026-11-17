@@ -97,7 +97,7 @@ fn verify_staged(staged: &Path) -> anyhow::Result<()> {
 
 #[cfg(target_os = "macos")]
 pub fn replace(mut args: impl Iterator<Item = std::ffi::OsString>) -> anyhow::Result<()> {
-    use anyhow::{ensure, Context};
+    use anyhow::{Context, ensure};
     use std::{
         fs,
         path::PathBuf,

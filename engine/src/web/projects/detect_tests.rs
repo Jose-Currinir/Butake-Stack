@@ -43,25 +43,29 @@ fn detects_laravel_without_leaking_secrets() {
         .map(|x| x.name.as_str())
         .collect();
     assert_eq!(on, vec!["reverb", "vite"]);
-    assert!(p
-        .processes
-        .iter()
-        .any(|x| x.name == "app-queue" && !x.autostart));
-    assert!(p
-        .processes
-        .iter()
-        .any(|x| x.name == "scheduler" && !x.autostart));
-    assert!(p
-        .processes
-        .iter()
-        .any(|x| x.name == "app-exports" && !x.autostart && x.args[0] == "artisan"));
-    assert!(p
-        .processes
-        .iter()
-        .find(|x| x.name == "reverb")
-        .unwrap()
-        .args
-        .contains(&"--port=8082".to_string()));
+    assert!(
+        p.processes
+            .iter()
+            .any(|x| x.name == "app-queue" && !x.autostart)
+    );
+    assert!(
+        p.processes
+            .iter()
+            .any(|x| x.name == "scheduler" && !x.autostart)
+    );
+    assert!(
+        p.processes
+            .iter()
+            .any(|x| x.name == "app-exports" && !x.autostart && x.args[0] == "artisan")
+    );
+    assert!(
+        p.processes
+            .iter()
+            .find(|x| x.name == "reverb")
+            .unwrap()
+            .args
+            .contains(&"--port=8082".to_string())
+    );
 }
 #[test]
 fn detects_plain_php() {
@@ -190,10 +194,12 @@ fn node_projects_get_a_server_process_and_port() {
     let bare = temp.path().join("bare");
     fs::create_dir_all(&bare).unwrap();
     fs::write(bare.join("package.json"), "{}").unwrap();
-    assert!(detect(&bare)
-        .unwrap()
-        .notes
-        .contains(&"node_no_script".to_string()));
+    assert!(
+        detect(&bare)
+            .unwrap()
+            .notes
+            .contains(&"node_no_script".to_string())
+    );
 }
 
 #[test]
@@ -279,10 +285,12 @@ fn detects_python_and_rust_servers_and_other_technologies() {
     );
     let a = detect(&api).unwrap().project;
     assert_eq!(a.kind, ProjectKind::Fastapi);
-    assert!(a.processes[0]
-        .args
-        .join(" ")
-        .contains("uvicorn app.main:app --host 127.0.0.1 --port {port}"));
+    assert!(
+        a.processes[0]
+            .args
+            .join(" ")
+            .contains("uvicorn app.main:app --host 127.0.0.1 --port {port}")
+    );
     let server = make(
         "servidor",
         &[(
