@@ -229,3 +229,20 @@ fn a_site_served_from_the_project_root_is_said() {
         assert_eq!(codes.contains(&"serves_project_root"), said, "{id}");
     }
 }
+
+/// A folder with braces cannot go into the Caddyfile: it is left out and said.
+#[test]
+fn a_folder_the_web_server_cannot_take_is_said() {
+    let (temp, store) = setup();
+    let folder = temp.path().join("Mi{App}");
+    fs::create_dir_all(folder.join("public")).unwrap();
+    store
+        .save(record(
+            &folder,
+            "llaves",
+            serde_json::json!({"kind": "php", "docroot": "public", "enabled": true}),
+        ))
+        .unwrap();
+    let codes: Vec<_> = items(&store, "llaves").iter().map(|i| i.code).collect();
+    assert!(codes.contains(&"unsafe_web_path"), "{codes:?}");
+}

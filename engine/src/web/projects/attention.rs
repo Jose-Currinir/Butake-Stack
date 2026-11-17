@@ -90,6 +90,12 @@ pub fn of(
         services(store, config, project, &mut out);
     }
     ports(projects, project, &mut out);
+    if project.enabled && !crate::web::services::web_server::serves_safely(project) {
+        out.push(Attention {
+            code: "unsafe_web_path",
+            ..Default::default()
+        });
+    }
     if crate::web::projects::detect::serves_repository(project) {
         out.push(Attention {
             code: "serves_repository",

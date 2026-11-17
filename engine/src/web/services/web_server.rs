@@ -67,6 +67,11 @@ fn quoted(value: &str) -> Result<String> {
 /// look-ahead, hence the second, negated, expression.
 const HIDDEN_FILES: &str = "\t@hidden {\n\t\tpath_regexp hidden (^|/)\\.\n\t\tnot path_regexp wellknown ^/\\.well-known/([^/.][^/]*/?)*$\n\t}\n\trespond @hidden 404\n";
 
+/// Whether the folder a site serves can go into the Caddyfile (`quoted` refuses `{ } \\ " \``).
+pub fn serves_safely(project: &Project) -> bool {
+    quoted(&project.path.join(&project.docroot).to_string_lossy()).is_ok()
+}
+
 enum Backend {
     Php(std::path::PathBuf),
     /// Port, and whether the Host header must be rewritten (Vite's allowed hosts).
@@ -145,6 +150,11 @@ pub fn caddyfile(
             _ => continue,
         };
         let root = project.path.join(&project.docroot);
+        // A folder Caddy cannot be told about safely is left out, not allowed to void the file of
+        // every other site; the project's page says why (`unsafe_web_path`).
+        if project.enabled && !serves_safely(project) && !matches!(backend, Backend::Proxy(..)) {
+            continue;
+        }
         let mut schemes = vec![("http", "fd/3")];
         if project.https {
             schemes.push(("https", "fd/4"));
@@ -318,6 +328,14 @@ mod tests {
         fs::create_dir_all(&evil).unwrap();
         project.path = evil;
         project.docroot = ".".into();
-        assert!(caddyfile(&store, &[project], &config, true).is_err());
+        // The site with that folder is left out; the others still get their file (R-59).
+        let mut healthy = project.clone();
+        healthy.path = site.clone();
+        healthy.id = "sano".into();
+        healthy.domains = vec!["sano.test".into()];
+        healthy.docroot = "public".into();
+        assert!(!serves_safely(&project) && serves_safely(&healthy));
+        let mixed = caddyfile(&store, &[project, healthy], &config, true).unwrap();
+        assert!(mixed.contains("sano.test") && !mixed.contains("demo.test"));
     }
 }
