@@ -43,8 +43,13 @@ struct NewProjectSheet: View {
 
     var kind: String { if case .kind(let id) = selection { id } else { "" } }
     var info: ProjectKindInfo { ProjectKindInfo.of(kind) }
-    var slug: String {
-        name.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" }.reduce(into: "") { $0.append($1) }
+    var slug: String { Self.slug(name) }
+    /// The folder and domain name a typed name becomes: as the engine accepts it (ASCII letters and
+    /// digits, dashes), so «Diseño web» is `diseno-web`, never `diseño-web`.
+    nonisolated static func slug(_ name: String) -> String {
+        let plain = name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX")).lowercased()
+        return plain.unicodeScalars.map { ($0.value >= 97 && $0.value <= 122) || ($0.value >= 48 && $0.value <= 57) ? Character($0) : "-" }
+            .reduce(into: "") { $0.append($1) }
             .split(separator: "-").joined(separator: "-")
     }
     var template: String { templates[kind] ?? ProjectKindInfo.templates[kind]?.first?.id ?? "" }
@@ -54,7 +59,7 @@ struct NewProjectSheet: View {
     /// Avanzado (in the place's subfolder unless sorting is off there).
     var parent: String { chosenParent ?? Folder.newProjects(in: place) }
     var target: String { (parent as NSString).appendingPathComponent(slug) }
-    var address: String { "\(info.proxied ? "https" : "http")://\(slug).test" }
+    var address: String { "\(info.proxied ? "https" : "http")://\(slug).\(store.config?.tld.first ?? "test")" }
 
     // MARK: Requirements and validation
 
@@ -109,7 +114,7 @@ struct NewProjectSheet: View {
     /// What's wrong with the name, if anything: checked as the user types.
     var nameProblem: String? {
         if slug.isEmpty { return nil }
-        if slug.count > 40 { return L("new.problem.long") }
+        if slug.utf8.count > 40 { return L("new.problem.long") }
         if FileManager.default.fileExists(atPath: target) { return L("new.problem.folder") }
         if store.projects.contains(where: { $0.id == slug }) { return L("new.problem.site") }
         return nil
