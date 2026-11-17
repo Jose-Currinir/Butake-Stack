@@ -47,7 +47,7 @@ struct SkillEditorPanel: View {
                 Spacer()
                 Button(L("skills.editor.discard")) { text = saved }
                     .disabled(!dirty).accessibilityIdentifier("skills.editor.discard")
-                Button { Task { if await tool.save(skill.id, text: text) { saved = text } } } label: {
+                Button { Task { await save() } } label: {
                     Label(L("common.save"), systemImage: Symbols.save)
                 }
                 .buttonStyle(.borderedProminent).keyboardShortcut("s", modifiers: .command)
@@ -72,6 +72,12 @@ struct SkillEditorPanel: View {
         .onChange(of: dirty) { tool.unsavedSkill = dirty ? skill.id : nil }
         .onChange(of: tool.outsideChoice) { applyChoice() }
         .onDisappear { tool.unsavedSkill = nil; tool.outsideText = nil; tool.outsideChoice = nil }
+    }
+
+    /// What was typed while the save ran is not what was sent: only the text sent counts as saved.
+    private func save() async {
+        let sent = text
+        if await tool.save(skill.id, text: sent) { saved = sent }
     }
 
     /// `SKILL.md` changed: take it when nothing was typed, ask when something was.
