@@ -34,6 +34,8 @@ import Foundation
         let remotes = value("BUTAKE_QA_GIT_HOSTING_REMOTES").map { URL(fileURLWithPath: $0) }
         guard let fake = try? GitHostingFakeServer(remotes: remotes, tokens: tokens) else { return nil }
         server = fake
+        // The debug engine gives the made-up tokens to the fake server on 127.0.0.1 only with this.
+        setenv("BUTAKE_STACK_TEST_LOOPBACK", "1", 1)
         let items = MemoryKeychainItems()
         let vault = GitHostingVault(items: items)
         for provider in (value("BUTAKE_QA_GIT_HOSTING_ACCOUNTS") ?? "").split(separator: ",").compactMap({ GitHostingProvider(rawValue: String($0)) }) {

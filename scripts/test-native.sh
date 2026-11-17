@@ -9,6 +9,9 @@ TEST_HOME="$(mktemp -d "${TMPDIR:-/tmp}/butake-stack-tests.XXXXXX")"
 trap 'rm -rf "$TEST_HOME"' EXIT
 export BUTAKE_STACK_HOME="$TEST_HOME/store"
 export BUTAKE_STACK_ENGINE="$PROJECT_ROOT/engine/target/debug/butake-stack"
+# The Git hosting tests run a fake GitHub and Bitbucket on 127.0.0.1: the debug engine hands the
+# made-up token to that loopback server only with this variable (a published engine never does).
+export BUTAKE_STACK_TEST_LOOPBACK=1
 cargo test --locked --manifest-path engine/Cargo.toml
 cargo build --locked --manifest-path engine/Cargo.toml
 /usr/bin/python3 -m unittest discover -s scripts/php/tests -p 'test_*.py'

@@ -44,9 +44,13 @@ fn invalid() -> super::runner::GitError {
 /// The only hosts that may receive an account's token: the providers the app connects.
 const PROVIDER_HOSTS: [&str; 2] = ["github.com", "bitbucket.org"];
 
-/// Set by the tests of the engine (a fake server on this Mac): plain HTTP to 127.0.0.1 is then
-/// accepted. Production never sets it.
+/// Set by the tests and the QA window (a fake server on this Mac): plain HTTP to 127.0.0.1 is then
+/// accepted. Only a debug build reads it: a published engine ignores it whatever its environment.
 const LOOPBACK_FOR_TESTS: &str = "BUTAKE_STACK_TEST_LOOPBACK";
+
+fn loopback_for_tests() -> bool {
+    cfg!(debug_assertions) && std::env::var_os(LOOPBACK_FOR_TESTS).is_some_and(|v| v == "1")
+}
 
 /// `https://github.com` or `https://bitbucket.org` (the default port may be spelled out), and, only
 /// with [`LOOPBACK_FOR_TESTS`], `http://127.0.0.1[:port]`: nothing else may receive a token,
@@ -65,15 +69,18 @@ fn valid_origin(origin: &str) -> bool {
     };
     let port_ok = port.is_none_or(|p| p.parse::<u16>().is_ok_and(|n| n > 0));
     if loopback {
-        return std::env::var_os(LOOPBACK_FOR_TESTS).is_some_and(|v| v == "1")
-            && host == "127.0.0.1"
-            && port_ok;
+        return loopback_for_tests() && host == "127.0.0.1" && port_ok;
     }
     let host = host.to_ascii_lowercase();
-    validate::host(&host)
-        && PROVIDER_HOSTS.contains(&host.as_str())
-        && port.is_none_or(|p| p == "443")
+    let provider = PROVIDER_HOSTS.contains(&host.as_str())
+        || (loopback_for_tests() && TEST_PROVIDER_HOSTS.contains(&host.as_str()));
+    validate::host(&host) && provider && port.is_none_or(|p| p == "443")
 }
+
+/// The made-up web hosts of the fake server (`GitHostingEndpoints.loopback` in the app). `.invalid`
+/// never resolves, so a token sent there cannot leave this Mac; still, only with
+/// [`LOOPBACK_FOR_TESTS`] in a debug build.
+const TEST_PROVIDER_HOSTS: [&str; 2] = ["github.fake.invalid", "bitbucket.fake.invalid"];
 
 /// `scheme://host` as compared with the origin: lower case and without the default HTTPS port
 /// (`https://github.com:443` is `https://github.com`).
@@ -326,7 +333,7 @@ pub fn attach(command: &mut tokio::process::Command, args: &[&str]) -> Result<Op
 
 #[cfg(test)]
 mod tests {
-    use super::{same_origin, valid_origin};
+    use super::{loopback_for_tests, same_origin, valid_origin};
 
     #[test]
     fn only_the_providers_may_receive_a_token() {
@@ -348,10 +355,12 @@ mod tests {
             assert!(!valid_origin(origin), "{origin}");
         }
         // Plain loopback HTTP is for the tests of the engine only (they set the variable).
+        assert_eq!(valid_origin("http://127.0.0.1:4000"), loopback_for_tests());
         assert_eq!(
-            valid_origin("http://127.0.0.1:4000"),
-            std::env::var_os("BUTAKE_STACK_TEST_LOOPBACK").is_some_and(|v| v == "1")
+            valid_origin("https://github.fake.invalid"),
+            loopback_for_tests()
         );
+        assert!(!valid_origin("https://evil.fake.invalid"));
     }
 
     #[test]

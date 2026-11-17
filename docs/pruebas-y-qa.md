@@ -57,6 +57,13 @@ BUTAKE_STACK_HOME="$(mktemp -d)/store" \
 BUTAKE_STACK_ENGINE="$PWD/engine/target/debug/butake-stack" \
   xcrun swift test --disable-sandbox --package-path native --filter VaultImportLinkTests
 
+# Pruebas de cuentas de GitHub y Bitbucket (servidor falso en 127.0.0.1): el motor de
+# depuración solo le entrega la ficha inventada con BUTAKE_STACK_TEST_LOOPBACK=1 (el motor
+# publicado la ignora). scripts/test-native.sh y la ventana de QA la ponen solos.
+BUTAKE_STACK_TEST_LOOPBACK=1 BUTAKE_STACK_HOME="$(mktemp -d)/store" \
+BUTAKE_STACK_ENGINE="$PWD/engine/target/debug/butake-stack" \
+  xcrun swift test --disable-sandbox --package-path native --filter GitHostingFlowTests
+
 # Candado con cada hallazgo
 LINT_UI_VERBOSE=1 ./scripts/lint-ui.sh
 ```
