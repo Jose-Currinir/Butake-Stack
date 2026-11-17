@@ -111,12 +111,19 @@ import Foundation
         searchTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            await self?.runSearch()
+            await self?.performSearch()
         }
     }
 
-    /// Asks Git for the search on screen.
+    /// Asks Git for the search on screen now. A search still waiting for the typing pause is dropped: it would ask
+    /// the same thing again and, finishing later, make this answer stale.
     func runSearch() async {
+        searchTask?.cancel()
+        searchTask = nil
+        await performSearch()
+    }
+
+    private func performSearch() async {
         let text = search.trimmingCharacters(in: .whitespacesAndNewlines)
         searchNote = nil
         guard !text.isEmpty else { results = nil; matches = nil; readFailure = nil; return }
