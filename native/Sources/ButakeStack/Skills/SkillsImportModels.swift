@@ -51,12 +51,20 @@ struct ImportResult: Decodable, Sendable {
 }
 
 /// An entry of the import trash (`skillsImportTrashList`).
+/// Two imports of the same skill are two entries, so the identity is the trash folder, not the skill.
 struct ImportTrashEntry: Decodable, Identifiable, Hashable, Sendable {
     let trashId: String
-    let id: String
+    /// The imported skill's id (`id` in the engine's answer).
+    let skill: String
     let created: Int
     let path: String
     let sources: [ImportSource]
+
+    var id: String { trashId }
+
+    private enum CodingKeys: String, CodingKey {
+        case trashId, skill = "id", created, path, sources
+    }
 
     var createdDate: Date { Date(timeIntervalSince1970: TimeInterval(created)) }
 }

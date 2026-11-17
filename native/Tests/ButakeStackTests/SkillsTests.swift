@@ -233,3 +233,15 @@ private let listJSON = """
     #expect(state.skills[0].showsFiles)
     #expect(!state.skills[1].showsFiles)
 }
+
+/// Two imports of the same skill are two entries: each has its own identity (the trash folder).
+@Test func importTrashEntriesOfTheSameSkillHaveDifferentIdentity() throws {
+    let list = try JSONDecoder().decode([ImportTrashEntry].self, from: Data(
+        #"""
+        [{"trashId": "import-notas-1760000000", "id": "notas", "created": 1760000000, "path": "/qa/skills-trash/import-notas-1760000000", "sources": []},
+         {"trashId": "import-notas-1760000500", "id": "notas", "created": 1760000500, "path": "/qa/skills-trash/import-notas-1760000500", "sources": []}]
+        """#.utf8))
+    #expect(Set(list.map(\.id)).count == 2)
+    #expect(list.map(\.id) == list.map(\.trashId))
+    #expect(list.map(\.skill) == ["notas", "notas"])
+}

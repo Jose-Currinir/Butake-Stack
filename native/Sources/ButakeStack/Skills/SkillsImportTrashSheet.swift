@@ -45,9 +45,9 @@ struct ImportTrashSheet: View {
                                 }
                             }
                             Button(L("skills.sheet.import.trash.undo")) { confirmation = .undo(entry) }
-                                .accessibilityIdentifier("skills.sheet.import.trash.undo.\(entry.id)")
+                                .accessibilityIdentifier("skills.sheet.import.trash.undo.\(entry.trashId)")
                         } header: {
-                            Text("\(entry.id) · \(entry.createdDate.formatted(date: .abbreviated, time: .shortened))")
+                            Text("\(entry.skill) · \(entry.createdDate.formatted(date: .abbreviated, time: .shortened))")
                         }
                     }
                 }
