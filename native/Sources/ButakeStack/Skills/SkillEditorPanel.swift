@@ -21,9 +21,6 @@ struct SkillEditorPanel: View {
     @State private var text = ""
     @State private var saved = ""
     @State private var loaded = false
-    /// What `SKILL.md` says now, when it changed outside Stack while there is unsaved text.
-    @State private var outside: String?
-
     /// The most the engine accepts for one `SKILL.md`.
     static let limit = 256 * 1024
 
@@ -32,15 +29,6 @@ struct SkillEditorPanel: View {
 
     var body: some View {
         Section {
-            if outside != nil {
-                Notice(.warning, L("skills.editor.outside.title"), detail: L("skills.editor.outside.detail")) {
-                    Button(L("skills.editor.outside.reload")) { reload() }
-                        .buttonStyle(.bordered).accessibilityIdentifier("skills.editor.outside.reload")
-                    Button(L("skills.editor.outside.keep")) { keep() }
-                        .buttonStyle(.bordered).accessibilityIdentifier("skills.editor.outside.keep")
-                }
-                .accessibilityIdentifier("skills.editor.outside")
-            }
             TextEditor(text: $text)
                 .font(.uiMonospaced)
                 .frame(minHeight: 280)
@@ -71,7 +59,7 @@ struct SkillEditorPanel: View {
             SettingsFooter(L("skills.editor.footer"))
         }
         .task(id: skill.id) {
-            outside = nil
+            tool.outsideText = nil
             let read = await tool.read(skill.id)
             text = read ?? ""
             saved = text
@@ -82,30 +70,30 @@ struct SkillEditorPanel: View {
         }
         .onChange(of: skill.modified) { Task { await syncWithDisk() } }
         .onChange(of: dirty) { tool.unsavedSkill = dirty ? skill.id : nil }
-        .onDisappear { tool.unsavedSkill = nil }
+        .onChange(of: tool.outsideChoice) { applyChoice() }
+        .onDisappear { tool.unsavedSkill = nil; tool.outsideText = nil; tool.outsideChoice = nil }
     }
 
     /// `SKILL.md` changed: take it when nothing was typed, ask when something was.
     private func syncWithDisk() async {
         guard loaded, let disk = await tool.read(skill.id) else { return }
         switch SkillEditorSync.resolve(disk: disk, saved: saved, text: text) {
-        case .none: outside = nil
-        case .markSaved: saved = text; outside = nil
-        case .reload: text = disk; saved = disk; outside = nil
-        case .conflict: outside = disk
+        case .none: tool.outsideText = nil
+        case .markSaved: saved = text; tool.outsideText = nil
+        case .reload: text = disk; saved = disk; tool.outsideText = nil
+        case .conflict: tool.outsideText = disk
         }
     }
 
-    private func reload() {
-        guard let outside else { return }
-        text = outside
+    /// The answer to the notice at the top of the page. «Recargar» takes the disk version; «Conservar
+    /// lo escrito» keeps the text: from now on it is compared with the outside version, so saving
+    /// replaces it knowingly.
+    private func applyChoice() {
+        guard let choice = tool.outsideChoice else { return }
+        tool.outsideChoice = nil
+        guard let outside = tool.outsideText else { return }
+        if choice == .reload { text = outside }
         saved = outside
-        self.outside = nil
-    }
-
-    /// Keeps what was typed: from now on it is compared with the outside version, so saving replaces it knowingly.
-    private func keep() {
-        if let outside { saved = outside }
-        outside = nil
+        tool.outsideText = nil
     }
 }

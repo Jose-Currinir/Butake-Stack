@@ -10,7 +10,7 @@ struct SkillPage: View {
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .safeAreaInset(edge: .top, spacing: 0) { VStack(spacing: 0) { deletedNotice; renameConflictsNotice } }
+            .safeAreaInset(edge: .top, spacing: 0) { VStack(spacing: 0) { outsideNotice; deletedNotice; renameConflictsNotice } }
             .toolbar { toolbar }
             .skillsSheets(tool)
             .task {
@@ -48,6 +48,20 @@ struct SkillPage: View {
             }
         } else {
             ContentUnavailableView(L("skills.noSelection"), systemImage: Symbols.skill, description: Text(L("skills.noSelectionDetail")))
+        }
+    }
+
+    /// `SKILL.md` of the open skill changed outside Stack while its editor has unsaved text.
+    @ViewBuilder private var outsideNotice: some View {
+        if tool.outsideText != nil {
+            Notice(.warning, L("skills.editor.outside.title"), detail: L("skills.editor.outside.detail")) {
+                Button(L("skills.editor.outside.reload")) { tool.outsideChoice = .reload }
+                    .buttonStyle(.bordered).accessibilityIdentifier("skills.editor.outside.reload")
+                Button(L("skills.editor.outside.keep")) { tool.outsideChoice = .keep }
+                    .buttonStyle(.bordered).accessibilityIdentifier("skills.editor.outside.keep")
+            }
+            .padding(12)
+            .accessibilityIdentifier("skills.editor.outside")
         }
     }
 

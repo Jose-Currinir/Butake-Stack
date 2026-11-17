@@ -51,6 +51,12 @@ enum SkillFilterChange: Sendable {
     var selection: String?
     /// The skill whose editor holds text that was not saved (set by the editor).
     var unsavedSkill: String?
+    /// What `SKILL.md` of the open skill says now when it changed outside Stack while there is unsaved
+    /// text (set by the editor; the page shows the notice at its top).
+    var outsideText: String?
+    /// The answer the user gave to that notice; the editor applies it and clears it.
+    var outsideChoice: OutsideChoice?
+    enum OutsideChoice: Equatable { case reload, keep }
     /// The selection the user asked for while `unsavedSkill` holds text: it waits for an answer.
     /// `.some(nil)` is «no skill» (the list was cleared).
     var pendingSelection: String??
