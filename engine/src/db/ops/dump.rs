@@ -267,3 +267,111 @@ fn broken_views(target: &Target, databases: &[String]) -> Result<Vec<String>> {
     }
     Ok(broken)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    fn connection(kind: &str) -> client::Connection {
+        client::Connection {
+            id: "remota".into(),
+            name: "Remota".into(),
+            kind: kind.into(),
+            host: "db.example.com".into(),
+            port: 5432,
+            user: "app".into(),
+            database: "app".into(),
+            path: None,
+            tls: "prefer".into(),
+            ssh: None,
+            builtin: false,
+            has_password: true,
+            stack_password: false,
+            production: false,
+            read_only: false,
+        }
+    }
+
+    /// A target whose `pg_dump` is a local double that prints a dump (or fails with `code`).
+    fn fake(code: i32) -> (tempfile::TempDir, Target) {
+        let temp = tempfile::tempdir().unwrap();
+        let bin = temp.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let program = bin.join("pg_dump");
+        std::fs::write(
+            &program,
+            format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}/args'\necho 'CREATE TABLE t (id int);'\necho 'ERROR: boom' >&2\nexit {code}\n",
+                temp.path().display()
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let run = temp.path().join("run");
+        std::fs::create_dir_all(&run).unwrap();
+        let target = Target::for_tests(connection("postgres"), bin, run);
+        (temp, target)
+    }
+
+    fn request(path: &Path, compress: bool) -> Value {
+        json!({"databases": ["app"], "path": path, "compress": compress})
+    }
+
+    #[test]
+    fn a_dump_is_written_whole_and_the_password_is_not_an_argument() {
+        let (temp, target) = fake(0);
+        let store = Store::new(temp.path().join("store")).unwrap();
+        for compress in [false, true] {
+            let out = temp
+                .path()
+                .join(if compress { "a.sql.gz" } else { "a.sql" });
+            dump(&store, &target, &request(&out, compress)).unwrap();
+            let bytes = if compress {
+                let plain = Command::new("/usr/bin/gzip")
+                    .arg("-dc")
+                    .arg(&out)
+                    .output()
+                    .unwrap();
+                assert!(plain.status.success());
+                plain.stdout
+            } else {
+                std::fs::read(&out).unwrap()
+            };
+            assert!(String::from_utf8_lossy(&bytes).contains("CREATE TABLE t"));
+        }
+        let args = std::fs::read_to_string(temp.path().join("args")).unwrap();
+        assert!(!args.contains("centinela-clave"));
+    }
+
+    #[test]
+    fn a_failed_dump_leaves_no_file_at_the_destination() {
+        let (temp, target) = fake(1);
+        let store = Store::new(temp.path().join("store")).unwrap();
+        let out = temp.path().join("b.sql");
+        assert!(dump(&store, &target, &request(&out, false)).is_err());
+        let names: Vec<String> = std::fs::read_dir(temp.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert!(!names.iter().any(|n| n.starts_with("b.sql")), "{names:?}");
+    }
+
+    #[test]
+    fn the_mysql_options_file_is_private_holds_the_password_and_goes_away() {
+        let temp = tempfile::tempdir().unwrap();
+        let run = temp.path().join("run");
+        std::fs::create_dir_all(&run).unwrap();
+        let target = Target::for_tests(connection("mysql"), temp.path().into(), run.clone());
+        let secret = target.mysql_options().unwrap();
+        let files: Vec<_> = std::fs::read_dir(&run).unwrap().flatten().collect();
+        assert_eq!(files.len(), 1);
+        let meta = files[0].metadata().unwrap();
+        assert_eq!(meta.permissions().mode() & 0o777, 0o600);
+        let text = std::fs::read_to_string(files[0].path()).unwrap();
+        assert!(text.contains("centinela-clave-9f3"));
+        drop(secret);
+        assert_eq!(std::fs::read_dir(&run).unwrap().count(), 0);
+    }
+}
