@@ -463,3 +463,38 @@ fn the_deleted_skills_list_has_only_deleted_skills_and_never_their_text() {
     assert_eq!(after.as_array().unwrap().len(), 2);
     assert!(!after.to_string().contains(&format!("\"{b}\"")));
 }
+
+#[test]
+fn a_damaged_entry_in_the_deleted_skills_trash_is_skipped_and_the_rest_is_listed() {
+    let env = env();
+    for id in ["a", "b", "c"] {
+        env.create(id);
+    }
+    let a = env.ok("skillsDelete", json!({"id": "a", "confirmed": true}))["trashId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let b = env.ok("skillsDelete", json!({"id": "b", "confirmed": true}))["trashId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let c = env.ok("skillsDelete", json!({"id": "c", "confirmed": true}))["trashId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    fs::write(trash_dir(&env).join(&c).join("entry.json"), "{ no es json").unwrap();
+
+    let list = env.ok("skillsTrashList", json!({}));
+    let mut ids: Vec<&str> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["trashId"].as_str().unwrap())
+        .collect();
+    ids.sort_unstable();
+    let mut expected = vec![a.as_str(), b.as_str()];
+    expected.sort_unstable();
+    assert_eq!(ids, expected, "{list}");
+    // The damaged folder is left alone for the purge, not deleted by listing.
+    assert!(trash_dir(&env).join(&c).join("entry.json").exists());
+}
