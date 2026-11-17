@@ -110,3 +110,49 @@ fn an_unreadable_index_is_set_aside_and_deleting_the_data_still_removes_the_link
     assert!(own.symlink_metadata().is_err());
     assert!(!crate::skills::has_data(&store));
 }
+
+/// When the index cannot be saved, delete and rename leave the disk, the links and the entry as
+/// they were (a save that fails must not lose the group, the tags or the folder).
+#[test]
+fn a_failed_index_save_undoes_delete_and_rename() {
+    use crate::skills::{index, model::Ctx};
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let home = root.join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let store = Store::new(root.join("store")).unwrap();
+    let call = |method: &str, request: Value| {
+        super::super::dispatch_in(&store, &home, method, &request).unwrap()
+    };
+    call(
+        "skillsCreate",
+        json!({"id": "a", "group": "trabajo", "template": "blank", "name": "a", "description": "d"}),
+    );
+    call(
+        "skillsLinkApply",
+        json!({"changes": [{"skill": "a", "agent": "claude", "on": true}], "confirmed": true}),
+    );
+    let ctx = Ctx::new(&store, &home).unwrap();
+    let mut loaded = index::load(&ctx).unwrap();
+    // A non-empty folder where `index.json` goes: the atomic rename over it fails.
+    let file = store.root().join("skills/index.json");
+    std::fs::remove_file(&file).unwrap();
+    std::fs::create_dir_all(file.join("x")).unwrap();
+    let link = home.join(".claude/skills/a");
+    assert!(link.symlink_metadata().unwrap().file_type().is_symlink());
+
+    assert!(super::super::delete(&ctx, &mut loaded, "a").is_err());
+    assert!(loaded.skills.contains_key("a") && loaded.skills["a"].group == "trabajo");
+    assert!(store.root().join("skills/a/SKILL.md").is_file());
+    assert!(link.symlink_metadata().unwrap().file_type().is_symlink());
+
+    assert!(super::super::rename(&ctx, &mut loaded, "a", "b").is_err());
+    assert!(loaded.skills.contains_key("a") && !loaded.skills.contains_key("b"));
+    assert!(store.root().join("skills/a/SKILL.md").is_file());
+    assert!(!store.root().join("skills/b").exists());
+    assert!(link.symlink_metadata().unwrap().file_type().is_symlink());
+    assert_eq!(
+        std::fs::read_link(&link).unwrap(),
+        store.root().join("skills/a")
+    );
+}
