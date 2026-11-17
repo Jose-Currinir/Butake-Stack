@@ -4400,6 +4400,7 @@
 "migration.place.aws" = "Perfil de AWS";
 "migration.place.links" = "Enlace de terminal";
 "migration.place.project" = "Entorno de Python";
+"migration.place.skills" = "Enlace de una skill";
 "migration.state.done" = "Los datos ya están en la carpeta Stack.";
 "migration.state.nothing" = "No hay datos que mover.";
 "migration.state.resume" = "Un movimiento anterior quedó a medias: se puede terminar ahora.";
