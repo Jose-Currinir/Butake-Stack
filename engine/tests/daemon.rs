@@ -12,6 +12,7 @@ use std::{
 struct Daemon(Child);
 impl Drop for Daemon {
     fn drop(&mut self) {
+        // SAFETY: `kill` takes two integers and touches no memory; the pid is our own child's.
         unsafe {
             libc::kill(self.0.id() as i32, libc::SIGTERM);
         }
@@ -57,6 +58,7 @@ fn status(socket: &Path, id: &str) -> Value {
         .clone()
 }
 fn alive(pid: u32) -> bool {
+    // SAFETY: signal 0 sends nothing; `kill` only reports whether the process exists.
     unsafe { libc::kill(pid as i32, 0) == 0 }
 }
 
@@ -249,6 +251,8 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     assert!(!alive(original));
     let restarted = status(&socket, "demo.sleep")["pid"].as_u64().unwrap() as u32;
     assert_ne!(original, restarted);
+    // SAFETY: `kill` takes two integers and touches no memory; the pid is the one the daemon
+    // reported for its own child process.
     unsafe {
         libc::kill(restarted as i32, libc::SIGKILL);
     }
@@ -358,6 +362,7 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
         .find_map(|line| line.as_str()?.strip_prefix("child:")?.parse().ok())
         .unwrap();
     // SIGTERM verifies signal handling and cleanup in reverse start order.
+    // SAFETY: `kill` takes two integers and touches no memory; the pid is our own child's.
     unsafe {
         libc::kill(daemon.0.id() as i32, libc::SIGTERM);
     }

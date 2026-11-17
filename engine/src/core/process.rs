@@ -285,6 +285,7 @@ mod tests {
 
     fn alive(pid: i32) -> bool {
         // A process that ended and was not reaped yet (a zombie) has no start time.
+        // SAFETY: `kill` with signal 0 sends nothing; it only reports whether `pid` exists.
         watch::started(pid).is_some() && unsafe { libc::kill(pid, 0) } == 0
     }
 

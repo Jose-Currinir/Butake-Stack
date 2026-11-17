@@ -43,6 +43,7 @@ pub struct Live {
 }
 
 fn domain() -> String {
+    // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
     format!("gui/{}", unsafe { libc::geteuid() })
 }
 
@@ -88,7 +89,10 @@ pub fn daemon_holds(root: &Path) -> bool {
     else {
         return false;
     };
+    // SAFETY: `flock` takes a descriptor and flags and touches no memory; the descriptor belongs
+    // to `lock`, which is open until the end of this function.
     let free = unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0;
+    // SAFETY: same descriptor as above, still open.
     free.then(|| unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_UN) });
     !free
 }

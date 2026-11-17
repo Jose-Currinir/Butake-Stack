@@ -62,8 +62,11 @@ pub fn size(root: &Path) -> Result<(u64, u64)> {
 /// Free bytes for the user on the volume of `path`.
 pub fn free_space(path: &Path) -> Result<u64> {
     let text = CString::new(path.as_os_str().as_bytes())?;
+    // SAFETY: `statvfs` is a plain C struct of integers, for which all-zero bytes are valid.
     let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
     ensure!(
+        // SAFETY: `text` is a NUL-terminated `CString` alive for the call and `stat` is a live,
+        // writable `statvfs`; the call only reads the path and fills the struct.
         unsafe { libc::statvfs(text.as_ptr(), &mut stat) } == 0,
         std::io::Error::last_os_error()
     );
@@ -84,6 +87,8 @@ fn clone(from: &Path, to: &Path) -> bool {
     ) else {
         return false;
     };
+    // SAFETY: `from` and `to` are NUL-terminated `CString`s alive for the call; `clonefile` only
+    // reads the two paths.
     unsafe { libc::clonefile(from.as_ptr(), to.as_ptr(), CLONE_NOFOLLOW) == 0 }
 }
 

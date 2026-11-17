@@ -276,6 +276,8 @@ pub async fn run() -> Result<()> {
         .custom_flags(libc::O_NOFOLLOW)
         .open(run.join("daemon.lock"))?;
     ensure!(
+        // SAFETY: `flock` takes a descriptor and flags and touches no memory; the descriptor
+        // belongs to `lock`, which is open for the whole call (and stays open until `run` returns).
         unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
         "daemon_already_running"
     );
@@ -355,13 +357,17 @@ fn same_user(stream: &UnixStream) -> Result<bool> {
         let mut uid = 0;
         let mut gid = 0;
         ensure!(
+            // SAFETY: the descriptor belongs to `stream`, open for the call, and `uid` and `gid` are
+            // live local integers that `getpeereid` writes once each.
             unsafe { libc::getpeereid(stream.as_raw_fd(), &mut uid, &mut gid) } == 0,
             "peer_unavailable"
         );
+        // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
         Ok(uid == unsafe { libc::geteuid() })
     }
     #[cfg(not(target_os = "macos"))]
     {
+        // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
         Ok(stream.peer_cred()?.uid() == unsafe { libc::geteuid() })
     }
 }

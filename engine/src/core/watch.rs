@@ -28,6 +28,8 @@ extern "C" fn on_stop(_: libc::c_int) {
 /// and the parent it has now is the one [`stop_requested`] compares against.
 pub fn listen() -> libc::pid_t {
     for signal in [libc::SIGTERM, libc::SIGINT, libc::SIGHUP] {
+        // SAFETY: `on_stop` is an `extern "C"` function that only stores to an atomic, which is
+        // async-signal-safe, and `signal` is one of the catchable signals above.
         unsafe {
             libc::signal(
                 signal,
@@ -35,6 +37,7 @@ pub fn listen() -> libc::pid_t {
             )
         };
     }
+    // SAFETY: `getppid` takes no arguments, cannot fail and touches no memory.
     unsafe { libc::getppid() }
 }
 
@@ -46,14 +49,19 @@ pub fn clear_stop() {
 
 /// The app asked to stop (a signal) or is gone (the engine has another parent now).
 pub fn stop_requested(parent: libc::pid_t) -> bool {
+    // SAFETY: `getppid` takes no arguments, cannot fail and touches no memory.
     STOP.load(Ordering::SeqCst) || unsafe { libc::getppid() } != parent
 }
 
 /// When a process started, in microseconds since 1970 (`None` when it does not exist).
 #[cfg(target_os = "macos")]
 pub fn started(pid: i32) -> Option<u64> {
+    // SAFETY: `proc_bsdinfo` is a plain C struct of integers and byte arrays, for which all-zero
+    // bytes are a valid value.
     let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
     let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+    // SAFETY: the pointer is to `info`, which is alive and writable for `size` bytes, the exact
+    // size passed; `proc_pidinfo` writes at most that many bytes and keeps no pointer.
     let read = unsafe {
         libc::proc_pidinfo(
             pid,
@@ -77,6 +85,8 @@ pub fn started(_pid: i32) -> Option<u64> {
 fn members(group: i32) -> Vec<(i32, u64)> {
     const PROC_PGRP_ONLY: u32 = 2;
     let mut pids = vec![0i32; 512];
+    // SAFETY: the pointer is to `pids`, which is alive and writable for the byte length passed
+    // (`len * 4`); `proc_listpids` writes at most that many bytes and keeps no pointer.
     let bytes = unsafe {
         libc::proc_listpids(
             PROC_PGRP_ONLY,
@@ -100,7 +110,10 @@ fn members(_group: i32) -> Vec<(i32, u64)> {
 
 /// Whether any process of the group is still alive.
 pub fn group_alive(group: i32) -> bool {
-    unsafe { libc::kill(-group, 0) == 0 }
+    // Group 0 or 1 would not mean a group: `kill(0, …)` is our own and `kill(-1, …)` is everyone's.
+    // SAFETY: `kill` takes two integers and touches no memory; with signal 0 it sends nothing, it
+    // only reports whether the group has a process we could signal.
+    group > 1 && unsafe { libc::kill(-group, 0) == 0 }
 }
 
 /// Ends a process group: SIGTERM, a moment to leave, then SIGKILL. Returns once the group is
@@ -109,12 +122,15 @@ pub fn end_group(group: i32) {
     if group <= 1 {
         return;
     }
+    // SAFETY: `kill` takes two integers and touches no memory; `group` is above 1 (checked above),
+    // so it names a single process group and never ours or everyone's.
     unsafe { libc::kill(-group, libc::SIGTERM) };
     let deadline = Instant::now() + Duration::from_millis(800);
     while group_alive(group) && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(20));
     }
     if group_alive(group) {
+        // SAFETY: same as the SIGTERM above: `group` is above 1.
         unsafe { libc::kill(-group, libc::SIGKILL) };
     }
 }
@@ -174,6 +190,8 @@ pub fn reap(folder: &Path) {
         if record.group > 1 && record.group_started != 0 {
             for (pid, start) in members(record.group) {
                 if start >= record.group_started {
+                    // SAFETY: `kill` takes two integers and touches no memory; `pid` comes from
+                    // `members`, which only returns pids above 0, so it names one process.
                     unsafe { libc::kill(pid, libc::SIGKILL) };
                 }
             }
