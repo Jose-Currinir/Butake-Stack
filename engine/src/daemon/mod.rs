@@ -315,7 +315,9 @@ pub async fn run() -> Result<()> {
     crate::daemon::supervisor::reap_orphans().await;
     let mut supervisor = Supervisor::new(store.directory("logs")?);
     let started = async {
-        supervisor.reload(specs(&store, listeners.fds())?).await?;
+        supervisor
+            .reload(blocking_specs(listeners.fds()).await?)
+            .await?;
         sync_extras(&store, &supervisor.events).await;
         Ok::<(), anyhow::Error>(())
     }
@@ -503,6 +505,12 @@ async fn serve(
     }
     Ok(())
 }
+/// `specs` reads every project and may wait minutes (the first start of a database initializes
+/// its data folder), so it runs on a thread meant for blocking work and not on one of the
+/// runtime's, which also serves signals, events and the other requests.
+async fn blocking_specs(fds: WebFds) -> Result<Vec<ProcessSpec>> {
+    tokio::task::spawn_blocking(move || specs(&Store::from_environment()?, fds)).await?
+}
 async fn request_read(request: &Value, supervisor: &SupervisorReader) -> Result<Value> {
     let key = request["params"]["id"].as_str().unwrap_or("");
     match request["method"].as_str().unwrap_or("") {
@@ -562,9 +570,8 @@ async fn request_action(request: &Value, supervisor: &mut Supervisor) -> Result<
                     .map_err(|_| anyhow::anyhow!("lock"))?
                     .remove(key);
             }
-            supervisor
-                .reload(specs(&store, *WEB_FDS.get().unwrap_or(&WebFds::default()))?)
-                .await?;
+            let fds = *WEB_FDS.get().unwrap_or(&WebFds::default());
+            supervisor.reload(blocking_specs(fds).await?).await?;
             Ok(json!(true))
         }
         // A fixed address (P-35): only an existing site that is on and has one can be shared.
@@ -580,17 +587,14 @@ async fn request_action(request: &Value, supervisor: &mut Supervisor) -> Result<
                 );
             }
             public::set_shared(key, on);
-            supervisor
-                .reload(specs(&store, *WEB_FDS.get().unwrap_or(&WebFds::default()))?)
-                .await?;
+            let fds = *WEB_FDS.get().unwrap_or(&WebFds::default());
+            supervisor.reload(blocking_specs(fds).await?).await?;
             Ok(json!(true))
         }
         "cloudflareLogin" => {
-            let store = Store::from_environment()?;
             public::set_login(request["params"]["on"] == true);
-            supervisor
-                .reload(specs(&store, *WEB_FDS.get().unwrap_or(&WebFds::default()))?)
-                .await?;
+            let fds = *WEB_FDS.get().unwrap_or(&WebFds::default());
+            supervisor.reload(blocking_specs(fds).await?).await?;
             Ok(json!(true))
         }
         "start" => {
@@ -618,9 +622,8 @@ async fn request_action(request: &Value, supervisor: &mut Supervisor) -> Result<
                 shares.retain(|id| enabled.contains(id));
             }
             public::retain(&enabled);
-            supervisor
-                .reload(specs(&store, *WEB_FDS.get().unwrap_or(&WebFds::default()))?)
-                .await?;
+            let fds = *WEB_FDS.get().unwrap_or(&WebFds::default());
+            supervisor.reload(blocking_specs(fds).await?).await?;
             sync_extras(&store, &supervisor.events).await;
             Ok(json!(true))
         }
