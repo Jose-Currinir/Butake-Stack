@@ -79,6 +79,10 @@ pub fn run(mut command: Command, passphrase: &str, answers: usize) -> Result<Out
             && !passphrase.contains(['\n', '\r', '\0']),
         "ssh_key_passphrase"
     );
+    // Everything that can fail without touching the disk comes first: after the folder and the
+    // socket exist, a failing step would leave them (and a server thread) behind.
+    let token = random_hex(24)?;
+    let exe = std::env::current_exe()?;
     // Unix socket paths are short (104 bytes): the per-user temporary folder, never the store.
     let dir = std::env::temp_dir().join(format!("bsa-{}", random_hex(8)?));
     std::fs::DirBuilder::new().mode(0o700).create(&dir)?;
@@ -94,8 +98,10 @@ pub fn run(mut command: Command, passphrase: &str, answers: usize) -> Result<Out
             return Err(error.into());
         }
     };
-    listener.set_nonblocking(true)?;
-    let token = random_hex(24)?;
+    if let Err(error) = listener.set_nonblocking(true) {
+        cleanup(&dir);
+        return Err(error.into());
+    }
     let done = Arc::new(AtomicBool::new(false));
     let server = {
         let done = done.clone();
@@ -136,7 +142,6 @@ pub fn run(mut command: Command, passphrase: &str, answers: usize) -> Result<Out
             }
         })
     };
-    let exe = std::env::current_exe()?;
     command.env_clear();
     if let Some(home) = Store::home() {
         command.env("HOME", home);
