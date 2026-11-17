@@ -8,6 +8,11 @@ use super::*;
 pub fn install(store: &Store, tool: &str, version: &str, replace: bool) -> Result<ToolManifest> {
     validate_tool(tool)?;
     validate_version(version)?;
+    // A JDK release is `<major>.<minor>.<patch>[.<build>]`: the download names need all three.
+    ensure!(
+        tool != "jdk" || version.split('.').count() >= 3,
+        "invalid_version"
+    );
     let root = tool_root(store, tool)?;
     let target = root.join(version);
     ensure!(!target.exists() || replace, "runtime_exists");

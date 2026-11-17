@@ -134,3 +134,13 @@ fn postgres_without_contrib_is_detected() {
     fs::remove_dir(&work).unwrap();
     assert_eq!(OPENSSL_SHA256.len(), 64);
 }
+
+/// A JDK version with two numbers passes `validate_version` but is not a release: it is refused
+/// with `invalid_version` instead of failing on an index while naming the download.
+#[test]
+fn a_jdk_version_without_a_patch_number_is_refused() {
+    let temp = tempfile::tempdir().unwrap();
+    let store = Store::new(temp.path().join("s")).unwrap();
+    let error = install(&store, "jdk", "21.0", false).unwrap_err();
+    assert_eq!(error.to_string(), "invalid_version");
+}
