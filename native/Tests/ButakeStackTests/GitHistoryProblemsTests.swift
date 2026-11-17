@@ -158,6 +158,28 @@ private struct Sandbox {
     #expect(history.results == nil && history.matches == nil)
 }
 
+@MainActor @Test func aSearchThatEndsEarlyMakesTheOneInFlightStale() async throws {
+    let sandbox = try Sandbox()
+    defer { try? FileManager.default.removeItem(at: sandbox.root) }
+    let store = StackStore(engine: StackEngine())
+    let repository = try await open(store, sandbox.mine)
+    defer { repository.stopWatching() }
+    let history = repository.history
+    await history.reloadBranch()
+
+    // A message search is asked; before it answers the scope changes to a date the text is not.
+    history.scope = .message
+    history.search = "chore"
+    let inFlight = Task { await history.runSearch() }
+    await Task.yield()
+    history.scope = .date
+    await history.runSearch()
+    await inFlight.value
+    #expect(history.results?.isEmpty == true)
+    #expect(history.searchNote != nil)
+    #expect(!history.searching)
+}
+
 // MARK: - Organize
 
 @Test func organizingCombinesSplitsRemovesAndReorders() {
