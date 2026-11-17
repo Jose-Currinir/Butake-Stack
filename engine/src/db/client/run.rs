@@ -92,6 +92,20 @@ impl Drop for Secret {
 }
 
 impl Target {
+    /// A target whose clients are the programs in `bin` (local doubles) and whose secrets go to `run`.
+    #[cfg(test)]
+    pub(crate) fn for_tests(connection: Connection, bin: PathBuf, run: PathBuf) -> Self {
+        Self {
+            host: connection.host.clone(),
+            port: connection.port,
+            connection,
+            password: Some("centinela-clave-9f3".into()),
+            bin,
+            run,
+            tunneled: false,
+        }
+    }
+
     pub fn run_dir(&self) -> &Path {
         &self.run
     }
