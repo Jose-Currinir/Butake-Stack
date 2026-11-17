@@ -132,11 +132,16 @@ impl Record {
     /// Writes the record of `group` (just started by this process) in `folder`.
     pub fn write(folder: &Path, group: i32) -> Result<PathBuf> {
         let owner = std::process::id() as i32;
+        // Without both start times a later request could never tell the process from a recycled
+        // pid, and the file would stay forever: write nothing.
+        let (Some(owner_started), Some(group_started)) = (started(owner), started(group)) else {
+            anyhow::bail!("watch_unavailable");
+        };
         let record = Record {
             owner,
-            owner_started: started(owner).unwrap_or_default(),
+            owner_started,
             group,
-            group_started: started(group).unwrap_or_default(),
+            group_started,
         };
         let path = folder.join(format!("{owner}-{group}.json"));
         crate::core::fsutil::write_private(&path, &serde_json::to_string(&record)?)?;
@@ -165,6 +170,7 @@ pub fn reap(folder: &Path) {
         if record.owner_started != 0 && started(record.owner) == Some(record.owner_started) {
             continue;
         }
+        // A record that can identify neither process is of no use to anyone.
         if record.group > 1 && record.group_started != 0 {
             for (pid, start) in members(record.group) {
                 if start >= record.group_started {

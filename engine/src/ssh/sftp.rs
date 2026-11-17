@@ -138,12 +138,18 @@ fn run(store: &Store, host: &Host, batch: &str) -> Result<String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
-    child
+    let mut stdin = child
         .stdin
         .take()
-        .ok_or_else(|| anyhow::anyhow!("sftp_failed"))?
-        .write_all(batch.as_bytes())?;
+        .ok_or_else(|| anyhow::anyhow!("sftp_failed"))?;
+    // Written from its own thread: sftp echoes every command to stdout, and a big batch would
+    // fill both pipes with each side waiting for the other.
+    let batch = batch.to_string();
+    let writer = std::thread::spawn(move || {
+        let _ = stdin.write_all(batch.as_bytes());
+    });
     let out = child.wait_with_output()?;
+    let _ = writer.join();
     if !out.status.success() {
         bail!(sftp_error(&String::from_utf8_lossy(&out.stderr)));
     }

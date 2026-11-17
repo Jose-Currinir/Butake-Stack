@@ -113,8 +113,12 @@ pub fn run(arguments: &[OsString]) -> i32 {
         .and_then(|text| answer(&Keychain, &Document::parse(&text), profile));
     match result {
         Ok(json) => {
-            println!("{json}");
-            0
+            // A CLI that closed the pipe must not make this panic.
+            use std::io::Write;
+            match writeln!(std::io::stdout(), "{json}") {
+                Ok(()) => 0,
+                Err(_) => 1,
+            }
         }
         Err(error) => {
             let message = match error.to_string().as_str() {

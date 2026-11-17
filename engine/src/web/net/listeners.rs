@@ -71,15 +71,21 @@ impl Listeners {
         ];
         for (name, port, udp) in wanted {
             let launchd = from_launchd(name);
+            // The port launchd really listens on: the agent keeps the ports it was installed with.
+            let mut actual = port;
             let (mode, ok) = if let Some(fd) = launchd.first() {
                 for extra in &launchd[1..] {
                     unsafe { libc::close(*extra) };
                 }
                 // Safety: launchd transferred ownership of this descriptor to us.
                 if udp {
-                    this.set_udp(name, unsafe { UdpSocket::from_raw_fd(*fd) });
+                    let socket = unsafe { UdpSocket::from_raw_fd(*fd) };
+                    actual = socket.local_addr().map_or(port, |a| a.port());
+                    this.set_udp(name, socket);
                 } else {
-                    this.set_tcp(name, unsafe { TcpListener::from_raw_fd(*fd) });
+                    let listener = unsafe { TcpListener::from_raw_fd(*fd) };
+                    actual = listener.local_addr().map_or(port, |a| a.port());
+                    this.set_tcp(name, listener);
                 }
                 ("launchd", true)
             } else if udp {
@@ -102,7 +108,9 @@ impl Listeners {
             let owner = if ok { None } else { port_owner(port, udp) };
             this.status.insert(
                 name.into(),
-                json!({"port": port, "mode": mode, "owner": owner}),
+                // `stale`: launchd's socket is not on the configured port (the agent must be
+                // installed again); `port` is the one really in use.
+                json!({"port": actual, "mode": mode, "owner": owner, "stale": actual != port}),
             );
         }
         this

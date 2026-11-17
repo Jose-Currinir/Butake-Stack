@@ -69,6 +69,8 @@ pub async fn serve_udp(socket: UdpSocket, tlds: Arc<Vec<String>>) {
     let mut buffer = [0u8; 512];
     loop {
         let Ok((count, peer)) = socket.recv_from(&mut buffer).await else {
+            // A persistent error (descriptors exhausted, network down) must not spin the CPU.
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             continue;
         };
         if let Some(reply) = answer(&buffer[..count], &tlds) {
@@ -80,6 +82,7 @@ pub async fn serve_udp(socket: UdpSocket, tlds: Arc<Vec<String>>) {
 pub async fn serve_tcp(listener: TcpListener, tlds: Arc<Vec<String>>) {
     loop {
         let Ok((mut stream, _)) = listener.accept().await else {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             continue;
         };
         let tlds = tlds.clone();

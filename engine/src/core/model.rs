@@ -618,6 +618,7 @@ impl Project {
                         && v.len() <= 4096
                         && !v.contains('\0')
                         && !v.contains('\n')
+                        && !v.contains('\r')
                 }),
             "invalid_env"
         );

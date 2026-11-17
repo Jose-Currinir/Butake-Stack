@@ -37,15 +37,19 @@ pub fn fetch(url: &str, limit: u64) -> Result<Vec<u8>> {
         .stderr(Stdio::null())
         .spawn()?;
     let mut data = Vec::new();
-    child
-        .stdout
-        .take()
-        .ok_or_else(|| anyhow::anyhow!("download_failed"))?
-        .take(limit + 1)
-        .read_to_end(&mut data)?;
+    let read = match child.stdout.take() {
+        Some(stdout) => stdout.take(limit.saturating_add(1)).read_to_end(&mut data),
+        None => Err(std::io::Error::other("no_stdout")),
+    };
+    // Over the limit curl is cut off (SIGPIPE) and its status says nothing about the network.
+    if read.is_err() || data.len() as u64 > limit {
+        let _ = child.kill();
+        let _ = child.wait();
+        ensure!(read.is_ok(), "download_failed");
+        anyhow::bail!("download_too_large");
+    }
     let status = child.wait()?;
     ensure!(status.success(), curl_failure(status.code()));
-    ensure!(data.len() as u64 <= limit, "download_too_large");
     Ok(data)
 }
 
@@ -90,6 +94,10 @@ pub fn download_up_to(url: &str, target: &Path, max_bytes: u64) -> Result<()> {
             return Err(error);
         }
     };
+    if !status.success() {
+        // A partial file must not pass for a complete one.
+        let _ = std::fs::remove_file(target);
+    }
     ensure!(status.success(), curl_failure(status.code()));
     if progress::followed() {
         let done = std::fs::metadata(target).map(|m| m.len()).unwrap_or(0);

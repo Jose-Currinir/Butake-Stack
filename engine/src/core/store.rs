@@ -182,18 +182,26 @@ impl Store {
         Ok(out)
     }
     pub fn get(&self, id: &str) -> Result<Project> {
+        self.get_with(&self.config()?, id)
+    }
+    /// `get` with a configuration already read (a loop over many projects reads it once).
+    fn get_with(&self, config: &StackConfig, id: &str) -> Result<Project> {
         let mut project: Project = self.read(&self.project_path(id)?)?;
         ensure!(project.id == id, "project_id_mismatch");
-        project.validate(&self.config()?)?;
+        project.validate(config)?;
         Ok(project)
     }
     /// Every site whose folder is there. One whose folder went away (deleted, moved, a drive that
     /// is not connected) is left out without touching its record, so it never takes the whole list
     /// (and the daemon) down, and comes back when the folder does; `missing` names them.
     pub fn list(&self) -> Result<Vec<Project>> {
+        self.list_with(&self.config()?)
+    }
+    /// `list` with a configuration already read.
+    pub fn list_with(&self, config: &StackConfig) -> Result<Vec<Project>> {
         let mut projects = Vec::new();
         for id in self.ids()? {
-            if let Ok(project) = self.get(&id) {
+            if let Ok(project) = self.get_with(config, &id) {
                 projects.push(project);
             }
         }
@@ -204,8 +212,9 @@ impl Store {
     /// as their record says, untouched.
     pub fn missing(&self) -> Result<Vec<Project>> {
         let mut out = vec![];
+        let config = self.config()?;
         for id in self.ids()? {
-            if self.get(&id).is_err() {
+            if self.get_with(&config, &id).is_err() {
                 if let Ok(project) = self.read::<Project>(&self.project_path(&id)?) {
                     out.push(project);
                 }

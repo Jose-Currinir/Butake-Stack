@@ -34,13 +34,27 @@ pub fn written_by_stack(path: &std::path::Path) -> bool {
 /// (`DYLD_*`) never pass. Nothing here logs or returns an error with a value. The only reader of
 /// values of a `.env` in the engine (see `AGENTS.md`).
 pub fn read_stack_dotenv(path: &std::path::Path) -> Option<BTreeMap<String, String>> {
-    if !written_by_stack(path) {
+    // One open, no link followed, and every check on that same descriptor: the file cannot be
+    // swapped for a link between the check and the read.
+    use std::{io::Read, os::unix::fs::OpenOptionsExt};
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)
+        .ok()?;
+    let meta = file.metadata().ok()?;
+    if !meta.is_file() || meta.len() > 1_048_576 {
         return None;
     }
-    let text = fs::read_to_string(path).ok()?;
-    // The same text that is parsed carries the header (the file may have changed meanwhile).
+    let mut bytes = Vec::new();
+    file.take(1_048_576 + 1).read_to_end(&mut bytes).ok()?;
+    if bytes.len() > 1_048_576 {
+        return None;
+    }
+    let text = String::from_utf8(bytes).ok()?;
+    // The same text that is parsed carries the header.
     let first = text.lines().next()?;
-    if text.len() > 1_048_576 || !(first.starts_with(HEADER_START) && first.ends_with(HEADER_END)) {
+    if !(first.starts_with(HEADER_START) && first.ends_with(HEADER_END)) {
         return None;
     }
     let mut out = parse_dotenv(&text);

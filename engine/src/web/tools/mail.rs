@@ -63,6 +63,24 @@ fn ids(dir: &Path) -> Vec<String> {
 
 /// Removes expired messages and the oldest beyond the limit.
 pub fn prune(dir: &Path, config: &MailConfig) {
+    // A temporary file left by an interrupted save (never one still being written).
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let stale = name
+                .to_str()
+                .is_some_and(|n| n.starts_with('.') && n.ends_with(".tmp"))
+                && entry
+                    .metadata()
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| t.elapsed().ok())
+                    .is_some_and(|age| age > Duration::from_secs(3600));
+            if stale {
+                let _ = fs::remove_file(entry.path());
+            }
+        }
+    }
     let cutoff = now_millis().saturating_sub(config.retention_days as u128 * 86_400_000);
     for (index, id) in ids(dir).iter().enumerate() {
         let time: u128 = id
@@ -127,16 +145,23 @@ fn address(argument: &str) -> String {
 }
 
 pub async fn serve(listener: TcpListener, dir: PathBuf, config: MailConfig) {
+    // Each session may hold up to `MAX_MESSAGE` bytes: bound how many run at once.
+    let sessions = std::sync::Arc::new(tokio::sync::Semaphore::new(16));
     loop {
         let Ok((stream, peer)) = listener.accept().await else {
+            tokio::time::sleep(Duration::from_millis(100)).await;
             continue;
         };
         if !peer.ip().is_loopback() {
             continue;
         }
+        let Ok(permit) = sessions.clone().try_acquire_owned() else {
+            continue;
+        };
         let dir = dir.clone();
         let config = config.clone();
         tokio::spawn(async move {
+            let _permit = permit;
             let _ =
                 tokio::time::timeout(Duration::from_secs(600), session(stream, dir, config)).await;
         });
@@ -223,14 +248,19 @@ pub async fn session<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
                     writer.write_all(b"354 End data with <CR><LF>.<CR><LF>\r\n").await?;
                     let mut data = Vec::new();
                     let mut too_large = false;
+                    // A line longer than the read limit arrives in pieces: only the first one
+                    // can be the end marker or carry a dot-stuffing prefix.
+                    let mut continued = false;
                     loop {
                         if !read_line(&mut reader, &mut line).await? {
                             return Ok(());
                         }
-                        if line == b".\r\n" || line == b".\n" {
+                        let first_piece = !continued;
+                        continued = !line.ends_with(b"\n");
+                        if first_piece && (line == b".\r\n" || line == b".\n") {
                             break;
                         }
-                        let content = if line.starts_with(b"..") { &line[1..] } else { &line[..] };
+                        let content = if first_piece && line.starts_with(b"..") { &line[1..] } else { &line[..] };
                         if data.len() + content.len() > MAX_MESSAGE {
                             too_large = true;
                         } else {
@@ -426,7 +456,14 @@ fn leaves(raw: &[u8], depth: usize, out: &mut Vec<Part>) {
                 let line = &text[position..end];
                 let trimmed = line.strip_suffix(b"\n").unwrap_or(line);
                 let trimmed = trimmed.strip_suffix(b"\r").unwrap_or(trimmed);
-                if trimmed.starts_with(marker.as_bytes()) {
+                // The boundary is the whole line (or it closes with `--`), never a longer word.
+                if trimmed.starts_with(marker.as_bytes())
+                    && trimmed[marker.len()..]
+                        .iter()
+                        .all(|b| matches!(b, b' ' | b'\t'))
+                    || trimmed.starts_with(marker.as_bytes())
+                        && trimmed[marker.len()..].starts_with(b"--")
+                {
                     if let Some(s) = start {
                         // The line break before the boundary belongs to the boundary.
                         let mut piece = &text[s..position];
