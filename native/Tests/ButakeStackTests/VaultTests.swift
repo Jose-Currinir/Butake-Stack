@@ -35,7 +35,7 @@ private func permissions(_ url: URL) -> Int {
 
 private let serviceAccountJSON = """
 {"type": "service_account", "project_id": "demo-proyecto", "private_key_id": "0123456789abcdef0123",
- "private_key": "-----BEGIN PRIVATE KEY-----\\nNO-ES-REAL\\n-----END PRIVATE KEY-----\\n",
+ "private_key": "\(PEM.block("NO-ES-REAL", escaped: true))",
  "client_email": "ci@demo-proyecto.iam.gserviceaccount.com"}
 """
 
@@ -212,7 +212,7 @@ private func samplePayload() -> VaultArchive.Payload {
     let app = try first.addContainer(kind: .app, name: "Demo Salud", bundleId: "cl.demo.health")
     var draft = VaultItem(container: app, section: .ios, kind: .appStoreKey, name: "AuthKey_ABCD123456.p8")
     draft.fields = VaultInspector.suggestedFields(kind: .appStoreKey, fileName: draft.name)
-    try await first.store(draft, files: [(draft.name, Data("-----BEGIN PRIVATE KEY-----\nFALSA\n".utf8))])
+    try await first.store(draft, files: [(draft.name, Data((PEM.begin() + "\nFALSA\n").utf8))])
     #expect(first.index.items[0].field(.keyId)?.value == "ABCD123456")
     #expect(first.index.items[0].metadata.value("vault.meta.keyId") == "ABCD123456")
     await #expect(throws: VaultError.wrongPassword) { try await first.exportArchive(nil, password: "corta") }
@@ -225,7 +225,7 @@ private func samplePayload() -> VaultArchive.Payload {
     #expect(result.added == 1 && result.skipped == 0)
     let imported = try #require(second.index.items.first)
     #expect(imported.files[0].sha256 == first.index.items[0].files[0].sha256)
-    #expect(try second.fileData(imported.files[0]) == Data("-----BEGIN PRIVATE KEY-----\nFALSA\n".utf8))
+    #expect(try second.fileData(imported.files[0]) == Data((PEM.begin() + "\nFALSA\n").utf8))
     #expect(second.index.containers.first?.folderName == "Demo Salud (cl.demo.health)")
     // Importing the same file again adds nothing.
     let again = try await second.importArchive(archive, password: "contraseña de respaldo")
@@ -337,7 +337,7 @@ private func samplePayload() -> VaultArchive.Payload {
     #expect(VaultInspector.detectKind(name: "otro.json", data: Data("{}".utf8)) == .file)
     #expect(VaultInspector.detectKind(name: ".env.production", data: nil) == .envFile)
     #expect(VaultInspector.detectKind(name: "id_ed25519", data: nil) == .sshKey)
-    #expect(VaultInspector.detectKind(name: "servidor.pem", data: Data("-----BEGIN OPENSSH PRIVATE KEY-----".utf8)) == .sshKey)
+    #expect(VaultInspector.detectKind(name: "servidor.pem", data: Data(PEM.begin("OPENSSH PRIVATE KEY").utf8)) == .sshKey)
     #expect(VaultInspector.appStoreKeyId("AuthKey_AB12CD34EF.p8") == "AB12CD34EF")
     #expect(VaultInspector.appStoreKeyId("otra.p8") == nil)
 }
