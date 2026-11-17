@@ -197,15 +197,12 @@ fn the_token_reaches_git_only_for_its_origin_and_is_kept_nowhere() {
 fn credentials_of_another_origin_are_never_sent() {
     let setup = setup();
     let (port, seen) = server();
-    for credentials in [
-        // Another port of the one server this test runs.
-        json!({"origin": format!("http://127.0.0.1:{}", port.wrapping_add(1).max(1)), "username": "ana-qa", "password": TOKEN}),
-    ] {
-        let (answer, text) = call(&setup, fetch_request(&setup, port, credentials));
-        assert_eq!(answer["ok"], false, "{text}");
-        assert_eq!(answer["error"]["code"], "https_denied", "{text}");
-        assert!(!text.contains(TOKEN), "{text}");
-    }
+    // Another port of the one server this test runs.
+    let credentials = json!({"origin": format!("http://127.0.0.1:{}", port.wrapping_add(1).max(1)), "username": "ana-qa", "password": TOKEN});
+    let (answer, text) = call(&setup, fetch_request(&setup, port, credentials));
+    assert_eq!(answer["ok"], false, "{text}");
+    assert_eq!(answer["error"]["code"], "https_denied", "{text}");
+    assert!(!text.contains(TOKEN), "{text}");
     assert!(seen.lock().unwrap().is_empty());
     // Credentials that are not what the app sends are refused before Git runs.
     for credentials in [
