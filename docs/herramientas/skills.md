@@ -35,7 +35,9 @@ Herramientas) quita los enlaces que Stack creó en las carpetas de las IA y borr
 - **Cambios fuera de Stack:** si `SKILL.md` cambia en el disco mientras el editor está abierto, se recarga
   cuando no hay texto sin guardar; si lo hay, el editor avisa y deja elegir entre recargar o conservar lo
   escrito (guardar entonces reemplaza la versión del disco). Cambiar de skill con texto sin guardar pide
-  confirmación.
+  confirmación; también cambiar el grupo, la etiqueta o la IA de «Filtros» cuando el filtro nuevo dejaría de mostrar
+  la skill abierta (si la sigue mostrando, o si «Limpiar filtros» solo amplía la lista, se aplica sin preguntar).
+  Un filtro que oculta la skill abierta sin texto sin guardar la cierra, como ya hacía el grupo.
 - **Papelera:** eliminar una skill quita sus enlaces y mueve la carpeta a `skills-trash/`; «Deshacer»
   la restaura con sus enlaces donde el nombre siga libre. Lo que lleva más de 30 días se purga al
   listar. Pasado el aviso de «Deshacer», «Skills eliminadas…» (menú «⋯», sección «Papeleras», junto a

@@ -4095,7 +4095,7 @@
 "skills.editor.outside.reload" = "Recargar";
 "skills.editor.outside.keep" = "Conservar lo escrito";
 "skills.editor.switch.title" = "Hay texto sin guardar";
-"skills.editor.switch.detail" = "Si cambias de skill, lo que escribiste en esta se descarta. Cancelar te deja seguir editando.";
+"skills.editor.switch.detail" = "Si cambias de skill o de filtro y esta deja de verse, lo que escribiste se descarta. Cancelar te deja seguir editando.";
 "skills.editor.switch.discard" = "Descartar y cambiar";
 "skills.agents.footer" = "Al activar una IA, Stack enlaza la skill en su carpeta; nunca la copia.";
 "skills.agents.footerOff" = "Activa la skill para enlazarla a una IA.";

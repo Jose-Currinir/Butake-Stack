@@ -221,6 +221,42 @@ private let listJSON = """
     #expect(tool.pendingSelection == nil)
 }
 
+/// The «Filtros» menu follows the same rule as the list: a change that would hide the skill whose
+/// editor holds unsaved text asks first; one that keeps it on screen (or with nothing unsaved) just applies.
+@MainActor @Test func changingFiltersWithUnsavedTextAsksOnlyWhenItHidesTheSkill() throws {
+    let tool = SkillsTool()
+    tool.state = try JSONDecoder().decode(SkillsState.self, from: Data(listJSON.utf8))
+    tool.selection = "commits"
+    tool.unsavedSkill = "commits"
+
+    // Still shown (personal, tag git, assistant claude): applied without asking.
+    tool.requestFilter(.group("personal"))
+    #expect(tool.scope == .group("personal") && tool.pendingFilter == nil && tool.selection == "commits")
+    tool.requestFilter(.tag("git"))
+    tool.requestFilter(.agent("claude"))
+    #expect(tool.tagFilter == "git" && tool.agentFilter == "claude" && tool.pendingFilter == nil)
+
+    // It would hide «commits»: nothing changes until the user answers.
+    tool.requestFilter(.group("trabajo"))
+    #expect(tool.scope == .group("personal") && tool.pendingFilter != nil && tool.selection == "commits")
+    tool.keepEditing()
+    #expect(tool.pendingFilter == nil && tool.scope == .group("personal") && tool.unsavedSkill == "commits")
+    tool.requestFilter(.agent(nil))
+    tool.requestFilter(.tag("otra"))
+    #expect(tool.tagFilter == "git" && tool.pendingFilter != nil)
+    tool.discardAndSwitch()
+    #expect(tool.tagFilter == "otra" && tool.selection == nil && tool.unsavedSkill == nil && tool.pendingFilter == nil)
+
+    // Widening never asks, and without unsaved text a hiding change just applies and clears the selection.
+    tool.selection = "commits"
+    tool.unsavedSkill = "commits"
+    tool.requestFilter(.clear)
+    #expect(tool.scope == .all && tool.tagFilter == nil && tool.pendingFilter == nil && tool.selection == "commits")
+    tool.unsavedSkill = nil
+    tool.requestFilter(.group("trabajo"))
+    #expect(tool.scope == .group("trabajo") && tool.selection == nil && tool.pendingFilter == nil)
+}
+
 /// A skill with exactly one support file lists it: `files` never includes `SKILL.md`.
 @Test func aSkillWithOneSupportFileShowsIt() throws {
     let state = try JSONDecoder().decode(SkillsState.self, from: Data(listJSON.utf8))

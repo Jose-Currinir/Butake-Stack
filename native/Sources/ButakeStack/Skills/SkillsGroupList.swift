@@ -33,10 +33,13 @@ struct SkillsFilterMenu: View {
         return active == 0 ? L("skills.filter") : String(format: L("skills.filter.active"), active)
     }
 
+    private var tag: Binding<String?> { Binding(get: { tool.tagFilter }, set: { tool.requestFilter(.tag($0)) }) }
+    private var agent: Binding<String?> { Binding(get: { tool.agentFilter }, set: { tool.requestFilter(.agent($0)) }) }
+
     /// «Cualquiera» or one group; Salud is a row of the list, not a filter.
     private var group: Binding<String?> {
         Binding(get: { if case .group(let id) = tool.scope { id } else { nil } },
-                set: { tool.scope = $0.map(SkillsScope.group) ?? .all; tool.scopeChanged() })
+                set: { tool.requestFilter(.group($0)) })
     }
 
     var body: some View {
@@ -45,17 +48,17 @@ struct SkillsFilterMenu: View {
                 Text(L("skills.filter.any")).tag(String?.none)
                 ForEach(tool.groups) { Text($0.name).tag(String?.some($0.id)) }
             }
-            Picker(L("skills.filter.tag"), selection: $tool.tagFilter) {
+            Picker(L("skills.filter.tag"), selection: tag) {
                 Text(L("skills.filter.any")).tag(String?.none)
                 ForEach(tool.tags, id: \.self) { Text($0).tag(String?.some($0)) }
             }
-            Picker(L("skills.filter.agent"), selection: $tool.agentFilter) {
+            Picker(L("skills.filter.agent"), selection: agent) {
                 Text(L("skills.filter.any")).tag(String?.none)
                 ForEach(tool.agents) { Text($0.name).tag(String?.some($0.id)) }
             }
             if tool.filtering || groupFiltered {
                 Divider()
-                Button(L("skills.filter.clear")) { tool.tagFilter = nil; tool.agentFilter = nil; group.wrappedValue = nil }
+                Button(L("skills.filter.clear")) { tool.requestFilter(.clear) }
                     .accessibilityIdentifier("skills.list.filter.clear")
             }
         } label: { Label(title, systemImage: Symbols.filter) }

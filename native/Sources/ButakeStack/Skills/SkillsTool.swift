@@ -21,6 +21,22 @@ enum SkillsSheet: Identifiable {
     }
 }
 
+/// The group, tag and assistant filters of the list.
+struct SkillFilters: Equatable, Sendable {
+    var scope: SkillsScope
+    var tag: String?
+    var agent: String?
+}
+
+/// One change in the «Filtros» menu.
+enum SkillFilterChange: Sendable {
+    /// A group, or `nil` for «Cualquiera».
+    case group(String?)
+    case tag(String?)
+    case agent(String?)
+    case clear
+}
+
 /// The Skills tool's state, shared by its list (content column) and its page (detail). Only the
 /// engine writes to disk; the app asks, shows the plan of every change to an assistant's folder
 /// and applies it once confirmed.
@@ -38,6 +54,9 @@ enum SkillsSheet: Identifiable {
     /// The selection the user asked for while `unsavedSkill` holds text: it waits for an answer.
     /// `.some(nil)` is «no skill» (the list was cleared).
     var pendingSelection: String??
+    /// The filters the user asked for while `unsavedSkill` holds text and they would hide that skill:
+    /// they wait for an answer, like `pendingSelection`.
+    var pendingFilter: SkillFilters?
     /// The pending change opens «Salud» instead of a skill.
     private var pendingHealth = false
     var search = ""
@@ -67,18 +86,17 @@ enum SkillsSheet: Identifiable {
     var filtering: Bool { tagFilter != nil || agentFilter != nil }
 
     /// The skills the content column shows: the scope's, then the filters and the search.
-    var visible: [Skill] {
-        skills.filter { skill in
-            switch scope {
-            case .all: true
-            case .group(let id): skill.group == id
-            // «Salud» is shown in the detail; the list keeps every skill.
-            case .health: true
-            }
+    var visible: [Skill] { skills.filter { shows($0, in: SkillFilters(scope: scope, tag: tagFilter, agent: agentFilter)) } }
+
+    private func shows(_ skill: Skill, in filters: SkillFilters) -> Bool {
+        switch filters.scope {
+        case .group(let id): if skill.group != id { return false }
+        // «Salud» is shown in the detail; the list keeps every skill.
+        case .all, .health: break
         }
-        .filter { skill in tagFilter.map { skill.tags.contains($0) } ?? true }
-        .filter { skill in agentFilter.map { skill.agents.contains($0) } ?? true }
-        .filter { $0.matches(search) }
+        if let tag = filters.tag, !skill.tags.contains(tag) { return false }
+        if let agent = filters.agent, !skill.agents.contains(agent) { return false }
+        return skill.matches(search)
     }
 
     /// The skill on screen stays only while the list still shows it; «Salud» starts without one.
@@ -125,12 +143,45 @@ enum SkillsSheet: Identifiable {
         }
     }
 
+    /// Changes the group, tag or assistant filter of the list («Filtros»). The skill on screen leaves
+    /// with a filter that hides it, so with unsaved text in its editor that change asks first; one
+    /// that keeps it on screen (or any change when nothing is unsaved) applies at once.
+    func requestFilter(_ change: SkillFilterChange) {
+        var filters = SkillFilters(scope: scope, tag: tagFilter, agent: agentFilter)
+        switch change {
+        case .group(let id): filters.scope = id.map(SkillsScope.group) ?? .all
+        case .tag(let tag): filters.tag = tag
+        case .agent(let agent): filters.agent = agent
+        case .clear: filters = SkillFilters(scope: .all, tag: nil, agent: nil)
+        }
+        if unsavedSkill != nil, unsavedSkill == selection, let selected, !shows(selected, in: filters) {
+            pendingFilter = filters
+        } else {
+            applyFilters(filters)
+        }
+    }
+
+    private func applyFilters(_ filters: SkillFilters) {
+        let scopeMoved = filters.scope != scope
+        tagFilter = filters.tag
+        agentFilter = filters.agent
+        scope = filters.scope
+        if scopeMoved { scopeChanged() } else { keepSelectionVisible() }
+    }
+
     func keepEditing() {
         pendingSelection = nil
+        pendingFilter = nil
         pendingHealth = false
     }
 
     func discardAndSwitch() {
+        if let filters = pendingFilter {
+            keepEditing()
+            unsavedSkill = nil
+            applyFilters(filters)
+            return
+        }
         guard let pending = pendingSelection else { return }
         let health = pendingHealth
         keepEditing()

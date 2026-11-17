@@ -41,7 +41,7 @@ struct SkillsList: View {
         .overlay { empty(shown) }
         .searchable(text: $tool.search, placement: .sidebar, prompt: L("skills.search"))
         .accessibilityIdentifier("skills.list")
-        .confirmationDialog(L("skills.editor.switch.title"), isPresented: Binding(get: { tool.pendingSelection != nil },
+        .confirmationDialog(L("skills.editor.switch.title"), isPresented: Binding(get: { tool.pendingSelection != nil || tool.pendingFilter != nil },
                                                                                    set: { if !$0 { tool.keepEditing() } }),
                             titleVisibility: .visible) {
             Button(L("skills.editor.switch.discard"), role: .destructive) { tool.discardAndSwitch() }
@@ -69,7 +69,7 @@ struct SkillsList: View {
                 ContentUnavailableView {
                     Label(L("skills.noMatches"), systemImage: Symbols.filter)
                 } actions: {
-                    Button(L("skills.filter.clear")) { tool.tagFilter = nil; tool.agentFilter = nil }
+                    Button(L("skills.filter.clear")) { tool.requestFilter(.clear) }
                         .accessibilityIdentifier("skills.empty.clearFilter")
                 }
             } else if tool.scope == .health {
