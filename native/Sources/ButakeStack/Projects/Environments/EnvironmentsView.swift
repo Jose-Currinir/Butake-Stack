@@ -331,7 +331,8 @@ struct EnvironmentsView: View {
     // MARK: Actions
     /// Saves, applies and, when processes are running, asks before restarting them.
     private func activate(_ env: EnvEnvironment) async {
-        await save()
+        // A save that did not happen keeps what was typed: nothing is reloaded or applied over it.
+        guard await save() else { return }
         await store.activateEnvironment(project, env, restart: false)
         load()
         if store.activeEnvironment(project.id)?.id == env.id, !store.liveProcessIDs(project).isEmpty { offerRestart = env }
@@ -447,23 +448,36 @@ struct EnvironmentsView: View {
         for (index, key) in keys.enumerated() { draft.append(Row(key: key, value: "", secret: secret[index])) }
         dirty = true
     }
-    /// Secrets to the Keychain first, then keys and plain values to the store.
-    private func save() async {
-        await classifyTyped()
-        guard dirty, let current, var site = state?.site, let index = site.environments.firstIndex(where: { $0.id == current.id }) else { return }
-        let keys = draft.map { $0.key.trimmingCharacters(in: .whitespaces) }
-        guard !keys.contains(where: \.isEmpty), Set(keys).count == keys.count else { store.errorMessage = L("env.invalidKeys"); return }
-        // A typed secret, or a plain value just marked secret, goes to the Keychain; one write in all.
+    /// The Keychain changes of a save: typed secrets, or values just marked secret, to write, and
+    /// the stored ones no longer secret to delete. Keys are trimmed once, as the entries keep them.
+    static func secretChanges(_ rows: [Row], current: [EnvEntry], stored: Set<String>) -> (set: [String: String], remove: Set<String>) {
         var set: [String: String] = [:]
-        for row in draft where row.secret {
-            if let value = row.newSecret { set[row.key] = value } else if !row.value.isEmpty { set[row.key] = row.value }
+        for row in rows where row.secret {
+            let key = row.key.trimmingCharacters(in: .whitespaces)
+            if let value = row.newSecret { set[key] = value } else if !row.value.isEmpty { set[key] = row.value }
         }
-        let kept = Set(draft.filter(\.secret).map(\.key))
-        let remove = Set(current.entries.filter { $0.secret && !kept.contains($0.key) }.map(\.key)).intersection(storedSecrets)
-        if !set.isEmpty || !remove.isEmpty {
-            guard await store.updateSecrets(project.id, current.id, set: set, remove: remove) else { return }
+        let kept = Set(rows.filter(\.secret).map { $0.key.trimmingCharacters(in: .whitespaces) })
+        let remove = Set(current.filter { $0.secret && !kept.contains($0.key) }.map(\.key)).intersection(stored)
+        return (set, remove)
+    }
+
+    /// Secrets to the Keychain first, then keys and plain values to the store. Whether it was
+    /// saved (nothing to save counts); a failure leaves the edits on screen.
+    @discardableResult
+    private func save() async -> Bool {
+        await classifyTyped()
+        guard dirty else { return true }
+        guard let current, var site = state?.site, let index = site.environments.firstIndex(where: { $0.id == current.id }) else { return false }
+        let keys = draft.map { $0.key.trimmingCharacters(in: .whitespaces) }
+        guard !keys.contains(where: \.isEmpty), Set(keys).count == keys.count else { store.errorMessage = L("env.invalidKeys"); return false }
+        // One write in all.
+        let changes = Self.secretChanges(draft, current: current.entries, stored: storedSecrets)
+        if !changes.set.isEmpty || !changes.remove.isEmpty {
+            guard await store.updateSecrets(project.id, current.id, set: changes.set, remove: changes.remove) else { return false }
         }
         site.environments[index].entries = draft.map { EnvEntry(key: $0.key.trimmingCharacters(in: .whitespaces), value: $0.secret ? "" : $0.value, secret: $0.secret) }
-        if await store.saveEnvs(project.id, site) { load() }
+        guard await store.saveEnvs(project.id, site) else { return false }
+        load()
+        return true
     }
 }
