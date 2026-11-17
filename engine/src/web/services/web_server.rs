@@ -81,6 +81,9 @@ fn html(text: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
+        // Caddy substitutes `{env.X}` and `{file.<path>}` inside the heredoc body when it runs.
+        .replace('{', "&#123;")
+        .replace('}', "&#125;")
 }
 
 /// Page served while a site is off: its name and address, light and dark, and a link that opens
@@ -258,6 +261,11 @@ mod tests {
         assert!(
             off_page(&evil_name).contains("&lt;script&gt;") && !off_page(&evil_name).contains('\n')
         );
+        // Caddy placeholders in a name never reach the page as such (R-04).
+        let mut braces = evil_name.clone();
+        braces.name = "{env.HOME}{file./etc/hosts}".into();
+        let page = off_page(&braces);
+        assert!(!page.contains("{env.") && !page.contains("{file.") && page.contains("&#123;env."));
         // With a real Caddy available (CADDY_BIN), the generated file must adapt cleanly.
         if let Some(caddy) = std::env::var_os("CADDY_BIN") {
             let mut astro = project.clone();
