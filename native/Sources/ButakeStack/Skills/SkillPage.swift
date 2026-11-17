@@ -115,14 +115,19 @@ struct SkillExportMenu: View {
     }
 }
 
-/// «Importar skills existentes…» and the import trash, in the toolbar's «Más» (no skill needed).
+/// «Importar skills existentes…» and, under «Papeleras», the deleted skills and the import trash, in
+/// the toolbar's «Más» (no skill needed).
 struct SkillImportMenu: View {
     let tool: SkillsTool
     var body: some View {
         Button { tool.sheet = .importExisting } label: { Label(L("skills.sheet.import.menu"), systemImage: Symbols.importing) }
             .accessibilityIdentifier("skills.menu.import")
-        Button { tool.sheet = .importTrash } label: { Label(L("skills.sheet.import.trashMenu"), systemImage: Symbols.delete) }
-            .accessibilityIdentifier("skills.menu.importTrash")
+        Section(L("skills.menu.trashes")) {
+            Button { tool.sheet = .deletedTrash } label: { Label(L("skills.menu.deletedTrash"), systemImage: Symbols.delete) }
+                .accessibilityIdentifier("skills.menu.deletedTrash")
+            Button { tool.sheet = .importTrash } label: { Label(L("skills.sheet.import.trashMenu"), systemImage: Symbols.delete) }
+                .accessibilityIdentifier("skills.menu.importTrash")
+        }
     }
 }
 

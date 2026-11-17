@@ -394,3 +394,72 @@ fn plan_and_apply_hash_only_the_requested_skills() {
         .unwrap()
         .is_dir());
 }
+
+#[test]
+fn the_deleted_skills_list_has_only_deleted_skills_and_never_their_text() {
+    let env = env();
+    folder(&env, ".claude/skills", "imp", &[("n.md", "n")]);
+    apply(&env, &["imp"]);
+    let import_id = first_trash_id(&env);
+    env.create("a");
+    env.create("b");
+    let sentinel = "SENTINEL-no-debe-salir";
+    let mut body = env.ok("skillsRead", json!({"id": "a"}))["text"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    body.push_str(sentinel);
+    env.ok("skillsSave", json!({"id": "a", "text": body}));
+    fs::write(env.skills_dir().join("a/extra.md"), sentinel).unwrap();
+    let a = env.ok("skillsDelete", json!({"id": "a", "confirmed": true}))["trashId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let b = env.ok("skillsDelete", json!({"id": "b", "confirmed": true}))["trashId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    // An old one is purged first; a deleted skill called `import-x` is listed like any other.
+    let old = trash_dir(&env).join("c-1000");
+    fs::create_dir_all(old.join("files")).unwrap();
+    env.create("import-x");
+    env.ok("skillsDelete", json!({"id": "import-x", "confirmed": true}));
+
+    let list = env.ok("skillsTrashList", json!({}));
+    let ids: Vec<&str> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids.len(), 3, "{list}");
+    assert!(ids.contains(&"a") && ids.contains(&"b") && ids.contains(&"import-x"));
+    assert!(!list.to_string().contains(&import_id));
+    assert!(!old.exists());
+    assert!(!list.to_string().contains(sentinel));
+    let first = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["trashId"] == a.as_str())
+        .unwrap();
+    assert_eq!(first["name"], "a");
+    assert_eq!(first["description"], "Hace algo");
+    assert_eq!(first["group"], "personal");
+    let deleted = first["deleted"].as_u64().unwrap();
+    assert_eq!(first["expires"].as_u64().unwrap(), deleted + 30 * 86_400);
+    assert!(a.ends_with(&deleted.to_string()));
+    assert_eq!(
+        first.as_object().unwrap().len(),
+        7,
+        "only trashId, id, name, description, deleted, expires and group"
+    );
+
+    // Listing changes nothing: the entry still restores.
+    let back = env.ok("skillsRestore", json!({"trashId": b, "confirmed": true}));
+    assert_eq!(back["id"], "b");
+    assert!(env.skills_dir().join("b/SKILL.md").exists());
+    let after = env.ok("skillsTrashList", json!({}));
+    assert_eq!(after.as_array().unwrap().len(), 2);
+    assert!(!after.to_string().contains(&format!("\"{b}\"")));
+}

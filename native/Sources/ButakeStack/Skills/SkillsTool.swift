@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The sheets of the Skills tool, all presented by the detail (`SkillsSheets`).
 enum SkillsSheet: Identifiable {
-    case newSkill, groups, move(String), rename(String), agent(String?), links(SkillLinkRequest), importExisting, importTrash
+    case newSkill, groups, move(String), rename(String), agent(String?), links(SkillLinkRequest), importExisting, importTrash, deletedTrash
 
     var id: String {
         switch self {
@@ -16,6 +16,7 @@ enum SkillsSheet: Identifiable {
         case .links(let request): "links.\(request.id)"
         case .importExisting: "import"
         case .importTrash: "importTrash"
+        case .deletedTrash: "deletedTrash"
         }
     }
 }

@@ -4189,6 +4189,13 @@
 "skills.fix.reveal" = "Mostrar en Finder";
 "skills.sheet.import.menu" = "Importar skills existentes…";
 "skills.sheet.import.trashMenu" = "Papelera de importación…";
+"skills.sheet.deletedTrash.title" = "Skills eliminadas";
+"skills.sheet.deletedTrash.detail" = "Las skills que eliminaste se guardan 30 días. Restaurar vuelve a crear sus enlaces donde el nombre siga libre. Pasado ese plazo se borran solas.";
+"skills.sheet.deletedTrash.none" = "No hay skills eliminadas";
+"skills.sheet.deletedTrash.noneDetail" = "Aquí aparecen las skills que eliminas, durante 30 días.";
+"skills.sheet.deletedTrash.deleted" = "Eliminada el";
+"skills.sheet.deletedTrash.expires" = "Se borra el";
+"skills.sheet.deletedTrash.restore" = "Restaurar…";
 "skills.sheet.import.title" = "Importar skills existentes";
 "skills.sheet.import.detail" = "Skills que ya están en las carpetas de tus IA. Se copian a Stack y, en su lugar, queda un enlace.";
 "skills.sheet.import.found" = "Encontradas";
@@ -4254,6 +4261,8 @@
 "skills.sheet.import.plan.skipped" = "Lo que no se copia";
 "skills.sheet.import.plan.skippedDetail" = "Los enlaces y los archivos especiales dentro de una skill no se copian ni se siguen: la copia de Stack no los tendrá.";
 "skills.sheet.import.plan.skippedMore" = "%@ y %d más";
+"skills.menu.trashes" = "Papeleras";
+"skills.menu.deletedTrash" = "Skills eliminadas…";
 
 /* Ajustes */
 "settings.theme" = "Tema";

@@ -91,7 +91,12 @@ fn mutates(method: &str, request: &Value) -> bool {
     }
     !matches!(
         method,
-        "skillsList" | "skillsRead" | "skillsLinkPlan" | "skillsHealth" | "skillsExport"
+        "skillsList"
+            | "skillsTrashList"
+            | "skillsRead"
+            | "skillsLinkPlan"
+            | "skillsHealth"
+            | "skillsExport"
     )
 }
 
@@ -127,6 +132,10 @@ pub(crate) fn dispatch_in(
         "skillsList" => {
             trash::purge(&ctx);
             Ok(list(&ctx, &index))
+        }
+        "skillsTrashList" => {
+            trash::purge(&ctx);
+            Ok(trash::list(&ctx, &index))
         }
         "skillsRead" => {
             ensure_skill(&index, &id)?;

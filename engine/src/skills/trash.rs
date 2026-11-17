@@ -5,6 +5,7 @@ use super::{links, skill_file};
 use crate::core::{json, time::now_secs};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::fs;
 
 #[derive(Serialize, Deserialize)]
@@ -99,4 +100,54 @@ pub fn restore(ctx: &Ctx, index: &mut Index, trash_id: &str) -> Result<String> {
     }
     let _ = fs::remove_dir_all(&dir);
     Ok(id)
+}
+
+/// `skillsTrashList`: the deleted skills still in the trash, newest first, as
+/// `{trashId, id, name, description, deleted, expires, group}`. Only the title comes from the
+/// saved `SKILL.md`; its text is never returned. Import entries are not listed (they have
+/// `skillsImportTrashList`).
+pub fn list(ctx: &Ctx, index: &Index) -> Value {
+    let mut found: Vec<(u64, Value)> = vec![];
+    if let Ok(read) = fs::read_dir(&ctx.trash) {
+        for item in read.flatten() {
+            let trash_id = item.file_name().to_string_lossy().to_string();
+            let dir = item.path();
+            let Some((id, epoch)) = parse_id(&trash_id) else {
+                continue;
+            };
+            if !skill_file::real_dir(&dir) || super::import::is_import(&dir) {
+                continue;
+            }
+            let files = dir.join("files");
+            let Ok(saved) = json::read_regular::<Saved>(&dir.join("entry.json"), Some(1_048_576))
+            else {
+                continue;
+            };
+            if saved.id != id || !skill_file::real_dir(&files) {
+                continue;
+            }
+            let meta = skill_file::read_text(&files)
+                .map(|text| skill_file::parse(&text))
+                .unwrap_or_default();
+            let group = if index.has_group(&saved.entry.group) {
+                saved.entry.group
+            } else {
+                index.groups[0].id.clone()
+            };
+            found.push((
+                epoch,
+                json!({
+                    "trashId": trash_id, "id": id,
+                    "name": if meta.name.is_empty() { id.clone() } else { meta.name },
+                    "description": meta.description, "deleted": epoch,
+                    "expires": epoch + TRASH_DAYS * 86_400, "group": group,
+                }),
+            ));
+        }
+    }
+    found.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then_with(|| a.1["trashId"].as_str().cmp(&b.1["trashId"].as_str()))
+    });
+    Value::Array(found.into_iter().map(|(_, entry)| entry).collect())
 }

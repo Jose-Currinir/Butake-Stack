@@ -36,6 +36,13 @@ extension SkillsTool {
         return true
     }
 
+    // MARK: Deleted skills
+
+    /// The skills deleted in the last 30 days, newest first (`skillsTrashList`).
+    func deletedTrash() async -> [DeletedTrashEntry]? {
+        try? await StackStore.shared.call(["method": "skillsTrashList"])
+    }
+
     // MARK: Import trash
 
     func importTrash() async -> [ImportTrashEntry] {

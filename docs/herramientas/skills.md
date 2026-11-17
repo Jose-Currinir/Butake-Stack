@@ -38,7 +38,9 @@ Herramientas) quita los enlaces que Stack creó en las carpetas de las IA y borr
   confirmación.
 - **Papelera:** eliminar una skill quita sus enlaces y mueve la carpeta a `skills-trash/`; «Deshacer»
   la restaura con sus enlaces donde el nombre siga libre. Lo que lleva más de 30 días se purga al
-  listar.
+  listar. Pasado el aviso de «Deshacer», «Skills eliminadas…» (menú «⋯», sección «Papeleras», junto a
+  «Papelera de importación…») lista lo que sigue en la papelera, con cuándo se eliminó y cuándo se borra sola, y
+  «Restaurar…» abre la misma confirmación de enlaces que «Deshacer». No borra nada de forma definitiva.
 - **Salud:** revisa sin cambiar nada y propone una acción por problema (ver abajo). La app la pide al abrir la herramienta, al abrir «Salud» y tras cambios de enlaces (relee los archivos de cada skill, por eso no se pide en cada cambio).
 
 ### Pantallas
@@ -91,6 +93,7 @@ plantillas ya lo hacen así.
 | `skillsRename {id, newId, plan?, confirmed}` | Mueve la carpeta, cambia `name` del encabezado si era el id y recrea los enlaces. Aplicado responde `{skill, conflicts:[{path, reason}]}`: los nombres ya ocupados en la carpeta de una IA se omiten sin tocarlos y se devuelven (`exists`); la app los muestra con un acceso a Salud |
 | `skillsDelete {id, plan?, confirmed}` | Quita sus enlaces, la manda a la papelera y devuelve `{trashId}` |
 | `skillsRestore {trashId, plan?, confirmed}` | La trae de vuelta; sus enlaces, donde el nombre siga libre |
+| `skillsTrashList {}` | Solo lectura: las skills eliminadas que siguen en la papelera, la más reciente primero: `[{trashId, id, name, description, deleted, expires, group}]` (`deleted` en segundos; `expires` = `deleted` + 30 días). Purga antes la papelera de más de 30 días, no lista las entradas de importación (`skillsImportTrashList`) y devuelve solo el título, nunca el texto ni los archivos. Restaurar usa `skillsRestore` con su `trashId` |
 | `skillsGroupSave {groups}` | Crea, renombra y ordena grupos en una llamada |
 | `skillsGroupDelete {id, moveTo}` | Elimina un grupo; `moveTo` es obligatorio si tiene skills |
 | `skillsAgentSave {id, name, folder}` | Crea o edita una IA propia (las incluidas no se editan) |

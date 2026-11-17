@@ -22,6 +22,7 @@ fn every_method_answers_plugin_disabled_while_off_and_the_tool_registers() {
         "skillsAgentRemove",
         "skillsLinkPlan",
         "skillsLinkApply",
+        "skillsTrashList",
         "skillsHealth",
         "skillsExport",
         "skillsImportScan",

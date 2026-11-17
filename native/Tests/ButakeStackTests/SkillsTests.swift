@@ -243,6 +243,27 @@ private let listJSON = """
     #expect(list.map(\.skill) == ["notas", "notas"])
 }
 
+/// «Skills eliminadas…»: each entry decodes with its dates and restores through the usual `.restore` request.
+@Test func deletedTrashEntriesDecodeAndRestoreThroughTheLinksRequest() throws {
+    let list = try JSONDecoder().decode([DeletedTrashEntry].self, from: Data(
+        #"""
+        [{"trashId": "notas-1760000000", "id": "notas", "name": "Notas", "description": "Toma notas", "deleted": 1760000000, "expires": 1762592000, "group": "personal"},
+         {"trashId": "notas-1760000500", "id": "notas", "name": "Notas", "description": "", "deleted": 1760000500, "expires": 1762592500, "group": "personal"}]
+        """#.utf8))
+    #expect(Set(list.map(\.id)).count == 1)
+    #expect(Set(list.map(\.trashId)).count == 2)
+    #expect(list[0].expiresDate.timeIntervalSince(list[0].deletedDate) == 30 * 86_400)
+    let request = list[1].restoreRequest
+    #expect(request.skill == "notas")
+    #expect(request.subject == "Notas")
+    #expect(request.alwaysActs)
+    if case .restore(let trashId) = request.operation { #expect(trashId == "notas-1760000500") } else { Issue.record("not a restore") }
+    let plan = request.operationPayload(confirmed: false)
+    #expect(plan["method"] as? String == "skillsRestore")
+    #expect(plan["trashId"] as? String == "notas-1760000500")
+    #expect(plan["plan"] as? Bool == true)
+}
+
 /// «Salud» rereads the files of every skill: a change asks for it only when it touches links or while
 /// «Salud» is open, and opening «Salud» asks for it.
 @MainActor @Test func healthIsRequestedOnlyWhenItCanChange() async {

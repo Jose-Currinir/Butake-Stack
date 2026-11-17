@@ -24,6 +24,7 @@ private struct SkillsSheets: ViewModifier {
                 case .links(let request): SkillLinkSheet(tool: tool, request: request)
                 case .importExisting: ImportSkillsSheet(tool: tool)
                 case .importTrash: ImportTrashSheet(tool: tool)
+                case .deletedTrash: DeletedTrashSheet(tool: tool)
                 }
             }
     }

@@ -174,6 +174,27 @@ struct DeletedSkill: Equatable, Sendable {
     let trashId: String
 }
 
+/// An entry of «Skills eliminadas…» (`skillsTrashList`): a deleted skill that can still be restored.
+/// It carries the title only, never the text.
+struct DeletedTrashEntry: Decodable, Identifiable, Hashable, Sendable {
+    let trashId: String
+    let id: String
+    let name: String
+    let description: String
+    /// Seconds since 1970: when it was deleted and when it is removed for good (30 days later).
+    let deleted: Int
+    let expires: Int
+    let group: String
+
+    var deletedDate: Date { Date(timeIntervalSince1970: TimeInterval(deleted)) }
+    var expiresDate: Date { Date(timeIntervalSince1970: TimeInterval(expires)) }
+
+    /// Restoring goes through the same confirmation as «Deshacer».
+    var restoreRequest: SkillLinkRequest {
+        SkillLinkRequest(skill: id, operation: .restore(trashId: trashId), subject: name)
+    }
+}
+
 enum SkillIDs {
     /// An id for a name: lowercase letters and digits joined by dashes, at most 64 characters.
     static func slug(_ text: String) -> String {
