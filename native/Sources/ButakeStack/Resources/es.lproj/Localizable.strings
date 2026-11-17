@@ -955,6 +955,7 @@
 "env.downloadMessage" = "El archivo de %@ incluye los valores secretos. Guárdalo en un lugar privado.";
 "env.downloadName" = "El nombre del archivo debe empezar con .env";
 "env.downloadNotIgnored" = "%@ quedaría dentro del repositorio sin estar en .gitignore: agrégalo a .gitignore o elige otra carpeta.";
+"env.downloadGitUnknown" = "No se pudo comprobar con Git si %@ quedaría en un repositorio sin .gitignore, así que no se descargó. Instala las herramientas de línea de comandos de Apple o elige una carpeta que no sea un repositorio.";
 "env.authDownload" = "descargar el entorno %@ con sus secretos";
 "env.downloaded" = "Descargado %@ (permisos 600)";
 "env.createDatabase" = "Crear base…";
