@@ -33,7 +33,8 @@ struct ProjectRenameSheet: View {
 
     /// As the engine checks it: lowercase letters, digits and dashes, 1 to 40.
     nonisolated static func validId(_ id: String) -> Bool {
-        !id.isEmpty && id.count <= 40 && id.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "-" }
+        // Bytes, not characters: a combining mark after a letter is not a letter the engine accepts.
+        !id.isEmpty && id.utf8.count <= 40 && id.utf8.allSatisfy { ($0 >= 97 && $0 <= 122) || ($0 >= 48 && $0 <= 57) || $0 == 45 }
     }
 
     var body: some View {

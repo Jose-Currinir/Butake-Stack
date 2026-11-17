@@ -10,6 +10,8 @@ extension GitRepository {
                                        as type: T.Type = T.self) async -> Result<T, GitFailure> {
         guard operation == nil else { return .failure(GitFailure(code: "operation_in_progress", title: L("git.error.operation_in_progress"), detail: "")) }
         await chain?.value
+        // Another operation may have started while the checkboxes were being applied.
+        guard operation == nil else { return .failure(GitFailure(code: "operation_in_progress", title: L("git.error.operation_in_progress"), detail: "")) }
         let current = GitOperation(title: title, cancellable: false)
         operation = current
         defer { if operation?.id == current.id { operation = nil } }

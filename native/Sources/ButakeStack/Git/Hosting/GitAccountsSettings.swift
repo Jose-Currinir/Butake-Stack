@@ -102,7 +102,9 @@ private struct GitAccountSection: View {
         }
     }
 
-    /// The token is kept only once the provider accepts it; the field is emptied right away.
+    /// The token is kept only once the provider accepts it; the field is emptied right away. It comes back to the
+    /// field only when the failure says nothing about the token (no connection, too many requests, Keychain), so it
+    /// can be tried again without pasting it; a token the provider refused stays out.
     private func connect() async {
         working = true
         defer { working = false }
@@ -112,7 +114,9 @@ private struct GitAccountSection: View {
             let account = try await hosting.connect(provider, email: email, token: typed)
             result = (true, String(format: L("git.accounts.connectedAs"), account.display))
         } catch {
-            result = (false, (error as? GitHostingFailure ?? GitHostingFailure(.offline, provider: provider)).errorDescription ?? "")
+            let failure = error as? GitHostingFailure ?? GitHostingFailure(.offline, provider: provider)
+            if failure.leavesTokenUsable, token.isEmpty { token = typed }
+            result = (false, failure.errorDescription ?? "")
         }
     }
 

@@ -38,6 +38,10 @@ import SwiftUI
     @ObservationIgnored let hosting: GitHosting
 
     var scope: Scope = .branch { didSet { if scope != oldValue { Task { await loadList() } } } }
+    /// The latest list load: asking again cancels the one before, and an answer that is no longer
+    /// the latest (another scope or branch) is dropped instead of overwriting the list on screen.
+    @ObservationIgnored private var listTask: Task<Void, Never>?
+    @ObservationIgnored private var listGeneration = 0
     private(set) var pullRequests: [GitPullRequest] = []
     /// The checks of the open pull requests on the list, by number.
     private(set) var listChecks: [Int: [GitHostingCheck]] = [:]
@@ -116,26 +120,42 @@ import SwiftUI
     }
 
     func loadList() async {
+        listTask?.cancel()
+        var latest = Task { await readList() }
+        listTask = latest
+        await latest.value
+        // Superseded while waiting: this call returns once the list it was replaced by is there.
+        while let next = listTask, next != latest { latest = next; await next.value }
+    }
+
+    private func readList() async {
         guard case .ready(let hosted, _) = availability, pausedUntil == nil else { return }
+        // What this load asks is fixed now: the scope and the branch may change while it waits.
+        listGeneration += 1
+        let generation = listGeneration
+        let scope = self.scope, branch = repository.snapshot.branch
         loading = true
-        defer { loading = false; loaded = true }
+        defer { if generation == listGeneration { loading = false }; loaded = true }
         do {
             let credentials = try await hosting.credentials(for: hosted.provider)
             let state: GitPullRequestState = switch scope { case .branch, .open: .open; case .merged: .merged; case .closed: .closed }
-            var next = try await hosting.client.pullRequests(hosted, state: state, source: scope == .branch ? repository.snapshot.branch : nil, credentials: credentials)
-            if scope == .branch { next = next.filter { $0.source == repository.snapshot.branch } }
+            var next = try await hosting.client.pullRequests(hosted, state: state, source: scope == .branch ? branch : nil, credentials: credentials)
+            guard generation == listGeneration else { return }
+            if scope == .branch { next = next.filter { $0.source == branch } }
             failure = nil
             if next != pullRequests { pullRequests = next }
             if let selected, !next.contains(where: { $0.id == selected }) { self.selected = nil }
             if selected == nil { selected = next.first?.id }
-            await loadListChecks(next.filter { $0.state == .open }.prefix(10), hosted, credentials)
+            await loadListChecks(next.filter { $0.state == .open }.prefix(10), hosted, credentials, generation: generation)
         } catch {
+            guard generation == listGeneration, !Task.isCancelled else { return }
             fail(error)
         }
     }
 
     /// The checks of the first open pull requests of the list, read together (one request each).
-    private func loadListChecks(_ pulls: ArraySlice<GitPullRequest>, _ hosted: GitHostedRepository, _ credentials: GitHostingCredentials) async {
+    private func loadListChecks(_ pulls: ArraySlice<GitPullRequest>, _ hosted: GitHostedRepository, _ credentials: GitHostingCredentials,
+                                  generation: Int) async {
         let client = hosting.client
         // At most three at a time: bursts of requests trip the providers' secondary limits.
         let found = await withTaskGroup(of: (Int, [GitHostingCheck]?).self) { group in
@@ -150,7 +170,7 @@ import SwiftUI
             for await (id, checks) in group { all[id] = checks }
             return all
         }
-        if found != listChecks { listChecks = found }
+        if generation == listGeneration, found != listChecks { listChecks = found }
     }
 
     /// Checks of the current branch's last commit and its open pull request (for «Problemas»).
@@ -192,7 +212,7 @@ import SwiftUI
     func loadDetail() async {
         guard case .ready(let hosted, _) = availability, let pr = selectedPullRequest else { return }
         loadingDetail = true
-        defer { loadingDetail = false }
+        defer { if selected == pr.id { loadingDetail = false } }
         do {
             let credentials = try await hosting.credentials(for: hosted.provider)
             var next = Detail()
@@ -203,6 +223,8 @@ import SwiftUI
             guard selected == pr.id else { return }
             detail = next
         } catch {
+            // The error of a pull request that is no longer the selected one is not shown.
+            guard selected == pr.id else { return }
             fail(error)
         }
     }

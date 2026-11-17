@@ -99,6 +99,11 @@ import SwiftUI
         return session
     }
 
+    /// Forgets the session of a repository that was closed: it keeps the repository alive otherwise.
+    func release(_ repository: GitRepository) {
+        if sessions[repository.root]?.repository === repository { sessions[repository.root] = nil }
+    }
+
     /// Opens a page of the provider in the browser.
     func open(_ url: URL?) {
         guard let url, url.scheme == "https" else { return }

@@ -98,6 +98,9 @@ enum WorkspaceTabKind: Hashable { case terminal, sftp(String) }
     var searchRequests = 0
     /// A tab with something under way the user asked to close: it waits for a confirmation.
     var closing: WorkspaceTab?
+    /// A pane with something under way the user asked to close: it waits for a confirmation too.
+    var closingPane: PaneClosing?
+    struct PaneClosing: Identifiable { let tab: WorkspaceTab; let session: TerminalSession; var id: UUID { session.id } }
     /// The host's card beside a session (hidden until the user opens it), as the user left it.
     var inspector: Bool { didSet { UserDefaults.standard.set(inspector, forKey: "ssh.inspector") } }
     var themeID: String { didSet { UserDefaults.standard.set(themeID, forKey: "ssh.terminal.theme") } }
@@ -178,6 +181,11 @@ enum WorkspaceTabKind: Hashable { case terminal, sftp(String) }
         tab.root = root.inserting(session, beside: focused.id, axis: axis)
         tab.focused = session.id
         Task { await session.start(); try? await Task.sleep(for: .milliseconds(150)); session.focus() }
+    }
+
+    /// «Cerrar panel»: at once, or after a confirmation while its session has something under way.
+    func requestClosePane(_ tab: WorkspaceTab, _ session: TerminalSession) {
+        if session.busy { closingPane = PaneClosing(tab: tab, session: session) } else { closePane(tab, session) }
     }
 
     func closePane(_ tab: WorkspaceTab, _ session: TerminalSession) {

@@ -89,6 +89,9 @@ struct GitQueryList<Item: Identifiable & Hashable, Row: View, Actions: View>: Vi
     @ViewBuilder let row: (Item) -> Row
     @ViewBuilder let actions: () -> Actions
     @State private var items: [Item]?
+    /// Why the list could not be read: not the same as an empty one.
+    @State private var failure: GitFailure?
+    @State private var retries = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -100,15 +103,31 @@ struct GitQueryList<Item: Identifiable & Hashable, Row: View, Actions: View>: Vi
                 .themedScroll()
                 .accessibilityIdentifier(identifier)
                 .overlay {
-                    if items == nil {
+                    if let failure {
+                        ContentUnavailableView {
+                            Label(failure.title, systemImage: Symbols.warning)
+                        } description: {
+                            Text(failure.detail)
+                        } actions: {
+                            Button(L("common.retry")) { retries += 1 }.accessibilityIdentifier("git.more.retry")
+                        }
+                    } else if items == nil {
                         ProgressView()
                     } else if items?.isEmpty == true {
                         ContentUnavailableView(empty.title, systemImage: empty.symbol, description: Text(empty.detail))
                     }
                 }
         }
-        .task(id: "\(repository.snapshot.headCommit?.hash ?? "")|\(repository.snapshot.remotes)|\(repository.files.count)|\(GitMoreRefresh.shared.generation)") {
-            items = parse((try? await repository.query(arguments)) ?? "")
+        .task(id: "\(repository.snapshot.headCommit?.hash ?? "")|\(repository.snapshot.remotes)|\(repository.files.count)|\(GitMoreRefresh.shared.generation)|\(retries)") {
+            do {
+                let output = try await repository.query(arguments)
+                guard !Task.isCancelled else { return }
+                items = parse(output)
+                failure = nil
+            } catch {
+                let problem = GitFailure(error)
+                if !problem.cancelled && !Task.isCancelled { failure = problem }
+            }
         }
     }
 }

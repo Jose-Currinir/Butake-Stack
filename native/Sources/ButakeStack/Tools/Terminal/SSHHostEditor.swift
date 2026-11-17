@@ -11,11 +11,15 @@ struct SSHHostEditor: View {
     /// A group typed in «Nuevo grupo…» that no saved host has yet.
     @State private var newGroup: String?
     @State private var naming: SSHNameRequest?
+    /// One identity per forward, kept in step with `host.forwards`: a new forward has no id yet and
+    /// an index is not an identity (removing one would leave the form reading past the end).
+    @State private var forwardTokens: [UUID]
     init(terminal: SSHTerminal, keys: SSHKeyring, original: SSHHost) {
         self.terminal = terminal
         self.keys = keys
         self.original = original
         _host = State(initialValue: original)
+        _forwardTokens = State(initialValue: original.forwards.map { _ in UUID() })
         _auth = State(initialValue: original.key != nil ? "stack" : original.identity != nil ? "file" : "agent")
     }
     var isNew: Bool { original.id.isEmpty }
@@ -114,11 +118,16 @@ struct SSHHostEditor: View {
                 } footer: {
                     SettingsFooter(L("ssh.authHelp.\(auth)") + " " + (jumpChoices.isEmpty && !isNew && !terminal.jumpers(of: original).isEmpty ? L("ssh.jumpHelpUsed") : L("ssh.jumpHelp")))
                 }
-                ForEach($host.forwards.indices, id: \.self) { index in
-                    SSHForwardEditor(forward: $host.forwards[index], index: index) { host.forwards.remove(at: index) }
+                ForEach(forwardTokens, id: \.self) { token in
+                    if let index = forwardTokens.firstIndex(of: token), host.forwards.indices.contains(index) {
+                        SSHForwardEditor(forward: forwardBinding(token), index: index) { removeForward(token) }
+                    }
                 }
                 Section {
-                    Button { host.forwards.append(SSHForward(kind: "local", listenPort: 0, targetHost: "127.0.0.1")) } label: {
+                    Button {
+                        host.forwards.append(SSHForward(kind: "local", listenPort: 0, targetHost: "127.0.0.1"))
+                        forwardTokens.append(UUID())
+                    } label: {
                         Label(L("ssh.addForward"), systemImage: Symbols.add)
                     }
                     .buttonStyle(.bordered).accessibilityIdentifier("ssh.editor.addForward")
@@ -132,6 +141,17 @@ struct SSHHostEditor: View {
             .frame(minHeight: 420)
         }
         .sheet(item: $naming) { request in SSHNameSheet(request: request, terminal: terminal).themedSheet() }
+    }
+
+    private func forwardBinding(_ token: UUID) -> Binding<SSHForward> {
+        Binding(get: { forwardTokens.firstIndex(of: token).flatMap { host.forwards.indices.contains($0) ? host.forwards[$0] : nil } ?? SSHForward() },
+                set: { if let index = forwardTokens.firstIndex(of: token), host.forwards.indices.contains(index) { host.forwards[index] = $0 } })
+    }
+
+    private func removeForward(_ token: UUID) {
+        guard let index = forwardTokens.firstIndex(of: token), host.forwards.indices.contains(index) else { return }
+        host.forwards.remove(at: index)
+        forwardTokens.remove(at: index)
     }
 
     private static let newGroupTag = "\u{0}new"

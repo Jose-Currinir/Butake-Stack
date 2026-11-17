@@ -2,7 +2,7 @@ import Foundation
 
 /// Never follows a redirect to another host with the token: only one inside the provider's own
 /// API (a renamed repository answers 301), keeping the request's credentials.
-private final class GitHostingRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+final class GitHostingRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
         guard let original = task.originalRequest?.url, request.url?.host == original.host, request.url?.scheme == original.scheme,

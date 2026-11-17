@@ -68,7 +68,7 @@ private struct DumpDetail: View {
                 if let source = dump.source, let place = dump.place {
                     GridRow {
                         label(L("dumps.file"))
-                        Button { Editor.open(source.file) } label: { Label(place, systemImage: Symbols.editor) }
+                        Button { DumpFile.open(source.file, store: StackStore.shared) } label: { Label(place, systemImage: Symbols.editor) }
                             .buttonStyle(.link).help(source.file).accessibilityIdentifier("dumps.detail.open")
                     }
                 }

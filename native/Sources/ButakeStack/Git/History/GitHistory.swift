@@ -49,8 +49,9 @@ import Foundation
 
     private var snapshotCommits: [GitCommitSummary] { repository?.snapshot.commits ?? [] }
     private var limit: Int { repository?.historyLimit ?? 180 }
+    /// Stoppable: a search or a commit read that is no longer wanted ends its Git process (reads only).
     private func query(_ arguments: [String]) async throws -> String {
-        try await store.call(["method": "gitQuery", "path": root, "args": arguments])
+        try await store.stoppableCall(["method": "gitQuery", "path": root, "args": arguments])
     }
 
     // MARK: The list
@@ -119,22 +120,27 @@ import Foundation
     /// the same thing again and, finishing later, make this answer stale.
     func runSearch() async {
         searchTask?.cancel()
-        searchTask = nil
-        await performSearch()
+        let task: Task<Void, Never> = Task { [weak self] in await self?.performSearch(); return }
+        searchTask = task
+        await task.value
     }
 
     private func performSearch() async {
+        // Every call, even one that ends early, makes a search still in flight stale.
+        searchGeneration += 1
+        let generation = searchGeneration
         let text = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scope = self.scope, onlyBranch = self.onlyBranch
         searchNote = nil
-        guard !text.isEmpty else { results = nil; matches = nil; readFailure = nil; return }
+        guard !text.isEmpty else { searching = false; results = nil; matches = nil; readFailure = nil; return }
         if (scope == .file || scope == .content) && paths.isEmpty { await loadPaths() }
+        guard generation == searchGeneration else { return }
         guard let arguments = GitHistorySearch.arguments(scope, text: text, onlyBranch: onlyBranch, paths: paths) else {
+            searching = false
             if scope == .content { matches = [] } else { results = []; matches = nil }
             searchNote = L("git.history.note.\(scope.rawValue)")
             return
         }
-        searchGeneration += 1
-        let generation = searchGeneration
         searching = true
         defer { if generation == searchGeneration { searching = false } }
         let output: String
@@ -147,7 +153,8 @@ import Foundation
             return
         }
         // A newer search, or other text, scope or branch filter, makes this answer stale.
-        guard generation == searchGeneration, text == search.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
+        guard generation == searchGeneration, text == search.trimmingCharacters(in: .whitespacesAndNewlines),
+              scope == self.scope, onlyBranch == self.onlyBranch else { return }
         readFailure = nil
         if scope == .content {
             results = nil
@@ -194,9 +201,14 @@ import Foundation
             let message = (try? await body) ?? ""
             let text = (try? await patch) ?? ""
             guard !Task.isCancelled, self.selected == hash else { return }
+            // A big patch (a lockfile, generated files) is split off the main thread.
+            let sections = text.utf8.count > GitDiffRenderer.backgroundThreshold
+                ? await Task.detached(priority: .userInitiated) { GitDiffSection.split(text) }.value
+                : GitDiffSection.split(text)
+            guard !Task.isCancelled, self.selected == hash else { return }
             let lines = message.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\n")
             let rest = lines.dropFirst().joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            self.detail = GitCommitDetail(hash: hash, body: rest, sections: GitDiffSection.split(text), loaded: true)
+            self.detail = GitCommitDetail(hash: hash, body: rest, sections: sections, loaded: true)
         }
     }
 

@@ -249,3 +249,31 @@ private struct Sandbox {
     #expect(repository.failure?.code == "protected_branch")
     #expect(!repository.canUndoCommit)
 }
+
+@MainActor @Test func syncAsksBeforePushingStraightToThePrimaryBranch() async throws {
+    let sandbox = try Sandbox()
+    defer { try? FileManager.default.removeItem(at: sandbox.root) }
+    let store = StackStore(engine: StackEngine())
+    try git(sandbox.mine, "switch", "-q", "-c", "main")
+    try git(sandbox.mine, "push", "-q", "-u", "origin", "main")
+    let repository = try await openRepository(store, sandbox.mine)
+    defer { repository.stopWatching() }
+    #expect(repository.snapshot.branch == repository.snapshot.primaryBranch)
+
+    try write(sandbox.mine, "listo.txt", "listo\n")
+    try git(sandbox.mine, "add", "listo.txt")
+    try git(sandbox.mine, "commit", "-q", "-m", "feat: listo")
+    await repository.refresh()
+    #expect(repository.syncState == .push(count: 1))
+    let remoteHead = try git(sandbox.remote, "rev-parse", "main")
+
+    // ⌥⌘S, «Reintentar» and the pull assistant go through `sync()`: it asks, it does not push.
+    await repository.sync()
+    #expect(repository.confirmingPushMain)
+    #expect(try git(sandbox.remote, "rev-parse", "main") == remoteHead)
+
+    // The dialog's confirmation is what pushes.
+    repository.confirmingPushMain = false
+    #expect(await repository.perform(.push))
+    #expect(try git(sandbox.remote, "rev-parse", "main") != remoteHead)
+}

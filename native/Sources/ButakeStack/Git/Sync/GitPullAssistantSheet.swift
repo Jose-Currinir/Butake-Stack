@@ -31,7 +31,7 @@ struct GitPullAssistantSheet: View {
                    actionID: "git.pull.continue", canAct: options.isEmpty || choice != nil, cancelID: "git.pull.cancel") {
             if let choice {
                 dismiss()
-                if choice == .push { await repository.perform(.push) } else { await repository.resolvePull(choice) }
+                if choice == .push { await repository.push() } else { await repository.resolvePull(choice) }
             } else {
                 GitTool.shared.tab = .problems
             }

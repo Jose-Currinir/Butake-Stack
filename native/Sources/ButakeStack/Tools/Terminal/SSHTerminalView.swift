@@ -95,6 +95,14 @@ struct SSHTerminalView: View {
         } message: { tab in
             Text(L(tab.browser == nil ? "ssh.tabs.closeDetail" : "ssh.tabs.closeTransfersDetail"))
         }
+        .confirmationDialog(String(format: L("ssh.tabs.closeConfirm"), workspace.closingPane?.session.title ?? ""),
+                            isPresented: Binding(get: { workspace.closingPane != nil }, set: { if !$0 { workspace.closingPane = nil } }),
+                            presenting: workspace.closingPane) { pane in
+            Button(L("ssh.tabs.close"), role: .destructive) { workspace.closePane(pane.tab, pane.session) }.accessibilityIdentifier("ssh.panes.confirmClose")
+            Button(L("common.cancel"), role: .cancel) {}
+        } message: { _ in
+            Text(L("ssh.tabs.closeDetail"))
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -177,7 +185,7 @@ struct SSHTerminalView: View {
             Button { workspace.split(tab, axis: .vertical) } label: { Label(L("ssh.terminal.splitDown"), systemImage: Symbols.splitDown) }
                 .accessibilityIdentifier("ssh.toolbar.terminal.splitDown")
             if let session = tab.focusedSession, tab.sessions.count > 1 {
-                Button { workspace.closePane(tab, session) } label: { Label(L("ssh.terminal.closePane"), systemImage: Symbols.close) }
+                Button { workspace.requestClosePane(tab, session) } label: { Label(L("ssh.terminal.closePane"), systemImage: Symbols.close) }
                     .accessibilityIdentifier("ssh.toolbar.terminal.closePane")
             }
             Divider()

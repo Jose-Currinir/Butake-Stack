@@ -150,7 +150,7 @@ private struct TerminalPaneView: View {
                             .font(.uiHeadline)
                             .help(local && code != 0 ? String(format: L("ssh.local.exitCode"), code) : "")
                         HStack {
-                            Button { SSHWorkspace.shared.closePane(tab, session) } label: { Label(L("ssh.terminal.closePane"), systemImage: Symbols.close) }
+                            Button { SSHWorkspace.shared.requestClosePane(tab, session) } label: { Label(L("ssh.terminal.closePane"), systemImage: Symbols.close) }
                                 .buttonStyle(.bordered).accessibilityIdentifier("ssh.terminal.closeEnded")
                             Button { Task { await session.reconnect() } } label: {
                                 Label(L(local ? "ssh.local.reopen" : "ssh.terminal.reconnect"), systemImage: Symbols.reload)

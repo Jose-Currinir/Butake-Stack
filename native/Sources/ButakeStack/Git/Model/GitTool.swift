@@ -141,14 +141,25 @@ import SwiftUI
     // MARK: Opening
 
     /// Opens the repository that contains `path` (a project's folder, a repository's subfolder).
+    /// While another one is opening, the last request waits its turn instead of being lost.
     func open(_ path: String) async {
-        guard opening == nil else { return }
+        guard opening == nil else { queuedOpen = path; return }
+        await openNow(path)
+        while let next = queuedOpen {
+            queuedOpen = nil
+            await openNow(next)
+        }
+    }
+
+    @ObservationIgnored private var queuedOpen: String?
+
+    private func openNow(_ path: String) async {
         if repository?.root == path { return }
         opening = path
         defer { opening = nil }
         do {
             let snapshot: GitSnapshot = try await store.call(["method": "gitOpen", "path": path])
-            repository?.stopWatching()
+            dropRepository()
             let next = GitRepository(snapshot: snapshot, store: store)
             next.watch()
             next.selectedFile = next.files.first(where: { !$0.conflicted })?.path
@@ -202,9 +213,16 @@ import SwiftUI
         }
     }
 
-    func close() {
-        repository?.stopWatching()
+    /// Stops following the open repository and lets go of its provider session (it holds the repository).
+    private func dropRepository() {
+        guard let old = repository else { return }
+        old.stopWatching()
+        GitHosting.shared.release(old)
         repository = nil
+    }
+
+    func close() {
+        dropRepository()
         #if DEBUG
         if !StackStore.qaWindow { UserDefaults.standard.removeObject(forKey: Self.lastKey) }
         #else
@@ -215,8 +233,7 @@ import SwiftUI
     /// The tool was turned off: nothing keeps watching its folders. The last repository is still
     /// remembered and opens again when the tool comes back.
     func suspend() {
-        repository?.stopWatching()
-        repository = nil
+        dropRepository()
         loaded = false
     }
 

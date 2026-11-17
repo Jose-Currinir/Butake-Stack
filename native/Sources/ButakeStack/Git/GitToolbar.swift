@@ -58,7 +58,6 @@ struct GitActionBar: View {
     @Bindable var repository: GitRepository
     @Bindable var tool = GitTool.shared
     var compact = false
-    @State private var confirmingMain = false
 
     var body: some View {
         let snapshot = repository.snapshot, state = repository.syncState
@@ -81,7 +80,7 @@ struct GitActionBar: View {
                 .disabled(!snapshot.tracked)
             button(counted(L("git.action.push"), snapshot.ahead), Symbols.gitPush, "push", pushHelp(state)) { push(state) }
                 .disabled(snapshot.detached)
-                .confirmationDialog(String(format: L("git.sync.pushMainTitle"), snapshot.primaryBranch), isPresented: $confirmingMain) {
+                .confirmationDialog(String(format: L("git.sync.pushMainTitle"), snapshot.primaryBranch), isPresented: $repository.confirmingPushMain) {
                     Button(L("git.sync.pushMainConfirm")) { Task { await repository.perform(.push) } }
                         .accessibilityIdentifier("git.sync.pushMainConfirm")
                     Button(L("common.cancel"), role: .cancel) {}.accessibilityIdentifier("git.sync.pushMainCancel")
@@ -131,7 +130,6 @@ struct GitActionBar: View {
 
     private func push(_ state: GitSyncState) {
         if case .publishRepository = state { GitHosting.shared.publishing = true }
-        else if repository.snapshot.tracked, repository.snapshot.branch == repository.snapshot.primaryBranch { confirmingMain = true }
-        else { Task { await repository.perform(.push) } }
+        else { Task { await repository.push() } }
     }
 }
