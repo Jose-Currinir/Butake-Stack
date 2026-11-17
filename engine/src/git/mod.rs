@@ -19,6 +19,7 @@ pub mod credentials;
 mod diff;
 mod editing;
 mod files;
+mod peer;
 mod protection;
 mod remotes;
 pub mod repositories;

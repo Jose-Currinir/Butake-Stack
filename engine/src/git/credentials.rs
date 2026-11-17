@@ -41,8 +41,16 @@ fn invalid() -> super::runner::GitError {
     )
 }
 
-/// `https://host[:port]`, or plain HTTP only to this Mac's loopback address (the fake server of
-/// the tests): nothing else may receive a token.
+/// The only hosts that may receive an account's token: the providers the app connects.
+const PROVIDER_HOSTS: [&str; 2] = ["github.com", "bitbucket.org"];
+
+/// Set by the tests of the engine (a fake server on this Mac): plain HTTP to 127.0.0.1 is then
+/// accepted. Production never sets it.
+const LOOPBACK_FOR_TESTS: &str = "BUTAKE_STACK_TEST_LOOPBACK";
+
+/// `https://github.com` or `https://bitbucket.org` (the default port may be spelled out), and, only
+/// with [`LOOPBACK_FOR_TESTS`], `http://127.0.0.1[:port]`: nothing else may receive a token,
+/// whatever the caller sends.
 fn valid_origin(origin: &str) -> bool {
     let (authority, loopback) = match origin.strip_prefix("https://") {
         Some(rest) => (rest, false),
@@ -55,10 +63,16 @@ fn valid_origin(origin: &str) -> bool {
         Some((host, port)) => (host, Some(port)),
         None => (authority, None),
     };
-    validate::host(host)
-        && !host.contains(':')
-        && port.is_none_or(|p| p.parse::<u16>().is_ok_and(|n| n > 0))
-        && (!loopback || host == "127.0.0.1")
+    let port_ok = port.is_none_or(|p| p.parse::<u16>().is_ok_and(|n| n > 0));
+    if loopback {
+        return std::env::var_os(LOOPBACK_FOR_TESTS).is_some_and(|v| v == "1")
+            && host == "127.0.0.1"
+            && port_ok;
+    }
+    let host = host.to_ascii_lowercase();
+    validate::host(&host)
+        && PROVIDER_HOSTS.contains(&host.as_str())
+        && port.is_none_or(|p| p == "443")
 }
 
 /// `scheme://host` as compared with the origin: lower case and without the default HTTPS port
@@ -234,7 +248,11 @@ fn serve(listener: UnixListener, token: String, credentials: Credentials, done: 
             Ok((mut stream, _)) => {
                 let _ = stream.set_nonblocking(false);
                 let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
-                if !crate::ssh::askpass::same_user(&stream) {
+                // Same user, and started by Git's HTTPS transport: a hook or filter of the
+                // repository inherits the socket and the token, but not that parent.
+                if !crate::ssh::askpass::same_user(&stream)
+                    || !super::peer::is_git_transport_child(&stream)
+                {
                     continue;
                 }
                 let proven = read_line(&mut stream, 128).is_some_and(|line| line == token);
@@ -308,7 +326,33 @@ pub fn attach(command: &mut tokio::process::Command, args: &[&str]) -> Result<Op
 
 #[cfg(test)]
 mod tests {
-    use super::same_origin;
+    use super::{same_origin, valid_origin};
+
+    #[test]
+    fn only_the_providers_may_receive_a_token() {
+        for origin in [
+            "https://github.com",
+            "https://bitbucket.org",
+            "https://GitHub.com:443",
+        ] {
+            assert!(valid_origin(origin), "{origin}");
+        }
+        for origin in [
+            "https://git.example.invalid",
+            "https://github.com.evil.test",
+            "https://github.com:8443",
+            "http://github.com",
+            "https://127.0.0.1:4000",
+            "ssh://github.com",
+        ] {
+            assert!(!valid_origin(origin), "{origin}");
+        }
+        // Plain loopback HTTP is for the tests of the engine only (they set the variable).
+        assert_eq!(
+            valid_origin("http://127.0.0.1:4000"),
+            std::env::var_os("BUTAKE_STACK_TEST_LOOPBACK").is_some_and(|v| v == "1")
+        );
+    }
 
     #[test]
     fn the_default_https_port_is_the_same_origin() {

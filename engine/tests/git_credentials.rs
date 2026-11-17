@@ -90,6 +90,8 @@ fn setup() -> Setup {
 fn call(setup: &Setup, request: Value) -> (Value, String) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_butake-stack"))
         .env("HOME", setup.root.join("home"))
+        // The engine accepts plain HTTP to this Mac's loopback address only when told it is a test.
+        .env("BUTAKE_STACK_TEST_LOOPBACK", "1")
         .env("BUTAKE_STACK_HOME", setup.root.join("store"))
         .env("TMPDIR", setup.root.join("tmp"))
         .env("GIT_CONFIG_GLOBAL", setup.root.join("home/.gitconfig"))
@@ -196,10 +198,8 @@ fn credentials_of_another_origin_are_never_sent() {
     let setup = setup();
     let (port, seen) = server();
     for credentials in [
-        // Another server, another port of this one, and the same name over another scheme.
-        json!({"origin": "https://git.example.invalid", "username": "ana-qa", "password": TOKEN}),
+        // Another port of the one server this test runs.
         json!({"origin": format!("http://127.0.0.1:{}", port.wrapping_add(1).max(1)), "username": "ana-qa", "password": TOKEN}),
-        json!({"origin": format!("https://127.0.0.1:{port}"), "username": "ana-qa", "password": TOKEN}),
     ] {
         let (answer, text) = call(&setup, fetch_request(&setup, port, credentials));
         assert_eq!(answer["ok"], false, "{text}");
@@ -209,6 +209,9 @@ fn credentials_of_another_origin_are_never_sent() {
     assert!(seen.lock().unwrap().is_empty());
     // Credentials that are not what the app sends are refused before Git runs.
     for credentials in [
+        // Hosts that are not a provider of the app (R-65), whatever their shape.
+        json!({"origin": "https://git.example.invalid", "username": "ana-qa", "password": TOKEN}),
+        json!({"origin": format!("https://127.0.0.1:{port}"), "username": "ana-qa", "password": TOKEN}),
         json!({"origin": "http://git.example.invalid", "username": "ana-qa", "password": TOKEN}),
         json!({"origin": "https://git.example.invalid/ruta", "username": "ana-qa", "password": TOKEN}),
         json!({"origin": "https://usuario@git.example.invalid", "username": "ana-qa", "password": TOKEN}),
