@@ -30,6 +30,14 @@ fn from_launchd(name: &str) -> Vec<i32> {
     list
 }
 
+/// Supervised processes never inherit these sockets by accident: the supervisor hands a process
+/// its own copies (`dup2` clears the flag on the copy) and everything else closes on exec.
+fn close_on_exec(fd: i32) {
+    // SAFETY: `fcntl` with `F_SETFD` takes integers and touches no memory; `fd` belongs to the
+    // socket the caller holds.
+    unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) };
+}
+
 /// Process listening on a local port, for a readable "port in use" message.
 pub fn port_owner(port: u16, udp: bool) -> Option<String> {
     let filter = if udp {
@@ -116,6 +124,7 @@ impl Listeners {
         this
     }
     fn set_udp(&mut self, name: &str, socket: UdpSocket) {
+        close_on_exec(socket.as_raw_fd());
         if name == "https-udp" {
             self.https_udp = Some(socket);
         } else {
@@ -123,6 +132,7 @@ impl Listeners {
         }
     }
     fn set_tcp(&mut self, name: &str, listener: TcpListener) {
+        close_on_exec(listener.as_raw_fd());
         match name {
             "http" => self.http = Some(listener),
             "https" => self.https = Some(listener),
