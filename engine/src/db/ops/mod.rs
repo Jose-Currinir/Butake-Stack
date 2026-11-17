@@ -2,8 +2,6 @@
 //! structure), query, edit rows, administer (databases, users, processes) and back up / restore.
 //! Every change to data, structure, users or the server needs `"confirmed": true`; without it the
 //! request returns what would run so the app can show it first.
-use crate::core::fsutil::private_options;
-use crate::core::time::now_nanos;
 use crate::{
     core::fsutil::write_private,
     core::store::Store,

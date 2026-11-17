@@ -43,6 +43,8 @@ pub fn explain(target: &Target, request: &Value) -> Result<Value> {
     let statements = sql::split(sql, d);
     ensure!(statements.len() == 1, "invalid_explain");
     let statement = &statements[0];
+    // Never client meta-commands or executable comments riding along with the statement.
+    ensure!(!sql::has_client_directive(statement, d), "invalid_explain");
     // Only plain statements: never EXPLAIN ANALYZE (which runs it), never options in parentheses.
     ensure!(
         statement

@@ -87,6 +87,8 @@ pub fn restore(store: &Store, target: &Target, request: &Value) -> Result<Value>
     let reader = std::thread::spawn(move || {
         let mut text = String::new();
         let _ = (&mut errors).take(64 * 1024).read_to_string(&mut text);
+        // Keep draining: a client that fills the pipe would block forever.
+        let _ = std::io::copy(&mut errors, &mut std::io::sink());
         text
     });
     let mut sink: Box<dyn Write> = match gunzip.as_mut() {
@@ -118,9 +120,11 @@ pub fn restore(store: &Store, target: &Target, request: &Value) -> Result<Value>
         progress.report(done, database, false);
     }
     drop(sink);
-    if let Some(mut g) = gunzip {
-        let _ = g.wait();
-    }
+    // A truncated or corrupt .gz hands the client half a script that it still runs to the end.
+    let gunzip_ok = match gunzip {
+        Some(mut g) => g.wait().map(|s| s.success()).unwrap_or(false),
+        None => true,
+    };
     let status = child.wait()?;
     let stderr = reader.join().unwrap_or_default();
     drop(secret);
@@ -130,5 +134,6 @@ pub fn restore(store: &Store, target: &Target, request: &Value) -> Result<Value>
             &client::clean_error(&stderr).unwrap_or_else(|| "restore_failed".into()),
         ));
     }
+    ensure!(gunzip_ok, "restore_failed");
     Ok(json!({"bytes": done}))
 }

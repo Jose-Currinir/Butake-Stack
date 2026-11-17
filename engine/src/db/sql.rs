@@ -38,7 +38,7 @@ pub fn split(text: &str, dialect: Dialect) -> Vec<String> {
                     i += 1;
                 }
             }
-            '-' if next == Some('-') => {
+            '-' if is_dash_comment(&chars, i, dialect) => {
                 while i < chars.len() && chars[i] != '\n' {
                     i += 1;
                 }
@@ -88,6 +88,17 @@ pub fn split(text: &str, dialect: Dialect) -> Vec<String> {
     out
 }
 
+/// `--` starts a comment, except in MySQL where it needs a whitespace or control character after it
+/// (`SELECT 1--1` is arithmetic there).
+fn is_dash_comment(chars: &[char], i: usize, dialect: Dialect) -> bool {
+    chars[i] == '-'
+        && chars.get(i + 1) == Some(&'-')
+        && (dialect != Dialect::MySql
+            || chars
+                .get(i + 2)
+                .is_none_or(|c| c.is_whitespace() || c.is_control()))
+}
+
 fn push(out: &mut Vec<String>, chars: &[char], dialect: Dialect) {
     let text: String = chars.iter().collect();
     let text = text.trim();
@@ -104,7 +115,7 @@ pub fn strip_comments(text: &str, dialect: Dialect) -> String {
     while i < chars.len() {
         let c = chars[i];
         let next = chars.get(i + 1).copied();
-        if (c == '-' && next == Some('-')) || (c == '#' && dialect == Dialect::MySql) {
+        if is_dash_comment(&chars, i, dialect) || (c == '#' && dialect == Dialect::MySql) {
             while i < chars.len() && chars[i] != '\n' {
                 i += 1;
             }
@@ -154,9 +165,75 @@ fn words(text: &str, dialect: Dialect) -> Vec<String> {
         .collect()
 }
 
+/// Text the engine's own client would act on instead of sending to the server: psql and mysql
+/// backslash meta-commands (`\!`, `\gexec`, `\o |cmd`, `\copy`), the mysql client's line commands
+/// (`system`, `source`...), executable `/*! ... */` comments and sqlite3 dot-commands (`.shell`,
+/// `.import`...). Like the clients themselves, backslashes are looked for outside string
+/// literals and comments (a regex `'\d+'` or an escaped `'it\'s'` is data). Postgres text with a
+/// `$` is read raw: dollar quotes are not parsed here, so a quote inside one cannot hide a
+/// command (over-reporting only costs a confirmation). The mysql client takes its named
+/// commands only as the first word of a statement, so a column called `source` is not one.
+pub fn has_client_directive(statement: &str, dialect: Dialect) -> bool {
+    match dialect {
+        Dialect::Sqlite => statement.lines().any(|l| l.trim_start().starts_with('.')),
+        Dialect::Postgres => {
+            if statement.contains('$') || has_escape_string(statement) {
+                statement.contains('\\')
+            } else {
+                strip_comments(statement, dialect).contains('\\')
+            }
+        }
+        Dialect::MySql => {
+            const COMMANDS: &[&str] = &[
+                "system",
+                "source",
+                "tee",
+                "notee",
+                "pager",
+                "nopager",
+                "edit",
+                "ego",
+                "go",
+                "rehash",
+                "connect",
+                "charset",
+                "delimiter",
+                "prompt",
+                "warnings",
+                "nowarning",
+                "resetconnection",
+            ];
+            let stripped = strip_comments(statement, dialect);
+            let first = stripped
+                .trim_start()
+                .split(|c: char| !c.is_ascii_alphanumeric())
+                .next()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            statement.contains("/*!")
+                || statement.contains("/*M!")
+                || stripped.contains('\\')
+                || COMMANDS.contains(&first.as_str())
+        }
+    }
+}
+
+/// Whether Postgres text has an `E'…'` escape string, whose `\'` the literal scanner does not know.
+fn has_escape_string(statement: &str) -> bool {
+    let chars: Vec<char> = statement.chars().collect();
+    chars.windows(2).enumerate().any(|(i, pair)| {
+        matches!(pair[0], 'e' | 'E')
+            && pair[1] == '\''
+            && (i == 0 || !(chars[i - 1].is_alphanumeric() || chars[i - 1] == '_'))
+    })
+}
+
 /// True only for statements that cannot change data, structure, users or server settings. Anything
 /// else needs the user's explicit confirmation before it runs.
 pub fn is_read_only(statement: &str, dialect: Dialect) -> bool {
+    if has_client_directive(statement, dialect) {
+        return false;
+    }
     let words = words(statement, dialect);
     let Some(first) = words.first() else {
         return true;
@@ -591,6 +668,52 @@ mod tests {
         }
         assert!(!is_read_only("pragma journal_mode = wal", Dialect::Sqlite));
         assert!(is_read_only("pragma table_info(t)", Dialect::Sqlite));
+    }
+
+    #[test]
+    fn client_directives_are_never_read_only() {
+        let (m, p, s) = (Dialect::MySql, Dialect::Postgres, Dialect::Sqlite);
+        for (sql, d) in [
+            ("SELECT 1 \\! touch /tmp/x", p),
+            ("select 1 \\gexec", p),
+            ("select 1 \\o |cat", p),
+            ("select 1 \\copy t to 'x'", p),
+            ("select E'\\'' \\! id", p),
+            ("explain select 1 \\! id", p),
+            ("SELECT 1 \\! id", m),
+            ("system id", m),
+            ("  source /tmp/x.sql", m),
+            ("-- nota\nSOURCE /tmp/x.sql", m),
+            ("select '$' \\! id", p),
+            ("select $$ ' $$ \\! id", p),
+            ("select 1 /*!50000 into outfile '/tmp/x' */", m),
+            ("select 1 /*M!100100 truncate t */", m),
+            ("select 1 --\\! id", m),
+            ("select 1\n.shell id", s),
+            ("select 1\n  .import f t", s),
+        ] {
+            assert!(!is_read_only(sql, d), "{sql}");
+            assert!(has_client_directive(sql, d), "{sql}");
+        }
+        assert!(is_read_only("select 1 -- a note", m));
+        assert!(is_read_only("select systems from t\nwhere go_id = 1", m));
+        // Data, not commands: backslashes inside literals and a column named like a command.
+        assert!(is_read_only("select * from t where name ~ '\\d+'", p));
+        assert!(is_read_only("select * from t where name like 'a\\_b'", m));
+        assert!(is_read_only("select 'it\\'s' from t", m));
+        assert!(is_read_only("select id,\n  source,\n  name from t", m));
+        assert!(is_read_only("select 1.5 from t", s));
+    }
+
+    #[test]
+    fn mysql_double_dash_needs_a_space_to_be_a_comment() {
+        let m = Dialect::MySql;
+        // `--1` is arithmetic: the `;` after it ends the statement and the next one is separate.
+        let parts = split("select 1--1; delete from t", m);
+        assert_eq!(parts.len(), 2);
+        assert!(!is_read_only(&parts[1], m));
+        assert_eq!(split("select 1-- c; x\n; select 2", m).len(), 2);
+        assert_eq!(split("select 1--1; select 2", Dialect::Postgres).len(), 1);
     }
 
     #[test]

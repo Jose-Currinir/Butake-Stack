@@ -69,6 +69,7 @@ struct PendingConfirmation: Identifiable {
         for key in schemas.keys where key.hasPrefix("\(connection.id)/") { schemas[key] = nil }
         status[connection.id] = .disconnected
         lastUsed[connection.id] = nil
+        DatabaseVault.forget(connection.id)
         databases[connection.id] = nil
         errors[connection.id] = nil
         for key in objects.keys where key.hasPrefix("\(connection.id)/") { objects[key] = nil }
@@ -140,13 +141,13 @@ struct PendingConfirmation: Identifiable {
 
     // MARK: Requests
 
-    private func request(_ method: String, _ connection: DBConnection?, _ extra: [String: Any]) -> [String: Any] {
+    private func request(_ method: String, _ connection: DBConnection?, _ extra: [String: Any]) async -> [String: Any] {
         var payload = extra
         payload["method"] = method
         if let connection {
             lastUsed[connection.id] = Date()
             payload["connection"] = connection.id
-            if let password = DatabaseVault.get(connection.id) { payload["password"] = password }
+            if let password = await DatabaseVault.password(connection.id) { payload["password"] = password }
         }
         return payload
     }
@@ -154,7 +155,7 @@ struct PendingConfirmation: Identifiable {
     /// A read: errors land next to what failed (the tree, a tab) instead of a global alert.
     func read<T: Decodable & Sendable>(_ method: String, _ connection: DBConnection?, _ extra: [String: Any] = [:], as: T.Type = T.self) async throws -> T {
         do {
-            return try await store.call(request(method, connection, extra))
+            return try await store.call(await request(method, connection, extra))
         } catch let failure as EngineFailure where failure.code == "ssh_host_unknown" {
             if let connection, let ssh = connection.ssh { await checkHost(connection, ssh) }
             throw failure
@@ -166,7 +167,7 @@ struct PendingConfirmation: Identifiable {
     @discardableResult
     func change<T: Decodable & Sendable>(_ method: String, _ connection: DBConnection?, _ extra: [String: Any], title: String, typedName: String? = nil, as: T.Type = T.self) async -> T? {
         do {
-            let first: Confirmable<T> = try await store.call(request(method, connection, extra))
+            let first: Confirmable<T> = try await store.call(await request(method, connection, extra))
             switch first {
             case .done(let value): return value
             case .confirm(let statements):
@@ -177,7 +178,7 @@ struct PendingConfirmation: Identifiable {
                 again["confirmed"] = true
                 if typedName != nil { again["typedName"] = typed }
                 if production != nil { again["typedConnection"] = typedConnection }
-                let second: Confirmable<T> = try await store.call(request(method, connection, again))
+                let second: Confirmable<T> = try await store.call(await request(method, connection, again))
                 if case .done(let value) = second { return value }
                 return nil
             }
@@ -293,7 +294,7 @@ struct PendingConfirmation: Identifiable {
         guard await confirmSimple(String(format: L("db.deleteConnectionConfirm"), connection.name)) else { return }
         do {
             let _: Bool = try await store.call(["method": "dbDeleteConnection", "connection": connection.id])
-            DatabaseVault.delete(connection.id)
+            DatabaseVault.deleteAll(connection: connection.id)
             if selection?.connection == connection.id { selection = nil }
             await loadConnections()
         } catch { store.report(error) }

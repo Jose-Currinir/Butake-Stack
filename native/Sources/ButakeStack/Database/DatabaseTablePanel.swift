@@ -23,6 +23,8 @@ struct TableDataPanel: View {
     @State private var deleted: Set<Int> = []
     @State private var inserted: [[String?]] = []
     @State private var loading = false
+    /// Bumped by every load: an answer that arrives after a newer request is dropped.
+    @State private var loadGeneration = 0
     struct Sort: Hashable { var column: String; var descending: Bool }
     let pageSize = 100
     var editable: Bool { !(data?.primaryKey.isEmpty ?? true) && !selection.isView && connection.allowsWrites }
@@ -53,7 +55,7 @@ struct TableDataPanel: View {
             Button { addFilter() } label: { Label(L("db.filter"), systemImage: Symbols.filter) }
                 .buttonStyle(.bordered).fixedSize().disabled(filterColumn.isEmpty).accessibilityIdentifier("db.data.filter.apply")
             if !filters.isEmpty {
-                Button { filters = []; page = 0; Task { await load() } } label: { Label(L("db.clearFilters"), systemImage: Symbols.remove) }
+                Button { Task { guard await discardEditsConfirmed() else { return }; filters = []; page = 0; await load() } } label: { Label(L("db.clearFilters"), systemImage: Symbols.remove) }
                     .buttonStyle(.bordered).fixedSize()
                     .accessibilityIdentifier("db.data.filter.clear")
             }
@@ -81,8 +83,11 @@ struct TableDataPanel: View {
                              else { edits[row, default: [:]][column] = .some(value) }
                          },
                          onSort: { name, adding in
-                             sorts = Self.sorting(sorts, by: name, adding: adding)
-                             Task { await load() }
+                             Task {
+                                 guard await discardEditsConfirmed() else { return }
+                                 sorts = Self.sorting(sorts, by: name, adding: adding)
+                                 await load()
+                             }
                          },
                          onDelete: { rows in
                              for row in rows {
@@ -119,8 +124,16 @@ struct TableDataPanel: View {
                 sorts += qa.sorts.map { Sort(column: $0.column, descending: $0.descending) }
             }
             #endif
+            // Recargar (⌘R) also reloads: unsaved edits are only dropped if the user agrees.
+            guard await discardEditsConfirmed() else { return }
             await load()
         }
+    }
+
+    /// Loading again replaces the rows on screen: with unsaved edits the user must agree first.
+    func discardEditsConfirmed() async -> Bool {
+        guard changes > 0 else { return true }
+        return await client.confirmSimple(String(format: L("db.confirm.discardEdits"), changes))
     }
 
     /// The filters and sort columns in use, each removable.
@@ -142,7 +155,7 @@ struct TableDataPanel: View {
                     if !filters.isEmpty { Divider().frame(height: 16) }
                     Image(systemName: Symbols.sort).foregroundStyle(.secondary).accessibilityHidden(true)
                     ForEach(Array(sorts.enumerated()), id: \.offset) { index, s in
-                        Button { sorts.remove(at: index); Task { await load() } } label: {
+                        Button { Task { guard await discardEditsConfirmed() else { return }; sorts.remove(at: index); await load() } } label: {
                             Label("\(index + 1). \(s.column) \(s.descending ? "↓" : "↑")", systemImage: Symbols.remove)
                         }
                         .buttonStyle(.bordered).controlSize(.small).help(L("db.sort.remove"))
@@ -201,16 +214,22 @@ struct TableDataPanel: View {
     }
     func addFilter() {
         guard !filterColumn.isEmpty else { return }
-        filters.append(["column": filterColumn, "op": filterOp, "value": filterValue, "join": filters.isEmpty ? "and" : filterJoin])
-        filterValue = ""; page = 0
-        Task { await load() }
+        Task {
+            guard await discardEditsConfirmed() else { return }
+            filters.append(["column": filterColumn, "op": filterOp, "value": filterValue, "join": filters.isEmpty ? "and" : filterJoin])
+            filterValue = ""; page = 0
+            await load()
+        }
     }
     /// The first filter never joins anything: removing it makes the next one the first.
     func removeFilter(at index: Int) {
-        filters.remove(at: index)
-        if !filters.isEmpty { filters[0]["join"] = "and" }
-        page = 0
-        Task { await load() }
+        Task {
+            guard await discardEditsConfirmed() else { return }
+            filters.remove(at: index)
+            if !filters.isEmpty { filters[0]["join"] = "and" }
+            page = 0
+            await load()
+        }
     }
     /// A plain click sorts by that column alone (again: reverses it); ⇧-click adds it after the
     /// others (again: reverses it; a third time removes it).
@@ -235,16 +254,23 @@ struct TableDataPanel: View {
         await client.export(connection, format: format, suggested: selection.table ?? "tabla", request)
     }
     func load() async {
-        loading = true; defer { loading = false }
+        loadGeneration += 1
+        let generation = loadGeneration
+        loading = true
+        defer { if generation == loadGeneration { loading = false } }
         do {
             var request = filterRequest
             request["page"] = page
             request["pageSize"] = pageSize
             let value: DBRows = try await client.read("dbRows", connection, request)
+            guard generation == loadGeneration else { return }
             data = value; error = nil
             edits = [:]; deleted = []; inserted = []
             if filterColumn.isEmpty || !value.columns.contains(where: { $0.name == filterColumn }) { filterColumn = value.columns.first?.name ?? "" }
-        } catch { self.error = DBProblem.from(error) }
+        } catch {
+            guard generation == loadGeneration else { return }
+            self.error = DBProblem.from(error)
+        }
     }
     func key(_ row: [String?], _ data: DBRows) -> [String: Any] {
         var key: [String: Any] = [:]

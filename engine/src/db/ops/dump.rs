@@ -139,7 +139,8 @@ pub fn dump(store: &Store, target: &Target, request: &Value) -> Result<Value> {
         }
         Dialect::Sqlite => unreachable!(),
     }
-    let file = private_options().create(true).truncate(true).open(&path)?;
+    // Written beside the destination and renamed over it only when everything succeeded.
+    let (partial, file) = crate::db::export::Partial::create(&path)?;
     let mut gzip = if compress {
         Some(
             Command::new("/usr/bin/gzip")
@@ -178,6 +179,8 @@ pub fn dump(store: &Store, target: &Target, request: &Value) -> Result<Value> {
         let reader = std::thread::spawn(move || {
             let mut text = String::new();
             let _ = (&mut errors).take(64 * 1024).read_to_string(&mut text);
+            // Keep draining: a client that fills the pipe would block forever.
+            let _ = std::io::copy(&mut errors, &mut std::io::sink());
             text
         });
         let mut out = child
@@ -185,14 +188,23 @@ pub fn dump(store: &Store, target: &Target, request: &Value) -> Result<Value> {
             .take()
             .ok_or_else(|| anyhow::anyhow!("dump_failed"))?;
         let mut buffer = vec![0u8; 256 * 1024];
-        loop {
-            let n = out.read(&mut buffer)?;
-            if n == 0 {
-                break;
+        let copied = (|| -> Result<()> {
+            loop {
+                let n = out.read(&mut buffer)?;
+                if n == 0 {
+                    return Ok(());
+                }
+                sink.write_all(&buffer[..n])?;
+                written += n as u64;
+                progress.report(written, &step, false);
             }
-            sink.write_all(&buffer[..n])?;
-            written += n as u64;
-            progress.report(written, &step, false);
+        })();
+        if let Err(error) = copied {
+            // Never leave the client running after a failed write.
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = reader.join();
+            return Err(error);
         }
         let status = child.wait()?;
         let stderr = reader.join().unwrap_or_default();
@@ -203,14 +215,17 @@ pub fn dump(store: &Store, target: &Target, request: &Value) -> Result<Value> {
     }
     drop(sink);
     if let Some(mut child) = gzip {
-        child.wait()?;
+        if !child.wait()?.success() && failure.is_none() {
+            failure = Some("dump_failed".into());
+        }
     }
     drop(secret);
     progress.report(written, "", true);
     if let Some(error) = failure {
-        let _ = std::fs::remove_file(&path);
+        // Dropping the guard deletes only the partial file.
         return Err(client::db_error(&error));
     }
+    partial.commit()?;
     let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
     Ok(json!({"path": path, "bytes": written, "size": size, "skippedViews": skipped}))
 }

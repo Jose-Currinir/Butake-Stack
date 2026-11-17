@@ -25,7 +25,12 @@ pub fn drop_database(target: &Target, request: &Value) -> Result<Value> {
     let d = dialect(target)?;
     let name = text(request, "name");
     valid_name(name)?;
-    ensure!(!SYSTEM_DATABASES.contains(&name), "database_protected");
+    ensure!(
+        !SYSTEM_DATABASES
+            .iter()
+            .any(|system| system.eq_ignore_ascii_case(name)),
+        "database_protected"
+    );
     ensure!(d != Dialect::Sqlite, "unsupported_engine");
     let sql = format!("DROP DATABASE {}", ident(d, name));
     if !confirmed(target, request) || text(request, "typedName") != name {
@@ -214,7 +219,11 @@ pub fn drop_user(target: &Target, request: &Value) -> Result<Value> {
     let d = dialect(target)?;
     let (name, host) = (text(request, "name"), text(request, "host"));
     ensure!(
-        !["root", "postgres"].contains(&name) && !name.starts_with("mysql."),
+        !["root", "postgres", "debian-sys-maint"]
+            .iter()
+            .any(|protected| protected.eq_ignore_ascii_case(name))
+            && !name.to_ascii_lowercase().starts_with("mysql.")
+            && !name.to_ascii_lowercase().starts_with("mariadb."),
         "user_protected"
     );
     let sql = match d {

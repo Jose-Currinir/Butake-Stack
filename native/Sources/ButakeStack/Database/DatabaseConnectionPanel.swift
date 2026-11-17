@@ -100,8 +100,10 @@ struct RootPasswordSection: View {
     @Bindable var client: DatabaseClient
     let connection: DBConnection
     @State private var revealed: String?
+    /// Whether a password is stored. Loaded once per connection, never read from the Keychain in the body.
+    @State private var has = false
+    @State private var hideTask: Task<Void, Never>?
     var body: some View {
-        let has = DatabaseVault.has(connection.id)
         Section {
             HStack(spacing: 10) {
                 IconTile(symbol: has ? Symbols.certificate : Symbols.noRootPassword, color: has ? TileColor.correct : TileColor.warning, size: 26)
@@ -119,14 +121,19 @@ struct RootPasswordSection: View {
                         Button {
                             if revealed != nil { revealed = nil } else {
                                 // Read once when revealed, never on each redraw (each read may ask macOS for access).
-                                Task { if await EnvVault.authenticate(L("db.root.authReveal")) { revealed = DatabaseVault.get(connection.id) ?? "" } }
+                                Task {
+                                    guard await EnvVault.authenticate(L("db.root.authReveal")) else { return }
+                                    revealed = DatabaseVault.get(connection.id) ?? ""
+                                    hideTask?.cancel()
+                                    hideTask = Task { try? await Task.sleep(for: .seconds(30)); if !Task.isCancelled { revealed = nil } }
+                                }
                             }
                         } label: { Label(revealed != nil ? L("db.root.hide") : L("db.root.reveal"), systemImage: Symbols.databaseView) }
                             .buttonStyle(.bordered).accessibilityIdentifier("db.root.reveal")
                         Button {
                             Task {
                                 guard await EnvVault.authenticate(L("db.root.authReveal")), let value = DatabaseVault.get(connection.id) else { return }
-                                NSPasteboard.general.clearContents(); NSPasteboard.general.setString(value, forType: .string)
+                                VaultSession.copyConcealed(value)
                                 client.store.notify(L("db.root.copied"))
                             }
                         } label: { Label(L("common.copy"), systemImage: Symbols.copy) }
@@ -139,6 +146,10 @@ struct RootPasswordSection: View {
         } footer: {
             Text(L("db.root.help")).font(.uiCaption).foregroundStyle(.secondary)
         }
+        .task(id: connection.id) {
+            let id = connection.id
+            has = await Task.detached { DatabaseVault.has(id) }.value
+        }
     }
     /// The new password goes to the Keychain only after MySQL accepted it.
     func setPassword() async {
@@ -147,8 +158,14 @@ struct RootPasswordSection: View {
         let title = sites.isEmpty ? L("db.root.confirm") : String(format: L("db.root.confirmSites"), sites.joined(separator: ", "))
         struct Done: Decodable { let accounts: Int }
         if let _: Done = await client.change("dbSetRootPassword", connection, ["newPassword": password], title: title) {
-            DatabaseVault.set(password, for: connection.id, label: "MySQL root")
-            client.store.notify(L("db.root.saved"))
+            if DatabaseVault.set(password, for: connection.id, label: "MySQL root") {
+                has = true
+                client.store.notify(L("db.root.saved"))
+            } else {
+                // MySQL already has the new password: hand it over once so root is not locked out.
+                VaultSession.copyConcealed(password)
+                client.store.notify(L("db.root.keychainFailed"))
+            }
             await client.loadConnections()
         }
     }

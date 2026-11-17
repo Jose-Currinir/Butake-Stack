@@ -212,6 +212,12 @@ impl Target {
                     command.env("PGOPTIONS", "-c default_transaction_read_only=on");
                 }
                 if tool == "psql" || tool == "pg_dump" {
+                    // libpq reads `host=… dbname=…` and `postgres://…` after -d as a whole
+                    // connection: a database name must never be able to change the host.
+                    ensure!(
+                        !database.contains(['=', '\\']) && !database.contains("://"),
+                        "invalid_database_name"
+                    );
                     command.arg("-d").arg(if database.is_empty() {
                         "postgres"
                     } else {
