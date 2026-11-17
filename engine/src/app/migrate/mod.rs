@@ -125,9 +125,9 @@ fn lock(root: &Path) -> Result<fs::File> {
         .mode(0o600)
         .custom_flags(libc::O_NOFOLLOW)
         .open(root.join(LOCK))?;
-    // SAFETY: `flock` takes a descriptor and flags and touches no memory; the descriptor belongs
-    // to `file`, which is open for the whole call.
     ensure!(
+        // SAFETY: `flock` takes a descriptor and flags and touches no memory; the descriptor
+        // belongs to `file`, which is open for the whole call.
         unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
         "migration_failed"
     );

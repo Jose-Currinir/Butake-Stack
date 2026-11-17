@@ -234,8 +234,8 @@ impl Secrets for Keychain {
             "aws_keychain_failed"
         );
         let result = cf::Owned(result);
-        // SAFETY: `result` is a non-null CF object owned here; both calls only read it.
         anyhow::ensure!(
+            // SAFETY: `result` is a non-null CF object owned here; both calls only read it.
             unsafe { CFGetTypeID(result.0) == CFDataGetTypeID() },
             "aws_keychain_failed"
         );
