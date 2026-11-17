@@ -73,6 +73,19 @@ pub fn free_space(path: &Path) -> Result<u64> {
     Ok(stat.f_bavail as u64 * stat.f_frsize as u64)
 }
 
+/// Whether the volume of `folder` makes clones (APFS): tried with a small file that is removed
+/// at once, because a failed clone falls back to copying every file in full.
+pub fn can_clone(folder: &Path) -> bool {
+    let (source, copy) = (
+        folder.join(".stack-clone-probe"),
+        folder.join(".stack-clone-probe.copy"),
+    );
+    let _ = (fs::remove_file(&source), fs::remove_file(&copy));
+    let cloned = fs::write(&source, b"x").is_ok() && clone(&source, &copy);
+    let _ = (fs::remove_file(&source), fs::remove_file(&copy));
+    cloned
+}
+
 /// Whether two existing paths are on the same volume (a rename between them is atomic).
 pub fn same_volume(a: &Path, b: &Path) -> Result<bool> {
     Ok(fs::metadata(a)?.dev() == fs::metadata(b)?.dev())

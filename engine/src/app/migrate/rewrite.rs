@@ -6,7 +6,8 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    os::unix::fs::PermissionsExt,
+    io::Write,
+    os::unix::fs::{OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
 };
 
@@ -198,6 +199,26 @@ pub fn find(layout: &Layout, root: &Path) -> Result<Vec<Change>> {
     Ok(changes)
 }
 
+/// Files outside the folder that are links to a file naming the old folder: `find` leaves them
+/// alone (a link is not rewritten), so the plan lists them.
+pub fn skipped_links(layout: &Layout) -> Vec<PathBuf> {
+    let from = layout.old.to_string_lossy().into_owned();
+    let mut candidates = vec![layout.launch_agent(), layout.home.join(".zprofile")];
+    candidates.extend(layout.aws_config.clone());
+    candidates
+        .into_iter()
+        .filter(|path| fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink()))
+        .filter(|path| {
+            fs::metadata(path)
+                .ok()
+                .filter(|meta| meta.is_file() && meta.len() <= LARGEST)
+                .and_then(|_| fs::read(path).ok())
+                .and_then(|bytes| String::from_utf8(bytes).ok())
+                .is_some_and(|text| replace(&text, &from, "\u{0}").is_some())
+        })
+        .collect()
+}
+
 /// The folders of the AIs that get skills: the built-in ones and the custom ones of the skills
 /// index (`skills/index.json` in `root`). Only folders under the home count.
 fn skill_folders(layout: &Layout, root: &Path) -> Vec<PathBuf> {
@@ -257,11 +278,24 @@ fn replace_file(path: &Path, content: &[u8], mode: u32) -> Result<()> {
         path.file_name().unwrap_or_default().to_string_lossy()
     ));
     let _ = fs::remove_file(&temporary);
-    fs::write(&temporary, content)?;
-    fs::set_permissions(&temporary, fs::Permissions::from_mode(mode))?;
-    fs::File::open(&temporary)?.sync_all()?;
-    fs::rename(&temporary, path)?;
-    Ok(())
+    // Created for the owner only, so the content is never readable by more than the original
+    // allowed; the exact mode (and its group and others bits) is set once it is complete.
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(mode & 0o700)
+        .open(&temporary)?;
+    let written = (|| -> Result<()> {
+        file.write_all(content)?;
+        file.set_permissions(fs::Permissions::from_mode(mode))?;
+        file.sync_all()?;
+        fs::rename(&temporary, path)?;
+        Ok(())
+    })();
+    if written.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    written
 }
 fn replace_link(path: &Path, target: &Path) -> Result<()> {
     let temporary = path.with_file_name(format!(
@@ -369,5 +403,26 @@ mod tests {
             rewritten("aws", &aws, old, new).unwrap(),
             format!("[profile a]\ncredential_process = \"{new}/bin/x\" aws-credential a\nnote = {old}\n")
         );
+    }
+}
+
+#[cfg(test)]
+mod replace_tests {
+    use super::*;
+
+    #[test]
+    fn a_replaced_file_keeps_its_mode_and_leaves_no_temporary() {
+        let dir = tempfile::tempdir().unwrap();
+        for mode in [0o600, 0o644, 0o755] {
+            let path = dir.path().join(format!("file-{mode:o}"));
+            fs::write(&path, "old").unwrap();
+            replace_file(&path, b"new", mode).unwrap();
+            assert_eq!(fs::read_to_string(&path).unwrap(), "new");
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                mode
+            );
+        }
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 3);
     }
 }

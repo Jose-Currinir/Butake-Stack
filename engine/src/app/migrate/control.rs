@@ -5,7 +5,7 @@ use anyhow::{bail, ensure, Result};
 use serde_json::{json, Value};
 use std::{
     io::{BufRead, Write},
-    os::unix::net::UnixStream,
+    os::unix::{net::UnixStream, process::CommandExt},
     path::Path,
     process::{Command, Stdio},
     time::{Duration, Instant},
@@ -168,15 +168,28 @@ impl Control for Live {
     }
 
     fn open_files(&self, root: &Path) -> Result<Vec<String>> {
-        let output = Command::new("/usr/sbin/lsof")
+        let mut command = Command::new("/usr/sbin/lsof");
+        command
             .args(["-n", "-P", "-F", "pc", "+D"])
             .arg(root)
-            .env_clear()
-            .stderr(Stdio::null())
-            .output()?;
+            .env_clear();
+        // `lsof` leaves with 1 when nothing is open, so that is no failure; but a run that was cut
+        // short, passed its time or could not start proves nothing and must not read as "all closed".
+        let output = crate::core::process::capture_watched(
+            command,
+            64 << 20,
+            Duration::from_secs(300),
+            "migration_failed",
+            None,
+        )?;
+        ensure!(
+            !(output.timed_out || output.cancelled || output.cut)
+                && matches!(output.code, Some(0 | 1)),
+            "migration_failed"
+        );
         let mut found = vec![];
         let mut pid = String::new();
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
+        for line in output.stdout.lines() {
             if let Some(value) = line.strip_prefix('p') {
                 pid = value.to_string();
             } else if let Some(name) = line.strip_prefix('c') {
@@ -204,8 +217,11 @@ impl Control for Live {
                 .status()?;
             ensure!(status.success(), "migration_start_failed");
         } else if !running.is_empty() {
+            // Its own process group, like `request_sync`: closing the one that ran this command
+            // (^C, SIGHUP) must not take the new daemon with it.
             Command::new(std::env::current_exe()?.canonicalize()?)
                 .arg("daemon")
+                .process_group(0)
                 .env_clear()
                 .env("BUTAKE_STACK_HOME", root)
                 .stdin(Stdio::null())

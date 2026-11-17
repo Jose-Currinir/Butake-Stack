@@ -21,6 +21,8 @@ pub struct Captured {
     pub stderr: String,
     /// The process exited with success and its output was not cut.
     pub success: bool,
+    /// The exit code (`None` when a signal ended it).
+    pub code: Option<i32>,
     /// Stdout reached `max_output` and the process was killed.
     pub cut: bool,
     /// The run passed its time limit and its process group was ended (see [`capture_watched`]).
@@ -90,6 +92,7 @@ pub fn capture(
         stdout: String::from_utf8_lossy(&out).into_owned(),
         stderr,
         success: status.success() && !cut,
+        code: status.code(),
         cut,
         timed_out: false,
         cancelled: false,
@@ -189,6 +192,7 @@ fn capture_until(
         stdout: String::from_utf8_lossy(&out).into_owned(),
         stderr,
         success: status.success() && !cut && !timed_out && !cancelled,
+        code: status.code(),
         cut,
         timed_out,
         cancelled,

@@ -459,3 +459,62 @@ fn open_files_are_found_by_lsof() {
         "{found:?}"
     );
 }
+
+#[test]
+fn a_run_that_died_before_the_rename_does_not_block_the_daemon() {
+    let h = home();
+    for phase in ["stopping", "backup", "moved"] {
+        save(
+            &h.layout.old,
+            &Journal {
+                phase: phase.into(),
+                from: h.layout.old.clone(),
+                to: h.layout.new.clone(),
+                ..Journal::default()
+            },
+        )
+        .unwrap();
+        // The run is gone (a power cut, a kill): nobody holds the lock.
+        assert!(!blocks_daemon(&h.layout.old), "{phase}");
+        // A live run holds it: no daemon meanwhile.
+        let held = lock(&h.layout.old).unwrap();
+        assert!(blocks_daemon(&h.layout.old), "{phase} while running");
+        assert!(lock(&h.layout.old).is_err(), "two runs at once");
+        drop(held);
+        assert!(!blocks_daemon(&h.layout.old), "{phase} after");
+    }
+    // The next run goes through and leaves no lock behind.
+    assert_eq!(
+        run(&h.layout, &Fake::default(), Cut::None).unwrap()["ok"],
+        true
+    );
+    assert!(!h.layout.new.join(LOCK).exists() && !h.layout.old.join(LOCK).exists());
+}
+
+#[test]
+fn backup_space_depends_on_clones_and_the_probe_leaves_nothing() {
+    assert_eq!(needed_space(1 << 30, true), 256 << 20);
+    assert_eq!(needed_space(1 << 30, false), (1 << 30) + (256 << 20));
+    let temp = tempfile::tempdir().unwrap();
+    let _ = tree::can_clone(temp.path());
+    assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn links_that_name_the_old_folder_are_listed_not_rewritten() {
+    let h = home();
+    let real = h.layout.home.join("dotfiles-zprofile");
+    fs::write(
+        &real,
+        format!("export PATH={}/bin:$PATH\n", h.layout.old.display()),
+    )
+    .unwrap();
+    let zprofile = h.layout.home.join(".zprofile");
+    let _ = fs::remove_file(&zprofile);
+    symlink(&real, &zprofile).unwrap();
+    assert_eq!(rewrite::skipped_links(&h.layout), vec![zprofile.clone()]);
+    assert_eq!(
+        plan(&h.layout, &Fake::default()).unwrap()["skippedLinks"][0],
+        json!(zprofile)
+    );
+}
