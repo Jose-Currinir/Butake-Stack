@@ -542,3 +542,15 @@ fn a_fifo_named_env_is_refused_without_blocking() {
     let answer = receiver.recv_timeout(std::time::Duration::from_secs(10));
     assert_eq!(answer, Ok(true), "the reader waited on the FIFO");
 }
+
+/// `.env.example` is read like the other `.env` files: names only, and nothing from a file
+/// over 1 MiB.
+#[test]
+fn example_keys_read_names_and_refuse_a_huge_file() {
+    let (_temp, _store, project) = store_with_site();
+    let file = project.path.join(".env.example");
+    fs::write(&file, "# nota\nAPP_KEY=\nexport DB_HOST=x\nnada\n").unwrap();
+    assert_eq!(example_keys(&project), ["APP_KEY", "DB_HOST"]);
+    fs::write(&file, "A=1\n".repeat(300_000)).unwrap();
+    assert!(example_keys(&project).is_empty());
+}

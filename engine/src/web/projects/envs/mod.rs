@@ -676,14 +676,8 @@ fn read_dotenv(path: &std::path::Path) -> BTreeMap<String, String> {
 
 /// Keys declared in the site's `.env.example` (names only), to spot missing ones.
 pub fn example_keys(project: &Project) -> Vec<String> {
-    let file = project.path.join(".env.example");
-    if fs::symlink_metadata(&file)
-        .map(|m| !m.is_file())
-        .unwrap_or(true)
-    {
-        return vec![];
-    }
-    fs::read_to_string(file)
+    // At most 1 MiB, like every other `.env` the engine reads; a larger file says nothing.
+    crate::web::projects::detect::read_small(&project.path.join(".env.example"), 1_048_576)
         .unwrap_or_default()
         .lines()
         .filter_map(|l| {
