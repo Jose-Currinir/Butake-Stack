@@ -8,7 +8,8 @@ struct VaultAccessLog: View {
     @State private var wide = true
 
     var body: some View {
-        Table(Array(entries.reversed())) {
+        // `readLog` already returns the newest first.
+        Table(entries) {
             TableColumn(L("vault.log.date")) { entry in
                 Text(entry.date.formatted(date: .numeric, time: .shortened)).monospacedDigit().lineLimit(1)
                     .help(entry.date.formatted(date: .complete, time: .standard))
@@ -40,9 +41,11 @@ struct VaultAccessLog: View {
         .accessibilityIdentifier("vault.log.table")
         .task {
             // New entries appear while it is on screen (the file is short and local).
+            var modified: Date?
             while !Task.isCancelled {
-                let read = vault.accessLog()
-                if read != entries { entries = read }
+                let read = await vault.accessLog(since: modified)
+                modified = read.modified
+                if let list = read.entries, list != entries { entries = list }
                 try? await Task.sleep(for: .seconds(3))
             }
         }

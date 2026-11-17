@@ -108,6 +108,7 @@ private func linked(_ sheet: VaultSession.Sheet?) -> (groups: [VaultFolder.Group
     let services = root.appendingPathComponent("_SERVICIOS").path
 
     vault.propose(items([app, services]))
+    await settled(vault)
     let preview = try #require(linked(vault.sheet))
     // The same sheet as «Importar carpeta…», said to come from a link, with both folders.
     #expect(preview.linked == [app, services])
@@ -120,6 +121,7 @@ private func linked(_ sheet: VaultSession.Sheet?) -> (groups: [VaultFolder.Group
     // The user's own choice is not marked as a link.
     vault.sheet = nil
     vault.previewImport([URL(fileURLWithPath: app)])
+    await settled(vault)
     #expect(linked(vault.sheet)?.linked == [])
 
     // A link over an open sheet replaces nothing.
@@ -162,6 +164,7 @@ private func linked(_ sheet: VaultSession.Sheet?) -> (groups: [VaultFolder.Group
 
     // The user unlocks (Touch ID or the Mac's password; approved here): then the same preview.
     await vault.unlock()
+    await settled(vault)
     let preview = try #require(linked(vault.sheet))
     #expect(preview.linked == [app.path])
     // Unlocked from another page (a project's Resumen), that page says the preview waits in the vault.
@@ -178,6 +181,13 @@ private func linked(_ sheet: VaultSession.Sheet?) -> (groups: [VaultFolder.Group
     vault.propose(items([root.appendingPathComponent("_SERVICIOS").path]))
     vault.proposedFolders = []
     await vault.unlock()
+    await settled(vault)
     #expect(vault.sheet == nil)
     #expect(!vault.linkedPreviewWaiting)
+}
+
+
+/// Waits for the background scan of an import preview (it sets the sheet when it ends).
+@MainActor private func settled(_ vault: VaultSession) async {
+    while vault.scanningImport { await Task.yield() }
 }

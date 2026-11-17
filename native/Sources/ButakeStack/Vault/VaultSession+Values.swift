@@ -12,9 +12,12 @@ extension VaultSession {
         revealed[field.id] = field.value
         disk.append(VaultAccessEntry(action: .reveal, target: item.id))
         let id = field.id
-        Task { [weak self] in
+        hideTasks[id]?.cancel()
+        hideTasks[id] = Task { [weak self] in
             try? await Task.sleep(for: .seconds(30))
+            guard !Task.isCancelled else { return }
             self?.revealed[id] = nil
+            self?.hideTasks[id] = nil
         }
     }
 

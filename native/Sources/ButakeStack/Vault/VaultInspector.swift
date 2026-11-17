@@ -300,7 +300,7 @@ enum VaultInspector {
         let text = String(decoding: bytes, as: UTF8.self)
         guard process.terminationStatus == 0 else {
             if text.contains("does not exist") { return VaultMetadata(problem: "vault.meta.wrongAlias") }
-            return VaultMetadata(problem: text.contains("password was incorrect") || text.contains("password") ? "vault.meta.wrongPassword" : "vault.meta.unreadable")
+            return VaultMetadata(problem: text.contains("password was incorrect") || text.contains("Keystore was tampered") ? "vault.meta.wrongPassword" : "vault.meta.unreadable")
         }
         return parseKeytool(text)
     }

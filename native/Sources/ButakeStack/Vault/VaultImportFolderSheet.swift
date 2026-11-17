@@ -42,7 +42,15 @@ struct VaultImportFolderSheet: View {
             }
             .themedScroll()
         } status: {
-            Label(L("vault.importFolderSafe"), systemImage: Symbols.vault).font(.uiCaption).foregroundStyle(.secondary)
+            if let progress = vault.importProgress {
+                HStack(spacing: 8) {
+                    ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1))).frame(width: 140)
+                    Text(String(format: L("vault.import.progress"), progress.done, progress.total)).font(.uiCaption.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                .accessibilityIdentifier("vault.sheet.importFolder.progress")
+            } else {
+                Label(L("vault.importFolderSafe"), systemImage: Symbols.vault).font(.uiCaption).foregroundStyle(.secondary)
+            }
         }
     }
 

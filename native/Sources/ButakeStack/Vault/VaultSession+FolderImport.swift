@@ -10,13 +10,19 @@ extension VaultSession {
     /// came in and what stayed out is kept as «Última importación» (paths and counts only).
     @discardableResult func importFolder(_ groups: [VaultFolder.Group], folders: [String] = []) async -> (added: Int, failed: Int) {
         var added = 0, failed = 0
+        // The import belongs to this unlocked session: a lock and unlock meanwhile ends it.
+        let generation = sessionGeneration
         var stored = Set<UUID>(), failedFiles = Set<UUID>(), kept = Set<UUID>()
+        let total = groups.reduce(0) { $0 + $1.files.filter { $0.selected && !$0.kind.isRetired }.count }
+        var done = 0
+        importProgress = (0, total)
+        defer { importProgress = nil }
         for group in groups {
             let chosen = group.files.filter { $0.selected && !$0.kind.isRetired }
             let legacy = legacyServices(of: group)
             let existing = group.existing ?? matchContainer(group)
             guard !chosen.isEmpty || existing != nil || !legacy.isEmpty else { continue }
-            let notes = group.readme.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+            let notes = await group.readme.asyncFlatMap(Self.readText) ?? ""
             let containerId: UUID
             if let existing {
                 containerId = existing
@@ -25,24 +31,30 @@ extension VaultSession {
                 guard let id = try? addContainer(kind: group.kind, name: group.name, bundleId: group.bundleId, notes: String(notes.prefix(100_000))) else {
                     failed += chosen.count
                     failedFiles.formUnion(chosen.map(\.id))
+                    done += chosen.count
+                    importProgress = (done, total)
                     continue
                 }
                 containerId = id
             }
             kept.insert(group.id)
             // The README of each account goes to the service's notes, under the account's name.
-            let sections = group.readmes.compactMap { readme -> (heading: String, text: String)? in
-                guard let account = readme.account, let text = try? String(contentsOf: readme.url, encoding: .utf8) else { return nil }
-                return (heading: VaultContainer.accountTitle(account), text: text)
+            var sections: [(heading: String, text: String)] = []
+            for readme in group.readmes {
+                guard let account = readme.account, let text = await Self.readText(readme.url) else { continue }
+                sections.append((heading: VaultContainer.accountTitle(account), text: text))
             }
             appendNotes(sections, to: containerId)
             gather(legacy, into: containerId)
+            // The group's items are encrypted one by one and the index is saved once at its end.
+            var staged: [(id: UUID, item: VaultItem)] = []
             for candidate in chosen {
+                defer { done += 1; importProgress = (done, total) }
                 let fieldsOnly = candidate.dataFile == candidate.url || candidate.valueOnly
                 var draft = VaultItem(container: containerId, section: group.kind == .app ? (candidate.section ?? .terceros) : nil,
                                       kind: candidate.kind, name: candidate.name, environment: candidate.environment)
                 if group.kind == .service { draft.account = candidate.account.flatMap(VaultNames.account) }
-                if let dataFile = candidate.dataFile, let text = try? String(contentsOf: dataFile, encoding: .utf8) {
+                if let dataFile = candidate.dataFile, let text = await Self.readText(dataFile) {
                     let parsed = VaultFolder.parseDataFile(text)
                     draft.fields = parsed.fields
                     draft.notes = parsed.notes
@@ -58,25 +70,62 @@ extension VaultSession {
                 VaultCompanions.merge(candidate.companions, kind: draft.kind, name: candidate.name, into: &draft.fields)
                 var files: [(String, Data)] = []
                 if !fieldsOnly {
-                    guard let data = try? Data(contentsOf: candidate.url), data.count <= VaultFolder.maximumFileSize else {
+                    guard let data = await Self.readData(candidate.url), data.count <= VaultFolder.maximumFileSize else {
                         failed += 1; failedFiles.insert(candidate.id); continue
                     }
                     files = [(candidate.name, data)]
                 }
-                if (try? await store(draft, files: files)) != nil { added += 1; stored.insert(candidate.id) }
+                if let item = try? await stageItem(draft, files: files) { staged.append((candidate.id, item)) }
                 else { failed += 1; failedFiles.insert(candidate.id) }
+            }
+            let result = storeBatch(staged.map(\.item), generation: generation)
+            for entry in staged {
+                if result.contains(entry.item.id) { added += 1; stored.insert(entry.id) } else { failed += 1; failedFiles.insert(entry.id) }
             }
         }
         disk.append(VaultAccessEntry(action: .importFolder))
         if isUnlocked {
             var candidate = index
             candidate.lastImport = VaultImportSummary.make(groups, folders: folders, imported: stored, failed: failedFiles, kept: { kept.contains($0.id) })
-            try? persist(candidate)
+            do { try persist(candidate) } catch { message = L("vault.import.summaryNotSaved") }
         }
         return (added, failed)
     }
 
-    func matchContainer(_ group: VaultFolder.Group) -> UUID? {
+    /// Adds already staged items to the index with a single save. If it fails, their blobs are
+    /// removed and nothing counts as stored. Returns the ids that were stored.
+    func storeBatch(_ items: [VaultItem], generation: UUID) -> Set<UUID> {
+        guard !items.isEmpty else { return [] }
+        guard (try? checkSession(generation)) != nil else {
+            for item in items { for file in item.files { disk.deleteBlob(file.id) } }
+            return []
+        }
+        let valid = items.filter { index.container($0.container) != nil }
+        var candidate = index
+        candidate.items.append(contentsOf: valid)
+        do {
+            guard !valid.isEmpty else { throw VaultError.invalidName }
+            try persist(candidate)
+        } catch {
+            for item in items { for file in item.files { disk.deleteBlob(file.id) } }
+            return []
+        }
+        for item in items where !valid.contains(where: { $0.id == item.id }) { for file in item.files { disk.deleteBlob(file.id) } }
+        for item in valid { disk.append(VaultAccessEntry(action: .addItem, target: item.id)) }
+        return Set(valid.map(\.id))
+    }
+
+    /// Text and bytes of a file of the folder, read off the main actor.
+    nonisolated static func readText(_ url: URL) async -> String? {
+        await Task.detached(priority: .userInitiated) { try? String(contentsOf: url, encoding: .utf8) }.value
+    }
+    nonisolated static func readData(_ url: URL) async -> Data? {
+        await Task.detached(priority: .userInitiated) { try? Data(contentsOf: url) }.value
+    }
+
+    func matchContainer(_ group: VaultFolder.Group) -> UUID? { Self.matchContainer(group, in: index) }
+
+    nonisolated static func matchContainer(_ group: VaultFolder.Group, in index: VaultIndex) -> UUID? {
         index.containers.first { container in
             guard container.kind == group.kind else { return false }
             if let bundle = group.bundleId, container.bundleId == bundle { return true }
@@ -87,7 +136,9 @@ extension VaultSession {
     /// The services an earlier import made of the accounts of this one (`cloudflare/cuenta`) that hold
     /// items. The empty ones are not gathered (that would leave an empty service): «Quitar contenedores
     /// vacíos…» removes them.
-    func legacyServices(of group: VaultFolder.Group) -> [UUID] {
+    func legacyServices(of group: VaultFolder.Group) -> [UUID] { Self.legacyServices(of: group, in: index) }
+
+    nonisolated static func legacyServices(of group: VaultFolder.Group, in index: VaultIndex) -> [UUID] {
         guard group.kind == .service else { return [] }
         let prefix = group.name.lowercased() + "/"
         let used = Set(index.items.map(\.container))
@@ -97,12 +148,15 @@ extension VaultSession {
     /// Marks what is already in the vault (same hash in the same service or app, or in the accounts an
     /// earlier import kept apart) and leaves it unselected, like the kinds the vault no longer keeps (a
     /// project's .env, an SSH key). Dumps and quarantines are not read.
-    func markDuplicates(_ groups: [VaultFolder.Group]) -> [VaultFolder.Group] {
+    func markDuplicates(_ groups: [VaultFolder.Group]) -> [VaultFolder.Group] { Self.markDuplicates(groups, in: index) }
+
+    /// The same check on a copy of the index, so it can run off the main actor.
+    nonisolated static func markDuplicates(_ groups: [VaultFolder.Group], in index: VaultIndex) -> [VaultFolder.Group] {
         groups.map { group in
             var group = group
             for position in group.files.indices where group.files[position].kind.isRetired { group.files[position].selected = false }
-            group.existing = matchContainer(group)
-            group.legacy = legacyServices(of: group)
+            group.existing = matchContainer(group, in: index)
+            group.legacy = legacyServices(of: group, in: index)
             let containers = [group.existing].compactMap { $0 } + group.legacy
             guard !containers.isEmpty else { return group }
             let items = containers.flatMap { index.items(in: $0) }
@@ -206,5 +260,13 @@ extension VaultSession {
         if case .container(let id)? = selection, ids.contains(id) { selection = nil }
         for id in ids { disk.append(VaultAccessEntry(action: .deleteContainer, target: id)) }
         return ids.count
+    }
+}
+
+private extension Optional {
+    /// `flatMap` with an async transform.
+    func asyncFlatMap<T>(_ transform: (Wrapped) async -> T?) async -> T? {
+        guard let value = self else { return nil }
+        return await transform(value)
     }
 }

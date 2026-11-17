@@ -95,7 +95,10 @@ private func filesWithSentinels(under root: URL) -> [String] {
     let copy = try #require(file("03-IOS/QA/dist.p12"))
     #expect(copy.copyOf != nil && !copy.selected)
     #expect(p12.environment == .none)
-    #expect(!app.files.contains { $0.name.hasSuffix(".pass") || $0.name.hasSuffix(".clave") || $0.name == "fastlane.env" || $0.name == "CREDENTIALS.txt" })
+    // CREDENTIALS.txt belongs to the keystore: without a JDK there is none, and it stays a note of its own.
+    let companionsLeft = app.files.filter { $0.name.hasSuffix(".pass") || $0.name.hasSuffix(".clave") || $0.name == "fastlane.env"
+        || ($0.name == "CREDENTIALS.txt" && fixture.hasKeystore) }
+    #expect(companionsLeft.isEmpty, "companions listed as files: \(companionsLeft.map(\.relative))")
     #expect(file("AppStore_main.mobileprovision")?.environment == .prod)
     #expect(file("AdHoc_main.mobileprovision")?.environment == .test)
     let key = try #require(file("AuthKey_ABC123DEF4.p8"))

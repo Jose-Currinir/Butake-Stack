@@ -19,6 +19,12 @@ struct VaultPage: View {
             }
         }
         .task { vault.refreshState() }
+        .overlay(alignment: .top) {
+            if vault.scanningImport {
+                Notice(.progress, L("vault.import.scanning")).padding(12)
+                    .accessibilityIdentifier("vault.import.scanning")
+            }
+        }
         .onChange(of: vault.notice) { _, notice in
             if let notice { store.notify(notice); vault.notice = nil }
         }
