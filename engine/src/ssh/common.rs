@@ -148,6 +148,30 @@ pub fn ssh_trust(store: &Store, host: &str, port: u16, seen: &[String]) -> Resul
     trust_scanned(store, &prints, &keys, seen)
 }
 
+/// The host name of a known_hosts line that is exactly `name keytype base64key`, with a key type
+/// of the list below and nothing else on it. The one rule for every line Stack writes into a
+/// trust file (its own and `~/.ssh/known_hosts`).
+pub fn plain_known_host_line(line: &str) -> Option<&str> {
+    let parts: Vec<&str> = line.split(' ').collect();
+    let [name, kind, key] = parts.as_slice() else {
+        return None;
+    };
+    let kind_ok = matches!(
+        *kind,
+        "ssh-ed25519"
+            | "ssh-rsa"
+            | "ecdsa-sha2-nistp256"
+            | "ecdsa-sha2-nistp384"
+            | "ecdsa-sha2-nistp521"
+    );
+    let key_ok = !key.is_empty()
+        && key
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'+' | b'/' | b'='));
+    let name_ok = !name.is_empty() && !name.chars().any(|c| c.is_control() || c.is_whitespace());
+    (kind_ok && key_ok && name_ok).then_some(*name)
+}
+
 /// Adds scanned known_hosts lines to Stack's own file when every fingerprint is one the user saw.
 pub fn trust_scanned(store: &Store, prints: &[String], keys: &str, seen: &[String]) -> Result<()> {
     // Every key the server shows now must be one the user saw (a scan may miss a key type).
@@ -165,16 +189,47 @@ pub fn trust_scanned(store: &Store, prints: &[String], keys: &str, seen: &[Strin
     if !text.is_empty() && !text.ends_with('\n') {
         text.push('\n');
     }
-    for line in keys
+    let lines: Vec<&str> = keys
         .lines()
         .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
-        // `host keytype key`: nothing else is ever written into the trust file.
-        .filter(|l| l.split_whitespace().count() >= 3 && !l.chars().any(char::is_control))
-    {
+        .collect();
+    // `host keytype key`: nothing else is ever written into the trust file.
+    ensure!(
+        !lines.is_empty() && lines.iter().all(|l| plain_known_host_line(l).is_some()),
+        "ssh_host_changed"
+    );
+    for line in lines {
         if !text.lines().any(|l| l == line) {
             text.push_str(line);
             text.push('\n');
         }
     }
     write_private(&path, &text)
+}
+
+#[cfg(test)]
+mod known_line_tests {
+    use super::plain_known_host_line;
+
+    #[test]
+    fn only_a_plain_key_line_is_written_into_a_trust_file() {
+        assert_eq!(
+            plain_known_host_line(
+                "[git.example.invalid]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA+/="
+            ),
+            Some("[git.example.invalid]:2222")
+        );
+        for line in [
+            "host ssh-ed25519",
+            "host ssh-ed25519 AAAA extra",
+            "host ssh-dss AAAA",
+            "host ssh-ed25519 AAAA;rm",
+            "host\tssh-ed25519 AAAA",
+            "@cert-authority host ssh-ed25519 AAAA",
+            "host ssh-ed25519 AAAA\u{7}",
+            "",
+        ] {
+            assert!(plain_known_host_line(line).is_none(), "{line:?}");
+        }
+    }
 }
