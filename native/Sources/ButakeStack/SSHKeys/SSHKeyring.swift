@@ -76,11 +76,21 @@ struct SSHAgentState: Codable, Sendable {
     func loaded(_ id: String) -> Bool { agent.loaded.contains(id) }
 
     func load() async {
-        if let state: SSHAgentState = try? await store.call(["method": "sshKeyAgent"]) { agent = state }
+        do { agent = try await store.call(["method": "sshKeyAgent"]) } catch { reportRefreshFailure(error) }
         await loadKeys()
     }
     func loadKeys() async {
-        sshKeys = (try? await store.call(["method": "sshKeys"])) ?? sshKeys
+        do {
+            sshKeys = try await store.call(["method": "sshKeys"])
+            lastRefreshFailed = false
+        } catch { reportRefreshFailure(error) }
+    }
+    /// A refresh that fails keeps the old list; the user is told once until a refresh works again.
+    private var lastRefreshFailed = false
+    private func reportRefreshFailure(_ error: Error) {
+        guard !lastRefreshFailed else { return }
+        lastRefreshFailed = true
+        store.report(error)
     }
 
     /// Who uses a key (it cannot be removed while someone does): database connections and the
@@ -121,11 +131,13 @@ struct SSHAgentState: Codable, Sendable {
         if let passphrase { request["passphrase"] = passphrase }
         do {
             let key: SSHKey = try await store.call(request)
-            if let passphrase, remember, key.encrypted == true { SSHKeyVault.set(passphrase, for: key.id, label: key.name) }
+            if let passphrase, remember, key.encrypted == true, !SSHKeyVault.set(passphrase, for: key.id, label: key.name) { store.notify(L("ssh.keys.keychainFailed")) }
             await load()
             store.notify(String(format: L("ssh.keys.imported"), key.name))
             return true
         } catch let failure as EngineFailure where failure.code == "ssh_key_passphrase" {
+            // A request still waiting for its passphrase is answered «cancelled» first, never left hanging.
+            if let previous = prompt { Task { await previous.resume(nil, false) } }
             prompt = PassphraseRequest(keyID: "", name: name.isEmpty ? url.lastPathComponent : name, wrong: passphrase != nil) { value, keep in
                 guard let value else { return }
                 _ = await self.importKey(url, name: name, description: description, group: group, passphrase: value, remember: keep)
@@ -139,7 +151,7 @@ struct SSHAgentState: Codable, Sendable {
         if !passphrase.isEmpty { request["passphrase"] = passphrase }
         do {
             let key: SSHKey = try await store.call(request)
-            if !passphrase.isEmpty, remember { SSHKeyVault.set(passphrase, for: key.id, label: key.name) }
+            if !passphrase.isEmpty, remember, !SSHKeyVault.set(passphrase, for: key.id, label: key.name) { store.notify(L("ssh.keys.keychainFailed")) }
             await load()
             store.notify(String(format: L("ssh.keys.generated"), key.name))
             return true
@@ -176,11 +188,18 @@ struct SSHAgentState: Codable, Sendable {
         if let saved = SSHKeyVault.get(id), await loadIntoAgent(id, passphrase: saved, quiet: true) { return true }
         guard interactive else { return false }
         let name = sshKeys.first { $0.id == id }?.name ?? id
+        // A second request replaces the one on screen: the first waiter is released with false so
+        // its continuation never hangs (and answering twice is ignored).
+        if let previous = prompt { Task { await previous.resume(nil, false) } }
         return await withCheckedContinuation { continuation in
+            final class Once: @unchecked Sendable { var done = false }
+            let once = Once()
             prompt = PassphraseRequest(keyID: id, name: name, wrong: SSHKeyVault.has(id)) { value, keep in
+                guard !once.done else { return }
+                once.done = true
                 guard let value else { continuation.resume(returning: false); return }
                 let ok = await self.loadIntoAgent(id, passphrase: value, quiet: false)
-                if ok, keep { SSHKeyVault.set(value, for: id, label: name) }
+                if ok, keep, !SSHKeyVault.set(value, for: id, label: name) { self.store.notify(L("ssh.keys.keychainFailed")) }
                 continuation.resume(returning: ok)
             }
         }

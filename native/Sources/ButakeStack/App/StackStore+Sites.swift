@@ -63,7 +63,7 @@ extension StackStore {
         var dependents: [PortDependent] = []
         await run(L("busy.saving"), refresh: true) {
             let removed: RemovedProject = try await self.call(["method": "deleteProject", "id": project.id, "actor": self.actor])
-            EnvSecrets.keychain.deleteAll(site: project.id)
+            await Task.detached { EnvSecrets.keychain.deleteAll(site: project.id) }.value
             self.selectedSite = nil
             self.route = .home
             dependents = removed.portDependents

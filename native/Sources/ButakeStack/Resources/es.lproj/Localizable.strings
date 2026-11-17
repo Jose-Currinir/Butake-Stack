@@ -975,6 +975,7 @@
 "env.portRestartDetail" = "El puerto de %@ cambió y el .env de estos proyectos ya lo tiene, pero sus procesos en marcha siguen con el anterior hasta reiniciarse: %@.";
 "env.portRestarted" = "Los procesos de %@ se reiniciaron con el puerto nuevo de %@.";
 "env.view" = "Vista";
+"env.auditFailed" = "No se pudo registrar la acción en la bitácora de auditoría; no se continuó.";
 "env.kind.local" = "Local";
 "env.kind.development" = "Desarrollo";
 "env.kind.testing" = "Pruebas";
@@ -1017,6 +1018,7 @@
 "env.view.help" = "Lista: una fila por variable. Texto: el entorno completo como un .env, con búsqueda (⌘F).";
 "env.text.label" = "Variables del entorno";
 "env.text.note" = "Los secretos se ven como %@ y siguen en el Llavero: deja la línea así para conservar el valor o escribe uno nuevo. Solo se guardan las líneas NOMBRE=valor (los comentarios no). ⌘F busca.";
+"env.template.header" = "# Plantilla del entorno «%@» (sin valores secretos)";
 
 /* Servicios */
 "category.database" = "Bases de datos";
@@ -1846,6 +1848,12 @@
 "git.error.main_worktree" = "Es la carpeta principal";
 "git.error.worktree_dirty" = "La carpeta tiene cambios sin commit";
 "git.error.worktree_locked" = "La carpeta está bloqueada";
+"git.error.token_rejected" = "Tu cuenta conectada fue rechazada";
+"git.error.token_forbidden" = "Tu cuenta conectada no tiene permiso";
+"git.error.file_not_utf8" = "El archivo no está en UTF-8";
+"git.error.output_too_large" = "Resultado demasiado grande";
+"git.error.credential_helper_unavailable" = "No se pudo preparar el acceso con tu cuenta";
+"git.error.clone_offline" = "Sin conexión con el servidor";
 "git.hosting.provider" = "el proveedor";
 "git.hosting.error.noAccount" = "No hay una cuenta de %@ conectada";
 "git.hosting.error.unauthorized" = "%@ no aceptó la ficha de acceso: puede haber vencido o haberse revocado";
@@ -1870,6 +1878,7 @@
 "git.hosting.permission.bitbucket.4" = "write:pullrequest:bitbucket";
 "git.hosting.permission.bitbucket.5" = "read:pipeline:bitbucket";
 "git.hosting.permission.bitbucket.6" = "admin:repository:bitbucket (solo para publicar repositorios nuevos)";
+"git.hosting.error.retryAt" = "Vuelve a intentar a las %@.";
 "git.accounts.security" = "Las fichas de acceso se guardan solo en el Llavero de este Mac, una por cuenta, y nunca se muestran ni se copian. Stack las usa para hablar con la API del proveedor y para que Git clone, traiga y suba por HTTPS con ese proveedor: se entregan en memoria en cada operación y no quedan en el repositorio ni en la configuración de Git.";
 "git.accounts.step1" = "1. Crea una ficha de acceso";
 "git.accounts.step1Detail" = "En el sitio de %@, con tu sesión.";
@@ -2375,6 +2384,7 @@
 "git.statusBoard.autoFetchHelp" = "Pregunta a cada remoto si hay commits nuevos; no cambia tus carpetas y usa la red";
 "git.statusBoard.pull" = "Bajar cambios (%ld)";
 "git.statusBoard.push" = "Subir cambios (%ld)";
+"git.statusBoard.fetchTimeout" = "El servidor tardó demasiado en responder.";
 "git.migration.actionEllipsis" = "Traer mis repositorios…";
 "git.migration.help" = "Agrega a la lista los repositorios que tenías en Butake Git; esa app queda igual";
 "git.migration.title" = "Traer mis repositorios de Butake Git";
@@ -2458,6 +2468,7 @@
 "ssh.keys.importEllipsis" = "Importar clave…";
 "ssh.keys.newGroup" = "Nuevo grupo de claves";
 "ssh.keys.newGroupEllipsis" = "Nuevo grupo de claves…";
+"ssh.keys.keychainFailed" = "No se pudo guardar la frase de paso en el Llavero. Tendrás que escribirla de nuevo.";
 "ssh.local.section" = "Este Mac";
 "ssh.local.shell" = "Consola";
 "ssh.local.shellDetail" = "El shell de inicio de sesión de este Mac";
@@ -2956,6 +2967,7 @@
 "db.root.saved" = "Contraseña de root guardada en el Llavero";
 "db.root.existingField" = "Contraseña actual de root";
 "db.root.existingSave" = "Probar y guardar";
+"db.root.keychainFailed" = "MySQL aceptó la contraseña, pero no se pudo guardar en el Llavero. Se copió al portapapeles: guárdala ahora.";
 "db.col.table" = "Tabla";
 "db.col.rows" = "Filas";
 "db.col.size" = "Tamaño";
@@ -3019,6 +3031,7 @@
 "db.confirm.continue" = "Continuar";
 "db.confirm.sqlTransaction" = "Estas sentencias cambian datos en %@ dentro de la transacción abierta (nada queda guardado hasta «Confirmar»).";
 "db.confirm.busy" = "Responde la confirmación pendiente antes de continuar.";
+"db.confirm.discardEdits" = "Hay %d cambios sin guardar. Si continúas, se descartarán.";
 "db.problem.detail" = "Detalle técnico";
 "db.problem.keychainNote" = "Se guarda en el Llavero de este Mac solo si el servidor la acepta.";
 "db.problem.needsPassword" = "Este usuario tiene contraseña";
@@ -3471,6 +3484,9 @@
 "vault.import.gathers" = "Reúne cuentas guardadas aparte: %ld";
 "vault.import.gathersHelp" = "Una importación anterior guardó cuentas de este servicio como servicios aparte: se reúnen aquí, cada una con su nombre. No se duplica ni se borra ningún elemento.";
 "vault.import.excluded.quarantine" = "En cuarentena";
+"vault.import.scanning" = "Leyendo la carpeta…";
+"vault.import.progress" = "Importando %1$d de %2$d archivos…";
+"vault.import.summaryNotSaved" = "La importación terminó, pero no se pudo guardar el resumen de la última importación.";
 "vault.log.empty" = "Sin accesos registrados";
 "vault.log.removed" = "Ya no está en la bóveda";
 "vault.log.date" = "Fecha";
@@ -4165,6 +4181,7 @@
 "backup.databasesMissing" = "Faltan %d archivos de bases junto a la configuración: copia la carpeta completa.";
 "backup.restoringDatabase" = "Cargar %1$@ en %2$@";
 "backup.databaseKept" = "ya tenía datos en este Mac; se dejó como estaba";
+"backup.defaultName" = "mi-entorno-butake-stack-%@.json";
 "backup.part.downloads" = "Lenguajes y servicios";
 "backup.part.devtools" = "Utilidades";
 "backup.part.extensions" = "Extensiones de los servicios";
@@ -4386,3 +4403,22 @@
 "error.extension_in_use" = "No se quitó: está activa en estas bases; desactívala primero";
 "error.relocate_failed" = "La extensión se compiló, pero no se pudo dejar lista para esta carpeta; no se instaló nada.";
 "error.package_incomplete" = "Lo compilado no trae todo lo esperado; no se instaló nada.";
+"error.invalid_domain" = "El dominio no es válido. Usa letras minúsculas, números y guiones, con una terminación permitida.";
+"error.duplicate_domain" = "Ese dominio está repetido en el sitio.";
+"error.invalid_docroot" = "La carpeta pública indicada no es válida o queda fuera del proyecto.";
+"error.invalid_path" = "La carpeta no existe o no es válida.";
+"error.invalid_executable" = "El programa del proceso no existe o no se puede ejecutar.";
+"error.unknown_process" = "Ese proceso no existe. Actualiza la lista e inténtalo de nuevo.";
+"error.production_locked" = "El entorno de producción está bloqueado. Desbloquéalo para hacer este cambio.";
+"error.env_not_ignored" = "El archivo .env no está en .gitignore. Agrégalo para que no se suba al repositorio.";
+"error.env_tracked_by_git" = "Git ya sigue el archivo .env. Quítalo del control de versiones antes de continuar.";
+"error.environment_active" = "Ese entorno está activo. Activa otro antes de eliminarlo.";
+"error.unknown_environment" = "Ese entorno no existe.";
+"error.agent_exists" = "El agente de Stack ya está instalado.";
+"error.agent_bootstrap_failed" = "macOS no pudo cargar el agente de Stack. Inténtalo de nuevo.";
+"error.agent_bootout_failed" = "macOS no pudo descargar el agente de Stack. Inténtalo de nuevo.";
+"error.download_too_large" = "La descarga supera el tamaño permitido y se canceló.";
+"error.insecure_url" = "Solo se permiten descargas por HTTPS.";
+"error.worktree_already_served" = "Ese árbol de trabajo ya está servido por otro sitio.";
+"error.mysql_init_failed" = "No se pudo preparar la base de datos por primera vez. Revisa el registro «mysql-init» o «mariadb-init» en la carpeta de registros e inténtalo de nuevo.";
+"error.ssh_known_hosts_unreadable" = "No se pudo leer el archivo de servidores de confianza de Stack; no se modificó.";

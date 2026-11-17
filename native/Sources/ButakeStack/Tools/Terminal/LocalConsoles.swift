@@ -171,7 +171,8 @@ enum SessionReaper {
     /// main thread: it waits up to `grace` for them to end by themselves.
     static func end(leader: pid_t, members: [pid_t], grace: Duration = .milliseconds(1500)) async {
         guard leader > 0 else { return }
-        for pid in members { kill(pid, SIGHUP) }
+        // Only what still belongs to the session: a pid reused since the scan must not get the signal.
+        for pid in members where pid == leader || getsid(pid) == leader { kill(pid, SIGHUP) }
         let deadline = ContinuousClock.now + grace
         var status: Int32 = 0
         var reaped = false
@@ -185,6 +186,11 @@ enum SessionReaper {
             try? await Task.sleep(for: .milliseconds(50))
         }
         for pid in members where pid == leader ? !reaped : (alive(pid) && getsid(pid) == leader) { kill(pid, SIGKILL) }
-        if !reaped { waitpid(leader, &status, 0) }
+        // Bounded: SIGKILL cannot be ignored, so a short wait is enough and never blocks the thread for good.
+        for _ in 0..<40 where !reaped {
+            let result = waitpid(leader, &status, WNOHANG)
+            reaped = result == leader || (result == -1 && errno == ECHILD)
+            if !reaped { try? await Task.sleep(for: .milliseconds(25)) }
+        }
     }
 }

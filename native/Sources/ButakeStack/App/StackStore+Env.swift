@@ -9,8 +9,16 @@ extension StackStore {
     }
     func loadAllEnvs() async { for project in projects { await loadEnvs(project.id) } }
     func activeEnvironment(_ id: String) -> EnvEnvironment? { envs[id]?.site.activeEnvironment }
-    func envAudit(_ id: String, env: String, action: String, key: String = "") async {
-        let _: Bool? = try? await call(["method": "envAudit", "id": id, "env": env, "action": action, "key": key, "actor": actor])
+    /// Writes the audit entry (a compliance requirement). False, with a message, when it could not be written.
+    @discardableResult
+    func envAudit(_ id: String, env: String, action: String, key: String = "") async -> Bool {
+        do {
+            let _: Bool = try await call(["method": "envAudit", "id": id, "env": env, "action": action, "key": key, "actor": actor])
+            return true
+        } catch {
+            errorMessage = L("env.auditFailed")
+            return false
+        }
     }
     /// Saves keys and non-secret values; secret values were already put in the Keychain.
     func saveEnvs(_ id: String, _ site: ProjectEnvironments) async -> Bool {
@@ -93,7 +101,8 @@ extension StackStore {
     func deleteEnvironment(_ project: Project, _ env: String) async {
         await run(L("busy.saving")) {
             let _: ProjectEnvironments = try await self.call(["method": "envDelete", "id": project.id, "env": env, "actor": self.actor])
-            EnvSecrets.keychain.deleteAll(site: project.id, env: env)
+            // Off the main thread: a Keychain call can wait on a system prompt.
+            await Task.detached { EnvSecrets.keychain.deleteAll(site: project.id, env: env) }.value
         }
         await loadEnvs(project.id)
     }
@@ -169,7 +178,9 @@ extension StackStore {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let folder = url.deletingLastPathComponent().path, name = url.lastPathComponent
         guard name.hasPrefix(".env") else { errorMessage = L("env.downloadName"); return }
-        if Self.insideRepository(folder), !Self.ignored(folder, name) {
+        // Git runs off the main thread: a slow or network disk must not freeze the window.
+        let exposed = await Task.detached { Self.insideRepository(folder) && !Self.ignored(folder, name) }.value
+        if exposed {
             errorMessage = String(format: L("env.downloadNotIgnored"), name); return
         }
         guard await EnvVault.authenticate(String(format: L("env.authDownload"), env.title), fresh: env.kind == .production) else { return }
@@ -194,7 +205,7 @@ extension StackStore {
 
     /// A template without secret values, next to the project (R9).
     func exportTemplate(_ project: Project, _ env: EnvEnvironment) async {
-        let text = "# Plantilla del entorno «\(env.title)» (sin valores secretos)\n" + env.entries.map { "\($0.key)=\($0.secret ? "" : $0.value)" }.joined(separator: "\n") + "\n"
+        let text = String(format: L("env.template.header"), env.title) + "\n" + env.entries.map { "\($0.key)=\($0.secret ? "" : $0.value)" }.joined(separator: "\n") + "\n"
         let name = ".env.\(env.id).example"
         let path = (project.path as NSString).appendingPathComponent(name)
         do {

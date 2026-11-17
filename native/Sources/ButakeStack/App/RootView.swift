@@ -61,7 +61,10 @@ struct RootView: View {
                         if store.canShow(.tool(id)) { ToolPage(store: store, id: id).id(id) } else { HomePage(store: store) }
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // A minimum height of 0: a page taller than the window is cut, never makes the split
+                // view taller than it (AppKit would center it and put every column under the title bar, P-15).
+                .frame(minHeight: 0, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
                 .transition(.opacity)
                 if let pending = store.watchedPending.first, store.importScan == nil {
                     WatchBanner(store: store, scan: pending)

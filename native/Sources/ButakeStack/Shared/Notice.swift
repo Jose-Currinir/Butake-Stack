@@ -95,7 +95,8 @@ private struct NoticeLayout: Layout {
         let actions = subviews[1].sizeThatFits(.unspecified)
         let width = proposal.width ?? subviews[0].sizeThatFits(.unspecified).width + spacing + actions.width
         if sideBySide(width, actions) {
-            let text = subviews[0].sizeThatFits(ProposedViewSize(width: max(0, width - actions.width - (actions.width > 0 ? spacing : 0)), height: nil))
+            // A notice without actions is always side by side: it too is measured at `minText` at least (P-15).
+            let text = subviews[0].sizeThatFits(ProposedViewSize(width: max(minText, width - actions.width - (actions.width > 0 ? spacing : 0)), height: nil))
             return CGSize(width: width, height: max(text.height, actions.height))
         }
         // Never measured narrower than `minText`: asked for its smallest size (width 0, as the window

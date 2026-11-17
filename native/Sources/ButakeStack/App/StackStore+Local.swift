@@ -132,7 +132,9 @@ extension StackStore {
     /// The projects stop being offered (they can still be added by hand).
     func ignoreWatched(_ root: String, paths: [String]) async {
         guard !paths.isEmpty else { return }
-        let _: Bool? = try? await call(["method": "ignoreWatched", "folder": root, "paths": paths])
+        do {
+            let _: Bool = try await call(["method": "ignoreWatched", "folder": root, "paths": paths])
+        } catch { report(error) }
         await refreshWatched()
     }
     /// Opens the import with only the new projects of a watched folder.

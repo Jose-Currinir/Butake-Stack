@@ -35,7 +35,7 @@ actor StackEngine {
     init(executable: URL = StackEngine.executable) { self.executableURL = executable }
     static var executable: URL {
         if let override = ProcessInfo.processInfo.environment["BUTAKE_STACK_ENGINE"] { return URL(fileURLWithPath: override) }
-        return Bundle.main.resourceURL!.appendingPathComponent("butake-stack")
+        return (Bundle.main.resourceURL ?? URL(fileURLWithPath: "/nonexistent")).appendingPathComponent("butake-stack")
     }
     func call<T: Decodable>(_ parameters: [String: Any], as type: T.Type = T.self) async throws -> T {
         try await call(json: try JSONSerialization.data(withJSONObject: parameters), as: type)

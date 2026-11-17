@@ -110,7 +110,7 @@ struct BrandMark: View {
             .frame(width: size, height: size)
             // The radius of TechLogo's tiles, so the mark sits in line with them.
             .background(Color.white.opacity(0.94), in: RoundedRectangle(cornerRadius: size * 0.26, style: .continuous))
-            .accessibilityLabel("Butake")
+            .accessibilityLabel(L("app.name"))
     }
 }
 

@@ -8,13 +8,12 @@ extension StackStore {
     /// folder: the configuration file and a dump of each database of Stack's engines (`bases/`).
     func exportConfiguration() async {
         let profiles = (UserDefaults.standard.string(forKey: "setup.profiles") ?? "").split(separator: ",").map(String.init)
-        guard let data: JSONValue = try? await call(["method": "exportEnvironment", "profiles": profiles]) else {
-            errorMessage = L("engine.requestFailed"); return
-        }
+        let data: JSONValue
+        do { data = try await call(["method": "exportEnvironment", "profiles": profiles]) } catch { report(error); return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
         let date = Format.fileStamp()
-        panel.nameFieldStringValue = "mi-entorno-butake-stack-\(date).json"
+        panel.nameFieldStringValue = String(format: L("backup.defaultName"), date)
         panel.message = L("backup.saveMessage")
         var checkbox: NSButton?
         if !(await backupConnections()).isEmpty {
@@ -63,9 +62,14 @@ extension StackStore {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         panel.message = L("backup.openMessage")
-        guard panel.runModal() == .OK, let url = panel.url,
-              let bytes = try? Data(contentsOf: url), bytes.count < 20_000_000,
-              let data = try? JSONDecoder().decode(JSONValue.self, from: bytes) else { return nil }
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        // The size is checked before reading: a huge file is never loaded.
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? .max
+        guard size < 20_000_000, let bytes = try? Data(contentsOf: url),
+              let data = try? JSONDecoder().decode(JSONValue.self, from: bytes) else {
+            errorMessage = L("error.invalid_backup")
+            return nil
+        }
         guard let plan: RestorePlan = try? await call(["method": "planRestore", "data": data.any]) else {
             errorMessage = L("error.invalid_backup")
             return nil

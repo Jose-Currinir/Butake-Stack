@@ -69,7 +69,7 @@ extension StackStore {
             if plugin.id == "mail" || plugin.id == "dumps" { await self.refreshStatus() }
             if plugin.id == "git" { GitTool.shared.suspend() }
             if deleteData, plugin.id == "database-client" {
-                for connection in DatabaseClient.shared.connections where !connection.builtin { DatabaseVault.delete(connection.id) }
+                for connection in DatabaseClient.shared.connections where !connection.builtin { DatabaseVault.deleteAll(connection: connection.id) }
             }
             self.notify(String(format: L("plugins.removed"), plugin.title))
         }

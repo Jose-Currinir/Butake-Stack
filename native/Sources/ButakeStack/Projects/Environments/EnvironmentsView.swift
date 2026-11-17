@@ -74,6 +74,8 @@ struct EnvironmentsView: View {
     @State private var confirmDelete = false
     @State private var showAudit = false
     @State private var revealed: [String: String] = [:]
+    /// The 30 s timer of each revealed value; hiding it or leaving the page cancels it.
+    @State private var hideTimers: [String: Task<Void, Never>] = [:]
     @State private var editingSecret: Row?
     /// Which secrets have a value in the Keychain, read once per load (not on every redraw: a long
     /// .env made every keystroke query the Keychain dozens of times).
@@ -118,6 +120,7 @@ struct EnvironmentsView: View {
         .onChange(of: storedSecrets) { _, _ in if textMode, !dirty { renderText() } }
         .onChange(of: textMode) { _, _ in modeChanged() }
         .task(id: project.id) { await store.loadEnvs(project.id); load() }
+        .onDisappear { hideTimers.values.forEach { $0.cancel() }; hideTimers = [:]; revealed = [:] }
         .onChange(of: selected) { _, _ in load() }
         .sheet(isPresented: $creating) {
             NewEnvironmentSheet(store: store, project: project, current: current) { id in selected = id; load() }.themedSheet()
@@ -293,11 +296,13 @@ struct EnvironmentsView: View {
                 Button { changingPassword = true } label: { Label(L("env.changeDatabasePassword"), systemImage: Symbols.key) }
                     .disabled(databaseAccounts.isEmpty).accessibilityIdentifier("env.changeDatabasePassword")
                 Button { showAudit = true } label: { Label(L("env.audit"), systemImage: Symbols.history) }
+                    .accessibilityIdentifier("env.audit")
                 if let current {
                     Button { Task { await store.downloadEnv(project, current) } } label: { Label(String(format: L("env.downloadMenu"), current.id), systemImage: Symbols.dump) }
                         .help(String(format: L("env.downloadHelp"), current.title)).disabled(store.busy != nil || dirty)
                         .accessibilityIdentifier("env.download")
                     Button { Task { await store.exportTemplate(project, current) } } label: { Label(L("env.export"), systemImage: Symbols.share) }
+                        .accessibilityIdentifier("env.exportTemplate")
                     Divider()
                     Button(role: .destructive) { confirmDelete = true } label: { Label(L("env.delete"), systemImage: Symbols.delete) }
                         .disabled(state?.site.active == current.id)
@@ -334,6 +339,7 @@ struct EnvironmentsView: View {
     private func load() {
         if selected == nil || !environments.contains(where: { $0.id == selected }) { selected = state?.site.active ?? environments.first?.id }
         draft = (current?.entries ?? []).map { Row(key: $0.key, value: $0.value, secret: $0.secret, original: $0.key) }
+        hideTimers.values.forEach { $0.cancel() }; hideTimers = [:]
         revealed = [:]
         dirty = false
         Task { await loadStoredSecrets() }
@@ -360,19 +366,25 @@ struct EnvironmentsView: View {
     }
     private func reveal(_ row: Row) async {
         guard let current else { return }
-        if revealed[row.key] != nil { revealed[row.key] = nil; return }
+        if revealed[row.key] != nil { hideTimers[row.key]?.cancel(); revealed[row.key] = nil; return }
         guard await EnvVault.authenticate(String(format: L("env.authReveal"), row.key)) else { return }
         guard let values = await store.secretValues(project.id, current.id) else { return }
+        // The reveal is audited first: without the entry the value is not shown.
+        guard await store.envAudit(project.id, env: current.id, action: "revelar", key: row.key) else { return }
         revealed[row.key] = values[row.key] ?? ""
-        await store.envAudit(project.id, env: current.id, action: "revelar", key: row.key)
         let key = row.key
-        Task { try? await Task.sleep(for: .seconds(30)); revealed[key] = nil }
+        hideTimers[key]?.cancel()
+        hideTimers[key] = Task {
+            try? await Task.sleep(for: .seconds(30))
+            guard !Task.isCancelled else { return }
+            revealed[key] = nil
+        }
     }
     private func copy(_ row: Row) async {
         guard let current, await EnvVault.authenticate(String(format: L("env.authCopyKey"), row.key)),
               let value = await store.secretValues(project.id, current.id)?[row.key] else { return }
+        guard await store.envAudit(project.id, env: current.id, action: "copiar", key: row.key) else { return }
         EnvVault.copy(value)
-        await store.envAudit(project.id, env: current.id, action: "copiar", key: row.key)
         store.notify(L("env.copied"))
     }
     /// Database logins this environment names (`DB_USERNAME`, `DATABASE_USER`…) that have a password

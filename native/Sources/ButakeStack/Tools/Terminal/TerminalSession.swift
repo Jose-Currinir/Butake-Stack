@@ -123,7 +123,12 @@ private struct SessionLaunch: Codable, Sendable { var executable: String; var ar
         case .ssh(let id):
             do {
                 let launch: SessionLaunch = try await StackStore.shared.call(["method": "sshSession", "id": id])
-                guard launch.executable == "/usr/bin/ssh" else { return }
+                guard launch.executable == "/usr/bin/ssh" else {
+                    // Never run what the engine did not say is ssh; the tab says it ended instead of staying empty.
+                    exitCode = -1
+                    StackStore.shared.report(EngineFailure(code: "engine", messageKey: "engine.requestFailed"))
+                    return
+                }
                 title = launch.title
                 view.startProcess(executable: launch.executable, args: launch.args, environment: TerminalSession.sshEnvironment())
             } catch {

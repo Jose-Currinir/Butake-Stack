@@ -76,7 +76,12 @@ extension StackStore {
         for rename in pending {
             for step in rename.steps {
                 guard await complete(step, of: rename, secrets: secrets ?? renameSecrets) else { continue }
-                let _: [PendingRename]? = try? await call(["method": "renameStepDone", "from": rename.from, "to": rename.to, "step": step])
+                do {
+                    let _: [PendingRename] = try await call(["method": "renameStepDone", "from": rename.from, "to": rename.to, "step": step])
+                } catch {
+                    // Said once per rename and step: it is tried again at every refresh.
+                    if renameKeychainFailed.insert("\(rename.from)>\(rename.to)#\(step)").inserted { report(error) }
+                }
             }
         }
     }

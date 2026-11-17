@@ -83,7 +83,7 @@ struct MenuPanel: View {
                     .accessibilityIdentifier("panel.open")
                 Spacer(minLength: 4)
                 if let dns = store.status?.listeners["dns"] {
-                    Label(".test", systemImage: dns.mode == "unavailable" ? Symbols.warning : Symbols.success)
+                    Label(".\(store.config?.tld.first ?? "test")", systemImage: dns.mode == "unavailable" ? Symbols.warning : Symbols.success)
                         .font(.caption2).foregroundStyle(dns.mode == "unavailable" ? Brand.warning : .secondary)
                         .help(L("panel.dnsHelp")).padding(.trailing, 4)
                 }

@@ -237,6 +237,7 @@ private struct SitesHeader: View {
             .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
             .contextMenu {
                 Button { store.groupNaming = .new(sites: []) } label: { Label(L("menu.newFolder"), systemImage: Symbols.newFolder) }
+                    .accessibilityIdentifier("sidebar.newFolder")
             }
             .dropDestination(for: String.self) { ids, _ in
                 for id in ids { store.move(id, to: nil) }
