@@ -76,6 +76,9 @@ struct SkillEditorPanel: View {
             text = read ?? ""
             saved = text
             loaded = read != nil
+            #if DEBUG
+            if let typed = QAHooks.skillsTyped { text += typed }
+            #endif
         }
         .onChange(of: skill.modified) { Task { await syncWithDisk() } }
         .onChange(of: dirty) { tool.unsavedSkill = dirty ? skill.id : nil }
