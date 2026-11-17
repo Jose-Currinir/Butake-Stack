@@ -208,8 +208,6 @@ pub(super) fn create_laravel(
                 }
             };
             set_env(&env, &values)?;
-            // The .env now may hold a password: owner-only, like the environments manager writes it.
-            let _ = fs::set_permissions(&env, std::os::unix::fs::PermissionsExt::from_mode(0o600));
             if ready {
                 artisan(&["migrate", "--force", "--no-interaction"])?;
             }

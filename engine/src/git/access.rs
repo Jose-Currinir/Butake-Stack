@@ -244,23 +244,8 @@ pub fn trust_scanned(
         .lines()
         .filter(|line| !line.starts_with('#') && !line.trim().is_empty())
         .collect();
-    let plain = |line: &&str| {
-        let parts: Vec<&str> = line.split(' ').collect();
-        parts.len() == 3
-            && parts[0] == name
-            && matches!(
-                parts[1],
-                "ssh-ed25519"
-                    | "ssh-rsa"
-                    | "ecdsa-sha2-nistp256"
-                    | "ecdsa-sha2-nistp384"
-                    | "ecdsa-sha2-nistp521"
-            )
-            && !parts[2].is_empty()
-            && parts[2]
-                .bytes()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'+' | b'/' | b'='))
-    };
+    let plain =
+        |line: &&str| crate::ssh::common::plain_known_host_line(line) == Some(name.as_str());
     if lines.is_empty() || !lines.iter().all(plain) {
         return Err(changed());
     }

@@ -39,7 +39,9 @@ pub fn read_stack_dotenv(path: &std::path::Path) -> Option<BTreeMap<String, Stri
     use std::{io::Read, os::unix::fs::OpenOptionsExt};
     let file = fs::OpenOptions::new()
         .read(true)
-        .custom_flags(libc::O_NOFOLLOW)
+        // `O_NONBLOCK`: opening a FIFO nobody writes to would wait forever; the regular-file
+        // check below then refuses it.
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_NOCTTY)
         .open(path)
         .ok()?;
     let meta = file.metadata().ok()?;

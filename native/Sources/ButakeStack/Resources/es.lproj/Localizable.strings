@@ -409,6 +409,8 @@
 "attention.service_missing" = "Este proyecto usa %@, que no está instalado.";
 "attention.port_conflict" = "El puerto %1$ld también lo declara «%2$@».";
 "attention.serves_repository" = "Este sitio estático sirve una carpeta con un repositorio Git: su historial quedaría a la vista en su dirección.";
+"attention.unsafe_web_path" = "La ruta de este proyecto tiene llaves, comillas o barras invertidas: no se puede servir con seguridad y quedó fuera del servidor web. Renombra la carpeta.";
+"attention.serves_project_root" = "Este sitio sirve la carpeta raíz del proyecto: todos sus archivos (código, composer.json, copias) quedarían a la vista en su dirección. Los que empiezan con punto, como .env y .git, no se entregan. Conviene servir una subcarpeta, por ejemplo public.";
 "attention.program_missing" = "El comando «%1$@» no puede ejecutarse: falta %2$@.";
 "attention.script_missing" = "El comando «%1$@» llama al guion «%2$@», que el proyecto no tiene.";
 "attention.script_forwards" = "El guion «%1$@» solo llama a «%2$@»: los argumentos de Stack (puerto, dirección) no llegan al servidor.";

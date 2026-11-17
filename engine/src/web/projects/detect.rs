@@ -259,6 +259,16 @@ pub fn serves_repository(project: &Project) -> bool {
         && std::fs::symlink_metadata(project.path.join(&project.docroot).join(".git")).is_ok()
 }
 
+/// A PHP or static site whose served folder is the project's own root publishes every file in it
+/// (sources, `composer.json`, dumps): the page says it. Dotfiles are already refused by the server.
+pub fn serves_project_root(project: &Project) -> bool {
+    matches!(project.kind, ProjectKind::Php | ProjectKind::Static)
+        && project
+            .docroot
+            .components()
+            .all(|c| matches!(c, std::path::Component::CurDir))
+}
+
 pub fn detect(path: &Path) -> Result<Detection> {
     let path = path.canonicalize()?;
     ensure!(path.is_dir(), "invalid_path");

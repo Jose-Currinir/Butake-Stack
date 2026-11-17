@@ -60,6 +60,18 @@ fn quoted(value: &str) -> Result<String> {
     Ok(format!("\"{value}\""))
 }
 
+/// Answers 404 to any path with a segment that starts with a dot (`.env`, `.git/config`, `..`),
+/// before PHP or the file server see it, so a folder served from the project root never publishes
+/// them. Only `/.well-known/` stays reachable, and only through segments that do not start with a
+/// dot themselves (`/.well-known/../.env` is refused). Caddy's regular expressions have no
+/// look-ahead, hence the second, negated, expression.
+const HIDDEN_FILES: &str = "\t@hidden {\n\t\tpath_regexp hidden (^|/)\\.\n\t\tnot path_regexp wellknown ^/\\.well-known/([^/.][^/]*/?)*$\n\t}\n\trespond @hidden 404\n";
+
+/// Whether the folder a site serves can go into the Caddyfile (`quoted` refuses `{ } \\ " \``).
+pub fn serves_safely(project: &Project) -> bool {
+    quoted(&project.path.join(&project.docroot).to_string_lossy()).is_ok()
+}
+
 enum Backend {
     Php(std::path::PathBuf),
     /// Port, and whether the Host header must be rewritten (Vite's allowed hosts).
@@ -74,6 +86,9 @@ fn html(text: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
+        // Caddy substitutes `{env.X}` and `{file.<path>}` inside the heredoc body when it runs.
+        .replace('{', "&#123;")
+        .replace('}', "&#125;")
 }
 
 /// Page served while a site is off: its name and address, light and dark, and a link that opens
@@ -135,6 +150,11 @@ pub fn caddyfile(
             _ => continue,
         };
         let root = project.path.join(&project.docroot);
+        // A folder Caddy cannot be told about safely is left out, not allowed to void the file of
+        // every other site; the project's page says why (`unsafe_web_path`).
+        if project.enabled && !serves_safely(project) && !matches!(backend, Backend::Proxy(..)) {
+            continue;
+        }
         let mut schemes = vec![("http", "fd/3")];
         if project.https {
             schemes.push(("https", "fd/4"));
@@ -176,7 +196,7 @@ pub fn caddyfile(
             }
             match &backend {
                 Backend::Php(socket) => out.push_str(&format!(
-                    "\troot * {}\n\tencode zstd gzip\n\tphp_fastcgi {}\n\tfile_server\n}}\n\n",
+                    "\troot * {}\n\tencode zstd gzip\n{HIDDEN_FILES}\tphp_fastcgi {}\n\tfile_server\n}}\n\n",
                     quoted(&root.to_string_lossy())?,
                     quoted(&format!("unix/{}", socket.to_string_lossy()))?
                 )),
@@ -191,7 +211,7 @@ pub fn caddyfile(
                     }
                 )),
                 Backend::Files => out.push_str(&format!(
-                    "\troot * {}\n\tencode zstd gzip\n\tfile_server\n}}\n\n",
+                    "\troot * {}\n\tencode zstd gzip\n{HIDDEN_FILES}\tfile_server\n}}\n\n",
                     quoted(&root.to_string_lossy())?
                 )),
             }
@@ -251,6 +271,11 @@ mod tests {
         assert!(
             off_page(&evil_name).contains("&lt;script&gt;") && !off_page(&evil_name).contains('\n')
         );
+        // Caddy placeholders in a name never reach the page as such (R-04).
+        let mut braces = evil_name.clone();
+        braces.name = "{env.HOME}{file./etc/hosts}".into();
+        let page = off_page(&braces);
+        assert!(!page.contains("{env.") && !page.contains("{file.") && page.contains("&#123;env."));
         // With a real Caddy available (CADDY_BIN), the generated file must adapt cleanly.
         if let Some(caddy) = std::env::var_os("CADDY_BIN") {
             let mut astro = project.clone();
@@ -284,10 +309,33 @@ mod tests {
             );
         }
         assert!(file.contains("php_fastcgi \"unix/"));
+        // Dotfiles answer 404 before PHP or the file server (R-03), except `/.well-known/`.
+        let hidden = file.find("respond @hidden 404").unwrap();
+        assert!(hidden < file.find("php_fastcgi").unwrap());
+        assert!(file.contains("path_regexp hidden (^|/)\\.") && file.contains("^/\\.well-known/"));
+        let mut files = project.clone();
+        files.id = "libro".into();
+        files.domains = vec!["libro.test".into()];
+        files.kind = crate::core::model::ProjectKind::Static;
+        files.runtime.clear();
+        files.docroot = ".".into();
+        let static_file = caddyfile(&store, &[files], &config, true).unwrap();
+        assert!(
+            static_file.find("respond @hidden 404").unwrap()
+                < static_file.find("file_server").unwrap()
+        );
         let evil = temp.path().join("x}\nimport");
         fs::create_dir_all(&evil).unwrap();
         project.path = evil;
         project.docroot = ".".into();
-        assert!(caddyfile(&store, &[project], &config, true).is_err());
+        // The site with that folder is left out; the others still get their file (R-59).
+        let mut healthy = project.clone();
+        healthy.path = site.clone();
+        healthy.id = "sano".into();
+        healthy.domains = vec!["sano.test".into()];
+        healthy.docroot = "public".into();
+        assert!(!serves_safely(&project) && serves_safely(&healthy));
+        let mixed = caddyfile(&store, &[project, healthy], &config, true).unwrap();
+        assert!(mixed.contains("sano.test") && !mixed.contains("demo.test"));
     }
 }

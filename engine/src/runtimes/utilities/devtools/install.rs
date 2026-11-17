@@ -86,6 +86,7 @@ pub(super) fn install_tool(store: &Store, options: &Options) -> Result<Value> {
                 "verifySum",
             )?;
             archive::extract_tar_gz(&archive, &dir, false, "extract_failed")?;
+            archive::check_tree(&dir, archive::Links::Forbid)?;
             let uv = find_file(&dir, "uv").context("uv_missing")?;
             let uvx = find_file(&dir, "uvx").context("uv_missing")?;
             progress::check()?;
@@ -130,6 +131,7 @@ pub(super) fn install_tool(store: &Store, options: &Options) -> Result<Value> {
                 "verifySum",
             )?;
             archive::extract_zip(&archive, &dir, "extract_failed")?;
+            archive::check_tree(&dir, archive::Links::Forbid)?;
             let binary = find_file(&dir, "gh").context("gh_missing")?;
             progress::check()?;
             progress::fixed_step("install");
@@ -159,6 +161,7 @@ pub(super) fn install_tool(store: &Store, options: &Options) -> Result<Value> {
                 "verifyBinary",
             )?;
             archive::extract_tar_gz(&archive, &dir, false, "extract_failed")?;
+            archive::check_tree(&dir, archive::Links::Forbid)?;
             let binary = find_file(&dir, "cloudflared").context("cloudflared_missing")?;
             ensure!(
                 hash::sha256_file(&binary)?.eq_ignore_ascii_case(&binary_hash),
@@ -243,6 +246,7 @@ pub(super) fn install_tool(store: &Store, options: &Options) -> Result<Value> {
                 ensure!(actual.eq_ignore_ascii_case(&sha1), "checksum_mismatch");
                 log(store, tool, &format!("SHA-1 verificado: {actual}"));
                 archive::extract_zip(&zip, &dir, "extract_failed")?;
+                archive::check_tree(&dir, archive::Links::Inside)?;
                 progress::check()?;
                 progress::fixed_step("install");
                 let latest = sdk.join("cmdline-tools/latest");
@@ -287,6 +291,13 @@ pub(super) fn install_tool(store: &Store, options: &Options) -> Result<Value> {
     Ok(result)
 }
 
+/// The Wrangler release Stack installs: fixed, not `latest`, so a newly published (or hijacked)
+/// version does not reach the Mac until Stack is updated to it. Read from
+/// `https://registry.npmjs.org/wrangler/latest` (dist.integrity
+/// `sha512-WwM+DL4F+zvz1id0CAPa06CAmTb6nOq1adR+Dy5AdwDsDXH5xDjSmDUUBQQN8KgSEuPCOLvzkrdMDUODIDml1A==`),
+/// which npm checks on download.
+pub(super) const WRANGLER_VERSION: &str = "4.164.0";
+
 /// Wrangler from npm with Stack's Node (`node`: its `bin`). npm fills a folder of its own beside
 /// the one in use, so «Cancelar» while it downloads leaves the installed Wrangler as it was; the
 /// new folder takes the old one's place only once npm finished.
@@ -307,9 +318,11 @@ pub(super) fn install_wrangler(store: &Store, node: &Path) -> Result<Value> {
             "--global",
             "--no-fund",
             "--no-audit",
+            // No `preinstall`/`postinstall` of wrangler or its dependencies runs on the user's disk.
+            "--ignore-scripts",
             "--prefix",
             &staging.to_string_lossy(),
-            "wrangler@latest",
+            &format!("wrangler@{WRANGLER_VERSION}"),
         ],
         &[node.to_path_buf()],
         &[],

@@ -55,3 +55,22 @@ fn validates_inputs_and_rewrites_env() {
     let text = fs::read_to_string(&env).unwrap();
     assert!(text.contains("DB_CONNECTION=mysql\nDB_HOST=127.0.0.1\nAPP_NAME=x\nDB_DATABASE=demo"));
 }
+
+/// The `.env` that receives a database password is owner-only from the moment it is written,
+/// even when it was created readable (`.env.example` copied with the default mode).
+#[test]
+fn set_env_leaves_the_file_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    let env = temp.path().join(".env");
+    fs::write(&env, "APP_NAME=x\n").unwrap();
+    fs::set_permissions(&env, fs::Permissions::from_mode(0o644)).unwrap();
+    set_env(&env, &[("DB_PASSWORD", "secreto-de-prueba".into())]).unwrap();
+    assert_eq!(
+        fs::metadata(&env).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    assert!(fs::read_to_string(&env)
+        .unwrap()
+        .contains("DB_PASSWORD=secreto-de-prueba"));
+}

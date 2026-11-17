@@ -240,7 +240,22 @@ pub fn apply(ctx: &Ctx, index: &mut Index, request: &Request, plan: &Plan) -> Re
         let Some(path) = &op.path else { continue };
         match op.action {
             Action::Create => {
-                if create(ctx, &op.change.skill, path)? {
+                let made = match create(ctx, &op.change.skill, path) {
+                    Ok(made) => made,
+                    Err(error) => {
+                        // A failure halfway: the links made so far go, so the index (not yet
+                        // updated) and the disk say the same thing.
+                        for earlier in &plan.ops {
+                            if let Some(done) =
+                                earlier.path.as_ref().filter(|p| created.contains(*p))
+                            {
+                                remove(ctx, &earlier.change.skill, done);
+                            }
+                        }
+                        return Err(error);
+                    }
+                };
+                if made {
                     created.push(path.clone());
                 } else {
                     conflicts_list

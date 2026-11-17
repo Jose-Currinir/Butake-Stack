@@ -49,6 +49,7 @@ fn links_and_special_files_inside_a_skill_are_warned_not_silently_skipped() {
     symlink(&elsewhere, real.join("enlace")).unwrap();
     symlink(elsewhere.join("x"), real.join("deep/er/roto")).unwrap();
     let fifo = std::ffi::CString::new(real.join("tuberia").to_string_lossy().as_bytes()).unwrap();
+    // SAFETY: `fifo` is a valid NUL-terminated path that outlives the call.
     assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
     folder(&env, ".claude/skills", "limpia", &[("n.md", "n")]);
     let skipped = json!(["deep/er/roto", "enlace", "tuberia"]);
@@ -146,6 +147,38 @@ fn undo_with_a_changed_copy_does_nothing() {
         .unwrap()
         .file_type()
         .is_symlink());
+}
+
+/// The trash record is a file on disk: a destination outside the folders of the AIs, or a stored
+/// path that is not `sources/<number>`, is refused and nothing moves.
+#[test]
+fn undo_refuses_a_record_that_points_outside_the_agent_folders() {
+    let env = env();
+    let (trash_id, real, foreign, _target) = imported_with_links(&env);
+    let entry_path = trash_dir(&env).join(&trash_id).join("entry.json");
+    let original: Value = serde_json::from_slice(&fs::read(&entry_path).unwrap()).unwrap();
+    for (field, value) in [
+        ("path", text(&env.home.join("Documents/robado"))),
+        ("path", text(&env.home.join(".claude/skills/../../fuera"))),
+        ("stored", "sources/../../../fuera".to_string()),
+    ] {
+        let mut tampered = original.clone();
+        tampered["sources"][0][field] = json!(value);
+        fs::write(&entry_path, serde_json::to_vec(&tampered).unwrap()).unwrap();
+        let before = snap(env.root.as_path());
+        let done = env.ok(
+            "skillsImportUndo",
+            json!({"trashId": trash_id, "confirmed": true}),
+        );
+        assert_eq!(done["restored"], json!([]), "{field}");
+        assert_eq!(done["conflicts"][0]["reason"], "changed", "{field}");
+        assert_eq!(snap(env.root.as_path()), before, "{field}");
+    }
+    assert!(fs::symlink_metadata(&real)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert!(fs::symlink_metadata(&foreign).is_ok());
 }
 
 /// Imports `a` (real folder in Claude, link in `.agents`) and returns what undo must bring back.

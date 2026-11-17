@@ -211,7 +211,19 @@ async fn remotes_and_the_identity_are_set_from_the_tool() {
         .unwrap();
     let remotes = git(root, &["remote"]).await.unwrap();
     assert_eq!(remotes.trim(), "backup");
-    for wrong in ["a/b\nx", "-x\nurl", "ok\n-u", "ok\na b", "solo"] {
+    for wrong in [
+        "a/b\nx",
+        "-x\nurl",
+        "ok\n-u",
+        "ok\na b",
+        "solo",
+        // Other transports are not remotes Stack adds (R-105).
+        "ok\nfile:///tmp/repo.git",
+        "ok\nhttp://example.invalid/a.git",
+        "ok\next::sh -c touch%20/tmp/x",
+        "ok\n/carpeta/que/no/existe",
+        "ok\nrelativa/repo.git",
+    ] {
         assert!(
             execute(root, Action::AddRemote, wrong, false)
                 .await
