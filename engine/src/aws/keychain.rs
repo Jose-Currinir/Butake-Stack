@@ -12,7 +12,9 @@ pub trait Secrets {
     fn get(&self, account: &str) -> Result<Option<Vec<u8>>>;
     fn delete(&self, account: &str) -> Result<()>;
 
-    /// Moves a secret to another account (a renamed profile); nothing leaves the engine.
+    /// Moves a secret to another account; nothing leaves the engine. A renamed profile does not
+    /// use it (`Changes::save` copies first and deletes after the files are written).
+    #[cfg(test)]
     fn rename(&self, from: &str, to: &str) -> Result<()> {
         if let Some(value) = self.get(from)? {
             self.set(to, &value)?;

@@ -100,7 +100,7 @@ fn without_secrets(text: &str) -> String {
             ) {
                 (true, Some(at)) => {
                     let end = if line.ends_with('\n') { "\n" } else { "" };
-                    format!("{} = <removed by Stack>{end}", &line[..at].trim_end())
+                    format!("{} = <removed by Stack>{end}", line[..at].trim_end())
                 }
                 _ => line.to_string(),
             }
