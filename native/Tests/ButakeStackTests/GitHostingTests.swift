@@ -490,3 +490,10 @@ private func isolateGit(remotes: URL) {
         #expect(fixture.items.accounts.count == 2)
     }
 }
+
+@Test func onlyFailuresThatSayNothingAboutTheTokenGiveItBackToTheField() {
+    let usable: Set<GitHostingFailure.Code> = [.offline, .rateLimited, .keychain]
+    for code in GitHostingFailure.Code.allCases {
+        #expect(GitHostingFailure(code, provider: .github).leavesTokenUsable == usable.contains(code), "\(code)")
+    }
+}

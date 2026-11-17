@@ -61,6 +61,15 @@ struct GitHostingFailure: Error, Equatable, Sendable, LocalizedError {
         return text + " " + String(format: L("git.hosting.error.retryAt"), retryAfter.formatted(date: .omitted, time: .shortened))
     }
     var errorDescription: String? { detail.isEmpty ? title : "\(title)\n\(detail)" }
+
+    /// The failure says nothing about the token (no connection, too many requests, Keychain): it is worth trying
+    /// again as typed. A token the provider refused or that lacks permissions is not.
+    var leavesTokenUsable: Bool {
+        switch code {
+        case .offline, .rateLimited, .keychain: true
+        case .noAccount, .unauthorized, .forbidden, .notFound, .rejected, .invalid: false
+        }
+    }
 }
 
 /// The state of a pull request.
