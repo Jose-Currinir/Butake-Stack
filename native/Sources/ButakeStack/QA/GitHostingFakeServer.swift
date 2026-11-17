@@ -43,6 +43,8 @@ final class GitHostingFakeServer: @unchecked Sendable {
     private var repos: [String: Repo] = [:]
     private var checks: [String: [(name: String, state: String)]] = [:]
     private var log: [Request] = []
+    /// Requests whose head contains the text answer that many seconds late (slow providers in tests).
+    private var delays: [(match: String, seconds: TimeInterval)] = []
     private var counter = 100
 
     /// Starts on a free port of 127.0.0.1 and waits until it listens.
@@ -78,6 +80,7 @@ final class GitHostingFakeServer: @unchecked Sendable {
     func bare(_ owner: String, _ name: String) -> URL? { remotes?.appendingPathComponent("\(owner)/\(name).git") }
 
     /// The checks a commit shows (`success`, `failure`, `pending`).
+    func delay(_ match: String, by seconds: TimeInterval) { lock.withLock { delays.append((match, seconds)) } }
     func setChecks(_ commit: String, _ list: [(name: String, state: String)]) { lock.withLock { checks[commit] = list } }
     func repo(_ provider: String, _ path: String) -> Repo? { lock.withLock { repos["\(provider):\(path)"] } }
 
@@ -129,7 +132,10 @@ final class GitHostingFakeServer: @unchecked Sendable {
                     let payload = (try? JSONSerialization.data(withJSONObject: json)) ?? Data("{}".utf8)
                     var response = Data("HTTP/1.1 \(status) X\r\nContent-Type: application/json\r\nContent-Length: \(payload.count)\r\nConnection: close\r\n\r\n".utf8)
                     response.append(payload)
-                    connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
+                    let wait = self.lock.withLock { self.delays.first { head.contains($0.match) }?.seconds } ?? 0
+                    self.queue.asyncAfter(deadline: .now() + wait) {
+                        connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
+                    }
                     return
                 }
             }

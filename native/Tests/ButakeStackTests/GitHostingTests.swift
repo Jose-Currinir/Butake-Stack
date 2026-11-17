@@ -150,6 +150,23 @@ private func isolateGit(remotes: URL) {
     #expect(main.unresolved)
 }
 
+@Test func theTokenFollowsARedirectOnlyInsideTheSameOrigin() {
+    var original = URLRequest(url: URL(string: "https://api.example.invalid/repos/acme/tienda")!)
+    original.setValue("Bearer \(sentinel)", forHTTPHeaderField: "Authorization")
+    let task = URLSession(configuration: .ephemeral).dataTask(with: original)
+    let response = HTTPURLResponse(url: original.url!, statusCode: 301, httpVersion: nil, headerFields: nil)!
+    func follow(_ address: String) -> URLRequest? {
+        var answer: URLRequest?
+        GitHostingRedirects().urlSession(.shared, task: task, willPerformHTTPRedirection: response,
+                                         newRequest: URLRequest(url: URL(string: address)!)) { answer = $0 }
+        return answer
+    }
+    #expect(follow("https://api.example.invalid/repos/acme/tienda-nueva")?.value(forHTTPHeaderField: "Authorization") == "Bearer \(sentinel)")
+    #expect(follow("https://otro.example.invalid/repos/acme/tienda") == nil)
+    #expect(follow("https://api.example.invalid:8443/repos/acme/tienda") == nil)
+    #expect(follow("http://api.example.invalid/repos/acme/tienda") == nil)
+}
+
 @Test func requestsOnlyGoToTheProvidersOwnAPI() {
     let real = GitHostingEndpoints.production
     #expect(real.allows(URL(string: "https://api.github.com/user")!, for: .github))
@@ -323,6 +340,28 @@ private func isolateGit(remotes: URL) {
         #expect(created.title == "Pagos, segunda parte" && created.draft && created.source == "feature/pagos")
         #expect(ready.scope == .branch)
         #expect(ready.failure == nil)
+    }
+
+    @Test func aSlowAnswerForAnotherScopeNeverReplacesTheListOnScreen() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let store = StackStore(engine: StackEngine())
+        let repository = try await fixture.repository(store)
+        defer { repository.stopWatching() }
+        _ = try await fixture.hosting.connect(.github, email: "", token: sentinel)
+        let session = fixture.hosting.session(for: repository)
+        await session.load()
+        // «Cerrados» answers late; «Abiertos» is chosen before it does.
+        fixture.server.delay("state=closed", by: 0.8)
+        session.scope = .closed
+        try await Task.sleep(for: .milliseconds(150))
+        session.scope = .open
+        await session.loadList()
+        #expect(session.pullRequests.map(\.id) == [7, 5])
+        #expect(!session.loading)
+        try await Task.sleep(for: .milliseconds(1_000))
+        #expect(session.pullRequests.map(\.id) == [7, 5])
+        #expect(session.scope == .open)
     }
 
     @Test func bitbucketWorksTheSameWay() async throws {
