@@ -472,15 +472,8 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
                 .ok_or_else(|| error("invalid_arguments", "Escribe el nombre y la dirección."))?;
             let (name, url) = (name.trim(), url.trim());
             validate_remote(root, name).await?;
-            if url.is_empty() || url.starts_with('-') || url.contains(char::is_whitespace) {
-                return Err(error("invalid_url", "La dirección del remoto no es válida."));
-            }
-            if super::remotes::embeds_credentials(url) {
-                return Err(error(
-                    "invalid_url",
-                    "Quita el usuario y la clave de la dirección: Stack usa tu cuenta conectada.",
-                ));
-            }
+            // The same rules as clone and publish (https, ssh, git@), plus a local folder.
+            super::remotes::validate_remote_url(url)?;
             git(
                 root,
                 &["remote", "add", name, &super::remotes::stored_address(url)],

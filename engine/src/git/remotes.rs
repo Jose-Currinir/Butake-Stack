@@ -107,6 +107,25 @@ pub fn validate_clone_url(url: &str) -> Result<()> {
     }
 }
 
+/// The address of a remote added by hand: what `validate_clone_url` accepts, or the absolute path
+/// of an existing folder on this Mac (a backup remote). `file://`, `http://`, `ext::` and the
+/// other transports are not remotes Stack adds.
+pub fn validate_remote_url(url: &str) -> Result<()> {
+    if url.starts_with('/') {
+        let plain = url.len() < 2_048
+            && !url.contains("::")
+            && !url.chars().any(|c| c.is_whitespace() || c.is_control());
+        if plain && std::path::Path::new(url).is_dir() {
+            return Ok(());
+        }
+        return Err(error(
+            "invalid_url",
+            "La carpeta del remoto no existe o no se puede usar.",
+        ));
+    }
+    validate_clone_url(url)
+}
+
 fn validate_folder_name(name: &str) -> Result<()> {
     if name.is_empty()
         || name.len() > 200
