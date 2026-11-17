@@ -32,6 +32,10 @@ Herramientas) quita los enlaces que Stack creó en las carpetas de las IA y borr
   encabezado trae solo `name` y `description`; lo propio de Stack no va en el archivo.
 - **Edición:** el editor guarda el `SKILL.md` completo (máximo 256 KiB) y vuelve a leer `name` y
   `description` del encabezado. Duplicar copia la carpeta sin seguir enlaces y la deja sin IA.
+- **Cambios fuera de Stack:** si `SKILL.md` cambia en el disco mientras el editor está abierto, se recarga
+  cuando no hay texto sin guardar; si lo hay, el editor avisa y deja elegir entre recargar o conservar lo
+  escrito (guardar entonces reemplaza la versión del disco). Cambiar de skill con texto sin guardar pide
+  confirmación.
 - **Papelera:** eliminar una skill quita sus enlaces y mueve la carpeta a `skills-trash/`; «Deshacer»
   la restaura con sus enlaces donde el nombre siga libre. Lo que lleva más de 30 días se purga al
   listar.

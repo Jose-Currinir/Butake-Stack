@@ -32,6 +32,13 @@ enum SkillsSheet: Identifiable {
     var loadFailed = false
     var scope: SkillsScope = .all
     var selection: String?
+    /// The skill whose editor holds text that was not saved (set by the editor).
+    var unsavedSkill: String?
+    /// The selection the user asked for while `unsavedSkill` holds text: it waits for an answer.
+    /// `.some(nil)` is «no skill» (the list was cleared).
+    var pendingSelection: String??
+    /// The pending change opens «Salud» instead of a skill.
+    private var pendingHealth = false
     var search = ""
     var tagFilter: String?
     var agentFilter: String?
@@ -80,6 +87,44 @@ enum SkillsSheet: Identifiable {
 
     func scopeChanged() {
         if scope == .health { selection = nil } else { keepSelectionVisible() }
+    }
+
+    /// Changes the selection from the list; with unsaved text in the editor it asks first.
+    func requestSelection(_ id: String?) {
+        guard id != selection else { return }
+        if unsavedSkill != nil && unsavedSkill == selection {
+            pendingSelection = .some(id)
+        } else {
+            selection = id
+        }
+    }
+
+    /// Opens «Salud» from the list; with unsaved text in the editor it asks first.
+    func requestHealth() {
+        if unsavedSkill != nil && unsavedSkill == selection {
+            pendingHealth = true
+            pendingSelection = .some(nil)
+        } else {
+            scope = .health
+            scopeChanged()
+        }
+    }
+
+    func keepEditing() {
+        pendingSelection = nil
+        pendingHealth = false
+    }
+
+    func discardAndSwitch() {
+        guard let pending = pendingSelection else { return }
+        let health = pendingHealth
+        keepEditing()
+        unsavedSkill = nil
+        selection = pending
+        if health {
+            scope = .health
+            scopeChanged()
+        }
     }
 
     /// Opens a skill's page (from a finding of «Salud»).

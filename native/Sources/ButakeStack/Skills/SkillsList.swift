@@ -12,11 +12,10 @@ struct SkillsList: View {
         Binding(get: { tool.scope == .health ? Self.healthTag : tool.selection },
                 set: { value in
                     if value == Self.healthTag {
-                        tool.scope = .health
-                        tool.scopeChanged()
+                        tool.requestHealth()
                     } else {
                         if tool.scope == .health { tool.scope = .all }
-                        tool.selection = value
+                        tool.requestSelection(value)
                     }
                 })
     }
@@ -42,6 +41,16 @@ struct SkillsList: View {
         .overlay { empty(shown) }
         .searchable(text: $tool.search, placement: .sidebar, prompt: L("skills.search"))
         .accessibilityIdentifier("skills.list")
+        .confirmationDialog(L("skills.editor.switch.title"), isPresented: Binding(get: { tool.pendingSelection != nil },
+                                                                                   set: { if !$0 { tool.keepEditing() } }),
+                            titleVisibility: .visible) {
+            Button(L("skills.editor.switch.discard"), role: .destructive) { tool.discardAndSwitch() }
+                .accessibilityIdentifier("skills.editor.switch.discard")
+            Button(L("common.cancel"), role: .cancel) { tool.keepEditing() }
+                .accessibilityIdentifier("skills.editor.switch.keep")
+        } message: {
+            Text(L("skills.editor.switch.detail"))
+        }
     }
 
     private func rows(_ skills: [Skill]) -> some View {

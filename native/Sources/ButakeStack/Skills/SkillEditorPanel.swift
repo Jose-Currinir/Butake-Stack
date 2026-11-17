@@ -1,5 +1,18 @@
 import SwiftUI
 
+/// What the editor does when `SKILL.md` changed on disk: compares the file with what the editor last
+/// saved and with the text on screen.
+enum SkillEditorSync {
+    enum Action: Equatable { case none, markSaved, reload, conflict }
+
+    static func resolve(disk: String, saved: String, text: String) -> Action {
+        if disk == saved { return .none }
+        // Stack's own save may land before the editor notes it.
+        if disk == text { return .markSaved }
+        return text == saved ? .reload : .conflict
+    }
+}
+
 /// The editor of a skill's `SKILL.md`: the whole file, frontmatter included. The engine is the only
 /// writer; «Guardar» sends the text and the skill is read again from what it parsed.
 struct SkillEditorPanel: View {
@@ -8,6 +21,8 @@ struct SkillEditorPanel: View {
     @State private var text = ""
     @State private var saved = ""
     @State private var loaded = false
+    /// What `SKILL.md` says now, when it changed outside Stack while there is unsaved text.
+    @State private var outside: String?
 
     /// The most the engine accepts for one `SKILL.md`.
     static let limit = 256 * 1024
@@ -17,6 +32,15 @@ struct SkillEditorPanel: View {
 
     var body: some View {
         Section {
+            if outside != nil {
+                Notice(.warning, L("skills.editor.outside.title"), detail: L("skills.editor.outside.detail")) {
+                    Button(L("skills.editor.outside.reload")) { reload() }
+                        .buttonStyle(.bordered).accessibilityIdentifier("skills.editor.outside.reload")
+                    Button(L("skills.editor.outside.keep")) { keep() }
+                        .buttonStyle(.bordered).accessibilityIdentifier("skills.editor.outside.keep")
+                }
+                .accessibilityIdentifier("skills.editor.outside")
+            }
             TextEditor(text: $text)
                 .font(.uiMonospaced)
                 .frame(minHeight: 280)
@@ -47,10 +71,38 @@ struct SkillEditorPanel: View {
             SettingsFooter(L("skills.editor.footer"))
         }
         .task(id: skill.id) {
+            outside = nil
             let read = await tool.read(skill.id)
             text = read ?? ""
             saved = text
             loaded = read != nil
         }
+        .onChange(of: skill.modified) { Task { await syncWithDisk() } }
+        .onChange(of: dirty) { tool.unsavedSkill = dirty ? skill.id : nil }
+        .onDisappear { tool.unsavedSkill = nil }
+    }
+
+    /// `SKILL.md` changed: take it when nothing was typed, ask when something was.
+    private func syncWithDisk() async {
+        guard loaded, let disk = await tool.read(skill.id) else { return }
+        switch SkillEditorSync.resolve(disk: disk, saved: saved, text: text) {
+        case .none: outside = nil
+        case .markSaved: saved = text; outside = nil
+        case .reload: text = disk; saved = disk; outside = nil
+        case .conflict: outside = disk
+        }
+    }
+
+    private func reload() {
+        guard let outside else { return }
+        text = outside
+        saved = outside
+        self.outside = nil
+    }
+
+    /// Keeps what was typed: from now on it is compared with the outside version, so saving replaces it knowingly.
+    private func keep() {
+        if let outside { saved = outside }
+        outside = nil
     }
 }

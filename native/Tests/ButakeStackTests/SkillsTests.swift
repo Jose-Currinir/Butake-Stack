@@ -184,3 +184,42 @@ private let listJSON = """
     let undone = try JSONDecoder().decode(ImportUndoResult.self, from: Data(#"{"restored": ["/qa/a"], "conflicts": []}"#.utf8))
     #expect(undone.restored == ["/qa/a"] && undone.conflicts.isEmpty)
 }
+
+/// The editor and a change of `SKILL.md` made outside Stack: nothing typed is lost, and an outside
+/// change is never overwritten without the user choosing.
+@Test func editorSyncKeepsWhatWasTypedAndTakesOutsideChanges() {
+    // The file says what the editor last saved: nothing to do (also the case after Stack's own save).
+    #expect(SkillEditorSync.resolve(disk: "a", saved: "a", text: "a") == .none)
+    #expect(SkillEditorSync.resolve(disk: "a", saved: "a", text: "a, editado") == .none)
+    // Our own save landed before the editor noted it.
+    #expect(SkillEditorSync.resolve(disk: "b", saved: "a", text: "b") == .markSaved)
+    // Changed outside with nothing typed: reload it.
+    #expect(SkillEditorSync.resolve(disk: "b", saved: "a", text: "a") == .reload)
+    // Changed outside while typing: ask.
+    #expect(SkillEditorSync.resolve(disk: "b", saved: "a", text: "a, editado") == .conflict)
+}
+
+/// Changing skill with unsaved text asks first; «Seguir editando» stays, «Descartar» goes.
+@MainActor @Test func switchingSkillWithUnsavedTextAsksFirst() {
+    let tool = SkillsTool()
+    tool.selection = "commits"
+    tool.requestSelection("publicar")
+    #expect(tool.selection == "publicar" && tool.pendingSelection == nil)
+
+    tool.unsavedSkill = "publicar"
+    tool.requestSelection("commits")
+    #expect(tool.selection == "publicar" && tool.pendingSelection == .some("commits"))
+    tool.keepEditing()
+    #expect(tool.selection == "publicar" && tool.pendingSelection == nil && tool.unsavedSkill == "publicar")
+
+    tool.requestSelection(nil)
+    #expect(tool.pendingSelection == .some(nil))
+    tool.discardAndSwitch()
+    #expect(tool.selection == nil && tool.pendingSelection == nil && tool.unsavedSkill == nil)
+
+    // The same skill again is not a change.
+    tool.selection = "commits"
+    tool.unsavedSkill = "commits"
+    tool.requestSelection("commits")
+    #expect(tool.pendingSelection == nil)
+}
