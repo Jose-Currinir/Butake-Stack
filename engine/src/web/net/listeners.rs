@@ -21,11 +21,17 @@ fn from_launchd(name: &str) -> Vec<i32> {
     let name = std::ffi::CString::new(name).unwrap();
     let mut fds: *mut libc::c_int = std::ptr::null_mut();
     let mut count: libc::size_t = 0;
+    // SAFETY: `name` is a NUL-terminated string that outlives the call, and `fds` and `count` are
+    // valid for writes. launchd only fills them in when it returns 0.
     let status = unsafe { launch_activate_socket(name.as_ptr(), &mut fds, &mut count) };
     if status != 0 || fds.is_null() {
         return vec![];
     }
+    // SAFETY: on success (status 0) and with `fds` not null, launchd returned a `malloc`ed array
+    // of exactly `count` descriptors; it is read once, before being freed below.
     let list = unsafe { std::slice::from_raw_parts(fds, count) }.to_vec();
+    // SAFETY: the array belongs to the caller (launch_activate_socket's contract: free it with
+    // `free`), it came from `malloc`, and `list` holds a copy, so nothing reads it afterwards.
     unsafe { libc::free(fds.cast()) };
     list
 }
@@ -75,14 +81,18 @@ impl Listeners {
             let mut actual = port;
             let (mode, ok) = if let Some(fd) = launchd.first() {
                 for extra in &launchd[1..] {
+                    // SAFETY: launchd handed these descriptors to this process and nothing else
+                    // holds them; each is closed once, and only the first one is kept.
                     unsafe { libc::close(*extra) };
                 }
-                // Safety: launchd transferred ownership of this descriptor to us.
                 if udp {
+                    // SAFETY: launchd transferred ownership of `fd` (open, not used elsewhere) to
+                    // this process, and the socket takes it over: it is closed only by its drop.
                     let socket = unsafe { UdpSocket::from_raw_fd(*fd) };
                     actual = socket.local_addr().map_or(port, |a| a.port());
                     this.set_udp(name, socket);
                 } else {
+                    // SAFETY: as above: `fd` is an owned, open descriptor not used by anyone else.
                     let listener = unsafe { TcpListener::from_raw_fd(*fd) };
                     actual = listener.local_addr().map_or(port, |a| a.port());
                     this.set_tcp(name, listener);
