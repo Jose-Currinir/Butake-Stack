@@ -34,3 +34,49 @@ fn every_public_error_code_has_its_text() {
         PUBLIC_ERRORS.iter().collect::<BTreeSet<_>>().len()
     );
 }
+
+/// Every `.swift` file under `dir`, read.
+fn swift_sources(dir: &std::path::Path, out: &mut String) {
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            swift_sources(&path, out);
+        } else if path.extension().is_some_and(|ext| ext == "swift") {
+            out.push_str(&std::fs::read_to_string(&path).unwrap_or_default());
+        }
+    }
+}
+
+/// The other direction: an `error.<code>` text that no engine code reaches and that the app does
+/// not name itself is a leftover (the code was renamed or removed and its text stayed).
+#[test]
+fn no_error_text_is_left_without_a_code() {
+    let keys = text_keys();
+    let mut codes: BTreeSet<&str> = PUBLIC_ERRORS.iter().copied().collect();
+    codes.extend(DETAILED_ERRORS);
+    codes.extend(["database_error", "ssh_key_in_use", "source_rate_limited"]);
+    let mut app = String::new();
+    swift_sources(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../native/Sources"),
+        &mut app,
+    );
+    assert!(app.len() > 100_000, "the app's sources were read");
+    let orphans: Vec<&String> = keys
+        .iter()
+        .filter(|key| {
+            key.strip_prefix("error.")
+                .is_some_and(|code| !code.is_empty() && !codes.contains(code))
+        })
+        // The app writes `error.<code>` itself (its own codes) or builds the key from a prefix.
+        .filter(|key| !app.contains(&format!("\"{key}\"")))
+        // The skills import answers these in its own result (`reason`), not as an error code.
+        .filter(|key| !key.starts_with("error.skills_import_"))
+        // An unknown method answers `engine.requestFailed` on purpose (`tests/cli.rs`): the text is
+        // kept for a version of the app that is newer than its engine.
+        .filter(|key| *key != "error.unknown_method")
+        .collect();
+    assert!(
+        orphans.is_empty(),
+        "error.* texts without a code: {orphans:?}"
+    );
+}
