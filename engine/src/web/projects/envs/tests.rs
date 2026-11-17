@@ -1,4 +1,5 @@
 use super::*;
+use std::process::Command;
 
 /// A new port of a project reaches the `.env` of the projects that name it: written again
 /// without secrets, marked outdated with them (the app holds them) and when the project is
@@ -431,6 +432,52 @@ fn refuses_secrets_when_env_is_tracked_by_git() {
         "tester",
     )
     .unwrap();
+}
+
+/// A repository the user did not write must not run its own `core.fsmonitor` program when
+/// Stack asks whether the `.env` is tracked or ignored (activate, export).
+#[test]
+fn git_checks_never_run_the_fsmonitor_of_the_repository() {
+    use std::os::unix::fs::PermissionsExt;
+    let (temp, store, project) = store_with_site();
+    let git = |args: &[&str]| {
+        assert!(Command::new("/usr/bin/git")
+            .arg("-C")
+            .arg(&project.path)
+            .args(args)
+            .status()
+            .unwrap()
+            .success());
+    };
+    git(&["init", "-q"]);
+    let marker = temp.path().join("fsmonitor-ran");
+    let script = temp.path().join("fsmonitor.sh");
+    fs::write(
+        &script,
+        format!("#!/bin/sh\ntouch '{}'\n", marker.display()),
+    )
+    .unwrap();
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+    git(&["config", "core.fsmonitor", script.to_str().unwrap()]);
+    // Without the protection the same configuration does run the program.
+    git(&["status", "--porcelain"]);
+    assert!(marker.exists(), "the control run must trigger fsmonitor");
+    fs::remove_file(&marker).unwrap();
+
+    assert!(git_guard(&project).repository);
+    fs::write(project.path.join(".gitignore"), ".env.*\n").unwrap();
+    save(&store, "demo", &sample(), "tester").unwrap();
+    let secrets: BTreeMap<String, String> = [("DB_PASSWORD".to_string(), "x".to_string())].into();
+    export(
+        &store,
+        "demo",
+        "local",
+        &secrets,
+        &project.path.join(".env.local"),
+        "tester",
+    )
+    .unwrap();
+    assert!(!marker.exists(), "core.fsmonitor of the repository ran");
 }
 
 #[test]

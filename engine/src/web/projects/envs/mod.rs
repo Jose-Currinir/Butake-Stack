@@ -22,13 +22,7 @@ use crate::core::time::now_secs;
 use crate::{core::model::Project, core::store::Store};
 use anyhow::{bail, ensure, Result};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::BTreeMap,
-    fs,
-    io::Write,
-    path::PathBuf,
-    process::{Command, Stdio},
-};
+use std::{collections::BTreeMap, fs, io::Write, path::PathBuf, process::Stdio};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -405,14 +399,8 @@ pub fn git_guard(project: &Project) -> GitGuard {
         };
     }
     let run = |args: &[&str]| {
-        Command::new("/usr/bin/git")
-            .arg("-C")
-            .arg(&project.path)
+        crate::web::projects::git::command(&project.path)
             .args(args)
-            .env_clear()
-            .env("PATH", "/usr/bin:/bin")
-            .env("GIT_OPTIONAL_LOCKS", "0")
-            .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
@@ -584,27 +572,16 @@ pub fn export(
         );
     }
     // Inside a repository the file must be ignored, so it cannot be committed by accident.
-    let inside_repo = Command::new("/usr/bin/git")
-        .arg("-C")
-        .arg(&parent)
+    let inside_repo = crate::web::projects::git::command(&parent)
         .args(["rev-parse", "--is-inside-work-tree"])
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
         .is_ok_and(|s| s.success());
     if inside_repo {
-        let ignored = Command::new("/usr/bin/git")
-            .arg("-C")
-            .arg(&parent)
+        let ignored = crate::web::projects::git::command(&parent)
             .args(["check-ignore", "-q", "--"])
             .arg(name)
-            .env_clear()
-            .env("PATH", "/usr/bin:/bin")
-            .env("GIT_OPTIONAL_LOCKS", "0")
-            .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()

@@ -34,10 +34,12 @@ pub struct BranchChanges {
     pub migrations: usize,
 }
 
-fn git(path: &Path, args: &[&str]) -> Result<String> {
-    // A repository is the user's, but not necessarily trusted (a clone): its own configuration
-    // must not be able to run a program (`core.fsmonitor`, hooks) when Stack reads its state.
-    let output = Command::new("/usr/bin/git")
+/// A `/usr/bin/git -C <path>` command for reading a repository's state. A repository is the user's,
+/// but not necessarily trusted (a clone): its own configuration must not be able to run a program
+/// (`core.fsmonitor`, hooks) when Stack reads it. Every Git call on a project folder starts here.
+pub(crate) fn command(path: &Path) -> Command {
+    let mut command = Command::new("/usr/bin/git");
+    command
         .args([
             "-c",
             "core.fsmonitor=false",
@@ -46,16 +48,18 @@ fn git(path: &Path, args: &[&str]) -> Result<String> {
         ])
         .arg("-C")
         .arg(path)
-        .args(args)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("HOME", Store::home().unwrap_or_default())
         .env("GIT_OPTIONAL_LOCKS", "0")
         .env("LANG", "en_US.UTF-8")
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()?;
+        .stdin(Stdio::null());
+    command
+}
+
+fn git(path: &Path, args: &[&str]) -> Result<String> {
+    let output = command(path).args(args).stderr(Stdio::null()).output()?;
     ensure!(output.status.success(), "git_failed");
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
