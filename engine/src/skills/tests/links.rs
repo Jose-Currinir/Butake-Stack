@@ -309,3 +309,23 @@ fn rename_answers_the_names_taken_in_an_ai_folder() {
     let linked = env.link_path(".gemini/skills", "b");
     assert_eq!(fs::read_link(&linked).unwrap(), env.skills_dir().join("b"));
 }
+
+#[test]
+fn codex_default_folder_is_the_shared_agents_folder() {
+    let env = env();
+    let list = env.ok("skillsList", json!({}));
+    let codex = list["agents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == "codex")
+        .unwrap();
+    assert_eq!(codex["folder"], "~/.agents/skills");
+    env.create("a");
+    env.link("a", "codex");
+    assert_eq!(
+        fs::read_link(env.link_path(".agents/skills", "a")).unwrap(),
+        env.skills_dir().join("a")
+    );
+    assert!(!env.home.join(".codex").exists());
+}

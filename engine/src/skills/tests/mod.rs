@@ -4,7 +4,6 @@ mod health_export;
 mod import;
 mod import_trash;
 mod links;
-mod migration;
 mod plans;
 mod skills;
 mod trash_groups;

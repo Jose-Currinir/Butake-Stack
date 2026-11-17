@@ -69,7 +69,6 @@ Tres columnas, como las demás herramientas:
 | `duplicate_name` | Dos skills tienen el mismo `name` |
 | `unused` | La skill no está enlazada a ninguna IA |
 | `missing_folder` | Falta la carpeta de una skill o de una IA propia |
-| `moved_folder` | Quedan enlaces de Stack en `~/.codex/skills`, la carpeta que Codex usaba antes (`agent`, `path`); «Mover enlaces…» abre la hoja de enlaces con el plan |
 | `agent_path` | El texto de la skill (`SKILL.md` y sus archivos de texto de apoyo) nombra `<carpeta de una IA>/<id de la skill>` (por ejemplo `~/.claude/skills/<id>/`, también con el HOME absoluto) de una IA con carpeta a la que la skill no está enlazada (`skill`, `agent`, `path` = carpeta de esa IA); «Enlazar a esa IA…» abre la hoja de enlaces con el plan |
 
 Sobre `agent_path`: solo cuenta la ruta con el id de la propia skill (la de otra skill no). Salud solo lee
@@ -98,8 +97,6 @@ plantillas ya lo hacen así.
 | `skillsAgentRemove {id, plan?, confirmed}` | Quita una IA propia y sus enlaces |
 | `skillsLinkPlan {changes}` o `{skill, enabled}` | Lo que se crearía, se quitaría y chocaría; no escribe nada |
 | `skillsLinkApply {…, confirmed}` | Aplica el plan y actualiza `agents` y `enabled` en el índice |
-| `skillsLinkPlan {migrate: "codex"}` | Mover los enlaces de `~/.codex/skills` a `~/.agents/skills`: `create` lleva las rutas nuevas, `remove` las viejas y `conflicts` los nombres ocupados en la carpeta nueva |
-| `skillsLinkApply {migrate: "codex", confirmed}` | Hace exactamente ese plan: crea el enlace nuevo y solo entonces quita el viejo; sin `confirmed` responde `confirmation_required` |
 
 Los cuatro métodos con `plan?` (renombrar, eliminar, restaurar y quitar una IA propia) responden
 `plan: true` con `{create, remove, conflicts}`, la misma forma que `skillsLinkPlan`, sin escribir nada
@@ -195,10 +192,8 @@ enlaces a esas carpetas ahora llegarán a la carpeta de Stack. Códigos propios:
   la papelera de importación), muestra cada ruta antes de `confirmed`, la papelera se conserva hasta que el
   usuario la vacía y el borrado definitivo solo ocurre en «Vaciar papelera de importación» con `confirmed`.
 - `~/.agents/skills` es una carpeta compartida entre IA: lo que otras herramientas pusieron ahí
-  (carpetas reales, enlaces ajenos) es `conflict` (`exists`) y no se toca. En `~/.codex/skills` solo se
-  mueven (por plan y `confirmed`) los enlaces que resuelven a la carpeta de esa skill en `skills/`;
-  cualquier otra cosa allí, incluidas las skills propias de Codex, ni se lista ni se toca. Un índice
-  guardado con la carpeta anterior de Codex se corrige al cargarlo (`agents::normalize`).
+  (carpetas reales, enlaces ajenos) es `conflict` (`exists`) y no se toca. Stack no lista, mueve ni toca nada de
+  `~/.codex/skills` (incluidas las skills propias de Codex); no hay migración desde esa carpeta.
 - Eliminar va a una papelera restaurable que se purga a los 30 días; «Eliminar datos…» borra además la
   papelera de skills, pero nunca la papelera de importación (ver «Importar skills existentes»).
 - Pruebas y QA solo con un HOME y una carpeta de datos temporales; el motor recibe el HOME por
@@ -222,7 +217,6 @@ ajustes de Kiro; si el usuario quiere cargar una carpeta de Stack, es una decisi
 - Solo un enlace por IA y skill, con el id como nombre: no hay nombres distintos por IA.
 - ChatGPT y Kiro no tienen carpeta en Stack: solo se exporta texto, y los archivos de apoyo van por nombre, sin su
   contenido.
-- Los enlaces que Stack hizo antes en `~/.codex/skills` no se mueven solos: la salud los señala.
 - Solo lee las carpetas de las IA para «Importar skills existentes…» (ver abajo); fuera de eso no las
   recorre. Una skill también se puede colocar a mano en `skills/<id>/` (se adopta).
 - Restaurar («Deshacer») muestra antes los enlaces que recrea y exige `confirmed`; solo donde el

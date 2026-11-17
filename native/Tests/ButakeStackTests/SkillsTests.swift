@@ -25,9 +25,9 @@ private let listJSON = """
     #expect(state.skills[0].matches("COMMITS") && state.skills[0].matches("git") && !state.skills[0].matches("nada"))
 
     let problems = try JSONDecoder().decode([SkillProblem].self, from: Data(
-        #"[{"kind": "no_description", "skill": "publicar"}, {"kind": "broken_link", "skill": "commits", "agent": "claude", "path": "/qa/x"}, {"kind": "missing_folder", "agent": "mia", "path": "/qa/y"}, {"kind": "moved_folder", "agent": "codex", "path": "/qa/.codex/skills"}, {"kind": "agent_path", "skill": "commits", "agent": "claude", "path": "/qa/.claude/skills"}]"#.utf8))
-    #expect(problems.map(\.kind) == [.noDescription, .brokenLink, .missingFolder, .movedFolder, .agentPath])
-    #expect(Set(problems.map(\.id)).count == 5)
+        #"[{"kind": "no_description", "skill": "publicar"}, {"kind": "broken_link", "skill": "commits", "agent": "claude", "path": "/qa/x"}, {"kind": "missing_folder", "agent": "mia", "path": "/qa/y"}, {"kind": "agent_path", "skill": "commits", "agent": "claude", "path": "/qa/.claude/skills"}]"#.utf8))
+    #expect(problems.map(\.kind) == [.noDescription, .brokenLink, .missingFolder, .agentPath])
+    #expect(Set(problems.map(\.id)).count == 4)
 
     let plan = try JSONDecoder().decode(SkillLinkPlan.self, from: Data(
         #"{"create": ["/qa/a"], "remove": [], "conflicts": [{"path": "/qa/b", "reason": "exists"}]}"#.utf8))
@@ -84,9 +84,6 @@ private let listJSON = """
     #expect(plan["method"] as? String == "skillsLinkPlan" && plan["confirmed"] == nil)
     let listed = try #require(plan["changes"] as? [[String: Any]])
     #expect(listed.first?["skill"] as? String == "commits" && listed.first?["agent"] as? String == "claude" && listed.first?["on"] as? Bool == true)
-    let migrate = SkillLinkRequest(skill: "", operation: .migrate(agent: "codex"))
-    #expect(migrate.operationPayload(confirmed: false)["method"] as? String == "skillsLinkPlan" && migrate.operationPayload(confirmed: false)["confirmed"] == nil)
-    #expect(migrate.operationPayload(confirmed: true)["method"] as? String == "skillsLinkApply" && migrate.operationPayload(confirmed: true)["migrate"] as? String == "codex")
     let off = SkillLinkRequest(skill: "commits", enabled: false).payload(method: "skillsLinkApply", confirmed: true)
     #expect(off["skill"] as? String == "commits" && off["enabled"] as? Bool == false && off["confirmed"] as? Bool == true && off["changes"] == nil)
     #expect(SkillDetail.parse(" Git, publicar,git ,, ") == ["git", "publicar"])

@@ -56,8 +56,6 @@ struct SkillProblem: Decodable, Identifiable, Hashable, Sendable {
     enum Kind: String, Decodable, CaseIterable, Sendable {
         case noDescription = "no_description", brokenLink = "broken_link", duplicateName = "duplicate_name"
         case unused, conflict, missingFolder = "missing_folder"
-        /// Links left in the former folder of a built-in assistant (`agent`, `path` = that folder).
-        case movedFolder = "moved_folder"
         /// The skill's text names a folder of an assistant it is not linked to (`agent`, `path` = that folder).
         case agentPath = "agent_path"
     }
@@ -89,9 +87,6 @@ struct SkillLinkRequest: Identifiable, Hashable, Sendable {
         case restore(trashId: String)
         /// The id of the assistant to remove.
         case removeAgent(id: String)
-        /// Moves the links of a built-in assistant from its former folder to the current one
-        /// (`skillsLinkPlan` / `skillsLinkApply` with `migrate`).
-        case migrate(agent: String)
     }
 
     let id = UUID()
@@ -106,7 +101,7 @@ struct SkillLinkRequest: Identifiable, Hashable, Sendable {
     /// Rename, delete, restore and removing an assistant always do something, even with no links.
     var alwaysActs: Bool {
         switch operation {
-        case .links, .migrate: false
+        case .links: false
         default: true
         }
     }
@@ -116,7 +111,6 @@ struct SkillLinkRequest: Identifiable, Hashable, Sendable {
         var request: [String: Any] = confirmed ? ["confirmed": true] : ["plan": true]
         switch operation {
         case .links: break
-        case .migrate(let agent): request["method"] = confirmed ? "skillsLinkApply" : "skillsLinkPlan"; request["migrate"] = agent
         case .rename(let newId): request["method"] = "skillsRename"; request["id"] = skill; request["newId"] = newId
         case .delete: request["method"] = "skillsDelete"; request["id"] = skill
         case .restore(let trashId): request["method"] = "skillsRestore"; request["trashId"] = trashId

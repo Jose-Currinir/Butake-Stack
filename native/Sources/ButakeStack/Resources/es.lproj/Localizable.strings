@@ -4162,9 +4162,6 @@
 "skills.links.reason.export_only" = "Solo se exporta";
 "skills.links.nothing" = "No hay enlaces que cambiar.";
 "skills.links.failed" = "No se pudo preparar el cambio";
-"skills.links.titleMigrate" = "Mover enlaces de Codex";
-"skills.links.migrateApply" = "Mover";
-"skills.links.migrateNote" = "Codex lee ahora ~/.agents/skills. Solo se mueven los enlaces de ~/.codex/skills que apuntan a tus skills de Stack; lo demás no se toca.";
 "skills.health.ok" = "Todo en orden";
 "skills.health.okDetail" = "Las skills y sus enlaces no tienen problemas.";
 "skills.health.check" = "Comprobar de nuevo";
@@ -4180,8 +4177,6 @@
 "skills.problem.conflict.detail" = "Hay otra cosa con el nombre de la skill en la carpeta de la IA; Stack no la toca.";
 "skills.problem.missing_folder" = "Carpetas que faltan";
 "skills.problem.missing_folder.detail" = "La carpeta de la skill o la de una IA no existe.";
-"skills.problem.moved_folder" = "Enlaces en la carpeta anterior";
-"skills.problem.moved_folder.detail" = "Hay enlaces de Stack en una carpeta que la IA ya no usa.";
 "skills.problem.agent_path" = "Rutas a una IA sin enlazar";
 "skills.problem.agent_path.detail" = "El texto de la skill nombra la carpeta de una IA a la que no está enlazada.";
 "skills.problem.agent_path.help" = "Las rutas dentro de la skill solo funcionan mientras esa IA esté enlazada. Enlaza la skill a esa IA o usa rutas relativas a la carpeta de la skill.";
@@ -4189,7 +4184,6 @@
 "skills.fix.unused" = "Enlazar a una IA";
 "skills.fix.broken_link" = "Reparar enlace";
 "skills.fix.duplicate_name" = "Renombrar…";
-"skills.fix.moved_folder" = "Mover enlaces…";
 "skills.fix.missing_folder" = "Cambiar carpeta…";
 "skills.fix.agent_path" = "Enlazar a esa IA…";
 "skills.fix.reveal" = "Mostrar en Finder";

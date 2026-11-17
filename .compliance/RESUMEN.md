@@ -235,11 +235,13 @@ secretos; borrado completo; procedimiento de incidentes; pruebas automáticas.
   enlaces simbólicos a la copia única, solo bajo el HOME canonicalizado; solo se quitan enlaces que resuelven
   a la carpeta `skills/` de Stack y cada cambio se planifica, se muestra y se confirma. ChatGPT solo recibe
   texto exportado, copiado por el usuario.
-- **Revisión 2026-11-16 (A1, carpeta de Codex):** Codex pasa a `~/.agents/skills`, carpeta compartida entre IA:
-  lo que otras herramientas pusieron allí es conflicto y no se toca. Los enlaces de Stack que quedaron en
-  `~/.codex/skills` se mueven solo por el par plan/`confirmed` (`migrate`), con las rutas exactas, y solo si
-  resuelven a `skills/` de Stack; el resto de esa carpeta no se lista ni se toca. La salud (`moved_folder`) lo
-  ofrece. Sin datos nuevos: la postura no cambia. Pruebas: `engine/src/skills/tests/migration.rs`.
+- **Revisión 2026-11-16 (A1, carpeta de Codex):** Codex usa `~/.agents/skills`, carpeta compartida entre IA:
+  lo que otras herramientas pusieron allí es conflicto y no se toca. Sin datos nuevos: la postura no cambia.
+  Pruebas: `engine/src/skills/tests/links.rs` (`codex_default_folder_is_the_shared_agents_folder`).
+- **Revisión 2026-11-17 (retiro de la migración desde `~/.codex/skills`):** la herramienta Skills nace en esta
+  rama y ninguna versión publicada creó enlaces en `~/.codex/skills`, así que se retira la migración (`migrate`,
+  el hallazgo `moved_folder` y su operación en la app). Stack no lista, mueve ni toca nada de esa carpeta. R23
+  actualizado. Sin datos nuevos: la postura no cambia.
 - **Revisión 2026-11-16 (A2, Kiro):** Kiro entra como IA incluida solo de exportación (sin carpeta): el escáner
   de Kiro Crew descarta un enlace de `~/.kiro/crew/skills` que resuelve fuera de sus raíces, y la regla es
   nunca copiar. Stack no lee ni escribe `~/.kiro` ni los ajustes de otra IA (`skills.extra_paths` es del

@@ -8,8 +8,7 @@ use std::path::{Component, Path, PathBuf};
 /// id, name, folder (`None` = export only). Kiro is export only: Kiro Crew's skill scanner drops a
 /// link in `~/.kiro/crew/skills` that resolves outside its own roots (unless the user lists the folder in
 /// its own settings), so Stack neither links there nor reads `~/.kiro`. The Codex folder is the shared `~/.agents/skills` (other
-/// AIs install real skill folders there; those are conflicts and stay untouched). Its former folder
-/// is `LEGACY_CODEX` (see `links::migration`).
+/// AIs install real skill folders there; those are conflicts and stay untouched).
 const BUILTIN: &[(&str, &str, Option<&str>)] = &[
     ("claude", "Claude", Some("~/.claude/skills")),
     ("codex", "Codex", Some("~/.agents/skills")),
@@ -17,9 +16,6 @@ const BUILTIN: &[(&str, &str, Option<&str>)] = &[
     ("chatgpt", "ChatGPT", None),
     ("kiro", "Kiro", None),
 ];
-
-/// Where Stack linked skills for Codex before the shared folder; only read to offer the move.
-pub const LEGACY_CODEX: (&str, &str) = ("codex", "~/.codex/skills");
 
 pub struct Agent {
     pub id: String,

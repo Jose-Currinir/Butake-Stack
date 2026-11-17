@@ -340,17 +340,7 @@ enum SkillsSheet: Identifiable {
             if let skill = skill(request.skill) { await delete(skill) } else { false }
         case .restore(let trashId): await restore(trashId: trashId)
         case .removeAgent(let id): await removeAgent(id: id)
-        case .migrate: await applyMigration(request)
         }
-    }
-
-    private func applyMigration(_ request: SkillLinkRequest) async -> Bool {
-        var result: SkillLinkResult?
-        await change(L("skills.links.applying")) {
-            result = try await self.store.call(request.operationPayload(confirmed: true))
-        }
-        if let result { store.notify(result.conflicts.isEmpty ? L("skills.links.applied") : L("skills.links.appliedWithConflicts")) }
-        return result != nil
     }
 
     private func applyLinks(_ request: SkillLinkRequest) async -> SkillLinkResult? {
