@@ -525,3 +525,20 @@ fn merging_moved_keys_keeps_the_rest_and_never_stores_values() {
         .iter()
         .all(|e| e.value.is_empty()));
 }
+
+/// A `.env` that is a FIFO nobody writes to must not block the reader (the supervisor reads it
+/// inside an async task): it is refused at once.
+#[test]
+fn a_fifo_named_env_is_refused_without_blocking() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join(".env");
+    let path = std::ffi::CString::new(file.to_string_lossy().as_bytes()).unwrap();
+    // SAFETY: `path` is a valid NUL-terminated string that outlives the call.
+    assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(read_stack_dotenv(&file).is_none());
+    });
+    let answer = receiver.recv_timeout(std::time::Duration::from_secs(10));
+    assert_eq!(answer, Ok(true), "the reader waited on the FIFO");
+}
