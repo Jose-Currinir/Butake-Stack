@@ -35,7 +35,7 @@ private func permissions(_ url: URL) -> Int {
 
 private let serviceAccountJSON = """
 {"type": "service_account", "project_id": "demo-proyecto", "private_key_id": "0123456789abcdef0123",
- "private_key": "-----BEGIN PRIVATE KEY-----\\nNO-ES-REAL\\n-----END PRIVATE KEY-----\\n",
+ "private_key": "\(PEM.block("NO-ES-REAL", escaped: true))",
  "client_email": "ci@demo-proyecto.iam.gserviceaccount.com"}
 """
 
@@ -212,7 +212,7 @@ private func samplePayload() -> VaultArchive.Payload {
     let app = try first.addContainer(kind: .app, name: "Demo Salud", bundleId: "cl.demo.health")
     var draft = VaultItem(container: app, section: .ios, kind: .appStoreKey, name: "AuthKey_ABCD123456.p8")
     draft.fields = VaultInspector.suggestedFields(kind: .appStoreKey, fileName: draft.name)
-    try await first.store(draft, files: [(draft.name, Data("-----BEGIN PRIVATE KEY-----\nFALSA\n".utf8))])
+    try await first.store(draft, files: [(draft.name, Data((PEM.begin() + "\nFALSA\n").utf8))])
     #expect(first.index.items[0].field(.keyId)?.value == "ABCD123456")
     #expect(first.index.items[0].metadata.value("vault.meta.keyId") == "ABCD123456")
     await #expect(throws: VaultError.wrongPassword) { try await first.exportArchive(nil, password: "corta") }
@@ -225,7 +225,7 @@ private func samplePayload() -> VaultArchive.Payload {
     #expect(result.added == 1 && result.skipped == 0)
     let imported = try #require(second.index.items.first)
     #expect(imported.files[0].sha256 == first.index.items[0].files[0].sha256)
-    #expect(try second.fileData(imported.files[0]) == Data("-----BEGIN PRIVATE KEY-----\nFALSA\n".utf8))
+    #expect(try second.fileData(imported.files[0]) == Data((PEM.begin() + "\nFALSA\n").utf8))
     #expect(second.index.containers.first?.folderName == "Demo Salud (cl.demo.health)")
     // Importing the same file again adds nothing.
     let again = try await second.importArchive(archive, password: "contraseña de respaldo")
@@ -337,7 +337,7 @@ private func samplePayload() -> VaultArchive.Payload {
     #expect(VaultInspector.detectKind(name: "otro.json", data: Data("{}".utf8)) == .file)
     #expect(VaultInspector.detectKind(name: ".env.production", data: nil) == .envFile)
     #expect(VaultInspector.detectKind(name: "id_ed25519", data: nil) == .sshKey)
-    #expect(VaultInspector.detectKind(name: "servidor.pem", data: Data("-----BEGIN OPENSSH PRIVATE KEY-----".utf8)) == .sshKey)
+    #expect(VaultInspector.detectKind(name: "servidor.pem", data: Data(PEM.begin("OPENSSH PRIVATE KEY").utf8)) == .sshKey)
     #expect(VaultInspector.appStoreKeyId("AuthKey_AB12CD34EF.p8") == "AB12CD34EF")
     #expect(VaultInspector.appStoreKeyId("otra.p8") == nil)
 }
@@ -455,6 +455,33 @@ private func samplePayload() -> VaultArchive.Payload {
     #expect(parsed.fields[0].role == .keyId)
 }
 
+/// A pasted key, a JSON of credentials or a password with a line break comes back whole from the plain folder.
+@Test func dataFilesKeepValuesWithSeveralLines() {
+    let pem = PEM.block("NO-ES-REAL\nSEGUNDA-LINEA")
+    var item = VaultItem(container: UUID(), kind: .note, name: "Multilínea")
+    item.fields = [VaultField(role: .custom, label: "Clave pegada", value: pem, secret: true),
+                   VaultField(role: .custom, label: "Con CRLF", value: "a\r\nb\\n \"c\" $d", secret: true),
+                   VaultField(role: .custom, label: "Ruta", value: "C:\\nueva\\carpeta", secret: false)]
+    let text = VaultFolder.dataFile(item)
+    #expect(text.components(separatedBy: "\n").filter { $0.hasPrefix("CLAVE_PEGADA=") }.count == 1)
+    let parsed = VaultFolder.parseDataFile(text)
+    #expect(parsed.fields.map(\.value) == item.fields.map(\.value))
+    #expect(parsed.fields.map(\.secret) == [true, true, false])
+}
+
+/// Lines without a marker are hidden unless the name is clearly public.
+@Test(arguments: [
+    ("DATABASE_URL", "postgres://usuario:clave@servidor/base", true), ("DATABASE_URL", "postgres://servidor/base", false),
+    ("SIGNING_KEY", "x", true), ("JWT_KEY", "x", true), ("SENTRY_DSN", "x", true), ("CREDENTIALS_JSON", "{}", true),
+    ("CLAVE_PORTAL", "x", true), ("APP_KEY", "x", true), ("DB_PASSWORD", "x", true), ("API_KEY", "x", true),
+    ("ASC_KEY_ID", "ABC", false), ("PORT", "8080", false), ("DB_HOST", "localhost", false), ("APP_URL", "https://demo.test", false),
+    ("ALGO_RARO", "x", true),
+])
+func unmarkedValuesAreSecretUnlessTheNameIsClearlyPublic(name: String, value: String, secret: Bool) {
+    #expect(VaultFolder.looksSecret(name: name, value: value) == secret)
+    #expect(VaultFolder.parseDataFile("\(name)=\(VaultFolder.quoted(value))\n").fields.first?.secret == secret)
+}
+
 @Test @MainActor func failedIndexCommitKeepsVaultStateAndRemovesStagedBlob() async throws {
     let root = try temporaryFolder()
     defer { try? FileManager.default.removeItem(at: root) }
@@ -543,4 +570,19 @@ private func samplePayload() -> VaultArchive.Payload {
     #expect(VaultEnvironment.prod.title == L("env.kind.production"))
     // What is stored does not change.
     #expect(VaultEnvironment.allCases.map(\.rawValue) == ["none", "test", "prod"])
+}
+
+/// Only a keystore looks for a JDK: any other kind is read without starting `java_home` or any other process.
+@Test func onlyAKeystoreLooksForAKeytool() {
+    nonisolated(unsafe) var lookups = 0
+    func looked() -> URL? { lookups += 1; return nil }
+    for kind in [VaultItemKind.note, .serviceAccount, .envFile, .appStoreKey, .googleServices] {
+        _ = VaultInspector.inspect(item: VaultItem(container: UUID(), kind: kind, name: "x"), data: Data("{}".utf8), fileName: "x", keytool: looked())
+    }
+    #expect(lookups == 0)
+    var keystore = VaultItem(container: UUID(), kind: .androidKeystore, name: "x.jks")
+    keystore.fields = [VaultField(role: .storePassword, value: "inventada", secret: true)]
+    let disk = VaultDisk(root: FileManager.default.temporaryDirectory.appendingPathComponent("vault-keytool-\(UUID().uuidString)"))
+    let meta = VaultInspector.inspect(item: keystore, data: Data("no es un llavero".utf8), fileName: "x.jks", keytool: looked(), disk: disk)
+    #expect(lookups == 1 && meta.problem == "vault.meta.noJava")
 }

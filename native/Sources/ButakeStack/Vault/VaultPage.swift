@@ -56,7 +56,7 @@ private struct VaultLockedView: View {
             case .absent:
                 Button { Task { await vault.create() } } label: { Label(L("vault.create"), systemImage: Symbols.add) }
                     .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction)
-                    .help(L("vault.createHelp")).accessibilityIdentifier("vault.create")
+                    .disabled(vault.creating).help(L("vault.createHelp")).accessibilityIdentifier("vault.create")
             case .missingKey, .unreadable:
                 Button(role: .destructive) { confirmingSetAside = true } label: { Label(L("vault.startOver"), systemImage: Symbols.startOver) }
                     .buttonStyle(.bordered).accessibilityIdentifier("vault.startOver")

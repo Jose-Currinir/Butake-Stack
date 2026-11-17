@@ -70,11 +70,20 @@ struct ConnectionProblemView: View {
     /// Kept in the Keychain only if the server accepts it.
     func tryPassword() async {
         trying = true; defer { trying = false }
-        let previous = DatabaseVault.get(connection.id)
-        DatabaseVault.set(password, for: connection.id, label: connection.id == DatabaseVault.mysqlRoot ? "MySQL root" : connection.title)
+        let previous = DatabaseVault.read(connection.id)
+        // A Keychain that could not answer (the user denied it, it is locked) is not «no password»: nothing is
+        // replaced or deleted, because the real password could not be put back afterwards.
+        if case .failed = previous { client.store.notify(L("db.keychainReadFailed")); return }
+        guard DatabaseVault.set(password, for: connection.id, label: connection.id == DatabaseVault.mysqlRoot ? "MySQL root" : connection.title) else {
+            client.store.notify(L("db.keychainSaveFailed")); return
+        }
         await client.check(connection)
         if case .failed(let p) = client.status[connection.id] {
-            if let previous { DatabaseVault.set(previous, for: connection.id, label: connection.title) } else { DatabaseVault.delete(connection.id) }
+            switch previous {
+            case .found(let data):
+                if !DatabaseVault.set(String(decoding: data, as: UTF8.self), for: connection.id, label: connection.title) { client.store.notify(L("db.keychainRestoreFailed")) }
+            default: DatabaseVault.delete(connection.id)
+            }
             failed = p
         } else {
             password = ""

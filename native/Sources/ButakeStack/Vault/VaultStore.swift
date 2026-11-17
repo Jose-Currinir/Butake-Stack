@@ -43,13 +43,50 @@ struct VaultDisk: Sendable {
     }
 
     /// Written to a 0600 temporary file, then renamed over the target (atomic, never world-readable).
-    static func writePrivate(_ data: Data, to url: URL) throws {
-        let temp = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
-        guard FileManager.default.createFile(atPath: temp.path, contents: data, attributes: [.posixPermissions: 0o600]) else { throw VaultError.io }
-        guard rename(temp.path, url.path) == 0 else {
+    /// `durable` flushes the file to the disk (`F_FULLFSYNC`) before the rename, and the folder after it, so a power cut
+    /// leaves the old file or the new one and never an empty or cut one: for the index and the header, not for every blob.
+    static func writePrivate(_ data: Data, to url: URL, durable: Bool = false) throws {
+        let folder = url.deletingLastPathComponent()
+        let temp = folder.appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
+        let descriptor = open(temp.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+        guard descriptor >= 0 else { throw VaultError.io }
+        var failed = false
+        data.withUnsafeBytes { buffer in
+            var offset = 0
+            while offset < buffer.count {
+                let written = write(descriptor, buffer.baseAddress! + offset, buffer.count - offset)
+                if written < 0 { if errno == EINTR { continue }; failed = true; break }
+                offset += written
+            }
+        }
+        if !failed && durable { failed = fcntl(descriptor, F_FULLFSYNC) != 0 && fsync(descriptor) != 0 }
+        failed = close(descriptor) != 0 || failed
+        guard !failed, rename(temp.path, url.path) == 0 else {
             try? FileManager.default.removeItem(at: temp)
             throw VaultError.io
         }
+        if durable {
+            let directory = open(folder.path, O_RDONLY)
+            if directory >= 0 { _ = fsync(directory); close(directory) }
+        }
+    }
+
+    /// A file of a folder the user chose, read with the checks made again at the moment of reading: not a link (even if
+    /// it became one after the preview), a regular file, and never more than `limit` bytes, counted as they arrive.
+    nonisolated static func readRegularFile(_ url: URL, limit: Int) throws -> Data {
+        let descriptor = open(url.path, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw VaultError.io }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { throw VaultError.io }
+        guard info.st_size <= limit else { throw VaultError.tooLarge }
+        var data = Data()
+        while let chunk = try handle.read(upToCount: min(256 * 1024, limit + 1 - data.count)), !chunk.isEmpty {
+            try Task.checkCancellation()
+            data.append(chunk)
+            guard data.count <= limit else { throw VaultError.tooLarge }
+        }
+        return data
     }
 
     func readHeader() throws -> Header {
@@ -62,21 +99,44 @@ struct VaultDisk: Sendable {
 
     func writeHeader(_ header: Header) throws {
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try Self.writePrivate(try encoder.encode(header), to: headerURL)
+        try Self.writePrivate(try encoder.encode(header), to: headerURL, durable: true)
     }
 
+    /// The index before the one being written: it exists only while a save is under way (or was cut short).
+    var previousIndexURL: URL { root.appendingPathComponent("index.bin.prev") }
+
     func loadIndex(key: SymmetricKey) throws -> VaultIndex {
-        guard let sealed = try? Data(contentsOf: indexURL) else { throw VaultError.io }
+        do { return try readIndex(at: indexURL, key: key).index } catch {
+            // A save cut short (power loss) leaves the previous index: it is used and put back in place.
+            guard let saved = try? readIndex(at: previousIndexURL, key: key) else { throw error }
+            try? Self.writePrivate(saved.sealed, to: indexURL, durable: true)
+            try? FileManager.default.removeItem(at: previousIndexURL)
+            return saved.index
+        }
+    }
+
+    private func readIndex(at url: URL, key: SymmetricKey) throws -> (index: VaultIndex, sealed: Data) {
+        guard let sealed = try? Data(contentsOf: url) else { throw VaultError.io }
         let plain = try VaultCrypto.open(sealed, key: key, context: "butake-vault/index/v1")
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         guard let index = try? decoder.decode(VaultIndex.self, from: plain) else { throw VaultError.corrupt }
-        return index
+        return (index, sealed)
     }
 
+    /// Flushed to the disk, read back and checked; the previous index stays beside it until the new one proves readable.
     func saveIndex(_ index: VaultIndex, key: SymmetricKey) throws {
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
         let sealed = try VaultCrypto.seal(try encoder.encode(index), key: key, context: "butake-vault/index/v1")
-        try Self.writePrivate(sealed, to: indexURL)
+        if let previous = try? Data(contentsOf: indexURL) { try Self.writePrivate(previous, to: previousIndexURL, durable: true) }
+        do {
+            try Self.writePrivate(sealed, to: indexURL, durable: true)
+            guard (try? readIndex(at: indexURL, key: key)) != nil else { throw VaultError.io }
+        } catch {
+            if let kept = try? Data(contentsOf: previousIndexURL) { try? Self.writePrivate(kept, to: indexURL, durable: true) }
+            try? FileManager.default.removeItem(at: previousIndexURL)
+            throw error
+        }
+        try? FileManager.default.removeItem(at: previousIndexURL)
     }
 
     func blobURL(_ id: UUID) -> URL { blobsURL.appendingPathComponent("\(id.uuidString).bin") }

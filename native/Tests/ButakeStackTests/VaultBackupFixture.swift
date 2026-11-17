@@ -26,7 +26,7 @@ struct VaultBackupFixture {
     """
     static let serviceAccount = """
     {"type": "service_account", "project_id": "demo-salud", "private_key_id": "0123456789abcdef0123",
-     "private_key": "-----BEGIN PRIVATE KEY-----\\nNO-ES-REAL\\n-----END PRIVATE KEY-----\\n",
+     "private_key": "\(PEM.block("NO-ES-REAL", escaped: true))",
      "client_email": "play@demo-salud.iam.gserviceaccount.com"}
     """
 
@@ -85,10 +85,10 @@ struct VaultBackupFixture {
         try write(p12Password + "\n", "03-IOS/PROD/dist.p12.pass")
         try copy("AppStore_main.mobileprovision", "03-IOS/PROD/AppStore_main.mobileprovision")
         try copy("AppStore_widget.mobileprovision", "03-IOS/PROD/AppStore_widget.mobileprovision")
-        try write("-----BEGIN PRIVATE KEY-----\nNO-ES-REAL-ASC\n-----END PRIVATE KEY-----\n", "03-IOS/PROD/AuthKey_ABC123DEF4.p8")
+        try write(PEM.block("NO-ES-REAL-ASC"), "03-IOS/PROD/AuthKey_ABC123DEF4.p8")
         try write("APP_STORE_CONNECT_API_KEY_KEY_ID=ABC123DEF4\nAPP_STORE_CONNECT_API_KEY_ISSUER_ID=\(issuerId)\n", "03-IOS/PROD/fastlane.env")
         try write(try info("cl.demo.health"), "03-IOS/PROD/GoogleService-Info.plist")
-        try write("-----BEGIN PRIVATE KEY-----\nNO-ES-REAL-CERT\n-----END PRIVATE KEY-----\n", "03-IOS/PROD/distribucion.key")
+        try write(PEM.block("NO-ES-REAL-CERT"), "03-IOS/PROD/distribucion.key")
         // iOS, QA: the same certificate again (one copy is imported), an ad hoc profile, another app's plist.
         try copy("dist.p12", "03-IOS/QA/dist.p12")
         try write(p12Password, "03-IOS/QA/dist.p12.clave")
@@ -112,7 +112,7 @@ struct VaultBackupFixture {
         try copy("AppStore_main.mobileprovision", "03-IOS/_archive/AppStore_2024.mobileprovision")
         // Services shared by every app.
         try write(serviceAccount, "_SERVICIOS/google-play/play-ci.json")
-        try write("-----BEGIN PRIVATE KEY-----\nNO-ES-REAL-APNS\n-----END PRIVATE KEY-----\n", "_SERVICIOS/apple-apns/AuthKey_PUSH123456.p8")
+        try write(PEM.block("NO-ES-REAL-APNS"), "_SERVICIOS/apple-apns/AuthKey_PUSH123456.p8")
         try fm.removeItem(at: work)
         return VaultBackupFixture(root: root, hasKeystore: hasKeystore)
     }

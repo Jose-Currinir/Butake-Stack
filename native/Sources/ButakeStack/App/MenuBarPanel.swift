@@ -97,7 +97,7 @@ struct MenuPanel: View {
         }
         .frame(width: 320)
         .themedTint()
-        .serviceStopConfirmation(store)
+        .serviceStopConfirmation(store, on: .panel)
         .task { await store.bootstrap() }
     }
 
@@ -185,7 +185,7 @@ private struct EngineTile: View {
         ServiceTileView(tech: .of(name), title: Tech.of(name).title,
                         detail: store.enginePort(name).map { ":\($0)" } ?? "",
                         phase: on ? store.phase("stack.\(name)") : nil,
-                        isOn: Binding(get: { on }, set: { value in Task { await store.setEngine(name, enabled: value) } }),
+                        isOn: Binding(get: { on }, set: { value in Task { await store.setEngine(name, enabled: value, from: .panel) } }),
                         identifier: "panel.engine.\(name)")
     }
 }

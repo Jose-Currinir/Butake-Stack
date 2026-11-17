@@ -17,7 +17,7 @@ git diff --check
 ```
 
 `scripts/test-native.sh` crea un `BUTAKE_STACK_HOME` temporal (lo borra al salir), apunta
-`BUTAKE_STACK_ENGINE` al motor de depuración y corre, en orden: `cargo test`, `cargo build` (las
+`BUTAKE_STACK_ENGINE` al motor de depuración (solo las compilaciones de depuración la leen: la app publicada usa el motor de su paquete) y corre, en orden: `cargo test`, `cargo build` (las
 pruebas de la app llaman al motor real), las pruebas Python de `scripts/php/tests`, `swift test` y
 `lint-ui.sh`.
 

@@ -34,7 +34,10 @@ actor StackEngine {
     let executableURL: URL
     init(executable: URL = StackEngine.executable) { self.executableURL = executable }
     static var executable: URL {
+        // Only debug builds (tests, QA) accept another engine: a published app runs the one inside its signature.
+        #if DEBUG
         if let override = ProcessInfo.processInfo.environment["BUTAKE_STACK_ENGINE"] { return URL(fileURLWithPath: override) }
+        #endif
         return (Bundle.main.resourceURL ?? URL(fileURLWithPath: "/nonexistent")).appendingPathComponent("butake-stack")
     }
     func call<T: Decodable>(_ parameters: [String: Any], as type: T.Type = T.self) async throws -> T {

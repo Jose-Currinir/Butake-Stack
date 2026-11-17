@@ -12,36 +12,11 @@ enum SSHKeyVault {
     /// A QA store (BUTAKE_STACK_HOME) keeps its passphrases apart from the real ones.
     static let service = "cl.butake.stack.ssh-key" + (ProcessInfo.processInfo.environment["BUTAKE_STACK_HOME"] == nil ? "" : ".qa")
 
-    private static func base(_ id: String) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: service,
-         kSecAttrAccount as String: id,
-         kSecAttrSynchronizable as String: false]
-    }
-    @discardableResult static func set(_ value: String, for id: String, label: String) -> Bool {
-        let query = base(id)
-        let data = Data(value.utf8)
-        if SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary) == errSecSuccess { return true }
-        var add = query
-        add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        add[kSecAttrLabel as String] = "Stack · SSH · \(label)"
-        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
-    }
-    static func get(_ id: String) -> String? {
-        var query = base(id)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
-        return String(decoding: data, as: UTF8.self)
-    }
-    static func has(_ id: String) -> Bool {
-        var query = base(id)
-        query[kSecReturnAttributes as String] = true
-        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
-    }
-    static func delete(_ id: String) { SecItemDelete(base(id) as CFDictionary) }
+    static let passwords = KeychainPasswords(service: service, labelPrefix: "Stack · SSH · ")
+    @discardableResult static func set(_ value: String, for id: String, label: String) -> Bool { passwords.set(value, for: id, label: label) }
+    static func get(_ id: String) -> String? { passwords.get(id) }
+    static func has(_ id: String) -> Bool { passwords.has(id) }
+    static func delete(_ id: String) { passwords.delete(id) }
 }
 
 // MARK: - Keys (base)
