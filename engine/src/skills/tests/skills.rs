@@ -232,3 +232,83 @@ fn folders_found_on_disk_are_adopted() {
     assert_eq!(list["skills"][0]["id"], "llegada");
     assert_eq!(list["skills"][0]["group"], "personal");
 }
+
+/// What YAML would read as another type or as syntax is written quoted; the text it parses back to
+/// is still the one typed.
+#[test]
+fn frontmatter_values_that_yaml_reads_differently_are_quoted() {
+    let env = env();
+    let quoted = [
+        "true", "false", "null", "~", "123", "-5", "1.5", "0x1f", "1e3", "Yes", "off", "- x", "-",
+        "!x", "!!str", "? x", "?", ".inf", "+1",
+    ];
+    for (n, value) in quoted.iter().enumerate() {
+        let id = format!("q{n}");
+        env.ok(
+            "skillsCreate",
+            json!({"id": id, "group": "personal", "template": "blank", "name": value, "description": value}),
+        );
+        let text = env.ok("skillsRead", json!({"id": id}))["text"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(
+            text.contains(&format!("name: \"{value}\"\n")),
+            "{value}: {text}"
+        );
+        assert!(
+            text.contains(&format!("description: \"{value}\"\n")),
+            "{value}: {text}"
+        );
+        let listed = env.ok("skillsList", json!({}));
+        let skill = listed["skills"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == id.as_str())
+            .unwrap();
+        assert_eq!(skill["name"], *value);
+    }
+    // What stays plain stays plain.
+    let plain = [
+        "Hace algo",
+        "-a",
+        "a-b",
+        "trueno",
+        "12 pasos",
+        "¿Qué hace?",
+        "v1.2",
+    ];
+    for (n, value) in plain.iter().enumerate() {
+        let id = format!("p{n}");
+        env.ok(
+            "skillsCreate",
+            json!({"id": id, "group": "personal", "template": "blank", "name": value, "description": "d"}),
+        );
+        let text = env.ok("skillsRead", json!({"id": id}))["text"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(
+            text.contains(&format!("name: {value}\n")),
+            "{value}: {text}"
+        );
+    }
+}
+
+#[test]
+fn a_rename_to_an_id_yaml_reads_differently_quotes_the_name() {
+    let env = env();
+    for (from, to) in [("a", "true"), ("b", "123"), ("c", "null"), ("d", "on")] {
+        env.create(from);
+        env.ok(
+            "skillsRename",
+            json!({"id": from, "newId": to, "confirmed": true}),
+        );
+        let text = env.ok("skillsRead", json!({"id": to}))["text"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(text.contains(&format!("name: \"{to}\"\n")), "{to}: {text}");
+    }
+}

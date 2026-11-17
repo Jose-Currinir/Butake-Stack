@@ -141,6 +141,46 @@ pub fn parse(text: &str) -> Meta {
     meta
 }
 
+/// Plain text that YAML reads as something else: a boolean, null, a number or date, or a tag,
+/// block or key indicator (`!x`, `- x`, `? x`).
+fn yaml_reads_differently(value: &str) -> bool {
+    let lower = value.to_lowercase();
+    if matches!(
+        lower.as_str(),
+        "true" | "false" | "null" | "~" | "yes" | "no" | "on" | "off" | "y" | "n"
+    ) {
+        return true;
+    }
+    if value.starts_with('!')
+        || matches!(value, "-" | "?")
+        || value.starts_with("- ")
+        || value.starts_with("? ")
+    {
+        return true;
+    }
+    let body = value.trim_start_matches(['+', '-']);
+    let digits = |text: &str, radix: u32| {
+        !text.is_empty() && text.chars().all(|c| c.is_digit(radix) || c == '_')
+    };
+    let based = ["0x", "0o", "0b"]
+        .iter()
+        .zip([16, 8, 2])
+        .any(|(prefix, radix)| {
+            lower
+                .trim_start_matches(['+', '-'])
+                .strip_prefix(prefix)
+                .is_some_and(|rest| digits(rest, radix))
+        });
+    let number = body.starts_with(|c: char| c.is_ascii_digit() || c == '.')
+        && (body.replace('_', "").parse::<f64>().is_ok()
+            || matches!(body.to_lowercase().as_str(), ".inf" | ".nan"));
+    // 2024-01-31: a date.
+    let date = body.contains('-')
+        && body.chars().all(|c| c.is_ascii_digit() || c == '-')
+        && body.starts_with(|c: char| c.is_ascii_digit());
+    based || number || date
+}
+
 /// A value for a frontmatter line: plain when safe, otherwise double-quoted.
 pub fn quote(value: &str) -> String {
     let value: String = value
@@ -148,6 +188,7 @@ pub fn quote(value: &str) -> String {
         .map(|c| if c.is_control() { ' ' } else { c })
         .collect();
     let plain = !value.is_empty()
+        && !yaml_reads_differently(&value)
         && value.trim() == value
         && value
             .chars()
