@@ -284,6 +284,7 @@
 "updateNoPermission" = "No hay permiso para reemplazar la app en su carpeta. Se abrió el instalador verificado: arrástralo a Aplicaciones.";
 "updatePendingQuit" = "La actualización está lista. Guarda o cierra lo que tengas abierto y sal de Stack para terminar de instalarla.";
 "updateSignatureInvalid" = "El instalador no tiene una firma válida de Butake SpA. No se instaló nada.";
+"updateVersionMismatch" = "La app descargada no es la versión anunciada o no es más nueva que la instalada. No se instaló nada.";
 
 /* Proyectos: lista, página y ajustes */
 "site.chooseFolder" = "Elegir carpeta";
