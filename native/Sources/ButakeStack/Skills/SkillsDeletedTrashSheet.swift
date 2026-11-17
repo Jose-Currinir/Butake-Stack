@@ -36,7 +36,7 @@ struct DeletedTrashSheet: View {
                             Button(L("skills.sheet.deletedTrash.restore")) { request = entry.restoreRequest }
                                 .accessibilityIdentifier("skills.sheet.deletedTrash.restore.\(entry.trashId)")
                         } header: {
-                            Text("\(entry.name) · \(entry.id)")
+                            Text(entry.name == entry.skill ? entry.name : "\(entry.name) · \(entry.skill)")
                         }
                     }
                 }

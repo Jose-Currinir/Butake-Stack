@@ -286,8 +286,9 @@ private let listJSON = """
         [{"trashId": "notas-1760000000", "id": "notas", "name": "Notas", "description": "Toma notas", "deleted": 1760000000, "expires": 1762592000, "group": "personal"},
          {"trashId": "notas-1760000500", "id": "notas", "name": "Notas", "description": "", "deleted": 1760000500, "expires": 1762592500, "group": "personal"}]
         """#.utf8))
-    #expect(Set(list.map(\.id)).count == 1)
-    #expect(Set(list.map(\.trashId)).count == 2)
+    // Two deletions of the same skill are two rows: the identity is the trash folder.
+    #expect(Set(list.map(\.skill)).count == 1)
+    #expect(Set(list.map(\.id)).count == 2 && list.map(\.id) == list.map(\.trashId))
     #expect(list[0].expiresDate.timeIntervalSince(list[0].deletedDate) == 30 * 86_400)
     let request = list[1].restoreRequest
     #expect(request.skill == "notas")

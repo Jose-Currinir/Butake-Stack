@@ -176,9 +176,11 @@ struct DeletedSkill: Equatable, Sendable {
 
 /// An entry of «Skills eliminadas…» (`skillsTrashList`): a deleted skill that can still be restored.
 /// It carries the title only, never the text.
+/// Deleting two skills with the same id gives two entries, so the identity is the trash folder.
 struct DeletedTrashEntry: Decodable, Identifiable, Hashable, Sendable {
     let trashId: String
-    let id: String
+    /// The skill's id (`id` in the engine's answer).
+    let skill: String
     let name: String
     let description: String
     /// Seconds since 1970: when it was deleted and when it is removed for good (30 days later).
@@ -186,12 +188,18 @@ struct DeletedTrashEntry: Decodable, Identifiable, Hashable, Sendable {
     let expires: Int
     let group: String
 
+    var id: String { trashId }
+
+    private enum CodingKeys: String, CodingKey {
+        case trashId, skill = "id", name, description, deleted, expires, group
+    }
+
     var deletedDate: Date { Date(timeIntervalSince1970: TimeInterval(deleted)) }
     var expiresDate: Date { Date(timeIntervalSince1970: TimeInterval(expires)) }
 
     /// Restoring goes through the same confirmation as «Deshacer».
     var restoreRequest: SkillLinkRequest {
-        SkillLinkRequest(skill: id, operation: .restore(trashId: trashId), subject: name)
+        SkillLinkRequest(skill: skill, operation: .restore(trashId: trashId), subject: name)
     }
 }
 
