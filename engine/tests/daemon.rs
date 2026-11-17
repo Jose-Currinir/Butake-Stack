@@ -165,6 +165,7 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
         .env("BUTAKE_STACK_HOME", &home)
         .output()
         .unwrap();
+    // A second daemon fails (so launchd retries once the first is gone) and says why.
     assert!(!duplicate.status.success());
     assert_eq!(
         serde_json::from_slice::<Value>(&duplicate.stdout).unwrap()["error"]["code"],

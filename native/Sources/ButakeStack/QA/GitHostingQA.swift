@@ -9,6 +9,7 @@ import Foundation
 ///     BUTAKE_QA_GIT_HOSTING_ACCOUNTS=github,bitbucket   accounts already connected (made-up tokens)
 ///     BUTAKE_QA_GIT_HOSTING_REMOTES=<carpeta>       where repositories created on the server get their bare copy
 ///     BUTAKE_QA_GIT_CLONE_PARENT=<carpeta>          the folder «Clonar…» and «Crear…» propose
+///     BUTAKE_QA_GIT_CLONE_ADDRESS=<dirección>       «Clonar…» opens on «Dirección» with it typed («first»: the first repository of the account, chosen)
 ///     BUTAKE_QA_GIT_HOSTING_STEPS=<paso>;<paso>…    after the Git tool opens, in order:
 ///       clone  create  publish  newPR  pr:<número>  scope:<branch|open|merged|closed>  checks  load  open:<ruta>  wait:<segundos>
 ///       and, as the buttons do once confirmed: connect:<github|bitbucket>  createPR:<título>
@@ -25,6 +26,7 @@ import Foundation
     private static var server: GitHostingFakeServer?
 
     static var cloneParent: String? { value("BUTAKE_QA_GIT_CLONE_PARENT") }
+    static var cloneAddress: String? { value("BUTAKE_QA_GIT_CLONE_ADDRESS") }
 
     /// The hosting of a QA window, or nil outside one.
     static func hosting() -> GitHosting? {

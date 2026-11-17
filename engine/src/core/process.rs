@@ -29,6 +29,15 @@ pub struct Captured {
     pub cancelled: bool,
 }
 
+/// Keeps the first 64 KiB of a stderr pipe (lossy UTF-8) and discards the rest, so a chatty child
+/// never blocks on a full pipe.
+fn read_stderr(stderr: &mut impl Read) -> String {
+    let mut bytes = Vec::new();
+    let _ = stderr.take(64 * 1024).read_to_end(&mut bytes);
+    let _ = std::io::copy(stderr, &mut std::io::sink());
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
 /// Runs `command` with `input` on stdin and reads at most `max_output` bytes of stdout; past
 /// that the process is killed and the run reports `cut`. `not_installed` is the error when the
 /// program cannot be started.
@@ -56,25 +65,27 @@ pub fn capture(
         .stderr
         .take()
         .ok_or_else(|| anyhow::anyhow!("invalid_request"))?;
-    let errors = std::thread::spawn(move || {
-        let mut text = String::new();
-        let _ = (&mut stderr).take(64 * 1024).read_to_string(&mut text);
-        text
-    });
+    let errors = std::thread::spawn(move || read_stderr(&mut stderr));
     let mut out = Vec::new();
     let mut stdout = child
         .stdout
         .take()
         .ok_or_else(|| anyhow::anyhow!("invalid_request"))?;
-    (&mut stdout).take(max_output).read_to_end(&mut out)?;
-    let cut = out.len() as u64 >= max_output;
-    if cut {
+    // One byte past the limit tells "cut" from "exactly the limit".
+    let read = (&mut stdout)
+        .take(max_output.saturating_add(1))
+        .read_to_end(&mut out);
+    let cut = out.len() as u64 > max_output;
+    out.truncate(usize::try_from(max_output).unwrap_or(usize::MAX));
+    if cut || read.is_err() {
         let _ = child.kill();
     }
     drop(stdout);
-    let status = child.wait()?;
+    let status = child.wait();
     let _ = writer.join();
     let stderr = errors.join().unwrap_or_default();
+    read?;
+    let status = status?;
     Ok(Captured {
         stdout: String::from_utf8_lossy(&out).into_owned(),
         stderr,
@@ -135,14 +146,14 @@ fn capture_until(
     let (out_sender, out_receiver) = mpsc::channel();
     std::thread::spawn(move || {
         let mut out = Vec::new();
-        let _ = (&mut stdout).take(max_output).read_to_end(&mut out);
+        let _ = (&mut stdout)
+            .take(max_output.saturating_add(1))
+            .read_to_end(&mut out);
         let _ = out_sender.send(out);
     });
     let (err_sender, err_receiver) = mpsc::channel();
     std::thread::spawn(move || {
-        let mut text = String::new();
-        let _ = (&mut stderr).take(64 * 1024).read_to_string(&mut text);
-        let _ = err_sender.send(text);
+        let _ = err_sender.send(read_stderr(&mut stderr));
     });
     let deadline = Instant::now() + limit;
     let (mut timed_out, mut cancelled) = (false, false);
@@ -166,13 +177,14 @@ fn capture_until(
         let _ = std::fs::remove_file(record);
     }
     // A grandchild that kept the pipes open does not hold the caller.
-    let out = out_receiver
+    let mut out = out_receiver
         .recv_timeout(Duration::from_secs(2))
         .unwrap_or_default();
     let stderr = err_receiver
         .recv_timeout(Duration::from_secs(2))
         .unwrap_or_default();
-    let cut = out.len() as u64 >= max_output;
+    let cut = out.len() as u64 > max_output;
+    out.truncate(usize::try_from(max_output).unwrap_or(usize::MAX));
     Ok(Captured {
         stdout: String::from_utf8_lossy(&out).into_owned(),
         stderr,
@@ -218,6 +230,21 @@ mod tests {
         fail.args(["-c", "echo bad >&2; exit 3"]).env_clear();
         let done = capture(fail, b"", 1024, "missing").unwrap();
         assert!(!done.success && done.stderr.trim() == "bad");
+    }
+
+    #[test]
+    fn a_chatty_stderr_does_not_block_the_run_and_exact_output_is_not_cut() {
+        let mut noisy = Command::new("/bin/sh");
+        noisy
+            .args([
+                "-c",
+                "head -c 300000 /dev/zero | tr '\\0' e >&2; printf abc",
+            ])
+            .env_clear();
+        let done = capture(noisy, b"", 3, "missing").unwrap();
+        assert_eq!(done.stdout, "abc");
+        assert!(done.success && !done.cut);
+        assert_eq!(done.stderr.len(), 64 * 1024);
     }
 
     #[test]

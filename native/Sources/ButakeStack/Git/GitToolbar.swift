@@ -1,108 +1,17 @@
 import AppKit
 import SwiftUI
 
-/// The Git tool's toolbar (DISENO.md): the tabs, the current branch (switch, create, search) and
-/// the primary sync button, whose title follows the repository's state.
+/// The Git tool's toolbar: the same actions always in the same place (`GitActionBar`).
 struct GitToolbar: ToolbarContent {
-    @Bindable var tool: GitTool
     @Bindable var repository: GitRepository
-    /// Width of the detail column: the tabs take what the branch and the sync button leave.
-    let detailWidth: CGFloat
-
-    /// Room the branch menu, the sync button, the window's «+» and the toolbar's gaps take on the
-    /// right (with a margin: the estimate errs on the safe side). Worked out from their titles, never
-    /// measured on screen: a toolbar item that changes
-    /// with what another one measures makes the toolbar lay itself out without end.
-    private var trailing: CGFloat {
-        GitToolbarWidth.button(repository.branchTitle) + 24 + GitToolbarWidth.button(repository.syncState.title) + 68
-    }
+    /// Symbols only (titles in the tooltips): the detail is too narrow for the titles.
+    var compact = false
 
     var body: some ToolbarContent {
-        // Everything over the detail: a control in `.navigation` or `.principal` would cross the
-        // content column's divider. `.primaryAction` keeps them in the detail's part of the toolbar at
-        // every width (a `.secondaryAction` follows the window title, over the content column, when
-        // space is short); the titled tabs take the room the rest leaves, so they start at the
-        // detail's edge.
-        ToolbarItem(placement: .primaryAction) {
-            GitTabPicker(tool: tool, repository: repository, width: max(60, detailWidth - trailing - 28))
-        }
+        // `.primaryAction` keeps them in the detail's part of the toolbar at every width.
         ToolbarItemGroup(placement: .primaryAction) {
-            GitBranchMenu(repository: repository)
-            GitSyncButton(repository: repository)
+            GitActionBar(repository: repository, compact: compact)
         }
-    }
-}
-
-/// Widths of the toolbar's controls from their titles, with the system font the toolbar uses.
-@MainActor enum GitToolbarWidth {
-    /// A button or tab with a symbol and a title.
-    /// At the app's text size: the toolbar's titles grow with it.
-    static func button(_ title: String) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: TextScale.points(NSFont.systemFontSize))
-        return ceil((title as NSString).size(withAttributes: [.font: font]).width) + TextScale.points(32)
-    }
-    /// The five titled tabs, side by side, at the small control size they use.
-    static func tabs(_ titles: [String]) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: TextScale.points(NSFont.smallSystemFontSize))
-        let text = titles.map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) + TextScale.points(30) }
-        return text.reduce(0, +) + CGFloat(max(0, titles.count - 1)) * 2
-    }
-}
-
-/// The tabs, with symbol and title («Problemas» with its count); only when the window is too narrow
-/// for the titles they become one pop-up with the tab's symbol, with the title in its tooltip.
-struct GitTabPicker: View {
-    @Bindable var tool: GitTool
-    let repository: GitRepository
-    let width: CGFloat
-
-    var body: some View {
-        // Each tab as wide as its title (a segmented control makes them all as wide as the longest).
-        // When the window can't hold the titles, one pop-up with the symbol of the tab on screen (its
-        // title in the tooltip) and every tab with its title inside: five bare symbols would still
-        // push the toolbar over the content column's divider.
-        Group {
-            if width >= GitToolbarWidth.tabs(GitTab.allCases.map { $0.title(repository) }) {
-                titled.frame(width: width, alignment: .leading)
-            } else {
-                compact
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(L("git.tab.label"))
-        .accessibilityIdentifier("git.toolbar.tabs")
-    }
-
-    private var titled: some View {
-        HStack(spacing: 2) {
-            ForEach(GitTab.allCases) { tab in
-                Toggle(isOn: Binding(get: { tool.tab == tab }, set: { if $0 { tool.tab = tab } })) {
-                    Label(tab.title(repository), systemImage: tab.symbol).labelStyle(.titleAndIcon)
-                }
-                .toggleStyle(.button)
-                .help(tab.title(repository))
-                .accessibilityIdentifier("git.tab.\(tab.rawValue)")
-            }
-        }
-        // Small, so the titles fit beside the branch and the sync button in a usual window.
-        .controlSize(.small)
-        .fixedSize()
-    }
-
-    private var compact: some View {
-        Menu {
-            ForEach(GitTab.allCases) { tab in
-                Toggle(isOn: Binding(get: { tool.tab == tab }, set: { if $0 { tool.tab = tab } })) {
-                    Label(tab.title(repository), systemImage: tab.symbol)
-                }
-                .accessibilityIdentifier("git.tab.\(tab.rawValue)")
-            }
-        } label: {
-            Label(tool.tab.title(repository), systemImage: tool.tab.symbol).labelStyle(.iconOnly)
-        }
-        // Its own width only: left to itself the pop-up asks for its title's room too.
-        .frame(width: 52)
-        .help(String(format: L("git.tab.compactHelp"), tool.tab.title(repository)))
     }
 }
 
@@ -141,14 +50,19 @@ struct GitBranchMenu: View {
     private func requestSwitch(_ name: String) { GitBranchActions.shared.requestSwitch(name, in: repository) }
 }
 
-/// The primary sync button: one action that follows the state, its count in the title. While a
-/// transfer runs it shows progress and «Cancelar».
-struct GitSyncButton: View {
+/// The actions of every day, each one always in its place: confirm, bring, send, ask the remote, the
+/// branch (switch, create, search), combine another branch into this one and put changes aside. A
+/// count beside the title says what waits; what cannot be done now is dimmed, never hidden. While a
+/// transfer runs, its progress and «Cancelar» take the place of the remote's actions.
+struct GitActionBar: View {
     @Bindable var repository: GitRepository
+    @Bindable var tool = GitTool.shared
+    var compact = false
     @State private var confirmingMain = false
 
     var body: some View {
-        let state = repository.syncState
+        let snapshot = repository.snapshot, state = repository.syncState
+        button(counted(L("git.action.commit"), repository.files.count), Symbols.gitCommit, "commit", L("git.action.commitHelp")) { tool.tab = .changes }
         if case .running(let title, let cancellable) = state {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
@@ -160,22 +74,64 @@ struct GitSyncButton: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(state.identifier)
+        } else if case .unfinished = state {
+            button(state.title, state.symbol, "continue", state.help) { Task { await repository.sync() } }
         } else {
-            Button {
-                if case .push = state, repository.snapshot.branch == repository.snapshot.primaryBranch { confirmingMain = true }
-                else { Task { await repository.sync() } }
-            } label: {
-                Label(state.title, systemImage: state.symbol).labelStyle(.titleAndIcon)
-            }
-            .help(state.help)
-            .accessibilityIdentifier(state.identifier)
-            .confirmationDialog(String(format: L("git.sync.pushMainTitle"), repository.snapshot.primaryBranch), isPresented: $confirmingMain) {
-                Button(L("git.sync.pushMainConfirm")) { Task { await repository.sync() } }
-                    .accessibilityIdentifier("git.sync.pushMainConfirm")
-                Button(L("common.cancel"), role: .cancel) {}.accessibilityIdentifier("git.sync.pushMainCancel")
-            } message: {
-                Text(L("git.sync.pushMainDetail"))
-            }
+            button(counted(L("git.action.pull"), snapshot.behind), Symbols.gitPull, "pull", L("git.sync.pullHelp")) { Task { await repository.perform(.pull) } }
+                .disabled(!snapshot.tracked)
+            button(counted(L("git.action.push"), snapshot.ahead), Symbols.gitPush, "push", pushHelp(state)) { push(state) }
+                .disabled(snapshot.detached)
+                .confirmationDialog(String(format: L("git.sync.pushMainTitle"), snapshot.primaryBranch), isPresented: $confirmingMain) {
+                    Button(L("git.sync.pushMainConfirm")) { Task { await repository.perform(.push) } }
+                        .accessibilityIdentifier("git.sync.pushMainConfirm")
+                    Button(L("common.cancel"), role: .cancel) {}.accessibilityIdentifier("git.sync.pushMainCancel")
+                } message: {
+                    Text(L("git.sync.pushMainDetail"))
+                }
+            button(L("git.sync.fetch"), Symbols.reload, "fetch", GitSyncState.fetch(last: repository.lastFetch).help) { Task { await repository.perform(.fetch) } }
+                .disabled(!snapshot.hasRemote)
         }
+        GitBranchMenu(repository: repository)
+        Menu {
+            ForEach(repository.localBranches.filter { !$0.current }) { branch in
+                Button { GitBranchActions.shared.merging = branch.name } label: { Label(branch.name, systemImage: Symbols.git) }
+                    .accessibilityIdentifier("git.action.merge.\(branch.name)")
+            }
+        } label: {
+            if compact { Label(L("git.action.merge"), systemImage: Symbols.gitMerge).labelStyle(.iconOnly) }
+            else { Label(L("git.action.merge"), systemImage: Symbols.gitMerge).labelStyle(.titleAndIcon) }
+        }
+        .disabled(repository.busy || snapshot.detached || repository.localBranches.count < 2)
+        .help(L("git.action.merge") + ": " + String(format: L("git.action.mergeHelp"), repository.branchTitle))
+        .accessibilityIdentifier("git.action.merge")
+        button(L("git.action.stash"), Symbols.gitStash, "stash", L("git.more.stashNowHelp")) { Task { await repository.perform(.stash) } }
+            .disabled(repository.files.isEmpty)
+    }
+
+    private func counted(_ title: String, _ count: Int) -> String {
+        count > 0 ? String(format: L("git.tab.counted"), title, count) : title
+    }
+
+    private func button(_ title: String, _ symbol: String, _ id: String, _ help: String, _ run: @escaping () -> Void) -> some View {
+        Button(action: run) {
+            if compact { Label(title, systemImage: symbol).labelStyle(.iconOnly) } else { Label(title, systemImage: symbol).labelStyle(.titleAndIcon) }
+        }
+        .disabled(repository.busy && id != "commit")
+        .help(compact ? "\(title): \(help)" : help)
+            .accessibilityIdentifier("git.action.\(id)")
+    }
+
+    /// «Subir» publishes what has nowhere to go yet: the repository, or the branch.
+    private func pushHelp(_ state: GitSyncState) -> String {
+        switch state {
+        case .publishRepository, .publishBranch: state.help
+        default: L("git.sync.pushHelp")
+        }
+    }
+
+    private func push(_ state: GitSyncState) {
+        if case .publishRepository = state { GitHosting.shared.publishing = true }
+        else if repository.snapshot.tracked, repository.snapshot.branch == repository.snapshot.primaryBranch { confirmingMain = true }
+        else { Task { await repository.perform(.push) } }
     }
 }

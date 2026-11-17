@@ -129,6 +129,19 @@ fn git_tarball(dir: &Path, version: &str, recipe: &str) -> (PathBuf, String) {
     (tgz, sum)
 }
 
+/// Apple's refusal while Xcode's license is pending is told apart from any other failed build.
+#[test]
+fn a_pending_xcode_license_is_recognized() {
+    assert!(license_pending(
+        "You have not agreed to the Xcode license agreements. Please run 'sudo xcodebuild -license' from within a Terminal window to review and agree to the Xcode and Apple SDKs license.\n"
+    ));
+    assert!(!license_pending("Apple clang version 17.0.0\n"));
+    assert!(!license_pending(
+        "xcode-select: note: No developer tools were found, requesting install.\n"
+    ));
+    assert!(!license_pending(""));
+}
+
 /// The steps a Git install reports are its plan's, in order; «Cancelar» while it compiles
 /// ends make and what it started (checked by pid) and leaves nothing installed.
 #[test]

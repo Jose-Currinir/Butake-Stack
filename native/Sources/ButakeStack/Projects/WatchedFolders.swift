@@ -21,7 +21,7 @@ struct WatchBanner: View {
         HStack(spacing: 12) {
             IconTile(symbol: Symbols.newFolder, size: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text(String(format: L("watch.banner"), scan.projects.count, scan.name)).font(.uiHeadline)
+                Text(String(format: L("watch.banner"), scan.projects.count, scan.name)).font(.uiHeadline).lineLimit(2)
                 Text(scan.projects.prefix(4).map { URL(fileURLWithPath: $0.detection.project.path).lastPathComponent }.joined(separator: ", "))
                     .font(.uiCaption).foregroundStyle(.secondary).lineLimit(1)
             }

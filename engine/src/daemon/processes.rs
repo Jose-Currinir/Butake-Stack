@@ -124,7 +124,10 @@ pub fn site_shell_environment(store: &Store, id: &str) -> Result<Value> {
 pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
     let config = store.config()?;
     // Only sites the user turned on are served and run their processes.
-    let projects: Vec<_> = store.list()?.into_iter().filter(|p| p.enabled).collect();
+    // Every project, on or off, listed once for the whole pass (`{port:<id>}` needs the stopped
+    // ones too: a stopped backend still has its port).
+    let all = store.list_with(&config)?;
+    let projects: Vec<_> = all.iter().filter(|p| p.enabled).cloned().collect();
     let mut specs = vec![];
     let home = real_home();
     // Stack services first so sites have php-fpm and Caddy before their own processes.
@@ -191,7 +194,7 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
         let file = store.directory("config")?.join("Caddyfile");
         let content = crate::web::services::web_server::caddyfile(
             store,
-            &store.list()?,
+            &all,
             &config,
             fds.https_udp.is_some(),
         )?;
@@ -201,7 +204,7 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
         let fingerprint = fingerprint(&content);
         let mut inherit = vec![http];
         // Caddy only needs the HTTPS socket when a site asks for HTTPS.
-        if store.list()?.iter().any(|p| p.https) {
+        if all.iter().any(|p| p.https) {
             if let Some(https) = fds.https {
                 inherit.push(https);
                 // HTTP/3 (QUIC) needs the UDP side of 443 as a third descriptor.
@@ -257,8 +260,6 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
         });
     }
     specs.extend(public::specs(store, &config, &projects, &home)?);
-    // Every project, on or off, for `{port:<id>}`: a stopped backend still has its port.
-    let all = store.list()?;
     let addresses = crate::web::net::tunnels::addresses(store);
     // A project without a server is never on, but its commands («Comprobar», «Compilar») are
     // there to be run by hand: each one once, never on its own nor again when it ends.

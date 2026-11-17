@@ -12,7 +12,7 @@ extension Route {
     /// a case here and its list in `ContentColumn`; its own view is then only the detail.
     var hasContentColumn: Bool {
         switch self {
-        case .tool("database-client"), .tool("mail"), .tool("dumps"), .tool("logs"), .tool("vault"), .tool("ssh-terminal"), .tool("aws"), .tool("gcp"), .tool("git"): true
+        case .tool("database-client"), .tool("mail"), .tool("dumps"), .tool("logs"), .tool("vault"), .tool("ssh-terminal"), .tool("aws"), .tool("gcp"), .tool("git"), .tool("skills"): true
         // Componentes: Servicios, Lenguajes and Utilidades list their categories (P-37).
         case .service, .language, .utilities: true
         default: false
@@ -37,6 +37,7 @@ struct ContentColumn: View {
             case .tool("gcp") where store.canShow(store.route): GCPAccountList(tool: .shared)
             case .service, .language, .utilities: if let (component, _) = Component.of(store.route) { ComponentList(store: store, component: component) }
             case .tool("git") where store.canShow(store.route): GitContentList(tool: .shared)
+            case .tool("skills") where store.canShow(store.route): SkillsGroupList(tool: .shared)
             default: Color.clear
             }
         }

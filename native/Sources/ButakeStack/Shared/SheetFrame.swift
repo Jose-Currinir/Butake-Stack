@@ -25,6 +25,8 @@ struct SheetFrame<Content: View, Status: View>: View {
     var onCancel: (() -> Void)?
     var cancelEnabled = true
     var cancelHelp = ""
+    /// The action loses data: drawn as destructive and never the default (Return does not run it).
+    var destructive = false
     let content: Content
     /// Leading side of the footer: a reassurance, a counter.
     let status: Status
@@ -55,7 +57,7 @@ struct SheetFrame<Content: View, Status: View>: View {
                         .keyboardShortcut(.cancelAction).disabled(!cancelEnabled).help(cancelHelp)
                         .accessibilityIdentifier(cancelID)
                 }
-                Button {
+                Button(role: destructive ? .destructive : nil) {
                     running = true
                     Task {
                         let close = await action()
@@ -65,7 +67,7 @@ struct SheetFrame<Content: View, Status: View>: View {
                 } label: {
                     if let actionSymbol { Label(actionTitle, systemImage: actionSymbol) } else { Text(actionTitle) }
                 }
-                .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                .modifier(SheetActionStyle(destructive: destructive))
                 .disabled(!canAct || running)
                 .accessibilityIdentifier(actionID)
             }
@@ -80,6 +82,13 @@ struct SheetFrame<Content: View, Status: View>: View {
         copy.onCancel = action
         copy.cancelEnabled = enabled
         copy.cancelHelp = help
+        return copy
+    }
+
+    /// Marks the action as destructive (see `destructive`).
+    func destructiveAction() -> Self {
+        var copy = self
+        copy.destructive = true
         return copy
     }
 
@@ -104,5 +113,17 @@ extension SheetFrame where Status == EmptyView {
         self.init(title: title, symbol: symbol, detail: detail, note: note, width: width, height: height, actionTitle: actionTitle,
                   actionSymbol: actionSymbol, actionID: actionID, canAct: canAct, cancelID: cancelID, action: action,
                   content: content, status: { EmptyView() })
+    }
+}
+
+/// The sheet's action: prominent and the default, or, when it loses data, plain and never the default.
+private struct SheetActionStyle: ViewModifier {
+    let destructive: Bool
+    func body(content: Content) -> some View {
+        if destructive {
+            content.buttonStyle(.bordered)
+        } else {
+            content.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+        }
     }
 }

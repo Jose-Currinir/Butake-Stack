@@ -20,25 +20,30 @@ pub struct Logs {
     limit: u64,
     lines: VecDeque<String>,
     redactor: crate::daemon::redact::Redactor,
+    /// Open handle and its current size; reopened only after a rotation.
+    file: std::fs::File,
+    size: u64,
 }
 impl Logs {
     pub fn new(path: PathBuf, limit: u64) -> Result<Self> {
-        let log = Self {
+        let file = Self::open(&path)?;
+        let size = file.metadata()?.len();
+        Ok(Self {
             path,
             limit,
             lines: VecDeque::new(),
             redactor: Default::default(),
-        };
-        log.open()?;
-        Ok(log)
+            file,
+            size,
+        })
     }
-    fn open(&self) -> Result<std::fs::File> {
+    fn open(path: &std::path::Path) -> Result<std::fs::File> {
         Ok(OpenOptions::new()
             .create(true)
             .append(true)
             .mode(0o600)
             .custom_flags(libc::O_NOFOLLOW)
-            .open(&self.path)?)
+            .open(path)?)
     }
     /// Writes one line of output with its secret values hidden (see `redact.rs`): the line stays,
     /// only the values go.
@@ -55,7 +60,7 @@ impl Logs {
             .take(LINE_LIMIT)
             .collect();
         ensure!((safe.len() as u64) < self.limit, "log_line_too_large");
-        if self.open()?.metadata()?.len() + safe.len() as u64 + 1 > self.limit {
+        if self.size + safe.len() as u64 + 1 > self.limit {
             for index in (1..=3).rev() {
                 let previous = if index == 1 {
                     self.path.clone()
@@ -67,8 +72,11 @@ impl Logs {
                     fs::rename(previous, next)?;
                 }
             }
+            self.file = Self::open(&self.path)?;
+            self.size = self.file.metadata()?.len();
         }
-        writeln!(self.open()?, "{safe}")?;
+        writeln!(self.file, "{safe}")?;
+        self.size += safe.len() as u64 + 1;
         self.lines.push_back(safe.clone());
         while self.lines.len() > 2000 {
             self.lines.pop_front();
@@ -94,17 +102,26 @@ pub async fn capture(
     let mut chunk = [0; 4096];
     let mut line = Vec::new();
     let mut truncated = false;
+    // A failing log must never stop the drain: a full pipe would freeze the child process.
+    let mut warned = false;
+    let mut store = |line: &[u8], truncated: bool| {
+        if record(&id, line, truncated, &logs, &events).is_err() && !warned {
+            warned = true;
+            let _ =
+                events.send(json!({"event":"log","id":id,"line":"Stack: registro no disponible"}));
+        }
+    };
     loop {
         let size = reader.read(&mut chunk).await?;
         if size == 0 {
             if !line.is_empty() {
-                record(&id, &line, truncated, &logs, &events)?;
+                store(&line, truncated);
             }
             break;
         }
         for byte in &chunk[..size] {
             if *byte == b'\n' {
-                record(&id, &line, truncated, &logs, &events)?;
+                store(&line, truncated);
                 line.clear();
                 truncated = false;
             } else if line.len() < LINE_LIMIT {
@@ -140,6 +157,25 @@ fn record(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn capture_keeps_draining_when_the_log_fails() {
+        let temp = tempfile::tempdir().unwrap();
+        let logs = Arc::new(Mutex::new(
+            Logs::new(temp.path().join("demo.log"), 100).unwrap(),
+        ));
+        let (events, mut receiver) = broadcast::channel(16);
+        // Lines over the file limit make `append` fail; the pipe must still be read to the end.
+        let input = format!("{}\n{}\nok\n", "x".repeat(200), "y".repeat(200));
+        capture(input.as_bytes(), "a.b".into(), logs.clone(), events)
+            .await
+            .unwrap();
+        let mut lines = vec![];
+        while let Ok(event) = receiver.try_recv() {
+            lines.push(event["line"].as_str().unwrap().to_string());
+        }
+        assert!(lines.contains(&"ok".to_string()));
+        assert!(lines.iter().any(|l| l == "Stack: registro no disponible"));
+    }
     #[test]
     fn rotates_real_limit_and_bounds_tail() {
         let temp = tempfile::tempdir().unwrap();

@@ -29,9 +29,10 @@ struct UpdateSheet: View {
                 HStack(spacing: 10) { ProgressView().controlSize(.small); Text(progressText).font(.uiCallout).foregroundStyle(.secondary) }
             }
             HStack {
-                if let latest = updates.latest { Button(L("updateViewRelease")) { NSWorkspace.shared.open(latest.page) } }
+                if let latest = updates.latest { Button(L("updateViewRelease")) { NSWorkspace.shared.open(latest.page) }.accessibilityIdentifier("update.viewRelease") }
                 Spacer()
                 Button(updates.updateAvailable ? L("updateLater") : L("common.close")) { dismiss() }.keyboardShortcut(.cancelAction).disabled(updates.phase == .installing)
+                    .accessibilityIdentifier("update.later")
                 if updates.updateAvailable {
                     // No default (Return) shortcut: installing quits the app and replaces it.
                     Button(L("updateInstall")) { Task { await updates.install() } }
@@ -88,7 +89,7 @@ struct UpdateSettingsSection: View {
     let updates = UpdateService.shared
     var body: some View {
         Section(L("updatesSection")) {
-            Toggle(L("updateAutomatic"), isOn: $automatic)
+            Toggle(L("updateAutomatic"), isOn: $automatic).accessibilityIdentifier("update.automatic")
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("\(L("version")) \(updates.versionLabel)").textSelection(.enabled)

@@ -1,6 +1,7 @@
 //! The terminal script of a connection and the stack's MySQL root password.
 
 use super::*;
+use crate::core::rand::random_hex;
 
 fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
@@ -11,7 +12,7 @@ fn shell_quote(value: &str) -> String {
 pub fn terminal(store: &Store, target: &Target, request: &Value) -> Result<Value> {
     let database = text(request, "database");
     let run = store.directory("run")?;
-    let token = format!("{:x}", now_nanos());
+    let token = random_hex(8)?;
     let script = run.join(format!("terminal-{token}.command"));
     let tool = match target.connection.kind.as_str() {
         "mysql" | "mariadb" => "mysql",
@@ -26,8 +27,10 @@ pub fn terminal(store: &Store, target: &Target, request: &Value) -> Result<Value
         None
     };
     let command = target.command(tool, database, secret.as_ref())?;
+    let mut secret_file = None;
     if let Some(secret) = secret {
         let path = secret.keep();
+        secret_file = Some(path.clone());
         lines.push(format!(
             "( sleep 5; rm -f -- {} ) &!",
             shell_quote(&path.to_string_lossy())
@@ -55,14 +58,26 @@ pub fn terminal(store: &Store, target: &Target, request: &Value) -> Result<Value
             .collect::<Vec<_>>()
             .join(" ")
     ));
-    write_private(&script, &(lines.join("\n") + "\n"))?;
-    std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o700))?;
-    let status = Command::new("/usr/bin/open")
-        .args(["-a", "Terminal"])
-        .arg(&script)
-        .env_clear()
-        .status()?;
-    ensure!(status.success(), "terminal_failed");
+    // The script and the options file hold the password until Terminal runs them: when it never
+    // gets to, nothing stays behind.
+    let launched = (|| -> Result<()> {
+        write_private(&script, &(lines.join("\n") + "\n"))?;
+        std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o700))?;
+        let status = Command::new("/usr/bin/open")
+            .args(["-a", "Terminal"])
+            .arg(&script)
+            .env_clear()
+            .status()?;
+        ensure!(status.success(), "terminal_failed");
+        Ok(())
+    })();
+    if launched.is_err() {
+        let _ = std::fs::remove_file(&script);
+        if let Some(path) = &secret_file {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+    launched?;
     Ok(json!(true))
 }
 

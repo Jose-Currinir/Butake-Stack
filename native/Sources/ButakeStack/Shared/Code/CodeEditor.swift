@@ -9,6 +9,10 @@ struct CodeEditor: NSViewRepresentable {
     /// File edited, for its syntax colors.
     var path: String
     var editable = true
+    var identifier = "git.editor.text"
+    var label = L("git.editor.label")
+    /// Each increment opens the find bar with the keyboard in the editor (Edición › Buscar).
+    var findRequests = 0
     var themeSignature = Brand.theme.signature ^ Int(TextScale.shared.factor * 1_000) ^ (Brand.customAccent ? 1 : 0)
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -45,8 +49,8 @@ struct CodeEditor: NSViewRepresentable {
         view.textContainer?.containerSize = NSSize(width: 1_000_000, height: CGFloat.greatestFiniteMagnitude)
         view.textContainer?.widthTracksTextView = false
         view.autoresizingMask = [.width]
-        view.setAccessibilityIdentifier("git.editor.text")
-        view.setAccessibilityLabel(L("git.editor.label"))
+        view.setAccessibilityIdentifier(identifier)
+        view.setAccessibilityLabel(label)
         scroll.documentView = view
         let ruler = CodeLineRuler(scrollView: scroll, orientation: .verticalRuler)
         ruler.clientView = view
@@ -62,6 +66,7 @@ struct CodeEditor: NSViewRepresentable {
         view.isEditable = editable
         context.coordinator.synced = text
         context.coordinator.themeSignature = themeSignature
+        context.coordinator.findRequests = findRequests
         context.coordinator.highlight(view)
         return scroll
     }
@@ -71,6 +76,10 @@ struct CodeEditor: NSViewRepresentable {
         let coordinator = context.coordinator
         coordinator.parent = self
         view.isEditable = editable
+        if coordinator.findRequests != findRequests {
+            coordinator.findRequests = findRequests
+            Self.showFindBar(view)
+        }
         if coordinator.themeSignature != themeSignature {
             coordinator.themeSignature = themeSignature
             coordinator.applyTheme(view, scroll: scroll)
@@ -92,10 +101,19 @@ struct CodeEditor: NSViewRepresentable {
         view.selectedRanges = valid.isEmpty ? [NSValue(range: NSRange(location: 0, length: 0))] : valid
     }
 
+    /// The system's find bar of a text view that uses one, with the keyboard in it.
+    @MainActor static func showFindBar(_ view: NSTextView) {
+        view.window?.makeFirstResponder(view)
+        let item = NSMenuItem()
+        item.tag = NSTextFinder.Action.showFindInterface.rawValue
+        view.performTextFinderAction(item)
+    }
+
     @MainActor final class Coordinator: NSObject, NSTextViewDelegate, @preconcurrency NSTextStorageDelegate {
         var parent: CodeEditor
         weak var textView: CodeTextView?
         var themeSignature = 0
+        var findRequests = 0
         /// Last text sent to or received from the binding (see `updateNSView`).
         var synced = ""
         private var palette = GitDiffPalette.current

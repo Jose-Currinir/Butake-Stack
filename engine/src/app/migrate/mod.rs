@@ -7,8 +7,8 @@
 //! that the services shut down cleanly and nothing keeps a file open there; make a verified backup
 //! next to the folder (APFS clones: instant, no extra space); rename the folder (atomic on the same
 //! volume); rewrite every absolute path that named it, inside and outside (service configuration,
-//! LaunchAgent, `~/.zprofile`, AWS `credential_process` lines, links in `~/.local/bin`, Python
-//! environments of projects), keeping each original; start again and check that every service
+//! LaunchAgent, `~/.zprofile`, AWS `credential_process` lines, links in `~/.local/bin`, the links of
+//! the AI folders to Stack's skills, Python environments of projects), keeping each original; start again and check that every service
 //! that ran runs and answers. If any step fails, everything goes back to the old folder as it was.
 //! A journal (`migration.json`, inside the folder) makes it idempotent and lets a run that was cut
 //! short be resumed.

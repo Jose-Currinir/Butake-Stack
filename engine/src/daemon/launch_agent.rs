@@ -41,8 +41,10 @@ pub fn manifest(
 <key>Label</key><string>cl.butake.stack.daemon</string>
 <key>ProgramArguments</key><array><string>{}</string><string>daemon</string></array>
 <key>EnvironmentVariables</key><dict><key>BUTAKE_STACK_HOME</key><string>{}</string></dict>
-<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+<key>RunAtLoad</key><true/>
+<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
 <key>ThrottleInterval</key><integer>10</integer>
+<key>ExitTimeOut</key><integer>130</integer>
 <key>Sockets</key><dict>{}</dict>
 </dict></plist>
 "#,
@@ -76,7 +78,15 @@ pub fn configure(request: &Value, install: bool) -> Result<Value> {
     let path = directory.join("cl.butake.stack.daemon.plist");
     let domain = format!("gui/{}", unsafe { libc::geteuid() });
     if install {
-        ensure!(!path.try_exists()?, "agent_exists");
+        // A file left by an interrupted install or uninstall, with no agent loaded, is replaced.
+        if path.symlink_metadata().is_ok() {
+            ensure!(
+                !path.symlink_metadata()?.file_type().is_symlink(),
+                "unsafe_agent_path"
+            );
+            ensure!(status()["loaded"] != true, "agent_exists");
+            fs::remove_file(&path)?;
+        }
         use std::io::Write;
         let mut file = crate::core::fsutil::private_options()
             .create_new(true)
@@ -100,7 +110,11 @@ pub fn configure(request: &Value, install: bool) -> Result<Value> {
             .args(["bootout", &domain])
             .arg(&path)
             .status()?;
-        ensure!(status.success(), "agent_bootout_failed");
+        // Nothing to boot out when launchd does not have the agent: just remove the file.
+        ensure!(
+            status.success() || self::status()["loaded"] != true,
+            "agent_bootout_failed"
+        );
         fs::remove_file(&path)?;
     }
     Ok(json!({"applied":true}))

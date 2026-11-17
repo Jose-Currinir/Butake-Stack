@@ -201,7 +201,7 @@ pub fn edit(target: &Target, request: &Value) -> Result<Value> {
     if let Some(error) = out.error {
         return Err(client::db_error(&error));
     }
-    // An edit that matched no row (or several) is undone: the client never commits blindly.
+    // Rows touched per statement, as the server reports them (the app shows when none matched).
     let changed: Vec<i64> = out
         .results
         .iter()

@@ -17,6 +17,7 @@ Texto completo de cada requisito en `docs/21719-gestor-entornos-requisitos.md`.
 | R20 | Importación propuesta por un enlace sin acceso por sí sola | Revisión 2026-11-14 (P-38) |
 | R21 | Resumen de importación sin contenido y material sensible sin leer | Revisión 2026-11-14 (P-40) |
 | R22 | Renombrar o mover un proyecto sin secretos huérfanos ni copias | Revisión 2026-11-14 (P-41) |
+| R23 | Skills: texto del usuario solo en la carpeta de Stack, enlaces solo hacia las carpetas de las IA bajo el HOME; importar sin borrar | Revisión 2026-11-16 (herramienta Skills; A3 importar) |
 
 Las revisiones siguen en orden cronológico, de la más antigua a la más nueva.
 
@@ -205,6 +206,67 @@ secretos; borrado completo; procedimiento de incidentes; pruebas automáticas.
   cifrado («Última importación»).
 - Sin datos personales nuevos ni envíos fuera del Mac: la postura no cambia (EIPD no obligatoria). Pruebas con
   un respaldo inventado y llaves en memoria (`native/Tests/ButakeStackTests/VaultImportClarityTests.swift`).
+
+## Revisión 2026-11-16 — Git por HTTPS con la ficha de la cuenta y servidores SSH conocidos
+- **La ficha también autentica a Git, solo con su proveedor** (R19 ampliado; R18 ajustado): conectar la cuenta
+  permitía listar los repositorios pero no clonarlos por HTTPS, porque la ficha no llegaba a Git. Ahora la app
+  la entrega al motor con cada transferencia por HTTPS (clonar, traer, bajar, subir, publicar) cuyo remoto es
+  una dirección `https://` de GitHub o Bitbucket Cloud con cuenta conectada. El motor la tiene en memoria
+  durante ese comando y se la da a Git por un ayudante askpass (socket Unix en carpeta 0700, ficha de un solo
+  uso, mismo usuario), que responde solo a la pregunta por el origen del proveedor. Con ese comando los
+  gestores de credenciales de Git quedan apagados: nada la guarda. No va a la dirección del remoto, a la
+  configuración de Git, a argumentos, variables, archivos, registros, respuestas ni a la interfaz.
+- **Permisos de la ficha:** los mínimos que Stack muestra incluyen ahora leer y escribir repositorios
+  (GitHub «Contents: Read and write»; Bitbucket `read:repository:bitbucket` y `write:repository:bitbucket`).
+  Una ficha anterior, de solo lectura, sirve para clonar y traer; para subir hay que crear otra.
+- **Servidores SSH conocidos:** al clonar por SSH, Stack agrega el servidor a `~/.ssh/known_hosts` solo tras
+  mostrar sus huellas y con la confirmación del usuario; para GitHub y Bitbucket las compara con las que
+  publica cada proveedor y rechaza cualquier otra. No lee claves privadas.
+- Sin datos personales nuevos; lo único que sale del Mac es la autenticación de Git ante el proveedor que el
+  usuario conectó: la postura no cambia (EIPD no obligatoria). Pruebas: `engine/tests/git_credentials.rs`
+  (servidor local y ficha centinela), `engine/src/git/tests/access.rs` y
+  `native/Tests/ButakeStackTests/GitCloneAccessTests.swift`.
+
+## Revisión 2026-11-16 — Herramienta Skills
+- **Skills como texto del usuario, sin salir de Stack ni tocar lo ajeno** (R23 nuevo; ningún requisito anterior
+  trata de enlaces dentro de carpetas de otros programas): las skills (instrucciones en texto) viven en
+  `skills/` de la carpeta de datos de Stack, con su índice (0600) y una papelera de 30 días. Solo
+  `skillsRead` y `skillsExport` devuelven su texto; nada se registra. Las IA (Claude, Codex, Gemini) reciben
+  enlaces simbólicos a la copia única, solo bajo el HOME canonicalizado; solo se quitan enlaces que resuelven
+  a la carpeta `skills/` de Stack y cada cambio se planifica, se muestra y se confirma. ChatGPT solo recibe
+  texto exportado, copiado por el usuario.
+- **Revisión 2026-11-16 (A1, carpeta de Codex):** Codex usa `~/.agents/skills`, carpeta compartida entre IA:
+  lo que otras herramientas pusieron allí es conflicto y no se toca. Sin datos nuevos: la postura no cambia.
+  Pruebas: `engine/src/skills/tests/links.rs` (`codex_default_folder_is_the_shared_agents_folder`).
+- **Revisión 2026-11-17 (retiro de la migración desde `~/.codex/skills`):** la herramienta Skills nace en esta
+  rama y ninguna versión publicada creó enlaces en `~/.codex/skills`, así que se retira la migración (`migrate`,
+  el hallazgo `moved_folder` y su operación en la app). Stack no lista, mueve ni toca nada de esa carpeta. R23
+  actualizado. Sin datos nuevos: la postura no cambia.
+- **Revisión 2026-11-16 (A2, Kiro):** Kiro entra como IA incluida solo de exportación (sin carpeta): el escáner
+  de Kiro Crew descarta un enlace de `~/.kiro/crew/skills` que resuelve fuera de sus raíces, y la regla es
+  nunca copiar. Stack no lee ni escribe `~/.kiro` ni los ajustes de otra IA (`skills.extra_paths` es del
+  usuario). Sin datos nuevos: la postura no cambia. Pruebas: `engine/src/skills/tests/links.rs`
+  (`kiro_is_export_only_and_never_touches_its_folder`).
+- **Revisión 2026-11-16 (A4, rutas dentro de una skill):** la salud (`agent_path`) lee `SKILL.md` y los archivos
+  de texto de apoyo de cada skill (regulares, sin seguir enlaces, sin binarios, con tope de tamaño y
+  cantidad) solo para hallar rutas a la carpeta de una IA a la que la skill no está enlazada. No reescribe ni
+  devuelve el texto: el hallazgo lleva solo skill, IA y carpeta. R23 ampliado. Sin datos nuevos: la postura no
+  cambia. Pruebas: `engine/src/skills/tests/health_export.rs`
+  (`health_reports_paths_to_unlinked_agents`, `health_agent_path_counts_only_own_id_and_text_files`).
+- **Revisión 2026-11-16 (A3, importar skills existentes):** R23 ampliado con su única excepción a «solo se quitan
+  enlaces que resuelven a `skills/`»: importar reemplaza una carpeta real o un enlace ajeno de la carpeta de una
+  IA por un enlace a Stack. Nunca borra (la carpeta se mueve a la papelera de importación, sin copiar y borrar),
+  cada ruta se muestra antes de `confirmed`, un fallo revierte esa skill, la papelera de importación se
+  conserva hasta que el usuario la vacía (ni la purga de 30 días ni «Eliminar datos…» la tocan) y el borrado
+  definitivo solo ocurre en «Vaciar papelera de importación» con `confirmed` y la lista exacta. Deshacer solo
+  procede si la copia de Stack no cambió. Sin datos nuevos: la postura no cambia. Pruebas con HOME temporal:
+  `engine/src/skills/tests/import.rs` y `import_trash.rs` (`scan_writes_nothing`,
+  `the_plan_lists_exactly_what_the_apply_does`, `no_file_is_ever_deleted`,
+  `the_import_trash_is_not_purged_by_age_but_deleted_skills_are`,
+  `emptying_the_import_trash_needs_confirmed_and_removes_only_the_listed_folders`).
+- Sin datos personales nuevos que Stack procese por su cuenta ni envíos fuera del Mac: la postura no cambia
+  (EIPD no obligatoria). Pruebas con HOME y carpeta de datos temporales y skills inventadas:
+  `engine/src/skills/tests/` (`skills.rs`, `links.rs`, `trash_groups.rs`, `health_export.rs`, `dispatch.rs`).
 
 ## Pendiente fuera del código
 - RUT de Butake SpA (sólo para el estado; no afecta los requisitos).

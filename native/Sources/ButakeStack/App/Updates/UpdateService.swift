@@ -80,7 +80,7 @@ import os
             latest = try Self.parse(data)
             lastCheck = Date()
             phase = updateAvailable ? .available : .upToDate
-            if updateAvailable && !userInitiated { Self.log.info("versión \(self.latest?.version ?? "", privacy: .public) disponible") }
+            if updateAvailable && !userInitiated { Self.log.info("version \(self.latest?.version ?? "", privacy: .public) available") }
         } catch {
             phase = .failed((error as? UpdateError)?.text ?? L("updateCheckFailed"))
         }

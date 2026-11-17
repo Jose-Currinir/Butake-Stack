@@ -18,6 +18,7 @@ terceros.
 | Dumps | `dumps` | [herramientas/dumps.md](herramientas/dumps.md) | Apagada |
 | AWS | `aws` | [herramientas/aws.md](herramientas/aws.md) | Apagada |
 | Google Cloud | `gcp` | [herramientas/google-cloud.md](herramientas/google-cloud.md) | Apagada |
+| Skills | `skills` | [herramientas/skills.md](herramientas/skills.md) | Apagada |
 
 Registros es de la base, pero se muestra con las herramientas:
 [herramientas/registros.md](herramientas/registros.md).
@@ -29,7 +30,7 @@ Para agregar una nueva: [como-agregar-una-herramienta.md](como-agregar-una-herra
 La barra lateral y la paleta de comandos muestran solo las herramientas activas, en tres bloques bajo
 Inicio y Proyectos (`App/SidebarLayout.swift`):
 
-- **Herramientas**: lo que se usa. Git, Terminal, Cliente de bases de datos, Bóveda, Correo, Dumps y
+- **Herramientas**: lo que se usa. Git, Terminal, Cliente de bases de datos, Bóveda, Skills, Correo, Dumps y
   Registros, en ese orden; una herramienta que la lista no conoce va antes de Registros.
 - **Nube**: las cuentas de cada proveedor (AWS, Google Cloud); sin ninguna activa no aparece.
 - **Componentes**: lo que se instala en el Mac (Servicios, Lenguajes y Utilidades), cada uno con sus
@@ -89,7 +90,7 @@ Métodos:
 Los métodos de una herramienta responden `plugin_disabled` si no está activa: la interfaz no es la única
 barrera. Una sola compuerta, `app::plugins::tool_of`, dice a qué herramienta pertenece cada método, y
 el despacho (`engine/src/main.rs`) la exige antes de todo: por prefijo (`db*`, `ssh*` salvo `sshKey*`,
-`aws*`, `gcp*`, `mail*` y `setMail`, `dumps*` y `setDumps`) o por lista (`git::METHODS`). La prueba
+`aws*`, `gcp*`, `skills*`, `mail*` y `setMail`, `dumps*` y `setDumps`) o por lista (`git::METHODS`). La prueba
 `every_tool_method_answers_plugin_disabled_while_off` recorre todos los métodos del motor.
 
 Si `plugins.json` no existe, el Cliente de bases de datos queda activo (lo usaban quienes ya lo tenían) y

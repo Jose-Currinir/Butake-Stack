@@ -135,6 +135,7 @@ struct ImportFolderSheet: View {
                 if on { selected.insert(item.id) } else { selected.remove(item.id) }
             }))
             .toggleStyle(.checkbox).labelsHidden().disabled(already)
+            .accessibilityIdentifier("import.row.\(item.id).toggle")
             TechLogo(tech: !item.web && item.tech != nil ? .of(item.tech!) : project.tech, size: 24).opacity(item.web || already ? 1 : 0.6)
             VStack(alignment: .leading, spacing: 1) {
                 Text(URL(fileURLWithPath: project.path).lastPathComponent).foregroundStyle(already ? .secondary : .primary)

@@ -23,6 +23,8 @@ enum Symbols {
     static let utilities = "arrow.down.app"
     /// AI assistants: the IA work profile and its utilities.
     static let ai = "sparkles"
+    /// How an assistant's session is doing: context and the plan's limits.
+    static let usage = "gauge.with.needle"
     /// A remote place: a Git remote, the Google Cloud command line that is missing.
     static let cloud = "cloud.fill"
     /// Líneas de comandos de nube (Componentes › Utilidades): the providers' command lines.
@@ -305,6 +307,18 @@ enum Symbols {
     /// Firebase (its flame; the outline one is a project template's).
     static let firebase = "flame.fill"
     static let billing = "creditcard"
+
+    // Skills: instructions for AI assistants, linked to each assistant's folder.
+    /// A skill.
+    static let skill = "book.closed"
+    /// Every skill, whatever its group.
+    static let allSkills = "books.vertical.fill"
+    /// What is wrong with the skills and their links.
+    static let skillsHealth = "stethoscope"
+    static let duplicate = "square.on.square"
+    /// Turns a skill on or off for every assistant.
+    static let activate = "power"
+    static let moveToGroup = "arrow.turn.down.right"
 }
 
 /// The color of each concept's tile, from the system's palette and with the associations of System
@@ -329,6 +343,8 @@ enum TileColor {
     static let correct = Color.green
     static let warning = Color.orange
     static let error = Color.red
+    /// Skills: the instructions for AI assistants.
+    static let skills = Color.mint
 
     static func of(_ symbol: String) -> Color {
         switch symbol {
@@ -339,6 +355,7 @@ enum TileColor {
         case Symbols.certificate, Symbols.vault, Symbols.key, Symbols.hostKey, Symbols.locked, Symbols.unlock, Symbols.backup,
              Symbols.keychain, Symbols.generateKey: security
         case Symbols.terminal: terminal
+        case Symbols.skill, Symbols.allSkills: skills
         case Symbols.signIn, Symbols.assumeRole, Symbols.awsProfile, Symbols.checkIdentity, Symbols.googleAccount,
              Symbols.serviceAccount: identity
         default: system

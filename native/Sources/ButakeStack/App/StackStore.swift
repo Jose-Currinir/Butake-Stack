@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import SwiftUI
 
 /// Everything the window shows. All engine calls go through `StackEngine` (JSON over stdin/stdout).
@@ -7,6 +8,7 @@ import SwiftUI
     let engine: StackEngine
     /// Tests give the store an engine of their own (a temporary store).
     init(engine: StackEngine = StackEngine()) { self.engine = engine }
+    private static let log = Logger(subsystem: "cl.butake.stack.native", category: "store")
 
     var route: Route = .home
     var selectedSite: Project.ID?
@@ -188,16 +190,22 @@ import SwiftUI
         do { projects = try await call(["method": "listProjects"]) } catch { report(error) }
         await loadAttention()
         groups = (try? await call(["method": "siteGroups"])) ?? groups
-        config = try? await call(["method": "stackConfig"])
+        // A transient engine failure keeps the last good value instead of reading as «not installed».
+        if let value: StackConfig = try? await call(["method": "stackConfig"]) { config = value }
         await loadPlugins()
         await loadAllEnvs()
         await refreshStatus()
-        agent = try? await call(["method": "agentStatus"])
+        if let value: AgentStatus = try? await call(["method": "agentStatus"]) { agent = value }
         await refreshTrust()
         if selectedProject == nil { selectedSite = projects.first?.id }
     }
     func refreshStatus() async {
-        let value: StackStatus? = try? await call(["method": "stackStatus"])
+        let value: StackStatus?
+        do { value = try await call(["method": "stackStatus"]) } catch {
+            // Tells an unreadable answer (engine and app out of step) from a daemon that is simply off.
+            if !(error is EngineFailure) { Self.log.error("stackStatus failed: \(String(describing: error), privacy: .public)") }
+            value = nil
+        }
         applyStatus(value)
     }
 
@@ -228,7 +236,7 @@ import SwiftUI
     }
     func refreshPorts() async {
         ports = try? await call(["method": "portStatus"])
-        agent = try? await call(["method": "agentStatus"])
+        if let value: AgentStatus = try? await call(["method": "agentStatus"]) { agent = value }
     }
 
     func beginJob(_ label: String) -> UUID {
@@ -252,8 +260,11 @@ import SwiftUI
         defer { endJob(job) }
         do {
             try await work()
-            if refresh { await self.refresh() }
-        } catch { report(error) }
+        } catch {
+            report(error)
+        }
+        // A partly successful action leaves new state behind even when it fails.
+        if refresh { await self.refresh() }
     }
     func report(_ error: Error) {
         if let failure = error as? EngineFailure { errorMessage = failure.errorDescription } else { errorMessage = L("engine.requestFailed") }
@@ -287,15 +298,22 @@ import SwiftUI
     func startPolling() {
         guard statusObserver == nil else { return }
         statusObserver = Task { [weak self] in
+            var delay = 5.0
             while !Task.isCancelled, let self {
+                var received = false
                 do {
                     for try await value in engine.statusStream() {
+                        received = true
                         applyStatus(value)
                     }
-                } catch { /* The fallback below refreshes and reconnects. */ }
+                } catch {
+                    // The fallback below refreshes and reconnects; the first failure of a run is logged.
+                    if delay == 5 { Self.log.error("watch-status ended: \(String(describing: error), privacy: .public)") }
+                }
                 guard !Task.isCancelled else { return }
                 await refreshStatus()
-                try? await Task.sleep(for: .seconds(5))
+                delay = received ? 5 : min(delay * 2, 15)
+                try? await Task.sleep(for: .seconds(delay))
             }
         }
     }
@@ -310,6 +328,13 @@ import SwiftUI
         await bootstrap()
         await refreshWatched()
         while !Task.isCancelled {
+            // Nothing to keep fresh while the app is in the background: wait until it is active again,
+            // then refresh at once.
+            if !NSApp.isActive {
+                for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) { break }
+                if Task.isCancelled { return }
+                continue
+            }
             // Projects and folders changed outside the app (the engine's command line, another Mac's
             // restore) show up here too, not only after Ir › Recargar.
             async let projects: Void = refreshProjects()

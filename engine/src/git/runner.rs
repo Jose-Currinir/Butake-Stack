@@ -6,7 +6,7 @@ use serde::Serialize;
 use std::{
     path::Path,
     sync::{
-        atomic::{AtomicI32, Ordering},
+        atomic::{AtomicBool, AtomicI32, Ordering},
         Arc,
     },
     time::Duration,
@@ -82,6 +82,10 @@ pub(crate) fn test_home() -> &'static Path {
     })
 }
 
+/// The most output of one Git command that is kept (stdout and stderr each): a diff or log of a
+/// huge file fails with `output_too_large` instead of filling memory.
+const OUTPUT_LIMIT: usize = 32 * 1024 * 1024;
+
 /// The parent the engine had when the app asked to be able to stop this request (0: it can't).
 static STOP_PARENT: AtomicI32 = AtomicI32::new(0);
 
@@ -154,7 +158,8 @@ async fn run(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    if stop.is_some() {
+    let grouped = stop.is_some();
+    if grouped {
         command.process_group(0);
     }
     let mut child = command.spawn().map_err(|_| {
@@ -169,8 +174,10 @@ async fn run(
         })),
         _ => None,
     };
+    let overflow = Arc::new(AtomicBool::new(false));
     fn drain<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
         pipe: Option<R>,
+        overflow: Arc<AtomicBool>,
     ) -> (Arc<std::sync::Mutex<Vec<u8>>>, tokio::task::JoinHandle<()>) {
         let buffer = Arc::new(std::sync::Mutex::new(Vec::new()));
         let sink = buffer.clone();
@@ -181,20 +188,31 @@ async fn run(
                 if read == 0 {
                     break;
                 }
+                // Past the cap the rest is read and dropped, so Git never blocks on a full pipe.
                 if let Ok(mut sink) = sink.lock() {
-                    sink.extend_from_slice(&chunk[..read]);
+                    if sink.len() + read > OUTPUT_LIMIT {
+                        overflow.store(true, Ordering::Relaxed);
+                        sink.clear();
+                        sink.shrink_to_fit();
+                    } else if !overflow.load(Ordering::Relaxed) {
+                        sink.extend_from_slice(&chunk[..read]);
+                    }
                 }
             }
         });
         (buffer, task)
     }
-    let (stdout, stdout_task) = drain(child.stdout.take());
-    let (stderr, stderr_task) = drain(child.stderr.take());
+    let (stdout, stdout_task) = drain(child.stdout.take(), overflow.clone());
+    let (stderr, stderr_task) = drain(child.stderr.take(), overflow.clone());
     let status = match tokio::time::timeout(Duration::from_secs(seconds), wait(&mut child, stop))
         .await
     {
         Ok(status) => status?,
         Err(_) => {
+            // The command's whole group (hooks, SSH and credential helpers) when it has one.
+            if let (true, Some(pid)) = (grouped, child.id()) {
+                crate::core::watch::end_group(pid as i32);
+            }
             let _ = child.start_kill();
             return Err(error(
                 "timeout",
@@ -213,6 +231,12 @@ async fn run(
         {
             abort.abort();
         }
+    }
+    if overflow.load(Ordering::Relaxed) {
+        return Err(error(
+            "output_too_large",
+            "Git devolvió más de 32 MB de salida. Acota la consulta (un archivo, un rango o menos resultados).",
+        ));
     }
     let take = |buffer: Arc<std::sync::Mutex<Vec<u8>>>| {
         buffer
@@ -271,16 +295,14 @@ fn failure_detail(output: &std::process::Output) -> String {
 
 pub async fn git_bytes(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
     let mut command = base_command(root, true);
+    let _session = super::credentials::attach(&mut command, args)?;
     command
         .args(args)
         .env("GIT_EDITOR", "true")
         .env("GIT_PAGER", "cat");
     let output = run(command, None, time_limit(args), stop_check(args)).await?;
     if !output.status.success() {
-        return Err(error(
-            "git_failed",
-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        ));
+        return Err(error("git_failed", failure_detail(&output)));
     }
     Ok(output.stdout)
 }
@@ -344,10 +366,7 @@ pub async fn git_input(root: &Path, args: &[&str], input: &[u8]) -> Result<Strin
     command.args(args).env("GIT_EDITOR", "true");
     let output = run(command, Some(input.to_vec()), 120, None).await?;
     if !output.status.success() {
-        return Err(error(
-            "git_failed",
-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        ));
+        return Err(error("git_failed", failure_detail(&output)));
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
@@ -411,5 +430,26 @@ mod tests {
         // The background child is gone (or a zombie of its ended group, never still sleeping).
         let alive = unsafe { libc::kill(pid, 0) } == 0;
         assert!(!alive || !crate::core::watch::group_alive(pid), "{pid}");
+    }
+}
+
+#[cfg(test)]
+mod limits {
+    use super::*;
+
+    #[tokio::test]
+    async fn output_past_the_cap_is_an_error_not_memory() {
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "head -c 40000000 /dev/zero"]);
+        let failure = run(command, None, 60, None).await.unwrap_err();
+        assert_eq!(failure.code, "output_too_large");
+    }
+
+    #[tokio::test]
+    async fn a_failure_carries_what_git_wrote_to_stdout() {
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "echo 'nothing to commit'; exit 1"]);
+        let output = run(command, None, 10, None).await.unwrap();
+        assert_eq!(failure_detail(&output), "nothing to commit");
     }
 }

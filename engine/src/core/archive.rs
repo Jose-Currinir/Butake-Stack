@@ -5,6 +5,14 @@
 use anyhow::{ensure, Result};
 use std::{fs, path::Path, process::Command};
 
+/// The engine's stdout is its JSON channel: a tool's own output must never reach it.
+fn quiet(command: &mut Command) -> &mut Command {
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+}
+
 /// What the extracted tree may contain.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Links {
@@ -27,21 +35,23 @@ pub fn extract_tar_gz(archive: &Path, into: &Path, strip: bool, code: &'static s
     if strip {
         tar.args(["--strip-components", "1"]);
     }
-    ensure!(tar.env_clear().status()?.success(), code);
+    ensure!(quiet(tar.env_clear()).status()?.success(), code);
     Ok(())
 }
 
 /// Extracts a `.zip` into `into` (`unzip` drops absolute paths and `..` members).
 pub fn extract_zip(archive: &Path, into: &Path, code: &'static str) -> Result<()> {
     ensure!(
-        Command::new("/usr/bin/unzip")
-            .args(["-q", "-o"])
-            .arg(archive)
-            .arg("-d")
-            .arg(into)
-            .env_clear()
-            .status()?
-            .success(),
+        quiet(
+            Command::new("/usr/bin/unzip")
+                .args(["-q", "-o"])
+                .arg(archive)
+                .arg("-d")
+                .arg(into)
+                .env_clear()
+        )
+        .status()?
+        .success(),
         code
     );
     Ok(())
@@ -51,13 +61,15 @@ pub fn extract_zip(archive: &Path, into: &Path, code: &'static str) -> Result<()
 /// `into` with `ditto`, the tool that made it.
 pub fn extract_app_zip(archive: &Path, into: &Path, code: &'static str) -> Result<()> {
     ensure!(
-        Command::new("/usr/bin/ditto")
-            .args(["-x", "-k"])
-            .arg(archive)
-            .arg(into)
-            .env_clear()
-            .status()?
-            .success(),
+        quiet(
+            Command::new("/usr/bin/ditto")
+                .args(["-x", "-k"])
+                .arg(archive)
+                .arg(into)
+                .env_clear()
+        )
+        .status()?
+        .success(),
         code
     );
     Ok(())
@@ -85,10 +97,7 @@ pub fn expand_pkg(pkg: &Path, into: &Path, code: &'static str) -> Result<()> {
 /// signatures and attributes as they are.
 pub fn copy_tree(from: &Path, to: &Path, code: &'static str) -> Result<()> {
     ensure!(
-        Command::new("/usr/bin/ditto")
-            .arg(from)
-            .arg(to)
-            .env_clear()
+        quiet(Command::new("/usr/bin/ditto").arg(from).arg(to).env_clear())
             .status()?
             .success(),
         code

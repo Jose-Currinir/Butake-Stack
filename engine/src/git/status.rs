@@ -130,28 +130,57 @@ pub async fn line_stats(root: &Path) -> Vec<FileStat> {
     let mut stats = parse_numstat_z(&worktree.unwrap_or_default(), false);
     stats.extend(parse_numstat_z(&index.unwrap_or_default(), true));
     // Untracked files have no diff: count their lines directly (bounded size; binary stays unknown).
-    for path in untracked
+    // Blocking reads run off the async workers: thousands of untracked files must not stall them.
+    let untracked: Vec<String> = untracked
         .unwrap_or_default()
         .split('\0')
         .filter(|p| !p.is_empty())
-    {
-        let lines = std::fs::metadata(root.join(path))
-            .ok()
-            .filter(|m| m.is_file() && m.len() <= 2_000_000)
-            .and_then(|_| std::fs::read(root.join(path)).ok())
-            .filter(|bytes| !bytes.contains(&0))
-            .map(|bytes| {
-                let newlines = bytes.iter().filter(|b| **b == b'\n').count() as u64;
-                newlines + u64::from(!bytes.is_empty() && bytes.last() != Some(&b'\n'))
-            });
-        stats.push(FileStat {
-            path: path.to_string(),
-            staged: false,
-            additions: lines,
-            deletions: lines.map(|_| 0),
-        });
-    }
+        .map(String::from)
+        .collect();
+    let base = root.to_path_buf();
+    let counted = tokio::task::spawn_blocking(move || {
+        untracked
+            .into_iter()
+            .map(|path| {
+                let lines = count_lines(&base.join(&path));
+                FileStat {
+                    path,
+                    staged: false,
+                    additions: lines,
+                    deletions: lines.map(|_| 0),
+                }
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .unwrap_or_default();
+    stats.extend(counted);
     stats
+}
+
+/// Lines of a regular text file of at most 2 MB, read in chunks; None for anything else (a binary
+/// file, a folder, a larger file or one that cannot be read).
+fn count_lines(path: &Path) -> Option<u64> {
+    use std::io::Read;
+    let metadata = std::fs::metadata(path).ok()?;
+    if !metadata.is_file() || metadata.len() > 2_000_000 {
+        return None;
+    }
+    let mut file = std::fs::File::open(path).ok()?;
+    let (mut newlines, mut last, mut buffer) = (0u64, None, [0u8; 16_384]);
+    loop {
+        let read = file.read(&mut buffer).ok()?;
+        if read == 0 {
+            break;
+        }
+        let chunk = &buffer[..read];
+        if chunk.contains(&0) {
+            return None;
+        }
+        newlines += chunk.iter().filter(|b| **b == b'\n').count() as u64;
+        last = chunk.last().copied();
+    }
+    Some(newlines + u64::from(last.is_some_and(|byte| byte != b'\n')))
 }
 
 /// Parses `git diff --numstat -z`; with renames an entry is `added\tdeleted\t\0old\0new\0`.
@@ -172,7 +201,7 @@ pub fn parse_numstat_z(raw: &str, staged: bool) -> Vec<FileStat> {
             let _old = tokens.next();
             tokens.next().unwrap_or_default().to_string()
         } else {
-            path.trim_matches('\n').to_string()
+            path.to_string()
         };
         stats.push(FileStat {
             path,
@@ -283,13 +312,11 @@ pub async fn status(root: &Path) -> Result<Vec<ChangedFile>> {
     ))
 }
 
-/// Whether any changed file is unmerged.
+/// Whether any file is unmerged: the index lists it, no need to scan the working tree.
 pub async fn has_conflicts(root: &Path) -> Result<bool> {
-    Ok(
-        parse_status(&git(root, &["status", "--porcelain=v1", "-z"]).await?)
-            .iter()
-            .any(ChangedFile::conflicted),
-    )
+    Ok(!git(root, &["ls-files", "--unmerged", "-z"])
+        .await?
+        .is_empty())
 }
 
 pub const DEFAULT_HISTORY_LIMIT: usize = 180;

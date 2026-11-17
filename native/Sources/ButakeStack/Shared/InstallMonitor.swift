@@ -77,7 +77,15 @@ import SwiftUI
         fixed = false
         self.work = Task {
             if let plan: [String] = try? await store.call(["method": "installSteps", "tool": tool]) { self.plan = plan }
-            let follower = Task { while !Task.isCancelled { await self.refresh(store); try? await Task.sleep(for: .milliseconds(500)) } }
+            // Each poll is an engine process: the pace relaxes from 0.5 s to 2 s as the install goes on.
+            let follower = Task {
+                var delay = 500
+                while !Task.isCancelled {
+                    await self.refresh(store)
+                    try? await Task.sleep(for: .milliseconds(delay))
+                    delay = min(delay + 250, 2000)
+                }
+            }
             do {
                 try await work()
                 phase = .done

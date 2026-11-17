@@ -22,6 +22,8 @@ extension GitRepository {
         defer { if operation?.id == current.id { operation = nil } }
         var request: [String: Any] = ["method": "gitAction", "path": root, "action": action.rawValue, "value": value]
         if action.needsConfirmation { request["confirmed"] = true }
+        // Over HTTPS with a connected provider, the account's token goes with this one transfer.
+        if action.network { request = await GitHosting.shared.transfer(request, remote: snapshot.remote) }
         let result: Result<String, Error>
         if action.network {
             // Stoppable: «Cancelar» cancels this task, and the engine ends Git and its helpers.
@@ -114,6 +116,7 @@ extension GitRepository {
         let paths = targets.filter { !$0.conflicted }.map(\.path)
         guard !paths.isEmpty, operation == nil else { return }
         await chain?.value
+        guard operation == nil else { return }
         let current = GitOperation(title: GitAction.discard.progressTitle, cancellable: false)
         operation = current
         defer { if operation?.id == current.id { operation = nil } }

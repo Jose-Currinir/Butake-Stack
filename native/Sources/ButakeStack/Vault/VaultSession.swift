@@ -69,6 +69,8 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
     var working: String?
     /// Values shown for a moment after an explicit reveal (field id → value); cleared on lock.
     var revealed: [UUID: String] = [:]
+    /// Auto-hide timers of revealed values, by field, so revealing again restarts the 30 s.
+    @ObservationIgnored var hideTasks: [UUID: Task<Void, Never>] = [:]
 
     let disk: VaultDisk
     @ObservationIgnored let keys: VaultKeyStore
@@ -87,6 +89,10 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
     var proposedFolders: [URL] = []
     /// The names of the folders in the import preview, for its summary.
     @ObservationIgnored var importFolders: [String] = []
+    /// A folder being scanned for the import preview (off the main actor).
+    var scanningImport = false
+    /// Files of a folder import stored so far, and how many there are.
+    var importProgress: (done: Int, total: Int)?
 
     init(disk: VaultDisk, keys: VaultKeyStore, auth: VaultAuthenticator) {
         self.disk = disk
@@ -141,9 +147,9 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
     @discardableResult func create() async -> Bool {
         guard !disk.exists else { refreshState(); return false }
         guard await auth.authenticate(L("vault.auth.create")) != nil else { message = L(VaultError.authentication.messageKey); return false }
+        let keyId = UUID().uuidString
         do {
             try disk.prepare()
-            let keyId = UUID().uuidString
             let newKey = try keys.create(keyId: keyId)
             try disk.saveIndex(VaultIndex(), key: newKey)
             try disk.writeHeader(VaultDisk.Header(keyId: keyId))
@@ -156,8 +162,12 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
             showPending()
             return true
         } catch let error as VaultError {
+            keys.delete(keyId: keyId)
             message = L(error.messageKey); return false
-        } catch { message = L(VaultError.io.messageKey); return false }
+        } catch {
+            keys.delete(keyId: keyId)
+            message = L(VaultError.io.messageKey); return false
+        }
     }
 
     func unlock() async {
@@ -194,6 +204,8 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
         sessionGeneration = UUID()
         index = VaultIndex()
         revealed = [:]
+        hideTasks.values.forEach { $0.cancel() }
+        hideTasks = [:]
         inspected = nil
         signing = nil
         sheet = nil
@@ -273,51 +285,7 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
         guard isUnlocked, sessionGeneration == generation else { throw VaultError.locked }
     }
 
-    // MARK: Containers
-
-    @discardableResult func addContainer(kind: VaultContainer.Kind, name: String, bundleId: String?, notes: String = "", project: String? = nil) throws -> UUID {
-        _ = try requireKey()
-        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let bundle = bundleId?.trimmingCharacters(in: .whitespaces).lowercased()
-        switch kind {
-        case .app:
-            guard VaultNames.isSafeComponent(clean), !clean.contains("("), bundle.map({ $0.isEmpty || VaultNames.isBundleId($0) }) ?? true else { throw VaultError.invalidName }
-        case .service:
-            guard VaultNames.isServicePath(clean) else { throw VaultError.invalidName }
-        }
-        var container = VaultContainer(kind: kind, name: clean, bundleId: bundle?.isEmpty == true ? nil : bundle, notes: notes)
-        if kind == .app { container.project = project }
-        guard !index.containers.contains(where: { $0.kind == kind && $0.folderName.lowercased() == container.folderName.lowercased() }) else { throw VaultError.invalidName }
-        var candidate = index
-        candidate.containers.append(container)
-        try persist(candidate)
-        disk.append(VaultAccessEntry(action: .addContainer, target: container.id))
-        return container.id
-    }
-
-    func updateContainer(_ container: VaultContainer) throws {
-        guard let position = index.containers.firstIndex(where: { $0.id == container.id }) else { return }
-        switch container.kind {
-        case .app: guard VaultNames.isSafeComponent(container.name), container.bundleId.map(VaultNames.isBundleId) ?? true else { throw VaultError.invalidName }
-        case .service: guard VaultNames.isServicePath(container.name) else { throw VaultError.invalidName }
-        }
-        var candidate = index
-        candidate.containers[position] = container
-        try persist(candidate)
-        disk.append(VaultAccessEntry(action: .editContainer, target: container.id))
-    }
-
-    func deleteContainer(_ id: UUID) throws {
-        _ = try requireKey()
-        let items = index.items(in: id)
-        var candidate = index
-        candidate.items.removeAll { $0.container == id }
-        candidate.containers.removeAll { $0.id == id }
-        try persist(candidate)
-        for item in items { for file in item.files { disk.deleteBlob(file.id) } }
-        if selection == .container(id) { selection = nil }
-        disk.append(VaultAccessEntry(action: .deleteContainer, target: id))
-    }
+    // MARK: Containers (the rest in VaultSession+Containers.swift)
 
     /// Notes for a container that has none yet (the README of a folder brought in later).
     func fillNotes(_ notes: String, of container: UUID) {
@@ -357,6 +325,26 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
 
     /// Stores a new item with its files; each blob is read back and its hash compared before the index changes.
     @discardableResult func store(_ draft: VaultItem, files: [(String, Data)]) async throws -> VaultItem {
+        let generation = sessionGeneration
+        let item = try await stageItem(draft, files: files)
+        do {
+            try checkSession(generation)
+            guard index.container(item.container) != nil else { throw VaultError.invalidName }
+            var candidate = index
+            candidate.items.append(item)
+            try persist(candidate)
+        } catch {
+            for file in item.files { disk.deleteBlob(file.id) }
+            throw error
+        }
+        disk.append(VaultAccessEntry(action: .addItem, target: item.id))
+        return item
+    }
+
+    /// Encrypts the files of a new item and reads its metadata, without touching the index: the
+    /// caller persists it (`store` one at a time, a folder import a group at a time). The blobs are
+    /// removed again if this fails.
+    func stageItem(_ draft: VaultItem, files: [(String, Data)]) async throws -> VaultItem {
         let key = try requireKey()
         let generation = sessionGeneration
         var item = draft
@@ -370,17 +358,12 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
             try checkSession(generation)
             if let first = files.first { item.metadata = await inspect(item, data: first.1, fileName: first.0) }
             try checkSession(generation)
-            guard index.container(item.container) != nil else { throw VaultError.invalidName }
             item.created = Date()
             item.updated = Date()
-            var candidate = index
-            candidate.items.append(item)
-            try persist(candidate)
         } catch {
             for file in staged { disk.deleteBlob(file.id) }
             throw error
         }
-        disk.append(VaultAccessEntry(action: .addItem, target: item.id))
         return item
     }
 
@@ -445,6 +428,17 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
     // MARK: Views of the index
 
     func accessLog() -> [VaultAccessEntry] { disk.readLog() }
+
+    /// The access log read and decoded off the main actor (newest first). `nil` when the file did
+    /// not change since `modified`; the new modification date comes back with the entries.
+    func accessLog(since modified: Date?) async -> (entries: [VaultAccessEntry]?, modified: Date?) {
+        let disk = disk
+        return await Task.detached(priority: .utility) {
+            let date = (try? FileManager.default.attributesOfItem(atPath: disk.logURL.path)[.modificationDate]) as? Date
+            if let modified, let date, date == modified { return (nil, date) }
+            return (disk.readLog(), date)
+        }.value
+    }
 
     /// What a log line points at, by name, while unlocked.
     func targetName(_ id: UUID?) -> String? {

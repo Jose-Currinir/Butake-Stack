@@ -24,6 +24,63 @@ pub fn without_credentials(url: &str) -> String {
     }
 }
 
+/// Whether the address carries a user and password or token that Git would write into
+/// `.git/config`: any user in an `https://` address (a token is often pasted as the user) and a
+/// password in an `ssh://` one. A plain `ssh://git@host/…` or `git@host:path` is fine.
+pub fn embeds_credentials(url: &str) -> bool {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return false;
+    };
+    let authority = &rest[..rest.find('/').unwrap_or(rest.len())];
+    let Some((user, _)) = authority.rsplit_once('@') else {
+        return false;
+    };
+    let web = scheme.eq_ignore_ascii_case("https") || scheme.eq_ignore_ascii_case("http");
+    user.contains(':') || (web && looks_like_token(user))
+}
+
+/// A user part that is really a secret: the providers' token prefixes, or anything long enough to
+/// be one. A plain name (`ana@bitbucket.org`, as Bitbucket's own clone address has) is not.
+fn looks_like_token(user: &str) -> bool {
+    const PREFIXES: &[&str] = &[
+        "ghp_",
+        "gho_",
+        "ghu_",
+        "ghs_",
+        "ghr_",
+        "github_pat_",
+        "glpat-",
+        "ATBB",
+        "ATATT",
+        "ATCTT",
+    ];
+    PREFIXES.iter().any(|p| user.starts_with(p)) || user.len() >= 32
+}
+
+/// The address Stack stores and gives to Git: an https address without its user (the connected
+/// account, or the user's own credential helper, answers for it), anything else as written.
+pub fn stored_address(url: &str) -> String {
+    let web = url.starts_with("https://") || url.starts_with("http://");
+    if web {
+        without_credentials(url)
+    } else {
+        url.to_string()
+    }
+}
+
+/// The addresses of every remote of the repository (fetch and push), as configured.
+pub async fn urls(root: &Path) -> Vec<String> {
+    git(
+        root,
+        &["config", "--get-regexp", r"^remote\..*\.(push)?url$"],
+    )
+    .await
+    .unwrap_or_default()
+    .lines()
+    .filter_map(|line| line.split_once(' ').map(|(_, url)| url.trim().to_string()))
+    .collect()
+}
+
 /// Only network transports a user would paste: https, ssh and scp-like `git@host:path`.
 /// Rejects `ext::`, `file://`, option-like values and anything with spaces or control characters.
 pub fn validate_clone_url(url: &str) -> Result<()> {
@@ -35,6 +92,12 @@ pub fn validate_clone_url(url: &str) -> Result<()> {
         || url.starts_with("ssh://")
         || (url.starts_with("git@") && url.contains(':') && !url.contains("::"));
     if ok_chars && scheme_ok && !url.contains("::") {
+        if embeds_credentials(url) {
+            return Err(error(
+                "invalid_url",
+                "Quita el usuario y la clave de la dirección: Stack usa tu cuenta conectada.",
+            ));
+        }
         Ok(())
     } else {
         Err(error(
@@ -64,6 +127,7 @@ fn validate_folder_name(name: &str) -> Result<()> {
 /// Clones into `parent/name`; the folder must not exist yet. Returns the new repository path.
 pub async fn clone(parent: &Path, url: &str, name: &str) -> Result<String> {
     validate_clone_url(url)?;
+    let url = &stored_address(url);
     validate_folder_name(name)?;
     let target = parent.join(name);
     if target.exists() {
@@ -78,13 +142,30 @@ pub async fn clone(parent: &Path, url: &str, name: &str) -> Result<String> {
         // so retrying does not stop at "already exists".
         let _ = std::fs::remove_dir_all(&target);
         let detail = failure.detail.to_lowercase();
-        if detail.contains("authentication") || detail.contains("permission denied") || detail.contains("could not read username") {
+        if detail.contains("host key verification failed") {
+            error(
+                "clone_host_unknown",
+                "Este Mac todavía no confía en ese servidor. Revisa su huella y confía en él antes de clonar por SSH.",
+            )
+        } else if detail.contains("permission denied (publickey") {
+            error(
+                "clone_ssh_denied",
+                "El servidor no aceptó ninguna clave SSH de este Mac. Registra tu clave pública en tu cuenta de ese servidor y vuelve a intentar.",
+            )
+        } else if let Some(rejected) = token_failure(&detail) {
+            rejected
+        } else if detail.contains("authentication") || detail.contains("permission denied") || detail.contains("could not read username") {
             error(
                 "clone_auth",
                 "El servidor pidió credenciales. Configura tu llave SSH o el gestor de credenciales de Git y vuelve a intentar.",
             )
-        } else if detail.contains("not found") || detail.contains("does not exist") {
+        } else if (detail.contains("repository") && detail.contains("not found")) || detail.contains("does not exist") {
             error("clone_not_found", "No se encontró el repositorio o no tienes acceso.")
+        } else if is_offline(&detail) {
+            error(
+                "clone_offline",
+                "Sin conexión con el servidor. Revisa tu conexión a internet y vuelve a intentar.",
+            )
         } else {
             failure
         }
@@ -151,6 +232,7 @@ pub async fn publish(
     replace_origin: bool,
 ) -> Result<Vec<String>> {
     validate_clone_url(url)?;
+    let url = &stored_address(url);
     let current = git(root, &["remote", "get-url", "origin"])
         .await
         .unwrap_or_default();
@@ -208,7 +290,50 @@ pub async fn publish(
     Ok(pushed)
 }
 
-/// Access problems from push/fetch explained (SSH key not registered, missing HTTPS credentials).
+/// The server could not be reached at all (DNS, connection or time out).
+fn is_offline(detail: &str) -> bool {
+    [
+        "could not resolve host",
+        "timed out",
+        "could not connect",
+        "connection refused",
+        "network is unreachable",
+    ]
+    .iter()
+    .any(|phrase| detail.contains(phrase))
+}
+
+/// A refusal of the token of the connected account (only when the transfer carried one): rejected
+/// (expired, revoked or wrong) or valid but without permission for that repository.
+fn token_failure(detail: &str) -> Option<GitError> {
+    if !super::credentials::active() {
+        return None;
+    }
+    if detail.contains("returned error: 403")
+        || detail.contains("permission to")
+        || detail.contains("denied to")
+        || detail.contains("write access to repository not granted")
+    {
+        Some(error(
+            "token_forbidden",
+            "Tu cuenta conectada no tiene permiso de escritura en este repositorio. Revisa los permisos de su token en Ajustes › Cuentas.",
+        ))
+    } else if detail.contains("authentication failed")
+        || detail.contains("invalid username or token")
+        || detail.contains("returned error: 401")
+        || detail.contains("invalid credentials")
+    {
+        Some(error(
+            "token_rejected",
+            "El servidor no aceptó el token de tu cuenta conectada: puede haber vencido o haberse revocado. Conéctala de nuevo en Ajustes › Cuentas.",
+        ))
+    } else {
+        None
+    }
+}
+
+/// Access problems from push/fetch explained (SSH key not registered, missing HTTPS credentials,
+/// a token the server refuses).
 pub fn access_failure(failure: GitError) -> GitError {
     let detail = failure.detail.to_lowercase();
     if detail.contains("permission denied (publickey)") {
@@ -216,6 +341,8 @@ pub fn access_failure(failure: GitError) -> GitError {
             "ssh_denied",
             "El servidor no reconoce ninguna llave SSH de este Mac. Elige HTTPS (usa tus credenciales de Git o de gh) o agrega tu llave pública en la configuración SSH de tu cuenta.",
         )
+    } else if let Some(rejected) = token_failure(&detail) {
+        rejected
     } else if detail.contains("could not read username")
         || detail.contains("authentication failed")
         || detail.contains("terminal prompts disabled")

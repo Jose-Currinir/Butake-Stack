@@ -91,7 +91,7 @@ reescribe las rutas absolutas que la nombraban, guardando el original de cada un
 texto de la carpeta (configuración de servicios, JSON, enlaces internos; nunca `data/`, `logs/`,
 `mail/`, `vault/` ni `aws-backups/`), el plist del LaunchAgent, el bloque de `~/.zprofile`, las
 líneas `credential_process` de `~/.aws/config` que apunten dentro de la carpeta, los enlaces de
-`~/.local/bin` y el `.venv` (`pyvenv.cfg` y enlaces) de los proyectos; vuelve a cargar el agente
+`~/.local/bin`, los enlaces de las carpetas de las IA a las skills de Stack (herramienta Skills) y el `.venv` (`pyvenv.cfg` y enlaces) de los proyectos; vuelve a cargar el agente
 (`launchctl bootstrap`) y comprueba que cada proceso que corría corre y que cada servicio
 responde en su puerto (MySQL saluda, Redis contesta PING). Si un paso falla, deshace lo hecho:
 detiene, repone cada original byte a byte, devuelve la carpeta a su nombre y vuelve a iniciar lo

@@ -469,6 +469,25 @@ fn grep_is_safe(args: &[String]) -> bool {
     true
 }
 
+/// The complete reading forms of the commands that also write (`remote`, `config`, `tag`, `stash`,
+/// `worktree`): the first word alone is not enough (`remote -v add x url` starts like a read).
+fn read_only_form(command: &str, rest: &[String]) -> bool {
+    let words: Vec<&str> = rest.iter().map(String::as_str).collect();
+    match (command, words.as_slice()) {
+        ("remote", [] | ["-v"] | ["--verbose"]) => true,
+        ("config", ["--list" | "list"]) => true,
+        ("config", ["--get" | "get", key]) => !key.starts_with('-'),
+        ("stash", ["list", options @ ..]) => options.iter().all(|a| a.starts_with("--format=")),
+        ("worktree", ["list", options @ ..]) => options
+            .iter()
+            .all(|a| matches!(*a, "--porcelain" | "-v" | "--verbose" | "-z")),
+        ("tag", ["--list" | "-l", operands @ ..]) => operands
+            .iter()
+            .all(|a| !a.starts_with('-') || a.starts_with("--sort=") || a.starts_with("--format=")),
+        _ => false,
+    }
+}
+
 pub fn check_query(args: &[String]) -> Result<()> {
     let command = args.first().map(String::as_str).unwrap_or("");
     let refused = || error("invalid_query", "Esta operación requiere confirmación.");
@@ -496,10 +515,8 @@ pub fn check_query(args: &[String]) -> Result<()> {
     if !matches!(
         command,
         "show" | "log" | "diff" | "ls-files" | "reflog" | "grep"
-    ) && !matches!(
-        args.get(1).map(String::as_str),
-        Some("list" | "--list" | "-v" | "--get" | "get")
-    ) {
+    ) && !read_only_form(command, &args[1..])
+    {
         return Err(refused());
     }
     let rest = &args[1..];

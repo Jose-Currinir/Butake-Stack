@@ -129,6 +129,18 @@ fn home() -> Home {
         home.join("Projects/app/.venv/bin/python"),
     )
     .unwrap();
+    // Skills: links of the AI folders (built-in and custom) to Stack's copies, and one foreign link.
+    w(
+        &old.join("skills/index.json"),
+        "{\"agents\":{\"otro\":{\"folder\":\"~/Otro/skills\",\"name\":\"Otro\"}}}",
+    );
+    w(&old.join("skills/hola/SKILL.md"), "---\nname: hola\n---\n");
+    for folder in [".claude/skills", ".agents/skills", "Otro/skills"] {
+        fs::create_dir_all(home.join(folder)).unwrap();
+        symlink(old.join("skills/hola"), home.join(folder).join("hola")).unwrap();
+    }
+    fs::create_dir_all(home.join(".gemini/skills")).unwrap();
+    symlink("/usr/bin/true", home.join(".gemini/skills/ajena")).unwrap();
     Home {
         _temp: temp,
         layout,
@@ -220,6 +232,7 @@ fn the_plan_changes_nothing_and_lists_every_path() {
         "links node",
         "project pyvenv.cfg",
         "project python",
+        "skills hola",
     ] {
         assert!(
             places.contains(&expected.to_string()),
@@ -228,7 +241,7 @@ fn the_plan_changes_nothing_and_lists_every_path() {
     }
     assert_eq!(
         places.len(),
-        8,
+        8 + 3,
         "{places:?}: never data/, logs/ or foreign links"
     );
     assert!(plan["backup"]
@@ -290,6 +303,18 @@ fn a_migration_moves_the_folder_and_rewrites_every_path() {
     assert_eq!(
         fs::read_link(h.layout.home.join(".local/bin/node")).unwrap(),
         new.join("runtimes/node/22/bin/node")
+    );
+    for folder in [".claude/skills", ".agents/skills", "Otro/skills"] {
+        assert_eq!(
+            fs::read_link(h.layout.home.join(folder).join("hola")).unwrap(),
+            new.join("skills/hola"),
+            "{folder}"
+        );
+    }
+    assert!(h.layout.home.join(".claude/skills/hola/SKILL.md").is_file());
+    assert_eq!(
+        fs::read_link(h.layout.home.join(".gemini/skills/ajena")).unwrap(),
+        Path::new("/usr/bin/true")
     );
     assert_eq!(
         fs::read_link(h.layout.home.join(".local/bin/ajeno")).unwrap(),

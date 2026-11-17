@@ -121,7 +121,7 @@ struct EnvAuditSheet: View {
         } status: {
             // R11: what to do if the Mac is lost or a secret leaks.
             Link(L("env.incident"), destination: URL(string: "https://github.com/Jose-Currinir/Butake-Stack/blob/main/.compliance/docs/21719-gestor-entornos-incidentes.md")!)
-                .font(.uiCaption.weight(.medium))
+                .font(.uiCaption.weight(.medium)).accessibilityIdentifier("env.incidentLink")
         }
         .task {
             let list: [EnvAuditEntry] = (try? await store.call(["method": "envAuditLog", "id": project.id])) ?? []

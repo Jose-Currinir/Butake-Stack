@@ -91,8 +91,9 @@ import SwiftUI
             return
         }
         // A password in the address is never kept (the engine already hides it; this is a second lock).
-        let withPassword = value.range(of: #"^https?://[^/@]*:[^/@]*@"#, options: .regularExpression) != nil
-        configuredRemote = value.isEmpty || withPassword ? nil : value
+        // Any user in an https address counts: a token is often pasted as the user name.
+        let withUser = value.range(of: #"^https?://[^/@]*@"#, options: .regularExpression) != nil
+        configuredRemote = value.isEmpty || withUser ? nil : value
     }
 
     /// The list, the current branch's checks and the provider's protection, as the tab appears.
@@ -105,14 +106,23 @@ import SwiftUI
         await syncProtection()
     }
 
+    /// The provider asked to wait (rate limit): nothing is requested until then. Kept apart from
+    /// `failure`, so a later, unrelated failure does not end the pause early.
+    @ObservationIgnored private var retryAt: Date?
+    private var pausedUntil: Date? {
+        if let until = failure?.retryAfter, until > (retryAt ?? .distantPast) { retryAt = until }
+        guard let until = retryAt, until > Date() else { return nil }
+        return until
+    }
+
     func loadList() async {
-        guard case .ready(let hosted, _) = availability else { return }
+        guard case .ready(let hosted, _) = availability, pausedUntil == nil else { return }
         loading = true
         defer { loading = false; loaded = true }
         do {
             let credentials = try await hosting.credentials(for: hosted.provider)
             let state: GitPullRequestState = switch scope { case .branch, .open: .open; case .merged: .merged; case .closed: .closed }
-            var next = try await hosting.client.pullRequests(hosted, state: state, credentials: credentials)
+            var next = try await hosting.client.pullRequests(hosted, state: state, source: scope == .branch ? repository.snapshot.branch : nil, credentials: credentials)
             if scope == .branch { next = next.filter { $0.source == repository.snapshot.branch } }
             failure = nil
             if next != pullRequests { pullRequests = next }
@@ -127,12 +137,16 @@ import SwiftUI
     /// The checks of the first open pull requests of the list, read together (one request each).
     private func loadListChecks(_ pulls: ArraySlice<GitPullRequest>, _ hosted: GitHostedRepository, _ credentials: GitHostingCredentials) async {
         let client = hosting.client
+        // At most three at a time: bursts of requests trip the providers' secondary limits.
         let found = await withTaskGroup(of: (Int, [GitHostingCheck]?).self) { group in
+            var all: [Int: [GitHostingCheck]] = [:]
+            var running = 0
             for pr in pulls {
                 guard let head = pr.head else { continue }
+                if running == 3, let (id, checks) = await group.next() { all[id] = checks; running -= 1 }
                 group.addTask { (pr.id, try? await client.checks(hosted, commit: head, credentials: credentials)) }
+                running += 1
             }
-            var all: [Int: [GitHostingCheck]] = [:]
             for await (id, checks) in group { all[id] = checks }
             return all
         }
@@ -141,11 +155,12 @@ import SwiftUI
 
     /// Checks of the current branch's last commit and its open pull request (for «Problemas»).
     func refreshBranchChecks() async {
+        guard pausedUntil == nil else { return }
         guard case .ready(let hosted, _) = availability, !repository.snapshot.detached,
               let commit = repository.snapshot.headCommit?.hash else { branchChecks = []; branchChecksCommit = nil; return }
         do {
             let credentials = try await hosting.credentials(for: hosted.provider)
-            let open = try await hosting.client.pullRequests(hosted, state: .open, credentials: credentials)
+            let open = try await hosting.client.pullRequests(hosted, state: .open, source: repository.snapshot.branch, credentials: credentials)
             branchPullRequest = open.first { $0.source == repository.snapshot.branch }
             // Only a commit already on the provider has checks: the pushed one when the branch is ahead.
             let checks = try await hosting.client.checks(hosted, commit: branchPullRequest?.head ?? commit, credentials: credentials)
@@ -161,6 +176,7 @@ import SwiftUI
     /// Reads the provider's protection of the primary branch and keeps it in the repository
     /// (`gitSetRemoteProtection`): pushing to a protected `main` is then refused before Git runs.
     func syncProtection() async {
+        guard pausedUntil == nil else { return }
         guard case .ready(let hosted, _) = availability, let credentials = try? await hosting.credentials(for: hosted.provider) else { return }
         let value: String
         switch await hosting.client.protection(hosted, branch: repository.snapshot.primaryBranch, credentials: credentials) {
@@ -223,7 +239,7 @@ import SwiftUI
             let credentials = try await hosting.credentials(for: hosted.provider)
             switch action {
             case .approve: try await hosting.client.approve(hosted, pr: pr.id, credentials: credentials)
-            case .merge: try await hosting.client.merge(hosted, pr: pr.id, credentials: credentials)
+            case .merge: try await hosting.client.merge(hosted, pr: pr.id, head: pr.head, credentials: credentials)
             case .comment(let text): try await hosting.client.comment(hosted, pr: pr.id, text: text, credentials: credentials)
             }
             repository.store.notify(action.done)

@@ -14,6 +14,7 @@ use anyhow::{ensure, Result};
 use serde_json::{json, Value};
 use std::{
     fs,
+    io::Read,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -58,7 +59,9 @@ pub fn export(store: &Store, profiles: Vec<String>) -> Result<Value> {
     .collect();
     let sites: Vec<Value> = site_records(store)
         .into_iter()
-        .map(|project| {
+        .map(|mut project| {
+            // Hand-typed variables may hold tokens: the file never carries them.
+            project.env.clear();
             let remote = git::origin(&project.path);
             let branch = git::current_branch(&project.path);
             json!({"project": project, "git": {"remote": remote, "branch": branch}})
@@ -181,7 +184,7 @@ pub fn plan(store: &Store, data: &Value) -> Result<Value> {
         let path = PathBuf::from(project["path"].as_str().unwrap_or(""));
         let remote = site["git"]["remote"].as_str();
         let state = if registered.iter().any(|r| r == id) { "registered" }
-            else if path.is_dir() { "ready" }
+            else if path.is_dir() && restorable_folder(&path) { "ready" }
             else if remote.is_some() { "clone" }
             else { "unavailable" };
         json!({"id": id, "name": project["name"], "kind": project["kind"], "path": path, "remote": remote, "branch": site["git"]["branch"], "state": state})
@@ -228,7 +231,10 @@ pub fn restore(store: &Store, data: &Value, parts: &Value) -> Result<Value> {
             let Ok(mut project) = serde_json::from_value::<Project>(site["project"].clone()) else {
                 continue;
             };
-            if registered.contains(&project.id) || !project.path.is_dir() {
+            if registered.contains(&project.id)
+                || !project.path.is_dir()
+                || !restorable_folder(&project.path)
+            {
                 continue;
             }
             project.enabled = false;
@@ -305,17 +311,11 @@ pub fn restore(store: &Store, data: &Value, parts: &Value) -> Result<Value> {
 /// user's own Git setup (SSH agent, Keychain credentials) and never prompts.
 pub fn clone(path: &Path, remote: &str, branch: Option<&str>) -> Result<()> {
     ensure!(path.is_absolute() && !path.exists(), "folder_exists");
-    ensure!(
-        path.starts_with(Store::home().unwrap_or_default()),
-        "invalid_path"
-    );
-    let valid = remote.len() <= 500
-        && !remote.starts_with('-')
-        && !remote.chars().any(|c| c.is_whitespace() || c.is_control())
-        && (remote.starts_with("https://")
-            || remote.starts_with("ssh://")
-            || remote.starts_with("git@"));
-    ensure!(valid, "invalid_remote");
+    ensure!(inside_home(path), "invalid_path");
+    // The same rule as every other clone: network transports only, no embedded credentials.
+    ensure!(remote.len() <= 500, "invalid_remote");
+    crate::git::validate_clone_url(remote)?;
+    let remote = &crate::git::stored_address(remote);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -337,21 +337,98 @@ pub fn clone(path: &Path, remote: &str, branch: Option<&str>) -> Result<()> {
     if let Some(agent) = std::env::var_os("SSH_AUTH_SOCK") {
         command.env("SSH_AUTH_SOCK", agent);
     }
-    let status = command
+    let mut child = command
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()?;
-    if !status.success() {
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
+    let mut errors = child.stderr.take();
+    let reader = std::thread::spawn(move || {
+        let mut text = String::new();
+        if let Some(errors) = errors.as_mut() {
+            let _ = errors.take(16 * 1024).read_to_string(&mut text);
+            // Keep draining so a chatty git never blocks on a full pipe.
+            let _ = std::io::copy(errors, &mut std::io::sink());
+        }
+        text
+    });
+    // A stalled transfer (a host asking questions, a dead network) must not hold the request forever.
+    let deadline = std::time::Instant::now() + CLONE_TIMEOUT;
+    let success = loop {
+        if let Some(status) = child.try_wait()? {
+            break status.success();
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            break false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let detail = reader.join().unwrap_or_default();
+    if !success {
         let _ = fs::remove_dir_all(path);
+        // Git's own message (host key, auth, not found), without credentials.
+        return Err(crate::git::GitError {
+            code: "clone_failed".into(),
+            detail: crate::git::public_detail(&detail),
+        }
+        .into());
     }
-    ensure!(status.success(), "clone_failed");
     Ok(())
+}
+
+const CLONE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15 * 60);
+
+/// Where a restored site may live: under the home folder or on another disk (`/Volumes/…`), once
+/// symlinks and `..` are resolved. The plan and the restore use this same rule.
+fn restorable_folder(path: &Path) -> bool {
+    inside_home(path)
+        || (!path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+            && path
+                .canonicalize()
+                .is_ok_and(|real| real.starts_with("/Volumes/")))
+}
+
+/// Whether `path` lies under the user's home once symlinks and `..` are resolved. The folder itself
+/// need not exist: its nearest existing ancestor is resolved and the rest must be plain names.
+fn inside_home(path: &Path) -> bool {
+    use std::path::Component;
+    let Some(home) = Store::home().and_then(|h| h.canonicalize().ok()) else {
+        return false;
+    };
+    if path
+        .components()
+        .any(|c| matches!(c, Component::ParentDir | Component::CurDir))
+    {
+        return false;
+    }
+    let mut ancestor = path;
+    while !ancestor.exists() {
+        match ancestor.parent() {
+            Some(parent) => ancestor = parent,
+            None => return false,
+        }
+    }
+    ancestor
+        .canonicalize()
+        .is_ok_and(|real| real.starts_with(home))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn clone_folders_must_stay_under_home() {
+        let home = Store::home().unwrap();
+        assert!(inside_home(&home.join("Stack/Projects/new-site")));
+        assert!(!inside_home(&home.join("../outside")));
+        assert!(!inside_home(&home.join("Stack/../../outside")));
+        assert!(!inside_home(Path::new("/tmp/stack-site")));
+    }
+
     #[test]
     fn git_urls_lose_their_credentials() {
         assert_eq!(

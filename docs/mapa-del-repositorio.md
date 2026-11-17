@@ -11,7 +11,7 @@ README.md            presentación, instalar, compilar, índice
 VERSION              versión de la app (única fuente; la lee build-native.sh y el sitio)
 LICENSE
 .butake/context.md   contexto corto para agentes
-.compliance/         cumplimiento Ley 21.719: RESUMEN.md, state.json y docs/ (requisitos R1…R22)
+.compliance/         cumplimiento Ley 21.719: RESUMEN.md, state.json y docs/ (requisitos R1…R23)
 .github/workflows/   native.yml (validación en macOS) y pages.yml (sitio)
 docs/                documentación (índice en docs/README.md); docs/presentacion/ capturas del sitio
 engine/              motor Rust: CLI JSON + daemon (binario butake-stack)
@@ -87,6 +87,7 @@ ssh/                 herramienta Terminal (hosts, sftp, snippets, config) y base
 aws/                 herramienta AWS
 gcp/                 herramienta Google Cloud (testdata/gcloud: gcloud falso de pruebas)
 git/                 herramienta Git (commands.json: diccionario; tests/: pruebas por tema)
+skills/              herramienta Skills (índice, enlaces a las carpetas de las IA, papelera, salud, exportar; tests/ por tema)
 ```
 
 Pruebas del motor: en línea (`#[cfg(test)]`) en los archivos pequeños; en un archivo vecino
@@ -134,6 +135,7 @@ SSHKeys/             claves SSH de la base y su sesión (SSHKeyring): Ajustes �
 Vault/               herramienta Bóveda (todo lo de la Bóveda vive aquí)
 AWS/                 herramienta AWS (lista y cabecera de Shared/Cloud/)
 Google/              herramienta Google Cloud (archivos GCP*; lista y cabecera de Shared/Cloud/)
+Skills/              herramienta Skills (archivos Skill*: lista, detalle, editor, IA, salud, hojas de confirmación)
 Settings/            Ajustes (General, Apariencia, Red, Herramientas, Claves SSH, Avanzado); LocalTrust (resolver y CA),
                      ConfigurationBackup («Mi entorno»: exportar y restaurar)
 Shared/              componentes, Symbols, Typography, Brand, StackFolders, TechCatalog
@@ -160,6 +162,7 @@ Pruebas de la app: `native/Tests/ButakeStackTests/` (un archivo por área: `Vaul
 | Dumps | `web/tools/dumps.rs`, `daemon/mod.rs` | `Tools/Dumps/`, `Tools/ReceiverOptions.swift` | `web/tools/dumps.rs`, `ReceiverToolsTests.swift` |
 | AWS | `engine/src/aws/`, `core/cli_tool.rs` | `AWS/`, `Shared/Cloud/` | `aws/*`, `engine/tests/aws.rs`, `AWSTests.swift` |
 | Google Cloud | `engine/src/gcp/`, `core/cli_tool.rs` | `Google/`, `Shared/Cloud/` | `gcp/mod.rs`, `GCPTests.swift`, `KeysAndCloudTests.swift` |
+| Skills | `engine/src/skills/` | `Skills/` | `skills/tests/`, `SkillsTests.swift` |
 | Registros (base) | `daemon/logs.rs`, `daemon/redact.rs` | `Tools/Logs/` | `daemon/*`, `ToolsTests.swift` |
 
 ## Scripts

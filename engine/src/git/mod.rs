@@ -11,9 +11,11 @@
 //! What a Stack project knows about its repository (branch, pending changes, worktrees) stays in
 //! `web/projects/git.rs`, part of the base, and needs no tool.
 
+mod access;
 mod actions;
 mod branches;
 mod console;
+pub mod credentials;
 mod diff;
 mod editing;
 mod files;
@@ -29,6 +31,7 @@ mod words;
 mod worktrees;
 
 pub use console::{run_console, write_plan};
+pub use remotes::{stored_address, validate_clone_url};
 pub use runner::{public_detail, GitError};
 
 use crate::core::store::Store;
@@ -51,6 +54,9 @@ pub const METHODS: &[&str] = &[
     "gitRepositoryAdd",
     "gitRepositoryForget",
     "gitClone",
+    "gitSshAccess",
+    "gitSshFingerprints",
+    "gitSshTrust",
     "gitInit",
     "gitPublish",
     "gitOpen",
@@ -137,6 +143,25 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> anyhow::Result<
             let _ = repositories::opened(store, &root);
             Ok(json!(value))
         }
+        // What a clone over SSH needs on this Mac (no folder involved).
+        "gitSshAccess" | "gitSshFingerprints" | "gitSshTrust" => {
+            let home = Store::home().ok_or_else(|| anyhow::anyhow!("invalid_path"))?;
+            let url = text(request, "url");
+            Ok(match method {
+                "gitSshAccess" => json!(access::ssh_access(
+                    &home,
+                    std::env::var_os("SSH_AUTH_SOCK").as_deref(),
+                    url
+                )?),
+                "gitSshFingerprints" => json!(access::host_fingerprints(url)?),
+                _ => {
+                    confirmed(request, "Confirma que confías en el servidor.")?;
+                    let seen = list(request, "fingerprints", "Faltan las huellas que viste.")?;
+                    access::trust_host(&home, url, &seen)?;
+                    json!(true)
+                }
+            })
+        }
         _ => Ok(block(run(method, request))?),
     }
 }
@@ -179,6 +204,15 @@ async fn run(method: &str, r: &Value) -> Result<Value> {
         return Err(error("invalid_path", "Selecciona una carpeta."));
     }
     let root = root.as_path();
+    // The token of a connected account, only for a transfer with that provider (credentials.rs).
+    if !r["credentials"].is_null() {
+        let urls = match method {
+            "gitClone" | "gitPublish" => vec![text(r, "url").to_string()],
+            "gitAction" => remotes::urls(root).await,
+            _ => vec![],
+        };
+        credentials::accept(&r["credentials"], &urls)?;
+    }
     Ok(match method {
         "gitClone" => json!(remotes::clone(root, text(r, "url"), text(r, "name")).await?),
         "gitInit" => json!(

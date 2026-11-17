@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Local mail, like Mail: the messages are in the window's content column (`MailList`) and this is
@@ -48,6 +49,11 @@ struct MailPage: View {
         }
         .task {
             while !Task.isCancelled {
+                // With the daemon off or the app in the background, a poll would only fail or go unseen.
+                guard store.daemonRunning, NSApp.isActive else {
+                    try? await Task.sleep(for: .seconds(5))
+                    continue
+                }
                 await store.loadMail()
                 #if DEBUG
                 if browser.selection == nil, QAHooks.mailSelectsFirst { browser.selection = store.mailMessages.first?.id }

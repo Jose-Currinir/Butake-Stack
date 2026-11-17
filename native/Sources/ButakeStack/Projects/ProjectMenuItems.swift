@@ -38,6 +38,7 @@ struct ProjectMenuItems: View {
             }
             if !store.groups.isEmpty { Divider() }
             Button { store.groupNaming = .new(sites: [project.id]) } label: { Label(L("groups.newWithSite"), systemImage: Symbols.newFolder) }
+                .accessibilityIdentifier("project.menu.newFolder")
             if current != nil {
                 Button { store.move(project.id, to: nil) } label: { Label(L("groups.removeFrom"), systemImage: Symbols.removeFromFolder) }
             }

@@ -17,7 +17,30 @@ enum DatabaseVault {
          kSecAttrSynchronizable as String: false]
     }
 
+    /// Passwords already read this run, by id (a missing password is cached too). Written under
+    /// `lock`; invalidated by every set/delete and by `forget`.
+    private nonisolated(unsafe) static var cache: [String: String?] = [:]
+    private static let lock = NSLock()
+    /// Bumped by every invalidation: a Keychain read that started before one is not cached.
+    private nonisolated(unsafe) static var epoch = 0
+
+    /// Forgets the cached password of a connection (disconnect, or after an outside change).
+    static func forget(_ id: String) {
+        lock.withLock { cache[id] = nil; epoch += 1 }
+    }
+
+    /// The password without blocking the caller: a cache hit answers at once; otherwise the
+    /// Keychain is read off the main actor and the answer is kept in memory.
+    static func password(_ id: String) async -> String? {
+        let (hit, start) = lock.withLock { (cache[id], epoch) }
+        if let hit { return hit }
+        let value = await Task.detached { get(id) }.value
+        lock.withLock { if epoch == start { cache[id] = .some(value) } }
+        return value
+    }
+
     @discardableResult static func set(_ value: String, for id: String, label: String) -> Bool {
+        forget(id)
         let query = base(id)
         let data = Data(value.utf8)
         if SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary) == errSecSuccess { return true }
@@ -43,7 +66,25 @@ enum DatabaseVault {
         return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
     }
 
-    static func delete(_ id: String) { SecItemDelete(base(id) as CFDictionary) }
+    static func delete(_ id: String) {
+        forget(id)
+        SecItemDelete(base(id) as CFDictionary)
+    }
+
+    /// Deletes the connection's password and every `user:<id>/<name>` item of its server users.
+    static func deleteAll(connection id: String) {
+        delete(id)
+        var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                    kSecAttrService as String: service,
+                                    kSecReturnAttributes as String: true,
+                                    kSecMatchLimit as String: kSecMatchLimitAll]
+        query[kSecAttrSynchronizable as String] = false
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let items = result as? [[String: Any]] else { return }
+        for item in items {
+            if let account = item[kSecAttrAccount as String] as? String, account.hasPrefix("user:\(id)/") { delete(account) }
+        }
+    }
 
     /// A random password the database accepts (letters, digits and safe symbols).
     static func generate(length: Int = 24) -> String {

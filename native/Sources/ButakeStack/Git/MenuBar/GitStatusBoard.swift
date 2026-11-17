@@ -9,7 +9,13 @@ import SwiftUI
 
     /// «Buscar cambios cada 5 minutos»: off by default; a preference of this Mac.
     var autoFetch: Bool = UserDefaults.standard.bool(forKey: GitStatusBoard.autoFetchKey) {
-        didSet { if !StackStore.qaWindow { UserDefaults.standard.set(autoFetch, forKey: Self.autoFetchKey) } }
+        didSet {
+            #if DEBUG
+            if !StackStore.qaWindow { UserDefaults.standard.set(autoFetch, forKey: Self.autoFetchKey) }
+            #else
+            UserDefaults.standard.set(autoFetch, forKey: Self.autoFetchKey)
+            #endif
+        }
     }
     static let autoFetchKey = "git.autoFetch"
     static let interval: Duration = .seconds(300)
@@ -26,7 +32,9 @@ import SwiftUI
 
     /// Rows that need something, in the order of the repository picker.
     var rows: [GitStatusRow] {
-        tool.entries.filter { !$0.missing }.compactMap { entry in
+        // A folder listed twice (a project and the same repository added by hand) shows once.
+        var seen = Set<String>()
+        return tool.entries.filter { !$0.missing && seen.insert($0.path).inserted }.compactMap { entry in
             guard let summary = tool.summary(of: entry) else { return nil }
             let row = GitStatusRow(entry: entry, summary: summary)
             return row.needsAttention || failures[entry.path] != nil ? row : nil
@@ -71,15 +79,69 @@ import SwiftUI
         }
     }
 
-    /// Asks each repository's remote for new commits; changes nothing in the folders.
+    /// Asks each repository's remote for new commits; changes nothing in the folders. Three at a
+    /// time, each with a time limit (a remote that hangs does not hold the others), and each
+    /// failure stays on its row until the next try.
     func fetchAll() async {
         await tool.loadList()
-        for entry in tool.entries where !entry.missing && working == nil {
-            let _: String? = try? await store.call(["method": "gitAction", "path": entry.path, "action": GitAction.fetch.rawValue, "value": ""])
+        guard working == nil else { return }
+        let queue = FetchQueue(tool.entries.filter { !$0.missing })
+        for entry in queue.entries { failures[entry.path] = nil }
+        let workers = (0..<Self.fetchConcurrency).map { _ in
+            Task { @MainActor in
+                while let entry = queue.next() {
+                    if let failure = await self.fetchOne(entry) { self.failures[entry.path] = failure }
+                }
+            }
         }
+        for worker in workers { await worker.value }
         lastFetch = Date()
         await refresh()
     }
+
+    static let fetchConcurrency = 3
+    static let fetchTimeout: Duration = .seconds(60)
+
+    /// The repositories still to fetch, handed out one at a time.
+    @MainActor private final class FetchQueue {
+        let entries: [GitRepositoryEntry]
+        private var position = 0
+        init(_ entries: [GitRepositoryEntry]) { self.entries = entries }
+        func next() -> GitRepositoryEntry? {
+            guard position < entries.count else { return nil }
+            defer { position += 1 }
+            return entries[position]
+        }
+    }
+
+    /// One repository's fetch, cancelled after `fetchTimeout`; its failure, if any.
+    private func fetchOne(_ entry: GitRepositoryEntry) async -> GitFailure? {
+        let store = self.store
+        let work = Task { @MainActor () -> GitFailure? in
+            do {
+                let request = await GitHosting.shared.transfer(["method": "gitAction", "path": entry.path, "action": GitAction.fetch.rawValue, "value": ""],
+                                                               path: entry.path, store: store)
+                // Stoppable: on the timeout the engine (and its git) is ended, not left holding a worker.
+                let _: String = try await store.stoppableCall(request)
+                return nil
+            } catch {
+                let failure = GitFailure(error)
+                return failure.cancelled ? nil : failure
+            }
+        }
+        let timedOut = TimeoutFlag()
+        let timer = Task { @MainActor in
+            try? await Task.sleep(for: Self.fetchTimeout)
+            guard !Task.isCancelled else { return }
+            timedOut.value = true
+            work.cancel()
+        }
+        let result = await work.value
+        timer.cancel()
+        if timedOut.value { return GitFailure(code: "timeout", title: L("git.statusBoard.fetchTimeout"), detail: "") }
+        return result
+    }
+    @MainActor private final class TimeoutFlag { var value = false }
 
     /// «Bajar» or «Subir» of a row: on the open repository when it is that one (its progress and
     /// assistant), else on its own; a failure stays on the row, and «Abrir» leads to the tool.
@@ -89,8 +151,9 @@ import SwiftUI
         failures[entry.path] = nil
         defer { working = nil }
         if let open = tool.repository, open.root == entry.path {
-            _ = await open.perform(action)
-            if let failure = open.pullProblem ?? open.failure { failures[entry.path] = failure }
+            open.failure = nil
+            // The result of this try decides, not a failure left by an earlier one.
+            if !(await open.perform(action)), let failure = open.pullProblem ?? open.failure { failures[entry.path] = failure }
         } else {
             do {
                 let snapshot: GitSnapshot = try await store.call(["method": "gitSnapshot", "path": entry.path, "limit": 1])

@@ -61,7 +61,10 @@ struct RootView: View {
                         if store.canShow(.tool(id)) { ToolPage(store: store, id: id).id(id) } else { HomePage(store: store) }
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // A minimum height of 0: a page taller than the window is cut, never makes the split
+                // view taller than it (AppKit would center it and put every column under the title bar, P-15).
+                .frame(minHeight: 0, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
                 .transition(.opacity)
                 if let pending = store.watchedPending.first, store.importScan == nil {
                     WatchBanner(store: store, scan: pending)
@@ -78,6 +81,11 @@ struct RootView: View {
                         // On the Terminal, its own additions first: one «+» per window.
                         if store.route == .tool("ssh-terminal") {
                             TerminalNewItems()
+                            Divider()
+                        }
+                        if store.route == .tool("skills"), store.canShow(.tool("skills")) {
+                            Button { SkillsTool.shared.sheet = .newSkill } label: { Label(L("skills.newEllipsis"), systemImage: Symbols.skill) }
+                                .help(L("skills.newHelp")).accessibilityIdentifier("toolbar.add.newSkill")
                             Divider()
                         }
                         Button { store.showNewProject = true } label: { Label(L("menu.newProject"), systemImage: Symbols.project) }

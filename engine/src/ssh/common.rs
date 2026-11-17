@@ -3,7 +3,7 @@
 
 use crate::core::store::Store;
 use crate::core::{fsutil::write_private, validate};
-use anyhow::{ensure, Result};
+use anyhow::{bail, ensure, Result};
 use std::{
     io::Write,
     net::TcpStream,
@@ -156,10 +156,20 @@ pub fn trust_scanned(store: &Store, prints: &[String], keys: &str, seen: &[Strin
         "ssh_host_changed"
     );
     let path = known_hosts(store)?;
-    let mut text = std::fs::read_to_string(&path).unwrap_or_default();
+    // A file that exists and cannot be read as text is left alone: rewriting it would lose lines.
+    let mut text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(_) => bail!("ssh_known_hosts_unreadable"),
+    };
+    if !text.is_empty() && !text.ends_with('\n') {
+        text.push('\n');
+    }
     for line in keys
         .lines()
         .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+        // `host keytype key`: nothing else is ever written into the trust file.
+        .filter(|l| l.split_whitespace().count() >= 3 && !l.chars().any(char::is_control))
     {
         if !text.lines().any(|l| l == line) {
             text.push_str(line);

@@ -174,12 +174,37 @@ pub fn mysql_config(
                 .arg("--auth-root-authentication-method=normal");
             c
         };
-        let status = command
+        // The first start of a database initializes its folder: bounded in time, and its output
+        // kept in a private log (no secrets: the account has no password yet) so a failure can be
+        // diagnosed. A half-made folder would pass for an initialized one next time: remove it.
+        let log = store.directory("logs")?.join(format!("{id}-init.log"));
+        let output = crate::core::process::append_log(&log)?;
+        use std::os::unix::process::CommandExt;
+        let mut child = command
             .env_clear()
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()?;
-        ensure!(status.success(), "mysql_init_failed");
+            .stdin(Stdio::null())
+            .stdout(output.try_clone()?)
+            .stderr(output)
+            .process_group(0)
+            .spawn()
+            .map_err(|_| anyhow::anyhow!("mysql_init_failed"))?;
+        let group = i32::try_from(child.id()).unwrap_or(0);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(300);
+        let success = loop {
+            if let Some(status) = child.try_wait()? {
+                break status.success();
+            }
+            if std::time::Instant::now() >= deadline {
+                crate::core::watch::end_group(group);
+                let _ = child.wait();
+                break false;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        };
+        if !success {
+            let _ = fs::remove_dir_all(&datadir);
+        }
+        ensure!(success, "mysql_init_failed");
     }
     Ok(path)
 }

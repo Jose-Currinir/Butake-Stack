@@ -195,9 +195,19 @@ fn alive(pid: i32) -> bool {
     let out = Command::new("/bin/ps")
         .args(["-o", "stat=", "-p", &pid.to_string()])
         .output()
-        .unwrap();
+        .expect("ps was checked before the test started");
     let state = String::from_utf8_lossy(&out.stdout);
     !state.trim().is_empty() && !state.trim().starts_with('Z')
+}
+
+/// Whether `ps` can see processes here (sandboxes may forbid running it or hide pids). The test
+/// below proves processes are gone by pid, so without `ps` it cannot check anything.
+fn ps_works() -> bool {
+    Command::new("/bin/ps")
+        .args(["-o", "stat=", "-p", &std::process::id().to_string()])
+        .output()
+        .map(|o| o.status.success() && !String::from_utf8_lossy(&o.stdout).trim().is_empty())
+        .unwrap_or(false)
 }
 
 fn all_gone(pids: &[i32]) -> bool {
@@ -223,6 +233,10 @@ fn signal(pid: u32, signal: &str) {
 /// app dying and the engine itself killed all end the fake and its child, checked by pid.
 #[test]
 fn signing_in_can_be_stopped_and_never_leaves_aws_cli_running() {
+    if !ps_works() {
+        eprintln!("skipped: /bin/ps cannot inspect processes here");
+        return;
+    }
     let setup = setup();
     request(
         &setup,

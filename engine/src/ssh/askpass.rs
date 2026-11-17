@@ -59,7 +59,7 @@ pub fn run_helper() -> i32 {
 }
 
 /// Whether the peer of a Unix socket runs as this same user.
-fn same_user(stream: &std::os::unix::net::UnixStream) -> bool {
+pub(crate) fn same_user(stream: &std::os::unix::net::UnixStream) -> bool {
     use std::os::unix::io::AsRawFd;
     let mut uid: libc::uid_t = 0;
     let mut gid: libc::gid_t = 0;

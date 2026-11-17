@@ -5,6 +5,7 @@ motivo. Las más nuevas, arriba. Una decisión que cambia se reemplaza aquí, no
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-11-16 | Skills: una carpeta plana por skill en la carpeta de datos de Stack; el grupo y las etiquetas viven solo en `index.json` y las IA reciben enlaces, nunca copias | Cambiar de grupo o renombrar un grupo no rompe ningún enlace; una sola copia real por skill (R23) |
 | 2026-11-14 | Renombrar o mover un proyecto encendido lo detiene y lo vuelve a iniciar; no se rechaza | Sus procesos no pueden escribir registros mientras estos cambian de nombre, y rechazar obligaba a un paso manual |
 | 2026-11-14 | El motor nunca lee el Llavero: al renombrar, la app copia, verifica y recién entonces borra los ítems de Entornos | Sin secretos huérfanos ni copias duplicadas (R22) |
 | 2026-11-14 | Proyecto de varias partes = una carpeta marcada `"kind": "project"`; cada parte sigue siendo un proyecto | Un producto real se compone de varios repositorios, sin migrar ni romper `groups.json` |

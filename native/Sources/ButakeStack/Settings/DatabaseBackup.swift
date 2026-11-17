@@ -14,12 +14,16 @@ struct DatabaseBackupEntry: Codable, Sendable, Hashable, Identifiable {
 }
 
 enum DatabaseBackupError: LocalizedError {
-    case stopped(String), failed(String)
+    case stopped(String, detail: String? = nil), failed(String, detail: String? = nil)
     var errorDescription: String? {
+        let text: String, detail: String?
         switch self {
-        case .stopped(let engine): String(format: L("backup.engineStopped"), Tech.of(engine).title)
-        case .failed(let database): String(format: L("backup.databaseFailed"), database)
+        case .stopped(let engine, let reason): (text, detail) = (String(format: L("backup.engineStopped"), Tech.of(engine).title), reason)
+        case .failed(let database, let reason): (text, detail) = (String(format: L("backup.databaseFailed"), database), reason)
         }
+        // The engine's own reason (wrong password, full disk) follows the generic sentence.
+        guard let detail, !detail.isEmpty else { return text }
+        return text + " " + detail
     }
 }
 
@@ -56,15 +60,23 @@ extension StackStore {
         var work: [(engine: String, database: String)] = []
         for engine in await backupConnections() {
             let request = backupRequest(engine, ["method": "dbDatabases"])
-            guard let databases: [BackupDatabase] = try? await call(request) else { throw DatabaseBackupError.stopped(engine) }
+            let databases: [BackupDatabase]
+            do { databases = try await call(request) } catch {
+                throw DatabaseBackupError.stopped(engine, detail: (error as? EngineFailure)?.errorDescription)
+            }
             work += databases.filter { $0.system != true }.map { (engine, $0.name) }
         }
         let job = beginJob(L("backup.dumpingStart"))
         defer { endJob(job) }
         var entries: [DatabaseBackupEntry] = []
         for (index, item) in work.enumerated() {
-            let relative = "bases/\(item.engine)/\(item.database).sql.gz"
+            // A PostgreSQL name may hold «/» or «..»: the file stays inside `bases/<engine>/`.
+            let safeName = item.database.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "..", with: "__")
+            let relative = "bases/\(item.engine)/\(safeName).sql.gz"
             let url = folder.appendingPathComponent(relative)
+            guard url.standardizedFileURL.path.hasPrefix(folder.standardizedFileURL.path + "/") else {
+                throw DatabaseBackupError.failed(item.database)
+            }
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let label = String(format: L("backup.dumping"), Tech.of(item.engine).title, item.database, index + 1, work.count)
             let token = UUID().uuidString.lowercased()
@@ -73,7 +85,10 @@ extension StackStore {
             updateJob(job, label)
             let request = backupRequest(item.engine, ["method": "dbDump", "databases": [item.database], "path": url.path,
                                                       "compress": true, "progress": token, "skipBrokenViews": true])
-            guard let dumped: Dumped = try? await call(request) else { throw DatabaseBackupError.failed(item.database) }
+            let dumped: Dumped
+            do { dumped = try await call(request) } catch {
+                throw DatabaseBackupError.failed(item.database, detail: (error as? EngineFailure)?.errorDescription)
+            }
             entries.append(DatabaseBackupEntry(engine: item.engine, database: item.database, file: relative, size: dumped.size,
                                                skippedViews: dumped.skippedViews?.isEmpty == false ? dumped.skippedViews : nil))
         }
@@ -114,13 +129,17 @@ extension StackStore {
     /// Shows the bytes a dump has written in the status bar label, from its progress file.
     private func followProgress(_ token: String, job: UUID, label: String) -> Task<Void, Never> {
         let path = Folder.baseURL.appendingPathComponent("run/progress-\(token).json")
-        return Task { @MainActor [weak self] in
+        return Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(500))
-                if let data = try? Data(contentsOf: path),
-                   let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let done = value["done"] as? Int, done > 0 {
-                    self?.updateJob(job, "\(label) · \(Format.fileSizeText(Int64(done)))")
+                // The file is read off the main thread; only the number comes back.
+                let done = await Task.detached { () -> Int? in
+                    guard let data = try? Data(contentsOf: path),
+                          let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+                    return value["done"] as? Int
+                }.value
+                if let done, done > 0 {
+                    await self?.updateJob(job, "\(label) · \(Format.fileSizeText(Int64(done)))")
                 }
             }
         }

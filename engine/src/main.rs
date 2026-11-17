@@ -9,6 +9,7 @@ mod error_texts_tests;
 mod gcp;
 mod git;
 mod runtimes;
+mod skills;
 mod ssh;
 mod web;
 use anyhow::{bail, Result};
@@ -46,6 +47,7 @@ fn dispatch_with(
         Some("aws") => return aws::dispatch(store, method, request),
         Some("gcp") => return gcp::dispatch(store, method, request),
         Some("git") => return git::dispatch(store, method, request),
+        Some("skills") => return skills::dispatch(store, method, request),
         _ => {}
     }
     // Extensions of the components (P-43), before `installSteps` of the other installs.
@@ -128,6 +130,7 @@ const PUBLIC_ERRORS: &[&str] = &[
     "unsupported_platform",
     "cargo_not_installed",
     "clt_not_installed",
+    "xcode_license_pending",
     "invalid_backup",
     "clone_failed",
     "invalid_remote",
@@ -259,6 +262,16 @@ const PUBLIC_ERRORS: &[&str] = &[
     "gcp_timeout",
     "gcp_cancelled",
     "gcp_failed",
+    // Skills tool.
+    "skills_invalid_id",
+    "skills_exists",
+    "skills_not_found",
+    "skills_invalid_group",
+    "skills_group_not_empty",
+    "skills_invalid_folder",
+    "skills_too_large",
+    "skills_link_conflict",
+    "skills_agent_builtin",
     // Projects without a server, removing a version in use and one-click fixes (P-42).
     "project_not_served",
     "runtime_global",
@@ -280,6 +293,26 @@ const PUBLIC_ERRORS: &[&str] = &[
     "invalid_extension",
     "relocate_failed",
     "package_incomplete",
+    // Domains, folders, environments and the launch agent: causes the user can fix.
+    "invalid_domain",
+    "duplicate_domain",
+    "invalid_docroot",
+    "invalid_path",
+    "invalid_executable",
+    "unknown_process",
+    "production_locked",
+    "env_not_ignored",
+    "env_tracked_by_git",
+    "environment_active",
+    "unknown_environment",
+    "agent_exists",
+    "agent_bootstrap_failed",
+    "agent_bootout_failed",
+    "download_too_large",
+    "insecure_url",
+    "worktree_already_served",
+    "mysql_init_failed",
+    "ssh_known_hosts_unreadable",
 ];
 
 /// Error codes that carry who holds what (`<code>:<detail>`): the detail goes to the app.
@@ -321,6 +354,10 @@ async fn main() {
     // Started by ssh-add / ssh-keygen as SSH_ASKPASS (see askpass.rs): answer and leave.
     if ssh::askpass::helper_mode() {
         std::process::exit(ssh::askpass::run_helper());
+    }
+    // Started by Git as GIT_ASKPASS for a transfer with a connected account (git/credentials.rs).
+    if git::credentials::helper_mode() {
+        std::process::exit(git::credentials::run_helper());
     }
     // AWS CLI asks for the keys of a profile kept in the Keychain (credential_process).
     if std::env::args().nth(1).as_deref() == Some(aws::helper::SUBCOMMAND) {
@@ -364,6 +401,12 @@ async fn main() {
     if std::env::args().nth(1).as_deref() == Some("daemon") {
         if let Err(error) = daemon::run().await {
             let already_running = error.to_string() == "daemon_already_running";
+            // launchd drops stdout: keep the cause where a person can read it (the file holds only
+            // fixed codes and system errors, never project data).
+            // A second copy losing the lock race is not a failure: keep the real cause, if any.
+            if !already_running {
+                daemon::record_failure(&error);
+            }
             println!(
                 "{}",
                 daemon::failure(
@@ -380,7 +423,12 @@ async fn main() {
                     }
                 )
             );
-            std::process::exit(1);
+            // A migration re-bootstraps the agent itself when it ends: launchd (KeepAlive on
+            // failure only) must not relaunch the daemon meanwhile. Another daemon still holding the
+            // lock (one started by hand, or still stopping its services) is a failure, so launchd
+            // tries again after its ThrottleInterval and a daemon is running once that one is gone.
+            let permanent = error.to_string() == "migration_in_progress";
+            std::process::exit(if permanent { 0 } else { 1 });
         }
         return;
     }

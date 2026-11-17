@@ -300,6 +300,57 @@ fn write_rows(
     Ok(count)
 }
 
+/// A file being written next to its destination as `<name>.partial`. The destination is only
+/// replaced (by a rename) once `commit` runs; dropping the guard otherwise deletes just the
+/// partial, so a failed run never truncates or removes a file the user already had.
+pub(crate) struct Partial {
+    partial: std::path::PathBuf,
+    dest: std::path::PathBuf,
+    committed: bool,
+}
+
+impl Partial {
+    /// Creates the (private) partial file for `dest`; a stale partial of an earlier run is replaced.
+    pub(crate) fn create(dest: &Path) -> Result<(Self, std::fs::File)> {
+        let mut name = dest
+            .file_name()
+            .ok_or_else(|| anyhow::anyhow!("invalid_file"))?
+            .to_os_string();
+        name.push(".partial");
+        let partial = dest.with_file_name(name);
+        let _ = std::fs::remove_file(&partial);
+        let file = private_options().create_new(true).open(&partial)?;
+        Ok((
+            Self {
+                partial,
+                dest: dest.to_path_buf(),
+                committed: false,
+            },
+            file,
+        ))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn path(&self) -> &Path {
+        &self.partial
+    }
+
+    /// Moves the finished partial over the destination.
+    pub(crate) fn commit(mut self) -> Result<()> {
+        std::fs::rename(&self.partial, &self.dest)?;
+        self.committed = true;
+        Ok(())
+    }
+}
+
+impl Drop for Partial {
+    fn drop(&mut self) {
+        if !self.committed {
+            let _ = std::fs::remove_file(&self.partial);
+        }
+    }
+}
+
 /// Runs one read-only SELECT and streams its rows into `path`. `table` is the INSERT target
 /// (already quoted); `fallback` names the columns if no row comes back (MySQL prints none then).
 #[allow(clippy::too_many_arguments)]
@@ -356,6 +407,7 @@ pub fn export(
             (c, format!(".headers on\n.mode csv\n.nullvalue {NULL_MARK}\nPRAGMA query_only = ON;\n{select}\n;\n"))
         }
     };
+    let (partial, file) = Partial::create(path)?;
     let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -376,13 +428,14 @@ pub fn export(
     let reader = std::thread::spawn(move || {
         let mut text = String::new();
         let _ = (&mut errors).take(64 * 1024).read_to_string(&mut text);
+        // Keep draining: a client that fills the pipe would block forever.
+        let _ = std::io::copy(&mut errors, &mut std::io::sink());
         text
     });
     let stdout: ChildStdout = child
         .stdout
         .take()
         .ok_or_else(|| anyhow::anyhow!("export_failed"))?;
-    let file = private_options().create(true).truncate(true).open(path)?;
     let mut out = BufWriter::with_capacity(256 * 1024, file);
     let written = {
         let mut rows: Box<dyn Rows> = match dialect {
@@ -408,7 +461,6 @@ pub fn export(
     drop(secret);
     let failed = !status.success() || (dialect == Dialect::Sqlite && !stderr.trim().is_empty());
     if failed || written.is_err() || flushed.is_err() {
-        let _ = std::fs::remove_file(path);
         if failed {
             return Err(client::db_error(
                 &client::clean_error(&stderr).unwrap_or_else(|| "export_failed".into()),
@@ -417,6 +469,7 @@ pub fn export(
         bail!("export_failed");
     }
     ensure!(written.is_ok(), "export_failed");
+    partial.commit()?;
     written
 }
 
@@ -458,6 +511,30 @@ mod tests {
         )
         .unwrap();
         String::from_utf8(out).unwrap()
+    }
+
+    #[test]
+    fn partial_files_replace_the_destination_only_on_commit() {
+        let dir = std::env::temp_dir().join(format!("stack-partial-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let dest = dir.join("backup.sql");
+        std::fs::write(&dest, "old").unwrap();
+        // A failed run (guard dropped) removes only its partial and keeps the user's file.
+        let (partial, mut file) = Partial::create(&dest).unwrap();
+        file.write_all(b"new").unwrap();
+        let partial_path = partial.path().to_path_buf();
+        assert_eq!(partial_path, dir.join("backup.sql.partial"));
+        assert_eq!(std::fs::read_to_string(&dest).unwrap(), "old");
+        drop(partial);
+        assert!(!partial_path.exists());
+        assert_eq!(std::fs::read_to_string(&dest).unwrap(), "old");
+        // A finished run renames the partial over the destination.
+        let (partial, mut file) = Partial::create(&dest).unwrap();
+        file.write_all(b"new").unwrap();
+        partial.commit().unwrap();
+        assert_eq!(std::fs::read_to_string(&dest).unwrap(), "new");
+        assert!(!partial_path.exists());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

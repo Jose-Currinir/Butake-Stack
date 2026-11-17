@@ -21,6 +21,8 @@ import Foundation
     /// The lines found by «Contenido»; nil otherwise.
     private(set) var matches: [GitContentMatch]?
     private(set) var searching = false
+    /// Why the history or a search could not be read (not the same as «0 resultados»).
+    private(set) var readFailure: GitFailure?
     /// Why a search could not be asked («Escribe una fecha…»).
     private(set) var searchNote: String?
     /// Tracked and untracked files (the «Archivo» scope and the suggestions).
@@ -35,6 +37,7 @@ import Foundation
 
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var detailTask: Task<Void, Never>?
+    @ObservationIgnored private var searchGeneration = 0
     @ObservationIgnored private var graphKey = ""
     @ObservationIgnored private var graphCache = GitCommitGraph(commits: [])
 
@@ -76,11 +79,15 @@ import Foundation
         guard onlyBranch else { return }
         guard !snapshotCommits.isEmpty else { branchCommits = []; return }
         let arguments = ["log", "-\(limit)", "--no-show-signature", "--topo-order", GitHistorySearch.format, "HEAD"]
-        if let output = try? await query(arguments) {
-            let next = GitHistorySearch.commits(output)
+        do {
+            let next = GitHistorySearch.commits(try await query(arguments))
             if next != branchCommits { branchCommits = next }
-        } else if branchCommits == nil {
-            branchCommits = []
+            // A failed search keeps its message until the search changes; only the branch's own clears here.
+            if results == nil, matches == nil { readFailure = nil }
+        } catch {
+            let failure = GitFailure(error)
+            if !failure.cancelled { readFailure = failure }
+            if branchCommits == nil { branchCommits = [] }
         }
         if selected == nil { selected = commits.first?.hash }
     }
@@ -104,25 +111,44 @@ import Foundation
         searchTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            await self?.runSearch()
+            await self?.performSearch()
         }
     }
 
-    /// Asks Git for the search on screen.
+    /// Asks Git for the search on screen now. A search still waiting for the typing pause is dropped: it would ask
+    /// the same thing again and, finishing later, make this answer stale.
     func runSearch() async {
+        searchTask?.cancel()
+        searchTask = nil
+        await performSearch()
+    }
+
+    private func performSearch() async {
         let text = search.trimmingCharacters(in: .whitespacesAndNewlines)
         searchNote = nil
-        guard !text.isEmpty else { results = nil; matches = nil; return }
+        guard !text.isEmpty else { results = nil; matches = nil; readFailure = nil; return }
         if (scope == .file || scope == .content) && paths.isEmpty { await loadPaths() }
         guard let arguments = GitHistorySearch.arguments(scope, text: text, onlyBranch: onlyBranch, paths: paths) else {
             if scope == .content { matches = [] } else { results = []; matches = nil }
             searchNote = L("git.history.note.\(scope.rawValue)")
             return
         }
+        searchGeneration += 1
+        let generation = searchGeneration
         searching = true
-        defer { searching = false }
-        let output = (try? await query(arguments)) ?? ""
-        guard text == search.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
+        defer { if generation == searchGeneration { searching = false } }
+        let output: String
+        do {
+            output = try await query(arguments)
+        } catch {
+            guard generation == searchGeneration else { return }
+            let failure = GitFailure(error)
+            if !failure.cancelled { readFailure = failure }
+            return
+        }
+        // A newer search, or other text, scope or branch filter, makes this answer stale.
+        guard generation == searchGeneration, text == search.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
+        readFailure = nil
         if scope == .content {
             results = nil
             matches = GitHistorySearch.matches(output)
@@ -136,7 +162,12 @@ import Foundation
 
     /// The repository's files, once per search session.
     func loadPaths() async {
-        let output = (try? await query(["ls-files", "--cached", "--others", "--exclude-standard", "-z"])) ?? ""
+        let output: String
+        do { output = try await query(["ls-files", "--cached", "--others", "--exclude-standard", "-z"]) } catch {
+            let failure = GitFailure(error)
+            if !failure.cancelled { readFailure = failure }
+            return
+        }
         paths = output.split(separator: "\0").map(String.init)
     }
 

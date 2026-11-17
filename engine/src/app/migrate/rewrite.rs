@@ -35,7 +35,8 @@ pub struct Change {
     /// `file` (text rewritten) or `link` (symbolic link pointed elsewhere).
     pub kind: String,
     /// `data` (inside the folder), `launchAgent`, `terminal` (~/.zprofile), `aws` (only the
-    /// `credential_process` lines), `links` (~/.local/bin) or `project` (a project's .venv).
+    /// `credential_process` lines), `links` (~/.local/bin), `project` (a project's .venv) or
+    /// `skills` (a link in an AI folder to a skill of Stack).
     pub place: String,
     /// The link's original target, or the file under `.migration/originals/` with its bytes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -175,6 +176,13 @@ pub fn find(layout: &Layout, root: &Path) -> Result<Vec<Change>> {
         }
     };
     links(&home.join(".local/bin"), "links", &mut changes);
+    // The links of the AI folders to Stack's skills hold the absolute path of the data folder.
+    let skills = layout.old.join("skills");
+    for folder in skill_folders(layout, root) {
+        for entry in fs::read_dir(folder).into_iter().flatten().flatten() {
+            changes.extend(link_change(&entry.path(), None, "skills", &skills));
+        }
+    }
     // A Python environment of a project names the interpreter it was made with.
     for project in project_folders(root) {
         let venv = project.join(".venv");
@@ -188,6 +196,38 @@ pub fn find(layout: &Layout, root: &Path) -> Result<Vec<Change>> {
     }
     changes.sort_by(|a, b| (a.inside, &a.path).cmp(&(b.inside, &b.path)).reverse());
     Ok(changes)
+}
+
+/// The folders of the AIs that get skills: the built-in ones and the custom ones of the skills
+/// index (`skills/index.json` in `root`). Only folders under the home count.
+fn skill_folders(layout: &Layout, root: &Path) -> Vec<PathBuf> {
+    let mut raw: Vec<String> = ["~/.claude/skills", "~/.agents/skills", "~/.gemini/skills"]
+        .map(String::from)
+        .to_vec();
+    let index: Option<serde_json::Value> =
+        crate::core::json::read_regular(&root.join("skills/index.json"), Some(1_048_576)).ok();
+    if let Some(agents) = index.as_ref().and_then(|v| v["agents"].as_object()) {
+        raw.extend(
+            agents
+                .values()
+                .filter_map(|a| a["folder"].as_str().map(String::from)),
+        );
+    }
+    let mut folders: Vec<PathBuf> = vec![];
+    for text in raw {
+        let path = match text.strip_prefix("~/") {
+            Some(rest) => layout.home.join(rest),
+            None => PathBuf::from(&text),
+        };
+        let plain = path.is_absolute()
+            && path
+                .components()
+                .all(|c| !matches!(c, std::path::Component::ParentDir));
+        if plain && path.starts_with(&layout.home) && !folders.contains(&path) {
+            folders.push(path);
+        }
+    }
+    folders
 }
 
 /// The folders of the registered projects (`projects/<id>.json`).

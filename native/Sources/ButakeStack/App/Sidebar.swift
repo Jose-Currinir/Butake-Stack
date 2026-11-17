@@ -237,6 +237,7 @@ private struct SitesHeader: View {
             .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
             .contextMenu {
                 Button { store.groupNaming = .new(sites: []) } label: { Label(L("menu.newFolder"), systemImage: Symbols.newFolder) }
+                    .accessibilityIdentifier("sidebar.newFolder")
             }
             .dropDestination(for: String.self) { ids, _ in
                 for id in ids { store.move(id, to: nil) }
@@ -265,8 +266,10 @@ private struct GroupRow: View {
                 Text(group.name).lineLimit(1)
                 Spacer()
                 if running > 0 {
-                    Text("\(running)").font(.caption.weight(.bold)).foregroundStyle(Brand.success)
-                        .padding(.horizontal, 5).padding(.vertical, 1).background(Brand.success.opacity(0.14), in: Capsule())
+                    // White on solid green: it reads the same on a plain row and over the selection's
+                    // color (green on a faint green could not be read on the selected row).
+                    Text("\(running)").font(.caption.weight(.bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 5).padding(.vertical, 1).background(Brand.success, in: Capsule())
                         .help(String(format: L("groups.running"), running))
                 }
                 Text("\(members.count)").font(.subheadline.weight(.medium)).foregroundStyle(.secondary).monospacedDigit()

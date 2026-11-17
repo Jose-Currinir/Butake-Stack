@@ -35,12 +35,21 @@ pub struct BranchChanges {
 }
 
 fn git(path: &Path, args: &[&str]) -> Result<String> {
+    // A repository is the user's, but not necessarily trusted (a clone): its own configuration
+    // must not be able to run a program (`core.fsmonitor`, hooks) when Stack reads its state.
     let output = Command::new("/usr/bin/git")
+        .args([
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+        ])
         .arg("-C")
         .arg(path)
         .args(args)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
+        .env("GIT_TERMINAL_PROMPT", "0")
         .env("HOME", Store::home().unwrap_or_default())
         .env("GIT_OPTIONAL_LOCKS", "0")
         .env("LANG", "en_US.UTF-8")

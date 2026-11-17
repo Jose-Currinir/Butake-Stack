@@ -109,7 +109,15 @@ import Testing
     let closing = highlighter.spans("cierra */ return a", inBlockComment: &inComment)
     #expect(!inComment && closing.contains { $0.1 == colors.keyword })
     #expect(CodeLanguage.of("views/home.blade.php") == .blade)
-    #expect(CodeLanguage.of(".env.local") == .shell)
+    #expect(CodeLanguage.of(".env.local") == .dotenv)
+    let env = SyntaxHighlighter(language: .dotenv, colors: colors)
+    var none = false
+    let line = env.spans("APP_URL=http://tienda.test:{port:tienda}", inBlockComment: &none)
+    #expect(line.first?.0 == NSRange(location: 0, length: 7) && line.first?.1 == colors.tag)
+    #expect(line.contains { $0.1 == colors.function } && line.last?.1 == colors.variable)
+    #expect(env.spans("APP_DEBUG=true", inBlockComment: &none).last?.1 == colors.keyword)
+    #expect(env.spans("DB_PORT=3306", inBlockComment: &none).last?.1 == colors.number)
+    #expect(env.spans("# nota", inBlockComment: &none).first?.1 == colors.comment)
     #expect(CodeLanguage.of(nil) == .plain)
 }
 
@@ -228,7 +236,7 @@ import Testing
     }
     }
     // Accessibility identifiers written the same way; they are not texts.
-    let identifiers: Set<String> = ["git.diff.text", "git.diff.image", "git.diff.sections", "git.diff.tooLarge", "git.diff.unchanged",
+    let identifiers: Set<String> = ["git.diff.text", "git.diff.image", "git.diff.sections", "git.diff.tooLarge", "git.diff.unchanged", "git.diff.failed",
                                     "git.editor.text", "git.tree.list"]
     let missing = Set(keys).subtracting(identifiers).filter { localized($0) == nil }
     #expect(missing.isEmpty, "Missing texts: \(missing.sorted().joined(separator: ", "))")

@@ -27,12 +27,18 @@ struct ConnectionEditor: View {
         _sshUser = State(initialValue: original.ssh?.user ?? "")
         _identity = State(initialValue: original.ssh?.key.map { "stack:\($0)" } ?? original.ssh?.identity ?? "")
     }
-    var keys: [String] {
+    /// Private-key files in `~/.ssh`. Computed once off the main thread (`.task`), reading only each file's
+    /// first bytes, never the whole key and never on each redraw.
+    @State private var keys: [String] = []
+    nonisolated static func scanKeys() -> [String] {
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
         let files = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+        let marker = Data("-----BEGIN".utf8)
         return files.filter { name in
-            !name.hasSuffix(".pub") && !["known_hosts", "known_hosts.old", "config", "authorized_keys"].contains(name) && !name.hasPrefix(".")
-                && ((try? String(contentsOf: dir.appendingPathComponent(name), encoding: .utf8))?.hasPrefix("-----BEGIN") ?? false)
+            guard !name.hasSuffix(".pub"), !["known_hosts", "known_hosts.old", "config", "authorized_keys"].contains(name), !name.hasPrefix("."),
+                  let handle = try? FileHandle(forReadingFrom: dir.appendingPathComponent(name)) else { return false }
+            defer { try? handle.close() }
+            return ((try? handle.read(upToCount: marker.count)) ?? Data()) == marker
         }.sorted().map { dir.appendingPathComponent($0).path }
     }
     var body: some View {
@@ -90,7 +96,10 @@ struct ConnectionEditor: View {
             .formStyle(.grouped)
             .frame(minHeight: 420)
         }
-        .task { await keyring.loadKeys() }
+        .task {
+            keys = await Task.detached { Self.scanKeys() }.value
+            await keyring.loadKeys()
+        }
     }
 
     private var serverSection: some View {

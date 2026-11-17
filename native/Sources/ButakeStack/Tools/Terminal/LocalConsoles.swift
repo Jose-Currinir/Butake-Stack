@@ -91,7 +91,8 @@ struct LocalLaunch: Hashable, Sendable {
 
     /// How `program` starts in `directory`: the shell as a login shell; an assistant through the
     /// login shell (so it finds what the user's profile adds to PATH), which then becomes it. The
-    /// command line is fixed: the program's path goes as an argument, never inside the script.
+    /// command line is fixed: the program's path goes as an argument, never inside the script, and
+    /// so does what the session adds after it (`TerminalSession.watchUsage`).
     static func launch(_ program: LocalProgram, directory: String, project: String? = nil, projectEnvironment: [String: String] = [:]) -> LocalLaunch {
         let shell = loginShell()
         let environment = environment(shell: shell, project: projectEnvironment)
@@ -103,7 +104,7 @@ struct LocalLaunch: Hashable, Sendable {
         guard ["zsh", "bash", "sh", "ksh", "dash"].contains(name) else {
             return LocalLaunch(program: program.id, executable: executable, directory: directory, environment: environment, project: project)
         }
-        return LocalLaunch(program: program.id, executable: shell, arguments: ["-l", "-i", "-c", "exec \"$0\"", executable],
+        return LocalLaunch(program: program.id, executable: shell, arguments: ["-l", "-i", "-c", "exec \"$0\" \"$@\"", executable],
                            directory: directory, environment: environment, project: project)
     }
 
@@ -170,7 +171,8 @@ enum SessionReaper {
     /// main thread: it waits up to `grace` for them to end by themselves.
     static func end(leader: pid_t, members: [pid_t], grace: Duration = .milliseconds(1500)) async {
         guard leader > 0 else { return }
-        for pid in members { kill(pid, SIGHUP) }
+        // Only what still belongs to the session: a pid reused since the scan must not get the signal.
+        for pid in members where pid == leader || getsid(pid) == leader { kill(pid, SIGHUP) }
         let deadline = ContinuousClock.now + grace
         var status: Int32 = 0
         var reaped = false
@@ -184,6 +186,11 @@ enum SessionReaper {
             try? await Task.sleep(for: .milliseconds(50))
         }
         for pid in members where pid == leader ? !reaped : (alive(pid) && getsid(pid) == leader) { kill(pid, SIGKILL) }
-        if !reaped { waitpid(leader, &status, 0) }
+        // Bounded: SIGKILL cannot be ignored, so a short wait is enough and never blocks the thread for good.
+        for _ in 0..<40 where !reaped {
+            let result = waitpid(leader, &status, WNOHANG)
+            reaped = result == leader || (result == -1 && errno == ECHILD)
+            if !reaped { try? await Task.sleep(for: .milliseconds(25)) }
+        }
     }
 }

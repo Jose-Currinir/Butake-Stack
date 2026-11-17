@@ -111,6 +111,45 @@ private func isolateGit(remotes: URL) {
     #expect(GitHostedRepository(remote: "https://github.fake.invalid/acme/tienda.git", endpoints: .loopback(port: 9))?.provider == .github)
 }
 
+@Test func bitbucketSSHUsesItsNewNameAndStillReadsTheOldOne() {
+    let real = GitHostingEndpoints.production
+    let expected = GitHostedRepository(provider: .bitbucket, owner: "equipo", name: "app")
+    for remote in ["git@ssh.bitbucket.org:equipo/app.git", "ssh://git@ssh.bitbucket.org/equipo/app.git", "git@bitbucket.org:equipo/app.git",
+                   "ssh://git@altssh.bitbucket.org:443/equipo/app.git"] {
+        #expect(GitHostedRepository(remote: remote, endpoints: real) == expected, "\(remote)")
+    }
+    let addresses = GitHostedRepository.cloneAddresses(provider: .bitbucket, path: "equipo/app", endpoints: real)
+    #expect(addresses.ssh == "git@ssh.bitbucket.org:equipo/app.git" && addresses.https == "https://bitbucket.org/equipo/app.git")
+    #expect(GitHostedRepository.cloneAddresses(provider: .github, path: "a/b", endpoints: real).ssh == "git@github.com:a/b.git")
+}
+
+@Test func listsFollowTheProvidersNextAddressAndLimitsSayWhenToRetry() {
+    #expect(GitHostingClient.nextLink(#"<https://api.github.com/user/repos?page=2>; rel="next", <https://api.github.com/user/repos?page=9>; rel="last""#)
+            == "https://api.github.com/user/repos?page=2")
+    #expect(GitHostingClient.nextLink(#"<https://api.github.com/user/repos?page=1>; rel="prev""#) == nil)
+    #expect(GitHostingClient.nextLink(nil) == nil)
+    let url = URL(string: "https://api.github.com/user")!
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    func response(_ headers: [String: String]) -> HTTPURLResponse { HTTPURLResponse(url: url, statusCode: 403, httpVersion: nil, headerFields: headers)! }
+    #expect(GitHostingClient.retryDate(response(["Retry-After": "90"]), now: now) == now.addingTimeInterval(90))
+    #expect(GitHostingClient.retryDate(response(["X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1000300"]), now: now) == Date(timeIntervalSince1970: 1_000_300))
+    #expect(GitHostingClient.retryDate(response([:]), now: now) == nil)
+    // A 403 with the limit spent is «rate limited», whatever the message says; any other is «forbidden».
+    let limited = GitHostingClient.failure(status: 403, data: Data(), provider: .github, token: "x", headers: response(["X-RateLimit-Remaining": "0"]))
+    #expect(limited.code == .rateLimited)
+    #expect(GitHostingClient.failure(status: 403, data: Data(), provider: .github, token: "x", headers: response([:])).code == .forbidden)
+}
+
+@Test func aBranchingModelSaysWhichTypeABranchIs() throws {
+    let json = #"{"development":{"branch":{"name":"develop"}},"production":{"branch":{"name":"main"}},"branch_types":[{"kind":"feature","prefix":"feature/"}]}"#
+    let model = try JSONDecoder().decode(BBBranchingModel.self, from: Data(json.utf8))
+    #expect(model.type(of: "main") == "production" && model.type(of: "develop") == "development")
+    #expect(model.type(of: "feature/pagos") == "feature" && model.type(of: "otra") == nil)
+    #expect(!model.unresolved)
+    let main = try JSONDecoder().decode(BBBranchingModel.self, from: Data(#"{"development":{"use_mainbranch":true},"production":{"branch":{"name":"prod"}}}"#.utf8))
+    #expect(main.unresolved)
+}
+
 @Test func requestsOnlyGoToTheProvidersOwnAPI() {
     let real = GitHostingEndpoints.production
     #expect(real.allows(URL(string: "https://api.github.com/user")!, for: .github))

@@ -143,10 +143,15 @@ impl Supervisor {
             ensure!(ids.insert(&spec.id), "duplicate_process");
             if spec.autostart {
                 ensure!(
-                    spec.executable.canonicalize()?.is_file(),
+                    spec.executable
+                        .canonicalize()
+                        .is_ok_and(|path| path.is_file()),
                     "invalid_executable"
                 );
-                ensure!(spec.cwd.canonicalize()?.is_dir(), "invalid_path");
+                ensure!(
+                    spec.cwd.canonicalize().is_ok_and(|path| path.is_dir()),
+                    "invalid_path"
+                );
             }
         }
         // Keep unchanged processes running; stop only what changed or disappeared, in reverse
@@ -237,8 +242,21 @@ impl Supervisor {
                     .is_some_and(|e| e.spec.autostart && e.spec.blocked.is_none())
             })
             .collect();
+        // One process that cannot start must not keep the others from starting.
         for id in &autostart {
-            self.start(id).await?;
+            if let Err(error) = self.start(id).await {
+                let reason = error.to_string();
+                let entry = self.entries.get(id);
+                if let Some(entry) = entry {
+                    note(
+                        &entry.logs,
+                        &self.events,
+                        id,
+                        &format!("Stack: no se pudo iniciar ({reason})"),
+                    );
+                    transition(&entry.state, &self.events, "crashed", None).await;
+                }
+            }
         }
         // A running process whose spec changed (its `env`, arguments or the port of a project it
         // names) was stopped above: its log says why, and whether it started again.
@@ -249,14 +267,7 @@ impl Supervisor {
                 "Stack: detenido porque cambió su configuración; inícialo de nuevo"
             };
             if let Some(entry) = self.entries.get(id) {
-                if let Ok(line) = entry
-                    .logs
-                    .lock()
-                    .map_err(|_| ())
-                    .and_then(|mut l| l.append(note).map_err(|_| ()))
-                {
-                    let _ = self.events.send(json!({"event":"log","id":id,"line":line}));
-                }
+                self::note(&entry.logs, &self.events, id, note);
             }
         }
         Ok(())
@@ -279,11 +290,18 @@ impl Supervisor {
             entry.spec.executable.parent(),
             entry.spec.executable.file_name(),
         ) {
-            (Some(dir), Some(name)) => dir.canonicalize()?.join(name),
+            (Some(dir), Some(name)) => dir
+                .canonicalize()
+                .map_err(|_| anyhow::anyhow!("invalid_executable"))?
+                .join(name),
             _ => anyhow::bail!("invalid_executable"),
         };
         ensure!(executable.is_file(), "invalid_executable");
-        let cwd = entry.spec.cwd.canonicalize()?;
+        let cwd = entry
+            .spec
+            .cwd
+            .canonicalize()
+            .map_err(|_| anyhow::anyhow!("invalid_path"))?;
         ensure!(cwd.is_dir(), "invalid_path");
         let mut spec = entry.spec.clone();
         spec.executable = executable;
@@ -324,6 +342,26 @@ impl Supervisor {
             let _ = self.stop(&id).await;
         }
         self.order.clear();
+    }
+}
+/// Appends one Stack-authored line to a process log and publishes it.
+fn note(logs: &Arc<StdMutex<Logs>>, events: &broadcast::Sender<Value>, id: &str, text: &str) {
+    if let Ok(line) = logs
+        .lock()
+        .map_err(|_| ())
+        .and_then(|mut l| l.append(text).map_err(|_| ()))
+    {
+        let _ = events.send(json!({"event":"log","id":id,"line":line}));
+    }
+}
+/// Waits for a pipe reader, but not for descendants that kept the pipe open after the group died.
+async fn drain(task: JoinHandle<Result<()>>) {
+    let abort = task.abort_handle();
+    if tokio::time::timeout(Duration::from_secs(2), task)
+        .await
+        .is_err()
+    {
+        abort.abort();
     }
 }
 async fn transition(
@@ -412,6 +450,8 @@ async fn terminate(child: &mut Child, pid: u32, grace: u64) {
     // The group leader may exit while descendants ignore SIGTERM.
     kill_group(pid, libc::SIGKILL);
 }
+/// Window in which five crashes make the supervisor stop restarting a process.
+const CRASH_WINDOW: Duration = Duration::from_secs(600);
 async fn supervise(
     spec: ProcessSpec,
     state: Arc<Mutex<ProcessState>>,
@@ -450,16 +490,15 @@ async fn supervise(
                 }
                 None => "Stack: sin entorno activo de Stack en .env; no se pasa".to_string(),
             };
-            if let Ok(line) = logs
-                .lock()
-                .map_err(|_| ())
-                .and_then(|mut l| l.append(&note).map_err(|_| ()))
-            {
-                let _ = events.send(json!({"event":"log","id":spec.id,"line":line}));
-            }
+            self::note(&logs, &events, &spec.id, &note);
         }
+        // The dynamic loader's variables never pass, whatever the project's `env` says.
         command
-            .envs(&spec.environment)
+            .envs(
+                spec.environment
+                    .iter()
+                    .filter(|(key, _)| !key.starts_with("DYLD_") && !key.starts_with("LD_")),
+            )
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -488,13 +527,26 @@ async fn supervise(
             }
         }
         // A child that did not start, or came without its pipes or its pid, counts as a failed start.
-        let started = command.spawn().ok().and_then(|mut child| {
-            let pid = child.id()?;
-            let stdout = child.stdout.take()?;
-            let stderr = child.stderr.take()?;
-            Some((child, pid, stdout, stderr))
-        });
+        let started = match command.spawn() {
+            Ok(mut child) => (|| {
+                let pid = child.id()?;
+                let stdout = child.stdout.take()?;
+                let stderr = child.stderr.take()?;
+                Some((child, pid, stdout, stderr))
+            })(),
+            Err(error) => {
+                note(
+                    &logs,
+                    &events,
+                    &spec.id,
+                    &format!("Stack: no se pudo iniciar ({:?})", error.kind()),
+                );
+                None
+            }
+        };
+        let mut lived = Duration::ZERO;
         if let Some((mut child, pid, stdout, stderr)) = started {
+            let began = Instant::now();
             record(&spec.id, pid);
             transition(&state, &events, "running", Some(pid)).await;
             let out = tokio::spawn(logs::capture(
@@ -520,8 +572,9 @@ async fn supervise(
                 kill_group(pid, libc::SIGKILL);
             }
             forget(&spec.id);
-            let _ = out.await;
-            let _ = err.await;
+            drain(out).await;
+            drain(err).await;
+            lived = began.elapsed();
             if stopping {
                 break;
             }
@@ -541,15 +594,25 @@ async fn supervise(
             return;
         }
         let now = Instant::now();
+        // A process that ran for a minute starts its backoff over.
+        if lived > Duration::from_secs(60) {
+            delay = 1;
+        }
         crashes.push_back(now);
         while crashes
             .front()
-            .is_some_and(|t| now.duration_since(*t) > Duration::from_secs(60))
+            .is_some_and(|t| now.duration_since(*t) > CRASH_WINDOW)
         {
             crashes.pop_front();
         }
         transition(&state, &events, "crashed", None).await;
         if crashes.len() >= 5 {
+            note(
+                &logs,
+                &events,
+                &spec.id,
+                "Stack: se dejó de reiniciar tras 5 caídas en 10 minutos",
+            );
             return;
         }
         tokio::select! { biased;

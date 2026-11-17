@@ -87,8 +87,8 @@ async fn sync_extras(store: &Store, events: &tokio::sync::broadcast::Sender<Valu
         let previous = EXTRAS.lock().ok().and_then(|mut e| e.remove(name));
         if let Some((_, Some(task), _)) = previous {
             task.abort();
-            // The port must be free before binding it again.
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            // The listener is released only when the aborted task has unwound.
+            let _ = task.await;
         }
         let Some((port, signature)) = want else {
             continue;
@@ -105,11 +105,16 @@ async fn sync_extras(store: &Store, events: &tokio::sync::broadcast::Sender<Valu
                 };
                 (signature, Some(task), None)
             }
-            Err(_) => (
-                signature,
-                None,
-                Some(crate::web::net::listeners::port_owner(port, false).unwrap_or_default()),
-            ),
+            Err(_) => {
+                // `port_owner` runs `lsof`: keep it off the async threads.
+                let owner = tokio::task::spawn_blocking(move || {
+                    crate::web::net::listeners::port_owner(port, false)
+                })
+                .await
+                .ok()
+                .flatten();
+                (signature, None, Some(owner.unwrap_or_default()))
+            }
         };
         if let Ok(mut extras) = EXTRAS.lock() {
             extras.insert(name, entry);
@@ -192,6 +197,7 @@ pub fn request_sync(store: &Store, method: &str, params: Value, start: bool) -> 
     };
     let socket = store.directory("run")?.join("daemon.sock");
     if start && Stream::connect(&socket).is_err() {
+        use std::os::unix::process::CommandExt;
         let mut child = Command::new(std::env::current_exe()?.canonicalize()?)
             .arg("daemon")
             .env_clear()
@@ -199,13 +205,18 @@ pub fn request_sync(store: &Store, method: &str, params: Value, start: bool) -> 
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
+            .process_group(0)
             .spawn()?;
-        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let mut deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let mut exited = false;
         while Stream::connect(&socket).is_err() {
-            ensure!(
-                child.try_wait()?.is_none() && std::time::Instant::now() < deadline,
-                "daemon_start_failed"
-            );
+            // A daemon that lost the race (`daemon_already_running`) leaves; the winner opens the
+            // socket in a moment, so keep trying for a short while instead of failing.
+            if !exited && child.try_wait()?.is_some() {
+                exited = true;
+                deadline = deadline.min(std::time::Instant::now() + Duration::from_secs(3));
+            }
+            ensure!(std::time::Instant::now() < deadline, "daemon_start_failed");
             std::thread::sleep(Duration::from_millis(50));
         }
     }
@@ -221,7 +232,14 @@ pub fn request_sync(store: &Store, method: &str, params: Value, start: bool) -> 
     std::io::Read::take(std::io::BufReader::new(stream), 20 * 1024 * 1024)
         .read_until(b'\n', &mut data)?;
     let response: Value = serde_json::from_slice(&data)?;
-    ensure!(response["ok"] == true, "daemon_request_failed");
+    if response["ok"] != true {
+        // The daemon names the cause when it is a public code; anything else stays generic.
+        let code = response["error"]["code"].as_str().unwrap_or_default();
+        if let Some(code) = crate::PUBLIC_ERRORS.iter().find(|public| **public == code) {
+            anyhow::bail!("{code}");
+        }
+        anyhow::bail!("daemon_request_failed");
+    }
     Ok(response["value"].clone())
 }
 struct DaemonFiles {
@@ -287,24 +305,39 @@ pub async fn run() -> Result<()> {
         let tlds = Arc::new(store.config()?.tld);
         tokio::spawn(crate::web::net::dns::serve_tcp(listener, tlds));
     }
+    // Signals first: startup can take long (orphans, first database initialization) and must not
+    // leave the processes already started behind when it is interrupted.
+    let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    let mut interrupt = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
     let _ = crate::daemon::supervisor::PID_DIR.set(store.directory("run")?.join("pids"));
     crate::daemon::supervisor::reap_orphans().await;
     let mut supervisor = Supervisor::new(store.directory("logs")?);
-    supervisor.reload(specs(&store, listeners.fds())?).await?;
-    sync_extras(&store, &supervisor.events).await;
+    let started = async {
+        supervisor.reload(specs(&store, listeners.fds())?).await?;
+        sync_extras(&store, &supervisor.events).await;
+        Ok::<(), anyhow::Error>(())
+    }
+    .await;
+    if let Err(error) = started {
+        supervisor.shutdown().await;
+        return Err(error);
+    }
     let observer = supervisor.reader();
     let supervisor = Arc::new(Mutex::new(supervisor));
     let (shutdown, mut stopped) = watch::channel(false);
-    let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-    let mut interrupt = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
     loop {
         tokio::select! { biased;
             _ = term.recv() => break,
             _ = interrupt.recv() => break,
             _ = stopped.changed() => break,
             connection = listener.accept() => {
-                let (stream, _) = connection?;
-                if !same_user(&stream)? { continue; }
+                // A transient accept error (descriptors exhausted) or a client that left at once
+                // must not end the daemon and orphan its processes.
+                let Ok((stream, _)) = connection else {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                };
+                if !same_user(&stream).unwrap_or(false) { continue; }
                 let supervisor = supervisor.clone(); let shutdown = shutdown.clone();
                 let observer = observer.clone();
                 tokio::spawn(async move { let _ = serve(stream, supervisor, observer, shutdown).await; });
@@ -330,6 +363,30 @@ fn same_user(stream: &UnixStream) -> Result<bool> {
     #[cfg(not(target_os = "macos"))]
     {
         Ok(stream.peer_cred()?.uid() == unsafe { libc::geteuid() })
+    }
+}
+
+/// Notes why the daemon could not run in `logs/daemon.err` (0600), and on stderr in debug mode.
+pub fn record_failure(error: &anyhow::Error) {
+    if std::env::var_os("BUTAKE_STACK_DEBUG").is_some() {
+        eprintln!("{error:#}");
+    }
+    let Ok(store) = Store::from_environment() else {
+        return;
+    };
+    let Ok(dir) = store.directory("logs") else {
+        return;
+    };
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(dir.join("daemon.err"))
+    {
+        use std::io::Write;
+        let _ = writeln!(file, "{error:#}");
     }
 }
 
@@ -424,7 +481,13 @@ async fn serve(
         };
         let response = match result {
             Ok(value) => json!({"id":id,"ok":true,"value":value}),
-            Err(_) => failure(id, "daemon_request_failed", "daemon.requestFailed"),
+            Err(error) => {
+                let code = error.to_string();
+                match crate::PUBLIC_ERRORS.iter().find(|public| **public == code) {
+                    Some(code) => failure(id, code, &format!("error.{code}")),
+                    None => failure(id, "daemon_request_failed", "daemon.requestFailed"),
+                }
+            }
         };
         write(&mut writer, &response).await?;
         if request["method"] == "shutdown" && response["ok"] == true {

@@ -88,6 +88,11 @@ const CATALOG: &[Spec] = &[
         version: "1.0.0",
         requires: &["git"],
     },
+    Spec {
+        id: "skills",
+        version: "1.0.0",
+        requires: &[],
+    },
 ];
 
 fn is_receiver(id: &str) -> bool {
@@ -162,6 +167,7 @@ fn has_data(store: &Store, id: &str) -> bool {
             .unwrap_or(false),
         "vault" => store.root().join("vault").exists(),
         "git" => crate::git::repositories::has_data(store),
+        "skills" => crate::skills::has_data(store),
         "mail" => store
             .directory("mail")
             .ok()
@@ -215,6 +221,8 @@ pub fn tool_of(method: &str) -> Option<&'static str> {
         Some("aws")
     } else if method.starts_with("gcp") {
         Some("gcp")
+    } else if method.starts_with("skills") {
+        Some("skills")
     } else if crate::git::is_method(method) {
         Some("git")
     } else if method.starts_with("mail") || method == "setMail" {
@@ -334,6 +342,7 @@ pub fn remove(store: &Store, id: &str, delete_data: bool, confirmed: bool) -> Re
             }
             "ssh-terminal" => crate::ssh::hosts::delete_all(store)?,
             "git" => crate::git::repositories::delete_all(store)?,
+            "skills" => crate::skills::delete_all(store)?,
             _ => {}
         }
     }

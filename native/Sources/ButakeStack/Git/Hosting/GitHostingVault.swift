@@ -6,8 +6,10 @@ import Foundation
 /// token and without asking macOS for anything. A token is read the first time a request needs
 /// it, then kept in memory for the session.
 ///
-/// Never on disk, in a log, in the engine (it does not see them: the app calls the provider's API
-/// itself), in a process's arguments or on screen. Tests and QA windows use a store in memory.
+/// Never on disk, in a log, in a process's arguments or on screen. The app calls the provider's
+/// API itself; the engine only sees a token with a transfer over HTTPS to that provider, in
+/// memory, to answer Git (`GitHosting.transferCredentials`). Tests and QA windows use a store in
+/// memory.
 final class GitHostingVault: @unchecked Sendable {
     let items: KeychainItems
     private let lock = NSLock()

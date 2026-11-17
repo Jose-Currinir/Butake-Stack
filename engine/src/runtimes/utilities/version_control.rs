@@ -34,9 +34,9 @@ pub(super) fn git_release(sums: &str) -> Result<(String, String)> {
 }
 
 /// The official source of the newest Git release, checked against the SHA-256 kernel.org lists
-/// for it, built with Apple's compiler. Without Apple's developer tools nothing is downloaded.
+/// for it, built with Apple's compiler. Without Apple's developer tools, or with Xcode's license pending, nothing is downloaded.
 pub(super) fn install_git(store: &Store, dir: &Path) -> Result<Value> {
-    ensure!(apple_developer_dir().is_some(), "clt_not_installed");
+    ensure_apple_toolchain()?;
     progress::step("downloadSource");
     let (version, sha256) = git_release(&fetch_text(
         &format!("{GIT_BASE}/sha256sums.asc"),
@@ -97,7 +97,7 @@ pub(super) fn place_git(
         "git",
         &format!("SHA-256 verificado ({sha256}), el que publica kernel.org"),
     );
-    ensure!(apple_developer_dir().is_some(), "clt_not_installed");
+    ensure_apple_toolchain()?;
     let home = home()?;
     let root = home.join(".local/share/butake-stack/git");
     ensure!(

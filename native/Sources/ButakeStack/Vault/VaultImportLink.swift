@@ -44,10 +44,25 @@ enum VaultImportLink {
 }
 
 extension VaultSession {
-    /// The preview of «Importar carpeta…» for these folders; `linked` says a link proposed them.
+    /// The preview of «Importar carpeta…» for these folders; `linked` says a link proposed them. The
+    /// scan runs in the background (`scanningImport` says so); the sheet opens when it ends.
     func previewImport(_ folders: [URL], linked: Bool = false) {
-        guard isUnlocked else { return }
-        let groups = markDuplicates(VaultFolder.scan(folders))
+        guard isUnlocked, !scanningImport else { return }
+        scanningImport = true
+        Task { await scanImport(folders, linked: linked) }
+    }
+
+    /// The scan and the duplicate check of `previewImport`, off the main actor with a copy of the
+    /// index (values only); the sheet is set here, once it ends.
+    func scanImport(_ folders: [URL], linked: Bool) async {
+        scanningImport = true
+        defer { scanningImport = false }
+        let generation = sessionGeneration
+        let snapshot = index
+        let groups = await Task.detached(priority: .userInitiated) {
+            Self.markDuplicates(VaultFolder.scan(folders), in: snapshot)
+        }.value
+        guard isUnlocked, sessionGeneration == generation else { return }
         if groups.isEmpty { message = L("vault.folderEmpty"); return }
         importFolders = folders.map(\.lastPathComponent)
         sheet = .importFolder(groups, linked: linked ? folders.map(\.path) : [])

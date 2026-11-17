@@ -62,6 +62,7 @@ struct Tech: Hashable {
         // (Material Icon Theme, MIT, in Logos/); AWS, its servers in its orange.
         case "aws": Tech(id: id, title: "AWS CLI", symbol: Symbols.server, color: 0xFF9900)
         case "gcp": Tech(id: id, title: "Google Cloud", svg: "gcp", color: 0x4285F4)
+        case "skills": Tech(id: id, title: L("skills.title"), symbol: Symbols.allSkills, color: 0x14B8A6)
         case "ai": Tech(id: id, title: L("profile.ai"), symbol: Symbols.ai, color: 0x7D5BED)
         case "cocoapods": Tech(id: id, title: "CocoaPods", symbol: "shippingbox.fill", color: 0xEE3322)
         case "watchman": Tech(id: id, title: "Watchman", symbol: "eye.fill", color: 0x4267B2)

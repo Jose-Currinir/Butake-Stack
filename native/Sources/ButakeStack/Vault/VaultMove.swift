@@ -85,7 +85,10 @@ import Foundation
         guard let environment = site.environments.first(where: { $0.id == target.id }),
               pairs.allSatisfy({ pair in environment.entries.contains { $0.key == pair.0 && $0.secret && $0.value.isEmpty } }),
               let stored = try? secrets.values(site: project, env: target.id),
-              values.allSatisfy({ stored[$0.key] == $0.value }) else { throw Failure.verification }
+              values.allSatisfy({ stored[$0.key] == $0.value }) else {
+            restore()
+            throw Failure.verification
+        }
         vault.disk.append(VaultAccessEntry(action: .moveToEnvironments, target: item.id))
         return pairs.count
     }
@@ -118,12 +121,21 @@ import Foundation
         } catch let failure as EngineFailure where failure.code == "ssh_key_passphrase" {
             throw Failure.passphrase
         }
-        if key.encrypted == true, let passphrase { SSHKeyVault.set(passphrase, for: key.id, label: key.name) }
+        if key.encrypted == true, let passphrase, !SSHKeyVault.set(passphrase, for: key.id, label: key.name) {
+            await StackStore.shared.notify(L("ssh.keys.keychainFailed"))
+        }
         let keys = try await engine.call(json: try JSONSerialization.data(withJSONObject: ["method": "sshKeys"]), as: [SSHKey].self)
         func bare(_ fingerprint: String) -> String { fingerprint.replacingOccurrences(of: "SHA256:", with: "") }
         let expected = item.metadata.value("vault.meta.fingerprint").map(bare)
         guard keys.contains(where: { $0.id == key.id && $0.fingerprint == key.fingerprint }),
-              expected.map({ $0 == bare(key.fingerprint) }) ?? true else { throw Failure.verification }
+              expected.map({ $0 == bare(key.fingerprint) }) ?? true else {
+            // The key that was just imported is not the item's: remove it so a retry does not duplicate it.
+            if keys.contains(where: { $0.id == key.id }),
+               (try? await engine.call(json: try JSONSerialization.data(withJSONObject: ["method": "sshKeyDelete", "id": key.id]), as: Bool.self)) == true {
+                SSHKeyVault.delete(key.id)
+            }
+            throw Failure.verification
+        }
         vault.disk.append(VaultAccessEntry(action: .moveToKeys, target: item.id))
         return key
     }

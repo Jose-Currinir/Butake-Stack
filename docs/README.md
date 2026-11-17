@@ -22,6 +22,7 @@ en [README.md](../README.md).
 - [herramientas/dumps.md](herramientas/dumps.md): receptor de `dump()`.
 - [herramientas/aws.md](herramientas/aws.md): perfiles de AWS CLI.
 - [herramientas/google-cloud.md](herramientas/google-cloud.md): cuentas de gcloud y enlace por proyecto.
+- [herramientas/skills.md](herramientas/skills.md): skills de IA en un solo lugar, enlazadas a Claude, Codex y Gemini.
 - [herramientas/registros.md](herramientas/registros.md): registros de los procesos (base).
 - [como-agregar-una-herramienta.md](como-agregar-una-herramienta.md): pasos y archivos para una herramienta nueva.
 
@@ -36,4 +37,4 @@ en [README.md](../README.md).
 
 - [aws.md](aws.md): aviso de traslado a `herramientas/aws.md` (lo nombra el código).
 - `presentacion/`: capturas que usa el sitio (`site/`), en claro y oscuro. Se regeneran con `python3 site/scripts/capturas.py` (ventana de QA y almacén de demostración temporal).
-- [.compliance/RESUMEN.md](../.compliance/RESUMEN.md): cumplimiento de la Ley 21.719, con el índice de requisitos R1 a R22.
+- [.compliance/RESUMEN.md](../.compliance/RESUMEN.md): cumplimiento de la Ley 21.719, con el índice de requisitos R1 a R23.

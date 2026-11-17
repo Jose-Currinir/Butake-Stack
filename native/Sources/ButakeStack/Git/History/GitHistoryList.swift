@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Historial in the content column: the branch's commits with a simple graph, author, relative date
+/// Historial, across the top of the detail: the branch's commits with a simple graph, author, relative date
 /// and the marks of branches and tags; a search with scopes (message, author, file, date,
 /// identifier, content); pages at the end; «Organizar commits…», «Sincronizar ramas…» and «Más…» at
 /// the foot. A reorganization offers «Deshacer» on top while it can be undone.
@@ -105,6 +105,11 @@ private struct GitCommitList: View {
         let locals = Set(repository.snapshot.branches.map(\.name))
         let graph = history.searchingCommits ? nil : history.graph(commits, localBranches: locals)
         List(selection: $history.selected) {
+            if !commits.isEmpty {
+                GitCommitColumns(graphWidth: graph.map { GitCommitGraphCell.width(lanes: $0.width, lane: GitCommitGraphCell.laneWidth(lanes: $0.width)) })
+                    .listRowInsets(EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 8))
+                    .selectionDisabled()
+            }
             ForEach(Array(commits.enumerated()), id: \.element.hash) { index, commit in
                 GitCommitRow(commit: commit, row: graph?.rows[safe: index], lanes: graph?.width, localBranches: locals,
                              selected: history.selected == commit.hash)
@@ -126,10 +131,11 @@ private struct GitCommitList: View {
         .environment(\.defaultMinListRowHeight, GitCommitRow.height)
         .themedScroll()
         .accessibilityIdentifier("git.history.list")
+        .safeAreaInset(edge: .top, spacing: 0) { GitHistoryFailureNotice(history: history) }
         .overlay {
             if history.searching && commits.isEmpty {
                 ProgressView()
-            } else if commits.isEmpty {
+            } else if commits.isEmpty, history.readFailure == nil {
                 if !history.search.isEmpty {
                     ContentUnavailableView {
                         Label(L("git.history.noResults"), systemImage: Symbols.search)
@@ -144,12 +150,15 @@ private struct GitCommitList: View {
     }
 }
 
-/// A commit: its lane of the graph, subject (up to two lines), branch and tag marks, author and
-/// relative date. Every row is equally tall, so the graph's lanes join from one row to the next; a
-/// graph with many lanes narrows them and leaves the width to the message.
+/// A commit, one line across the detail: its lane of the graph, the marks of its branches and tags,
+/// the subject and, in columns, identifier, author and date. Every row is equally tall, so the
+/// graph's lanes join from one row to the next; a graph with many lanes narrows them.
 struct GitCommitRow: View {
-    /// Two lines of message and one of details, at the app's text size.
-    @MainActor static var height: CGFloat { TextScale.points(54) }
+    @MainActor static var height: CGFloat { TextScale.points(26) }
+    /// Widths of the columns after the description, shared with the header.
+    @MainActor static var hashWidth: CGFloat { TextScale.points(70) }
+    @MainActor static var authorWidth: CGFloat { TextScale.points(124) }
+    @MainActor static var dateWidth: CGFloat { TextScale.points(150) }
     let commit: GitCommitSummary
     let row: GitGraphRow?
     let lanes: Int?
@@ -157,37 +166,51 @@ struct GitCommitRow: View {
     let selected: Bool
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             if let row {
                 GitCommitGraphCell(row: row, selected: selected, lanes: lanes,
                                    laneWidth: GitCommitGraphCell.laneWidth(lanes: lanes ?? row.laneCount))
                     .frame(height: Self.height)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(commit.subject).font(.uiBody).lineLimit(2).truncationMode(.tail)
-                HStack(spacing: 4) {
-                    let references = GitCommitReference.parse(commit.refs, localBranches: localBranches)
-                    if let first = references.first {
-                        GitReferenceMark(reference: first).layoutPriority(1)
-                        if references.count > 1 {
-                            Text(verbatim: "+\(references.count - 1)").font(.uiCaption).foregroundStyle(.secondary)
-                                .help(references.dropFirst().map(\.name).joined(separator: ", "))
-                        }
-                    }
-                    Text(commit.author).lineLimit(1)
-                    if let date = commit.date {
-                        Text(verbatim: "·")
-                        Text(date, format: .relative(presentation: .named)).lineLimit(1)
-                    }
+            HStack(spacing: 6) {
+                let references = GitCommitReference.parse(commit.refs, localBranches: localBranches)
+                ForEach(references.prefix(2)) { GitReferenceMark(reference: $0).frame(maxWidth: TextScale.points(130), alignment: .leading) }
+                if references.count > 2 {
+                    Text(verbatim: "+\(references.count - 2)").font(.uiCaption).foregroundStyle(.secondary).fixedSize()
+                        .help(references.dropFirst(2).map(\.name).joined(separator: ", "))
                 }
-                .font(.uiCaption).foregroundStyle(.secondary)
+                Text(commit.subject).font(.uiBody).lineLimit(1).truncationMode(.tail).layoutPriority(1)
             }
-            Spacer(minLength: 0)
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading).clipped()
+            Group {
+                Text(commit.hash.prefix(8)).font(.uiCaption.monospaced()).frame(width: Self.hashWidth, alignment: .leading)
+                Text(commit.author).frame(width: Self.authorWidth, alignment: .leading)
+                Text(commit.date.map { $0.formatted(date: .numeric, time: .shortened) } ?? "").frame(width: Self.dateWidth, alignment: .leading)
+            }
+            .font(.uiCallout).foregroundStyle(.secondary).lineLimit(1)
         }
         .frame(height: Self.height)
         .help("\(commit.subject)\n\(commit.hash.prefix(10)) · \(commit.author)")
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("git.history.row.\(commit.hash.prefix(7))")
+    }
+}
+
+/// The titles over the commits' columns.
+struct GitCommitColumns: View {
+    /// The graph's column in the rows under it.
+    var graphWidth: CGFloat?
+    var body: some View {
+        HStack(spacing: 8) {
+            if let graphWidth { Color.clear.frame(width: graphWidth, height: 1) }
+            Text(L("git.history.column.description")).frame(maxWidth: .infinity, alignment: .leading)
+            Text(L("git.history.column.commit")).frame(width: GitCommitRow.hashWidth, alignment: .leading)
+            Text(L("git.history.column.author")).frame(width: GitCommitRow.authorWidth, alignment: .leading)
+            Text(L("git.history.column.date")).frame(width: GitCommitRow.dateWidth, alignment: .leading)
+        }
+        .font(.uiCaption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
+        .frame(height: GitCommitRow.height)
+        .accessibilityHidden(true)
     }
 }
 
@@ -229,16 +252,29 @@ private struct GitContentMatchList: View {
         .listStyle(.sidebar)
         .themedScroll()
         .accessibilityIdentifier("git.history.matches")
+        .safeAreaInset(edge: .top, spacing: 0) { GitHistoryFailureNotice(history: history) }
         .overlay {
             if history.searching && matches.isEmpty {
                 ProgressView()
-            } else if matches.isEmpty {
+            } else if matches.isEmpty, history.readFailure == nil {
                 ContentUnavailableView {
                     Label(L("git.history.noResults"), systemImage: Symbols.search)
                 } description: {
                     Text(history.searchNote ?? String(format: L("git.history.noContentDetail"), history.search))
                 }
             }
+        }
+    }
+}
+
+/// Why the history or a search failed, above the list (an empty list would read as «sin resultados»).
+private struct GitHistoryFailureNotice: View {
+    let history: GitHistory
+    var body: some View {
+        if let failure = history.readFailure {
+            Notice(.error, failure.title, detail: failure.detail.isEmpty ? nil : failure.detail)
+                .padding(8)
+                .accessibilityIdentifier("git.history.failure")
         }
     }
 }

@@ -6,7 +6,7 @@ extension Symbols {
 }
 
 /// The Git tool's content column. With a repository open: the repository selector on top and,
-/// under it, the list of the tab on screen (files, branches…). With none: the list of
+/// under it, the repository's sidebar (`GitSidebar`). With none: the list of
 /// repositories itself, ready to open one.
 struct GitContentList: View {
     @Bindable var tool: GitTool
@@ -19,7 +19,7 @@ struct GitContentList: View {
                 VStack(spacing: 0) {
                     GitRepositoryPicker(tool: tool, repository: repository)
                     Divider()
-                    tool.tab.list(repository).id(repository.root)
+                    GitSidebar(tool: tool, repository: repository).id(repository.root)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {
@@ -92,10 +92,11 @@ struct GitRepositoryChooser: View {
 
     var body: some View {
         // A project of several parts gathers its repositories under its name; the rest as before.
-        let composites = StackStore.shared.composites.map { ($0, tool.entries(of: $0).filter(matches)) }.filter { !$0.1.isEmpty }
+        let all = tool.entries
+        let composites = StackStore.shared.composites.map { ($0, tool.entries(of: $0, in: all).filter(matches)) }.filter { !$0.1.isEmpty }
         let grouped = Set(composites.flatMap { $0.1.map(\.path) })
-        let projects = tool.entries.filter { $0.project != nil && matches($0) && !grouped.contains($0.path) }
-        let added = tool.entries.filter { $0.project == nil && matches($0) && !grouped.contains($0.path) }
+        let projects = all.filter { $0.project != nil && matches($0) && !grouped.contains($0.path) }
+        let added = all.filter { $0.project == nil && matches($0) && !grouped.contains($0.path) }
         let recents = recent.filter(matches)
         VStack(spacing: 0) {
             FilterField(text: $search, identifier: "git.repo.search", prompt: L("git.repo.search")).padding(10)

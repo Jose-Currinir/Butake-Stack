@@ -38,6 +38,9 @@ struct SSHTerminalView: View {
         VStack(spacing: 0) {
             if !workspace.tabs.isEmpty { WorkspaceTabBar(workspace: workspace) }
             content.frame(maxWidth: .infinity, maxHeight: .infinity)
+                #if DEBUG
+                .overlay(alignment: .topTrailing) { TerminalQA.usagePanel(workspace) }
+                #endif
         }
         .inspector(isPresented: Binding(get: { workspace.inspector && canInspect }, set: { workspace.inspector = $0 })) {
             if let host = shownHost {
@@ -57,6 +60,7 @@ struct SSHTerminalView: View {
             terminal.startKeepAlive()
             #if DEBUG
             await QAHooks.ssh(terminal: terminal, workspace: workspace, keyring: keyring)
+            await TerminalQA.start(workspace: workspace)
             #endif
         }
         .sheet(item: $terminal.editing) { host in SSHHostEditor(terminal: terminal, keys: keyring, original: host).themedSheet() }

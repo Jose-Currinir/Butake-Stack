@@ -102,7 +102,7 @@ enum SidebarRow: Hashable {
 
 enum SidebarLayout {
     /// Herramientas, in a fixed order: daily use first, debugging last. Registros (base) closes it.
-    static let tools = ["git", "ssh-terminal", "database-client", "vault", "mail", "dumps"]
+    static let tools = ["git", "ssh-terminal", "database-client", "vault", "skills", "mail", "dumps"]
     /// Nube: the accounts of each provider.
     static let clouds = ["aws", "gcp"]
     /// Only these can be closed; Herramientas, Nube and Componentes are short and always open.
