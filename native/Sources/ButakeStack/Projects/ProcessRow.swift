@@ -11,6 +11,7 @@ struct ProcessRow: View {
         let phase = store.phase(id)
         HStack(spacing: 10) {
             Image(systemName: phase.symbol).foregroundStyle(phase.color).font(.uiSubheadline)
+                .help(L("state.\(phase.rawValue)")).accessibilityLabel(L("state.\(phase.rawValue)"))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(process.name).font(.uiBody.weight(.medium))
@@ -28,6 +29,7 @@ struct ProcessRow: View {
                 .toggleStyle(.switch).controlSize(.small).labelsHidden()
                 .disabled(!store.daemonRunning)
                 .accessibilityLabel(process.name)
+                .accessibilityValue(L("state.\(phase.rawValue)"))
                 .accessibilityIdentifier("process.toggle.\(id)")
         }
     }
