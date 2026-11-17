@@ -22,6 +22,9 @@ struct Skill: Decodable, Identifiable, Hashable, Sendable {
 
     var modifiedDate: Date { Date(timeIntervalSince1970: TimeInterval(modified)) }
 
+    /// The page lists the support files when there are any (the engine already leaves `SKILL.md` out).
+    var showsFiles: Bool { !files.isEmpty }
+
     func matches(_ text: String) -> Bool {
         text.isEmpty || [name, id, description].contains { $0.localizedCaseInsensitiveContains(text) }
             || tags.contains { $0.localizedCaseInsensitiveContains(text) }

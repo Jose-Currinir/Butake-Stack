@@ -223,3 +223,13 @@ private let listJSON = """
     tool.requestSelection("commits")
     #expect(tool.pendingSelection == nil)
 }
+
+/// A skill with exactly one support file lists it: `files` never includes `SKILL.md`.
+@Test func aSkillWithOneSupportFileShowsIt() throws {
+    let state = try JSONDecoder().decode(SkillsState.self, from: Data(listJSON.utf8))
+    let one = try JSONDecoder().decode(Skill.self, from: Data(
+        #"{"id": "uno", "name": "Uno", "description": "", "group": "personal", "tags": [], "enabled": true, "agents": [], "files": ["helper.sh"], "modified": 1}"#.utf8))
+    #expect(one.showsFiles)
+    #expect(state.skills[0].showsFiles)
+    #expect(!state.skills[1].showsFiles)
+}

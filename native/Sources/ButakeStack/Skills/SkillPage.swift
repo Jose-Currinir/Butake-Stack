@@ -200,7 +200,7 @@ struct SkillDetail: View {
                 Text(skill.modifiedDate, format: .dateTime.day().month().year().hour().minute()).foregroundStyle(.secondary)
             }
             .accessibilityIdentifier("skills.detail.modified")
-            if skill.files.count > 1 {
+            if skill.showsFiles {
                 LabeledContent(L("skills.files")) {
                     Text(skill.files.joined(separator: ", ")).foregroundStyle(.secondary).lineLimit(2).truncationMode(.middle)
                 }
