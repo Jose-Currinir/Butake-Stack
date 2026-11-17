@@ -2937,6 +2937,11 @@
 "db.noIndexes" = "Sin índices";
 "db.noForeignKeys" = "Sin claves foráneas";
 "db.passwordStack" = "La guarda Stack (superusuario); la app no la ve";
+"db.passwordGenerateFailed" = "El sistema no pudo generar una contraseña aleatoria segura. No se cambió nada.";
+"db.userKeychainFailed" = "Usuario %@ creado, pero su contraseña no se pudo guardar en el Llavero. Quedó en el portapapeles unos segundos: guárdala ahora.";
+"db.keychainReadFailed" = "No se pudo leer el Llavero, así que no se cambió la contraseña guardada. Desbloquéalo o permite el acceso e inténtalo de nuevo.";
+"db.keychainSaveFailed" = "No se pudo guardar la contraseña en el Llavero.";
+"db.keychainRestoreFailed" = "El servidor no aceptó la contraseña y no se pudo restaurar la anterior en el Llavero: vuelve a escribirla.";
 "db.section.stack" = "Servicios de Stack";
 "db.section.saved" = "Conexiones guardadas";
 "db.tab.overview" = "Resumen";
@@ -2974,11 +2979,6 @@
 "db.root.existingField" = "Contraseña actual de root";
 "db.root.existingSave" = "Probar y guardar";
 "db.root.keychainFailed" = "MySQL aceptó la contraseña, pero no se pudo guardar en el Llavero. Se copió al portapapeles: guárdala ahora.";
-"db.passwordGenerateFailed" = "El sistema no pudo generar una contraseña aleatoria segura. No se cambió nada.";
-"db.userKeychainFailed" = "Usuario %@ creado, pero su contraseña no se pudo guardar en el Llavero. Quedó en el portapapeles unos segundos: guárdala ahora.";
-"db.keychainReadFailed" = "No se pudo leer el Llavero, así que no se cambió la contraseña guardada. Desbloquéalo o permite el acceso e inténtalo de nuevo.";
-"db.keychainSaveFailed" = "No se pudo guardar la contraseña en el Llavero.";
-"db.keychainRestoreFailed" = "El servidor no aceptó la contraseña y no se pudo restaurar la anterior en el Llavero: vuelve a escribirla.";
 "db.col.table" = "Tabla";
 "db.col.rows" = "Filas";
 "db.col.size" = "Tamaño";
