@@ -64,7 +64,10 @@ struct GitChangeTreeView<RowMenu: View>: View {
         .task(id: changes) {
             let input = changes
             // Thousands of paths are sorted off the main thread; a few hundred take under a millisecond.
-            nodes = input.count > 1_500 ? await Task.detached(priority: .userInitiated) { GitChangeTree.build(input) }.value : GitChangeTree.build(input)
+            let tree = input.count > 1_500 ? await Task.detached(priority: .userInitiated) { GitChangeTree.build(input) }.value : GitChangeTree.build(input)
+            // A detached task ignores the cancellation of this one: an older list must not overwrite a newer one.
+            guard !Task.isCancelled else { return }
+            nodes = tree
             built = true
             // Drop the marks the new list already agrees with.
             pending = pending.filter { path, included in
