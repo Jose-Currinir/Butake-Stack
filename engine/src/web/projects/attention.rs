@@ -100,6 +100,11 @@ pub fn of(
             }),
             ..Default::default()
         });
+    } else if crate::web::projects::detect::serves_project_root(project) {
+        out.push(Attention {
+            code: "serves_project_root",
+            ..Default::default()
+        });
     }
     let package = package_json(project);
     commands(store, config, project, &package, &mut out);

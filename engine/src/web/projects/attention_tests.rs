@@ -119,13 +119,13 @@ fn a_missing_script_or_program_is_said() {
     let (temp, store) = setup();
     install(&store, "node", "24.22.3");
     let folder = temp.path().join("app");
-    fs::create_dir_all(&folder).unwrap();
+    fs::create_dir_all(folder.join("public")).unwrap();
     fs::write(folder.join("package.json"), r#"{"scripts":{"dev":"vite"}}"#).unwrap();
     store
         .save(record(
             &folder,
             "app",
-            serde_json::json!({"kind": "php", "runtime": {"php": "8.4"}, "processes": [
+            serde_json::json!({"kind": "php", "docroot": "public", "runtime": {"php": "8.4"}, "processes": [
                 {"name": "web", "program": "npm", "args": ["run", "start"], "autostart": true},
                 {"name": "queue", "program": "php", "args": ["artisan", "queue:work"], "autostart": false}]}),
         ))
@@ -145,12 +145,12 @@ fn a_service_a_project_needs_is_said_and_turned_on() {
     let (temp, store) = setup();
     install(&store, "postgres", "16.16");
     let folder = temp.path().join("api");
-    fs::create_dir_all(&folder).unwrap();
+    fs::create_dir_all(folder.join("public")).unwrap();
     store
         .save(record(
             &folder,
             "api",
-            serde_json::json!({"kind": "static", "services": ["postgres", "redis"], "enabled": true}),
+            serde_json::json!({"kind": "static", "docroot": "public", "services": ["postgres", "redis"], "enabled": true}),
         ))
         .unwrap();
     let found = items(&store, "api");
@@ -208,4 +208,24 @@ fn a_served_repository_and_a_shared_port_are_said() {
     assert_eq!(found[0].code, "port_conflict");
     assert_eq!(found[0].port, Some(4176));
     assert_eq!(found[0].other.as_deref(), Some("Proyecto dos"));
+}
+
+/// A PHP or static site served from the project's own root is said (its files are all public);
+/// one served from a subfolder is not.
+#[test]
+fn a_site_served_from_the_project_root_is_said() {
+    let (temp, store) = setup();
+    for (id, docroot, said) in [("raiz", ".", true), ("publico", "public", false)] {
+        let folder = temp.path().join(id);
+        fs::create_dir_all(folder.join("public")).unwrap();
+        store
+            .save(record(
+                &folder,
+                id,
+                serde_json::json!({"kind": "php", "docroot": docroot, "enabled": false}),
+            ))
+            .unwrap();
+        let codes: Vec<_> = items(&store, id).iter().map(|i| i.code).collect();
+        assert_eq!(codes.contains(&"serves_project_root"), said, "{id}");
+    }
 }

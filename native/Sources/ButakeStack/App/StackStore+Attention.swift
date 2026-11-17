@@ -48,6 +48,7 @@ extension StackStore {
         case "service_missing": return String(format: L("attention.service_missing"), service)
         case "port_conflict": return String(format: L("attention.port_conflict"), item.port ?? 0, item.other ?? "")
         case "serves_repository": return L("attention.serves_repository")
+        case "serves_project_root": return L("attention.serves_project_root")
         case "program_missing": return String(format: L("attention.program_missing"), item.process ?? "", item.program ?? "")
         case "script_missing": return String(format: L("attention.script_missing"), item.process ?? "", item.script ?? "")
         case "script_forwards": return String(format: L("attention.script_forwards"), item.script ?? "", item.wanted ?? "")

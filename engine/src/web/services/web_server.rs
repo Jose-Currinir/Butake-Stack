@@ -60,6 +60,13 @@ fn quoted(value: &str) -> Result<String> {
     Ok(format!("\"{value}\""))
 }
 
+/// Answers 404 to any path with a segment that starts with a dot (`.env`, `.git/config`, `..`),
+/// before PHP or the file server see it, so a folder served from the project root never publishes
+/// them. Only `/.well-known/` stays reachable, and only through segments that do not start with a
+/// dot themselves (`/.well-known/../.env` is refused). Caddy's regular expressions have no
+/// look-ahead, hence the second, negated, expression.
+const HIDDEN_FILES: &str = "\t@hidden {\n\t\tpath_regexp hidden (^|/)\\.\n\t\tnot path_regexp wellknown ^/\\.well-known/([^/.][^/]*/?)*$\n\t}\n\trespond @hidden 404\n";
+
 enum Backend {
     Php(std::path::PathBuf),
     /// Port, and whether the Host header must be rewritten (Vite's allowed hosts).
@@ -176,7 +183,7 @@ pub fn caddyfile(
             }
             match &backend {
                 Backend::Php(socket) => out.push_str(&format!(
-                    "\troot * {}\n\tencode zstd gzip\n\tphp_fastcgi {}\n\tfile_server\n}}\n\n",
+                    "\troot * {}\n\tencode zstd gzip\n{HIDDEN_FILES}\tphp_fastcgi {}\n\tfile_server\n}}\n\n",
                     quoted(&root.to_string_lossy())?,
                     quoted(&format!("unix/{}", socket.to_string_lossy()))?
                 )),
@@ -191,7 +198,7 @@ pub fn caddyfile(
                     }
                 )),
                 Backend::Files => out.push_str(&format!(
-                    "\troot * {}\n\tencode zstd gzip\n\tfile_server\n}}\n\n",
+                    "\troot * {}\n\tencode zstd gzip\n{HIDDEN_FILES}\tfile_server\n}}\n\n",
                     quoted(&root.to_string_lossy())?
                 )),
             }
@@ -284,6 +291,21 @@ mod tests {
             );
         }
         assert!(file.contains("php_fastcgi \"unix/"));
+        // Dotfiles answer 404 before PHP or the file server (R-03), except `/.well-known/`.
+        let hidden = file.find("respond @hidden 404").unwrap();
+        assert!(hidden < file.find("php_fastcgi").unwrap());
+        assert!(file.contains("path_regexp hidden (^|/)\\.") && file.contains("^/\\.well-known/"));
+        let mut files = project.clone();
+        files.id = "libro".into();
+        files.domains = vec!["libro.test".into()];
+        files.kind = crate::core::model::ProjectKind::Static;
+        files.runtime.clear();
+        files.docroot = ".".into();
+        let static_file = caddyfile(&store, &[files], &config, true).unwrap();
+        assert!(
+            static_file.find("respond @hidden 404").unwrap()
+                < static_file.find("file_server").unwrap()
+        );
         let evil = temp.path().join("x}\nimport");
         fs::create_dir_all(&evil).unwrap();
         project.path = evil;

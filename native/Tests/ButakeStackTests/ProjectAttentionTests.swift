@@ -36,7 +36,7 @@ private func unserved(processes: [ProjectProcess] = []) -> Project {
     #expect(store.attentionText(items[1]).contains("4176") && store.attentionText(items[1]).contains("Butake Template"))
     #expect(store.attentionText(items[2]).contains(".nvmrc"))
     #expect(store.fixTitle(items[2].fix!).contains("24"))
-    for code in ["service_missing", "serves_repository", "program_missing", "script_missing", "script_forwards", "node_missing"] {
+    for code in ["service_missing", "serves_repository", "serves_project_root", "program_missing", "script_missing", "script_forwards", "node_missing"] {
         #expect(store.attentionText(ProjectAttention(code: code)) != L("attention.other"), "\(code)")
     }
 }
