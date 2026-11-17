@@ -5,8 +5,14 @@ struct ServiceStopRequest: Identifiable, Hashable {
     let service: String
     /// Their names, as the engine said them.
     let users: String
+    /// Where the stop was asked: only that surface asks, so the panel and the window never both do.
+    var surface: StopSurface = .window
     var id: String { service }
 }
+
+/// The two places a service is turned off from: the main window (Inicio, the service pages, the palette) and the
+/// menu bar panel.
+enum StopSurface: Hashable, Sendable { case window, panel }
 
 /// What `setSiteEnabled` answers beyond the project: the services Stack turned on with it.
 struct SiteSwitch: Decodable { let servicesStarted: [String]? }
@@ -79,13 +85,19 @@ extension StackStore {
 /// default. Inicio, the service pages and the menu bar panel all ask this way.
 struct ServiceStopConfirmation: ViewModifier {
     @Bindable var store: StackStore
+    let surface: StopSurface
+    /// Whether this surface asks for that request: only the one it came from.
+    static func asks(_ request: ServiceStopRequest?, on surface: StopSurface) -> Bool { request?.surface == surface }
     func body(content: Content) -> some View {
+        let mine = Self.asks(store.serviceStop, on: surface) ? store.serviceStop : nil
         content.confirmationDialog(
-            String(format: L("attention.stopTitle"), Tech.of(store.serviceStop?.service ?? "").title),
-            isPresented: Binding(get: { store.serviceStop != nil }, set: { if !$0 { store.serviceStop = nil } }),
-            presenting: store.serviceStop
+            String(format: L("attention.stopTitle"), Tech.of(mine?.service ?? "").title),
+            isPresented: Binding(get: { mine != nil }, set: { if !$0, Self.asks(store.serviceStop, on: surface) { store.serviceStop = nil } }),
+            presenting: mine
         ) { request in
-            Button(L("engine.stop"), role: .destructive) { Task { await store.setEngine(request.service, enabled: false, confirmed: true) } }
+            Button(L("engine.stop"), role: .destructive) {
+                Task { await store.setEngine(request.service, enabled: false, confirmed: true, from: request.surface) }
+            }
                 .accessibilityIdentifier("service.stop.confirm")
             Button(L("common.cancel"), role: .cancel) {}
         } message: { request in
@@ -95,5 +107,7 @@ struct ServiceStopConfirmation: ViewModifier {
 }
 
 extension View {
-    func serviceStopConfirmation(_ store: StackStore) -> some View { modifier(ServiceStopConfirmation(store: store)) }
+    func serviceStopConfirmation(_ store: StackStore, on surface: StopSurface = .window) -> some View {
+        modifier(ServiceStopConfirmation(store: store, surface: surface))
+    }
 }
