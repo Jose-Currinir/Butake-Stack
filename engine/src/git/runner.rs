@@ -269,9 +269,18 @@ fn time_limit(args: &[&str]) -> u64 {
     }
 }
 
+/// Git's own switch for `core.fsmonitor`: the configuration of a repository (a copied `.git`, a
+/// clone of someone else) names a program Git would run on every `status`, so it is always off.
+/// Hooks are different: they are how the user's own commit, push and checkout checks run, so they
+/// stay on for the actions the user asks for (and do not run for reads).
+pub(crate) const NO_FSMONITOR: [&str; 2] = ["-c", "core.fsmonitor=false"];
+
 pub(crate) fn base_command(root: &Path, literal_pathspecs: bool) -> Command {
     let mut command = Command::new("git");
-    command.current_dir(root).arg("--no-pager");
+    command
+        .current_dir(root)
+        .args(NO_FSMONITOR)
+        .arg("--no-pager");
     if literal_pathspecs {
         command.arg("--literal-pathspecs");
     }
@@ -374,6 +383,63 @@ pub async fn git_input(root: &Path, args: &[&str], input: &[u8]) -> Result<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A repository whose `core.fsmonitor` names a program must not run it when Stack reads or
+    /// acts on the repository; its hooks still run for the user's own commit.
+    #[tokio::test]
+    async fn the_fsmonitor_of_a_repository_never_runs_but_its_hooks_do() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("repo");
+        std::fs::create_dir(&root).unwrap();
+        let script = |name: &str, marker: &str| {
+            let path = temp.path().join(name);
+            std::fs::write(
+                &path,
+                format!(
+                    "#!/bin/sh\ntouch '{}'\n",
+                    temp.path().join(marker).display()
+                ),
+            )
+            .unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            path
+        };
+        let monitor = script("monitor.sh", "monitor-ran");
+        git(&root, &["init", "-q"]).await.unwrap();
+        git(
+            &root,
+            &["config", "core.fsmonitor", monitor.to_str().unwrap()],
+        )
+        .await
+        .unwrap();
+        git(&root, &["config", "user.name", "Prueba"])
+            .await
+            .unwrap();
+        git(&root, &["config", "user.email", "prueba@example.test"])
+            .await
+            .unwrap();
+        let hook = script("hook.sh", "hook-ran");
+        std::fs::copy(&hook, root.join(".git/hooks/pre-commit")).unwrap();
+        std::fs::write(root.join("a.txt"), "x").unwrap();
+        for args in [
+            &["status", "--porcelain"][..],
+            &["add", "a.txt"][..],
+            &["diff", "--cached", "--stat"][..],
+            &["log", "--oneline", "-1"][..],
+        ] {
+            let _ = git(&root, args).await;
+        }
+        git_console(&root, &["commit", "-m", "uno"]).await.unwrap();
+        assert!(
+            !temp.path().join("monitor-ran").exists(),
+            "core.fsmonitor ran"
+        );
+        assert!(
+            temp.path().join("hook-ran").exists(),
+            "the commit hook must still run"
+        );
+    }
 
     #[test]
     fn details_hide_credentials_and_stay_short() {

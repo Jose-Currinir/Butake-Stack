@@ -704,7 +704,10 @@ pub async fn run_console(args: &[OsString]) -> Result<i32> {
         "git"
     });
     if prepared.command != "gitk" {
-        process.arg("--no-pager").arg(&prepared.command);
+        process
+            .args(super::runner::NO_FSMONITOR)
+            .arg("--no-pager")
+            .arg(&prepared.command);
     }
     process
         .args(&prepared.args)
