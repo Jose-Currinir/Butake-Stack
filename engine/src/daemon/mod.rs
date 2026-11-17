@@ -26,7 +26,7 @@ use std::{
         fd::AsRawFd,
         unix::fs::{OpenOptionsExt, PermissionsExt},
     },
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
@@ -189,37 +189,46 @@ pub fn share_arguments(http_port: u16, domain: &str) -> Vec<String> {
     .collect()
 }
 
+/// Version of the socket protocol between the CLI and the daemon. They are the same binary, but
+/// the daemon is a LaunchAgent that outlives the app: after an update a new CLI may reach an old
+/// daemon. Raise it when a request or an answer changes shape. Every answer carries it; one with
+/// another value, or none (0.1.3 and earlier), gets the daemon restarted once.
+pub const PROTOCOL: u64 = 1;
+
+/// The daemon that answered speaks another version of the protocol (or predates it).
+fn outdated(response: &Value) -> bool {
+    response["protocol"].as_u64() != Some(PROTOCOL)
+}
+
 pub fn request_sync(store: &Store, method: &str, params: Value, start: bool) -> Result<Value> {
+    use std::os::unix::net::UnixStream as Stream;
+    let socket = store.directory("run")?.join("daemon.sock");
+    if start && Stream::connect(&socket).is_err() {
+        start_daemon(store, &socket)?;
+    }
+    let mut response = exchange(&socket, method, &params)?;
+    if outdated(&response) {
+        restart_outdated(store, &socket)?;
+        response = exchange(&socket, method, &params)?;
+        ensure!(!outdated(&response), "daemon_outdated");
+    }
+    if response["ok"] != true {
+        // The daemon names the cause when it is a public code; anything else stays generic.
+        let code = response["error"]["code"].as_str().unwrap_or_default();
+        if let Some(code) = crate::PUBLIC_ERRORS.iter().find(|public| **public == code) {
+            anyhow::bail!("{code}");
+        }
+        anyhow::bail!("daemon_request_failed");
+    }
+    Ok(response["value"].clone())
+}
+
+/// One request on the socket and its answer, whole.
+fn exchange(socket: &Path, method: &str, params: &Value) -> Result<Value> {
     use std::{
         io::{BufRead, Write},
         os::unix::net::UnixStream as Stream,
-        process::{Command, Stdio},
     };
-    let socket = store.directory("run")?.join("daemon.sock");
-    if start && Stream::connect(&socket).is_err() {
-        use std::os::unix::process::CommandExt;
-        let mut child = Command::new(std::env::current_exe()?.canonicalize()?)
-            .arg("daemon")
-            .env_clear()
-            .env("BUTAKE_STACK_HOME", store.root())
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .process_group(0)
-            .spawn()?;
-        let mut deadline = std::time::Instant::now() + Duration::from_secs(5);
-        let mut exited = false;
-        while Stream::connect(&socket).is_err() {
-            // A daemon that lost the race (`daemon_already_running`) leaves; the winner opens the
-            // socket in a moment, so keep trying for a short while instead of failing.
-            if !exited && child.try_wait()?.is_some() {
-                exited = true;
-                deadline = deadline.min(std::time::Instant::now() + Duration::from_secs(3));
-            }
-            ensure!(std::time::Instant::now() < deadline, "daemon_start_failed");
-            std::thread::sleep(Duration::from_millis(50));
-        }
-    }
     let mut stream = Stream::connect(socket)?;
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
@@ -231,16 +240,70 @@ pub fn request_sync(store: &Store, method: &str, params: Value, start: bool) -> 
     let mut data = Vec::new();
     std::io::Read::take(std::io::BufReader::new(stream), 20 * 1024 * 1024)
         .read_until(b'\n', &mut data)?;
-    let response: Value = serde_json::from_slice(&data)?;
-    if response["ok"] != true {
-        // The daemon names the cause when it is a public code; anything else stays generic.
-        let code = response["error"]["code"].as_str().unwrap_or_default();
-        if let Some(code) = crate::PUBLIC_ERRORS.iter().find(|public| **public == code) {
-            anyhow::bail!("{code}");
+    Ok(serde_json::from_slice(&data)?)
+}
+
+/// Starts a daemon of this same binary for `store` and waits until it listens.
+fn start_daemon(store: &Store, socket: &Path) -> Result<()> {
+    use std::{
+        os::unix::{net::UnixStream as Stream, process::CommandExt},
+        process::{Command, Stdio},
+    };
+    let mut child = Command::new(std::env::current_exe()?.canonicalize()?)
+        .arg("daemon")
+        .env_clear()
+        .env("BUTAKE_STACK_HOME", store.root())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()?;
+    let mut deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let mut exited = false;
+    while Stream::connect(socket).is_err() {
+        // A daemon that lost the race (`daemon_already_running`) leaves; the winner opens the
+        // socket in a moment, so keep trying for a short while instead of failing.
+        if !exited && child.try_wait()?.is_some() {
+            exited = true;
+            deadline = deadline.min(std::time::Instant::now() + Duration::from_secs(3));
         }
-        anyhow::bail!("daemon_request_failed");
+        ensure!(std::time::Instant::now() < deadline, "daemon_start_failed");
+        std::thread::sleep(Duration::from_millis(50));
     }
-    Ok(response["value"].clone())
+    Ok(())
+}
+
+/// Stops a daemon of another protocol and starts the current one: through launchd when the
+/// session agent serves this very store (so it stays the agent's), or as a child otherwise. Only
+/// that agent is ever touched: a test or a QA store never restarts the user's daemon.
+fn restart_outdated(store: &Store, socket: &Path) -> Result<()> {
+    use std::os::unix::net::UnixStream as Stream;
+    let _ = exchange(socket, "shutdown", &json!({}));
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    while Stream::connect(socket).is_ok() {
+        ensure!(std::time::Instant::now() < deadline, "daemon_outdated");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    if launch_agent::serves(store.root()) {
+        // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
+        let domain = format!("gui/{}/cl.butake.stack.daemon", unsafe { libc::geteuid() });
+        let started = std::process::Command::new("/bin/launchctl")
+            .args(["kickstart", &domain])
+            .env_clear()
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success());
+        if started {
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            while Stream::connect(socket).is_err() {
+                ensure!(std::time::Instant::now() < deadline, "daemon_start_failed");
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            return Ok(());
+        }
+    }
+    start_daemon(store, socket)
 }
 struct DaemonFiles {
     socket: PathBuf,
@@ -399,7 +462,7 @@ pub fn record_failure(error: &anyhow::Error) {
 }
 
 pub fn failure(id: Value, code: &str, key: &str) -> Value {
-    json!({"id":id,"ok":false,"error":{"code":code,"messageKey":key}})
+    json!({"id":id,"ok":false,"error":{"code":code,"messageKey":key},"protocol":PROTOCOL})
 }
 async fn frame(reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>) -> Result<Option<Value>> {
     let mut bytes = Vec::new();
@@ -438,7 +501,11 @@ async fn serve(
             let topic = request["params"]["topic"].as_str();
             let process = request["params"]["process"].as_str();
             let mut stopped = shutdown.subscribe();
-            write(&mut writer, &json!({"id":id,"ok":true,"value":true})).await?;
+            write(
+                &mut writer,
+                &json!({"id":id,"ok":true,"value":true,"protocol":PROTOCOL}),
+            )
+            .await?;
             loop {
                 tokio::select! {
                     _ = stopped.changed() => return Ok(()),
@@ -488,7 +555,7 @@ async fn serve(
             result
         };
         let response = match result {
-            Ok(value) => json!({"id":id,"ok":true,"value":value}),
+            Ok(value) => json!({"id":id,"ok":true,"value":value,"protocol":PROTOCOL}),
             Err(error) => {
                 let code = error.to_string();
                 match crate::PUBLIC_ERRORS.iter().find(|public| **public == code) {

@@ -4477,6 +4477,7 @@
 
 /* Errores del motor y de la app */
 "error.title" = "No se pudo completar";
+"error.daemon_outdated" = "El servicio de Stack que está corriendo es de otra versión y no se pudo reiniciar. Sal de Stack y ábrelo otra vez.";
 "error.migration_isolated" = "Un almacén aislado no tiene datos que mover.";
 "error.migration_conflict" = "Las dos carpetas tienen datos: no se mueve nada.";
 "error.migration_cross_volume" = "La carpeta nueva quedaría en otro disco.";

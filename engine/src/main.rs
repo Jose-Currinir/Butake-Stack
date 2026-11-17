@@ -73,6 +73,8 @@ fn dispatch_with(
 }
 /// Error codes the app may show with their own message.
 const PUBLIC_ERRORS: &[&str] = &[
+    // A daemon of another protocol that could not be restarted (R-76).
+    "daemon_outdated",
     // Renaming and moving a project (P-41).
     "invalid_new_id",
     "same_id",

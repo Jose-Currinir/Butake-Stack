@@ -22,8 +22,13 @@ DNS corre dentro del daemon. Así Stack corre sin root; solo `/etc/resolver/<tld
 los dominios locales a `127.0.0.1:53`) necesita una vez la autorización de administrador.
 
 Socket: `run/daemon.sock` de la carpeta de datos (permisos 0600),
-protocolo JSON por líneas: `{"id", "method", "params"}` → `{"id", "ok", "value"|"error"}`, y
-eventos `process.state`, `stack.changed` y `stream.lagged`. El puente envía un estado inicial, vuelve a consultar ante eventos y se reconecta si el daemon sale. El estado de servicios auxiliares se actualiza también cada 15 s desde la misma sesión.
+protocolo JSON por líneas: `{"id", "method", "params"}` → `{"id", "ok", "value"|"error",
+"protocol"}`, y eventos `process.state`, `stack.changed` y `stream.lagged`. `protocol`
+(`daemon::PROTOCOL`, hoy 1) sube cuando cambia la forma de una petición o una respuesta: el daemon
+es un LaunchAgent que sobrevive a la app, y si contesta con otro número (o sin él, como 0.1.3 y
+anteriores) el CLI le pide `shutdown` y arranca el actual, con `launchctl kickstart` si el agente
+de sesión sirve esa misma carpeta de datos o como hijo si no; si aun así no calza, responde
+`daemon_outdated`. El puente envía un estado inicial, vuelve a consultar ante eventos y se reconecta si el daemon sale. El estado de servicios auxiliares se actualiza también cada 15 s desde la misma sesión.
 
 Las consultas de estado y registros acceden a un índice publicado al aplicar la configuración.
 Pueden leer el estado de un proceso durante su apagado. Las órdenes de control se ejecutan en

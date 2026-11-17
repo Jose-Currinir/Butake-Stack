@@ -121,6 +121,23 @@ pub fn configure(request: &Value, install: bool) -> Result<Value> {
     Ok(json!({"applied":true}))
 }
 
+/// Whether the session agent's file runs the daemon of the store at `root`: only then may that
+/// agent be restarted for it (a test or QA store never touches the user's agent).
+pub fn serves(root: &std::path::Path) -> bool {
+    let Some(path) =
+        Store::home().map(|h| h.join("Library/LaunchAgents/cl.butake.stack.daemon.plist"))
+    else {
+        return false;
+    };
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    text.contains(&format!(
+        "<key>BUTAKE_STACK_HOME</key><string>{}</string>",
+        escape(&root.to_string_lossy())
+    ))
+}
+
 /// Whether the LaunchAgent file exists and launchd has it loaded.
 pub fn status() -> Value {
     let path = Store::home().map(|h| h.join("Library/LaunchAgents/cl.butake.stack.daemon.plist"));

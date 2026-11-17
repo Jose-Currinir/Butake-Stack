@@ -442,3 +442,66 @@ fn isolated_agent_preview_cannot_apply() {
         }
     }
 }
+
+/// A daemon left running by an older version (its answers carry no `protocol`) is asked to shut
+/// down and replaced by the current one, and the request is answered by the new daemon (R-76).
+/// The store is temporary, so the user's session agent is never touched.
+#[test]
+fn an_old_daemon_is_replaced_by_the_current_one() {
+    use std::os::unix::net::UnixListener;
+    let temp = tempfile::tempdir_in("/tmp").unwrap();
+    let home = temp.path().join("stack");
+    fs::create_dir_all(home.join("projects")).unwrap();
+    fs::create_dir_all(home.join("run")).unwrap();
+    fs::set_permissions(home.join("run"), fs::Permissions::from_mode(0o700)).unwrap();
+    let socket = home.join("run/daemon.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let old = thread::spawn({
+        let socket = socket.clone();
+        move || {
+            let mut asked = Vec::new();
+            for stream in listener.incoming() {
+                let stream = stream.unwrap();
+                let mut line = String::new();
+                BufReader::new(&stream).read_line(&mut line).unwrap();
+                let request: Value = serde_json::from_str(&line).unwrap();
+                let method = request["method"].as_str().unwrap_or("").to_string();
+                // 0.1.3 and earlier: no `protocol` in the answer.
+                writeln!(
+                    &stream,
+                    "{}",
+                    json!({"id":1,"ok":true,"value":{"old":true}})
+                )
+                .unwrap();
+                asked.push(method.clone());
+                if method == "shutdown" {
+                    fs::remove_file(&socket).unwrap();
+                    return asked;
+                }
+            }
+            asked
+        }
+    });
+    let mut cli = Command::new(env!("CARGO_BIN_EXE_butake-stack"))
+        .env("BUTAKE_STACK_HOME", &home)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    cli.stdin
+        .take()
+        .unwrap()
+        .write_all(br#"{"method":"stackStatus"}"#)
+        .unwrap();
+    let output = cli.wait_with_output().unwrap();
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(old.join().unwrap(), ["stackStatus", "shutdown"]);
+    assert_eq!(response["ok"], true, "{response}");
+    assert!(response["value"].get("old").is_none(), "{response}");
+    assert!(response["value"]["processes"].is_array(), "{response}");
+    // The new daemon speaks the current protocol; it is stopped here, by its own request.
+    let answer = call(&socket, "shutdown", "");
+    assert_eq!(answer["ok"], true);
+    assert!(answer["protocol"].as_u64().is_some_and(|p| p >= 1));
+    wait_for(|| UnixStream::connect(&socket).is_err(), 15);
+}
