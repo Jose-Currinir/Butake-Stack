@@ -10,7 +10,7 @@ use std::{
     os::unix::process::CommandExt,
     path::Path,
     process::{Command, Stdio},
-    sync::mpsc,
+    sync::{atomic::Ordering, mpsc},
     time::{Duration, Instant},
 };
 
@@ -44,9 +44,21 @@ fn read_stderr(stderr: &mut impl Read) -> String {
 /// that the process is killed and the run reports `cut`. `not_installed` is the error when the
 /// program cannot be started.
 pub fn capture(
+    command: Command,
+    input: &[u8],
+    max_output: u64,
+    not_installed: &'static str,
+) -> Result<Captured> {
+    capture_limited(command, input, max_output, None, not_installed)
+}
+
+/// [`capture`] with a time limit: past `limit` the process is killed and the run reports
+/// `timed_out` (a server that does not answer, a statement waiting for a lock).
+pub fn capture_limited(
     mut command: Command,
     input: &[u8],
     max_output: u64,
+    limit: Option<Duration>,
     not_installed: &'static str,
 ) -> Result<Captured> {
     let mut child = command
@@ -59,6 +71,24 @@ pub fn capture(
         .stdin
         .take()
         .ok_or_else(|| anyhow::anyhow!("invalid_request"))?;
+    let finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let expired = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    if let (Some(limit), Ok(pid)) = (limit, i32::try_from(child.id())) {
+        let (finished, expired) = (finished.clone(), expired.clone());
+        std::thread::spawn(move || {
+            let deadline = Instant::now() + limit;
+            while !finished.load(Ordering::SeqCst) {
+                if Instant::now() >= deadline {
+                    expired.store(true, Ordering::SeqCst);
+                    // SAFETY: `kill` takes two integers and touches no memory; `pid` is the
+                    // child's, still not reaped because `finished` is only set after `wait`.
+                    unsafe { libc::kill(pid, libc::SIGKILL) };
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        });
+    }
     let input = input.to_vec();
     let writer = std::thread::spawn(move || {
         let _ = stdin.write_all(&input);
@@ -84,6 +114,8 @@ pub fn capture(
     }
     drop(stdout);
     let status = child.wait();
+    finished.store(true, Ordering::SeqCst);
+    let timed_out = expired.load(Ordering::SeqCst);
     let _ = writer.join();
     let stderr = errors.join().unwrap_or_default();
     read?;
@@ -91,10 +123,10 @@ pub fn capture(
     Ok(Captured {
         stdout: String::from_utf8_lossy(&out).into_owned(),
         stderr,
-        success: status.success() && !cut,
+        success: status.success() && !cut && !timed_out,
         code: status.code(),
         cut,
-        timed_out: false,
+        timed_out,
         cancelled: false,
     })
 }
@@ -252,6 +284,22 @@ mod tests {
         assert_eq!(done.stdout, "abc");
         assert!(done.success && !done.cut);
         assert_eq!(done.stderr.len(), 64 * 1024);
+    }
+
+    #[test]
+    fn a_run_past_its_limit_is_killed_and_says_so() {
+        let mut slow = Command::new("/bin/sleep");
+        slow.arg("30").env_clear();
+        let start = Instant::now();
+        let done =
+            capture_limited(slow, b"", 1024, Some(Duration::from_millis(300)), "missing").unwrap();
+        assert!(done.timed_out && !done.success);
+        assert!(start.elapsed() < Duration::from_secs(5));
+        let mut quick = Command::new("/bin/echo");
+        quick.arg("ok").env_clear();
+        let done =
+            capture_limited(quick, b"", 1024, Some(Duration::from_secs(30)), "missing").unwrap();
+        assert!(done.success && !done.timed_out);
     }
 
     #[test]

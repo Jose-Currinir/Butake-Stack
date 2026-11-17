@@ -288,9 +288,29 @@ impl Target {
     }
 }
 
-/// Runs a client with `input` on stdin, reading at most MAX_OUTPUT of stdout.
+/// How long a one-shot client may take (a statement waiting for a lock, a server that does not
+/// answer): longer than a slow query or an import chunk, short enough not to hang the request.
+const CLIENT_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// Message of a client that was killed for taking longer than [`CLIENT_TIMEOUT`].
+const CLIENT_TIMED_OUT: &str =
+    "The server did not answer within 300 seconds; the request was cancelled.";
+
+/// Runs a client with `input` on stdin, reading at most MAX_OUTPUT of stdout, for at most
+/// [`CLIENT_TIMEOUT`].
 pub(super) fn capture(command: Command, input: &[u8]) -> Result<Captured> {
-    process::capture(command, input, MAX_OUTPUT, "client_not_installed")
+    let mut captured = process::capture_limited(
+        command,
+        input,
+        MAX_OUTPUT,
+        Some(CLIENT_TIMEOUT),
+        "client_not_installed",
+    )?;
+    // Every caller reports what the client said on stderr: a killed one says why.
+    if captured.timed_out {
+        captured.stderr = CLIENT_TIMED_OUT.into();
+    }
+    Ok(captured)
 }
 
 /// What a script run returns: one result per statement that ran, and the server's error if one
