@@ -227,9 +227,8 @@ private struct VaultExportSheet: View {
         defer { working = false }
         do {
             let data = try await vault.exportArchive(container, password: password)
-            FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600])
-            try data.write(to: url)
-            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            // The backup is the last defence: the one it replaces stays until the new one is written whole.
+            try VaultDisk.writePrivate(data, to: url, durable: true)
             password = ""; confirm = ""
             vault.notice = L("vault.exported")
             dismiss()
@@ -269,11 +268,16 @@ private struct VaultImportArchiveSheet: View {
             }
             .formStyle(.grouped).themedScroll()
         }
-        .onAppear {
-            guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= VaultArchive.maximumSize,
-                  let bytes = try? Data(contentsOf: url) else { return }
-            data = bytes
-            header = try? VaultArchive.header(of: bytes).0
+        // Up to 512 MiB: read off the main actor, so the window does not freeze while the file loads.
+        .task {
+            let url = url
+            let loaded = await Task.detached(priority: .userInitiated) { () -> (Data, VaultArchive.Header?)? in
+                guard let bytes = try? VaultDisk.readRegularFile(url, limit: VaultArchive.maximumSize) else { return nil }
+                return (bytes, try? VaultArchive.header(of: bytes).0)
+            }.value
+            guard let loaded else { return }
+            data = loaded.0
+            header = loaded.1
         }
     }
     func run() async {
@@ -328,7 +332,7 @@ private struct VaultDownloadSheet: View {
         panel.message = L("vault.downloadPanel")
         guard panel.runModal() == .OK, let parent = panel.url else { return }
         do {
-            let folder = try vault.downloadFolder(container, into: parent, layout: layout)
+            let folder = try await vault.downloadFolderInBackground(container, into: parent, layout: layout)
             NSWorkspace.shared.activateFileViewerSelecting([folder])
             vault.notice = L("vault.downloaded")
             dismiss()

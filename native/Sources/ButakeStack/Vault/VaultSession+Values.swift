@@ -61,8 +61,10 @@ extension VaultSession {
         Self.copiedChange = nil
     }
 
-    func fileData(_ file: VaultFile) throws -> Data {
-        let data = try disk.readBlob(file.id, key: try requireKey())
+    func fileData(_ file: VaultFile) throws -> Data { try Self.fileData(file, disk: disk, key: try requireKey()) }
+
+    nonisolated static func fileData(_ file: VaultFile, disk: VaultDisk, key: SymmetricKey) throws -> Data {
+        let data = try disk.readBlob(file.id, key: key)
         guard VaultCrypto.sha256(data) == file.sha256 else { throw VaultError.corrupt }
         return data
     }
@@ -76,9 +78,8 @@ extension VaultSession {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let data = try fileData(file)
-            FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600])
-            try data.write(to: url)
-            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            // Temporary file and rename, 0600 from the start: a failed write never empties the file it replaces.
+            try VaultDisk.writePrivate(data, to: url, durable: true)
             disk.append(VaultAccessEntry(action: .saveFile, target: item.id))
             notice = L("vault.fileSaved")
         } catch { message = L((error as? VaultError)?.messageKey ?? VaultError.io.messageKey) }
