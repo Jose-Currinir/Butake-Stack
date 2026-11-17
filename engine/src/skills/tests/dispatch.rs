@@ -1,6 +1,6 @@
 use crate::app::plugins;
 use crate::core::store::Store;
-use serde_json::json;
+use serde_json::{json, Value};
 
 #[test]
 fn every_method_answers_plugin_disabled_while_off_and_the_tool_registers() {
@@ -49,13 +49,28 @@ fn every_method_answers_plugin_disabled_while_off_and_the_tool_registers() {
 #[test]
 fn deleting_the_tool_data_removes_own_links_only() {
     let temp = tempfile::tempdir().unwrap();
-    let home = temp.path().join("home");
+    let root = temp.path().canonicalize().unwrap();
+    let home = root.join("home");
     std::fs::create_dir_all(&home).unwrap();
-    let store = Store::new(temp.path().join("store")).unwrap();
-    let request = json!({"id": "a", "group": "personal", "template": "blank", "name": "a", "description": "d"});
-    super::super::dispatch_in(&store, &home, "skillsCreate", &request).unwrap();
+    let store = Store::new(root.join("store")).unwrap();
+    let call = |method: &str, request: Value| {
+        super::super::dispatch_in(&store, &home, method, &request).unwrap()
+    };
+    call(
+        "skillsCreate",
+        json!({"id": "a", "group": "personal", "template": "blank", "name": "a", "description": "d"}),
+    );
+    let change =
+        json!({"changes": [{"skill": "a", "agent": "claude", "on": true}], "confirmed": true});
+    call("skillsLinkApply", change);
+    let own = home.join(".claude/skills/a");
+    assert!(own.symlink_metadata().unwrap().file_type().is_symlink());
+    let foreign = home.join(".claude/skills/otra");
+    std::fs::create_dir_all(&foreign).unwrap();
     assert!(crate::skills::has_data(&store));
-    // `delete_all` reads the real home, which the test must not touch: it still cleans the folders.
-    crate::skills::delete_all(&store).unwrap();
+    // The temporary home, never the owner's: Stack's own link goes, the foreign folder stays.
+    crate::skills::delete_all_in(&store, &home).unwrap();
     assert!(!crate::skills::has_data(&store));
+    assert!(own.symlink_metadata().is_err());
+    assert!(foreign.is_dir());
 }

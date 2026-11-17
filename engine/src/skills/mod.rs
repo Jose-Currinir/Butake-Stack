@@ -35,15 +35,26 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Value> {
 /// Removes every link into Stack's skills folder and then the skills themselves (what «Borrar los
 /// datos» of the tool does). Links of other origin are never touched, nor is the import trash.
 pub fn delete_all(store: &Store) -> Result<()> {
-    if let Some(home) = Store::home() {
-        if let Ok(ctx) = Ctx::new(store, &home) {
-            if let Ok(index) = index::load(&ctx) {
-                for id in index.skills.keys() {
-                    links::remove_all(&ctx, &index, id);
-                }
+    match Store::home() {
+        Some(home) => delete_all_in(store, &home),
+        None => delete_all_folders(store),
+    }
+}
+
+/// `delete_all` with the home whose AI folders hold the links: tests pass a temporary one, so they
+/// never read the owner's folders.
+pub fn delete_all_in(store: &Store, home: &Path) -> Result<()> {
+    if let Ok(ctx) = Ctx::new(store, home) {
+        if let Ok(index) = index::load(&ctx) {
+            for id in index.skills.keys() {
+                links::remove_all(&ctx, &index, id);
             }
         }
     }
+    delete_all_folders(store)
+}
+
+fn delete_all_folders(store: &Store) -> Result<()> {
     for name in ["skills", "skills-trash"] {
         let dir = store.directory(name)?;
         for item in fs::read_dir(&dir)?.flatten() {

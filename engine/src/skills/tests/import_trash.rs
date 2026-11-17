@@ -204,7 +204,7 @@ fn undo_after_the_skill_was_renamed_returns_the_originals() {
 fn undo_after_delete_all_returns_the_originals() {
     let env = env();
     let (trash_id, real, foreign, target) = imported_with_links(&env);
-    crate::skills::delete_all(&env.store).unwrap();
+    crate::skills::delete_all_in(&env.store, &env.home).unwrap();
     assert!(!env.skills_dir().join("a").exists());
     assert_undone(&env, &trash_id, &real, &foreign, &target);
 }
@@ -300,7 +300,7 @@ fn the_import_trash_is_not_purged_by_age_but_deleted_skills_are() {
     assert!(!aged.exists());
     assert_eq!(first_trash_id(&env), "import-a-1000");
     // «Borrar los datos» of the tool leaves it too.
-    crate::skills::delete_all(&env.store).unwrap();
+    crate::skills::delete_all_in(&env.store, &env.home).unwrap();
     assert!(old.join("sources/0/n.md").exists());
 }
 
