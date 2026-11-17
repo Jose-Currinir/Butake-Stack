@@ -12,7 +12,9 @@ struct LogsPage: View {
         Group {
             if let source = browser.selection {
                 if source == LogsBrowser.vaultSource {
-                    VaultAccessLog(vault: .shared).id(source)
+                    // Also here, not only in the list: the tool turned off shows nothing of its log.
+                    if store.pluginEnabled("vault") { VaultAccessLog(vault: .shared).id(source) }
+                    else { ContentUnavailableView(L("logs.choose"), systemImage: Symbols.logs) }
                 } else {
                     LogViewer(store: store, id: source, browser: browser).id(source)
                 }

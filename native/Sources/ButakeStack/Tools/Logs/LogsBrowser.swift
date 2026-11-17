@@ -62,20 +62,26 @@ struct LogGroup: Identifiable, Equatable {
     var level: LogLevel = .all
     /// The lines of a source frozen while it is paused.
     var paused: [String: [String]] = [:]
-    /// The last line on screen when a source was cleared: what came before is hidden.
-    var clearedAfter: [String: String] = [:]
+    /// The lines on screen when a source was cleared: what came before is hidden.
+    var clearedAfter: [String: [String]] = [:]
+
+    /// The vault's log is only a source while the tool is on: off, nothing of it is visible outside Ajustes › Herramientas.
+    private func available(_ source: String, vaultEnabled: Bool? = nil) -> Bool {
+        source != Self.vaultSource || (vaultEnabled ?? StackStore.shared.pluginEnabled("vault"))
+    }
 
     /// Shows a source with its origin as the filter.
-    func show(_ source: String) {
+    func show(_ source: String, vaultEnabled: Bool? = nil) {
+        guard available(source, vaultEnabled: vaultEnabled) else { return }
         origin = .of(source)
         selection = source
         search = ""
     }
 
     /// `butakestack://tool/logs?source=<proceso>` or `?origin=<origen>`.
-    func open(_ items: [URLQueryItem]?) {
+    func open(_ items: [URLQueryItem]?, vaultEnabled: Bool? = nil) {
         if let source = items?.first(where: { $0.name == "source" })?.value, !source.isEmpty {
-            show(source)
+            show(source, vaultEnabled: vaultEnabled)
         } else if let origin = items?.first(where: { $0.name == "origin" })?.value.flatMap(LogOrigin.init(rawValue:)) {
             self.origin = origin
             selection = nil
@@ -88,7 +94,7 @@ struct LogGroup: Identifiable, Equatable {
     func groups(_ store: StackStore) -> [LogGroup] {
         var sources = (store.status?.processes ?? []).map(\.id)
         if store.pluginEnabled("vault"), VaultSession.shared.disk.exists { sources.append(Self.vaultSource) }
-        if let selection, !sources.contains(selection) { sources.append(selection) }
+        if let selection, !sources.contains(selection), available(selection, vaultEnabled: store.pluginEnabled("vault")) { sources.append(selection) }
         let query = search.trimmingCharacters(in: .whitespaces)
         return LogOrigin.allCases.compactMap { origin in
             guard self.origin == nil || self.origin == origin else { return nil }
@@ -105,9 +111,22 @@ struct LogGroup: Identifiable, Equatable {
     /// The lines of a source as they are read: frozen while paused, after the last clear, filtered.
     func lines(_ store: StackStore, _ id: String) -> [String] {
         var all = paused[id] ?? store.logs[id] ?? []
-        if let marker = clearedAfter[id], let index = all.lastIndex(of: marker) { all = Array(all[all.index(after: index)...]) }
+        if let base = clearedAfter[id] { all = Self.after(base, in: all) }
         let text = filter
         return all.filter { (text.isEmpty || $0.localizedCaseInsensitiveContains(text)) && level.admits($0) }
+    }
+
+    /// The lines of `window` that came after `base` (the window when the log was cleared). The window
+    /// is the tail of the log: it slides as lines arrive, so the part of `base` still in it is found
+    /// by overlap, not by the text of one line (a repeated line would hide new ones). Without
+    /// overlap the window has moved past `base`, or the log started over: every line is new.
+    static func after(_ base: [String], in window: [String]) -> [String] {
+        guard !base.isEmpty else { return window }
+        for slid in 0..<base.count {
+            let kept = base.count - slid
+            if kept <= window.count, base[slid...].elementsEqual(window[..<kept]) { return Array(window[kept...]) }
+        }
+        return window
     }
 
     func isPaused(_ id: String) -> Bool { paused[id] != nil }
@@ -115,7 +134,7 @@ struct LogGroup: Identifiable, Equatable {
 
     /// Hides the lines on screen; new ones keep coming. The log file is not touched.
     func clear(_ id: String, store: StackStore) {
-        if let last = (paused[id] ?? store.logs[id])?.last { clearedAfter[id] = last }
+        if let shown = paused[id] ?? store.logs[id] { clearedAfter[id] = shown }
         if paused[id] != nil { paused[id] = [] }
     }
 
