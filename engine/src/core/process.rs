@@ -188,6 +188,9 @@ fn capture_until(
         .unwrap_or_default();
     let cut = out.len() as u64 > max_output;
     out.truncate(usize::try_from(max_output).unwrap_or(usize::MAX));
+    // A stop that arrived while the child was ending is still a stop: the caller must not go on
+    // to the next step as if nothing had been asked.
+    let cancelled = cancelled || (!timed_out && stop());
     Ok(Captured {
         stdout: String::from_utf8_lossy(&out).into_owned(),
         stderr,
@@ -291,6 +294,26 @@ mod tests {
         // A process that ended and was not reaped yet (a zombie) has no start time.
         // SAFETY: `kill` with signal 0 sends nothing; it only reports whether `pid` exists.
         watch::started(pid).is_some() && unsafe { libc::kill(pid, 0) } == 0
+    }
+
+    #[test]
+    fn a_stop_that_arrives_as_the_child_ends_is_reported() {
+        let temp = tempfile::tempdir().unwrap();
+        let flag = temp.path().join("stop");
+        let mut quick = Command::new("/bin/sh");
+        quick
+            .args(["-c", &format!("sleep 0.1; : > '{}'", flag.display())])
+            .env_clear();
+        let done = capture_until(
+            quick,
+            1024,
+            Duration::from_secs(5),
+            "missing",
+            None,
+            &|| flag.exists(),
+        )
+        .unwrap();
+        assert!(done.cancelled && !done.success && !done.timed_out);
     }
 
     #[test]

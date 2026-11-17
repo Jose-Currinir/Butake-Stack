@@ -13,6 +13,13 @@ fn quiet(command: &mut Command) -> &mut Command {
         .stderr(std::process::Stdio::null())
 }
 
+/// Runs a tool until it ends and tells whether it succeeded. It runs in its own process group,
+/// and while the app follows the operation a stop ends it (`install_cancelled`) instead of
+/// waiting for a long extraction or copy to finish.
+fn succeeds(command: &mut Command) -> Result<bool> {
+    Ok(super::progress::run(quiet(command), || {})?.success())
+}
+
 /// What the extracted tree may contain.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Links {
@@ -35,23 +42,21 @@ pub fn extract_tar_gz(archive: &Path, into: &Path, strip: bool, code: &'static s
     if strip {
         tar.args(["--strip-components", "1"]);
     }
-    ensure!(quiet(tar.env_clear()).status()?.success(), code);
+    ensure!(succeeds(tar.env_clear())?, code);
     Ok(())
 }
 
 /// Extracts a `.zip` into `into` (`unzip` drops absolute paths and `..` members).
 pub fn extract_zip(archive: &Path, into: &Path, code: &'static str) -> Result<()> {
     ensure!(
-        quiet(
+        succeeds(
             Command::new("/usr/bin/unzip")
                 .args(["-q", "-o"])
                 .arg(archive)
                 .arg("-d")
                 .arg(into)
                 .env_clear()
-        )
-        .status()?
-        .success(),
+        )?,
         code
     );
     Ok(())
@@ -61,15 +66,13 @@ pub fn extract_zip(archive: &Path, into: &Path, code: &'static str) -> Result<()
 /// `into` with `ditto`, the tool that made it.
 pub fn extract_app_zip(archive: &Path, into: &Path, code: &'static str) -> Result<()> {
     ensure!(
-        quiet(
+        succeeds(
             Command::new("/usr/bin/ditto")
                 .args(["-x", "-k"])
                 .arg(archive)
                 .arg(into)
                 .env_clear()
-        )
-        .status()?
-        .success(),
+        )?,
         code
     );
     Ok(())
@@ -79,15 +82,13 @@ pub fn extract_app_zip(archive: &Path, into: &Path, code: &'static str) -> Resul
 /// are unpacked and its scripts are never run.
 pub fn expand_pkg(pkg: &Path, into: &Path, code: &'static str) -> Result<()> {
     ensure!(
-        Command::new("/usr/sbin/pkgutil")
-            .arg("--expand-full")
-            .arg(pkg)
-            .arg(into)
-            .env_clear()
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()?
-            .success(),
+        succeeds(
+            Command::new("/usr/sbin/pkgutil")
+                .arg("--expand-full")
+                .arg(pkg)
+                .arg(into)
+                .env_clear()
+        )?,
         code
     );
     Ok(())
@@ -97,9 +98,7 @@ pub fn expand_pkg(pkg: &Path, into: &Path, code: &'static str) -> Result<()> {
 /// signatures and attributes as they are.
 pub fn copy_tree(from: &Path, to: &Path, code: &'static str) -> Result<()> {
     ensure!(
-        quiet(Command::new("/usr/bin/ditto").arg(from).arg(to).env_clear())
-            .status()?
-            .success(),
+        succeeds(Command::new("/usr/bin/ditto").arg(from).arg(to).env_clear())?,
         code
     );
     Ok(())
