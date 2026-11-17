@@ -277,7 +277,13 @@ struct PendingConfirmation: Identifiable {
         do {
             let saved: DBConnection = try await store.call(["method": "dbSaveConnection", "connection": try JSONSerialization.jsonObject(with: JSONEncoder().encode(connection))])
             if let password {
-                if password.isEmpty { DatabaseVault.delete(saved.id) } else { DatabaseVault.set(password, for: saved.id, label: saved.name) }
+                let kept = password.isEmpty ? DatabaseVault.delete(saved.id) : DatabaseVault.set(password, for: saved.id, label: saved.name)
+                // The connection is saved; the password is not, so the editor says so instead of closing as if all went well.
+                if !kept {
+                    await loadConnections()
+                    store.notify(L("db.keychainSaveFailed"))
+                    return false
+                }
             }
             databases[saved.id] = nil
             status[saved.id] = nil

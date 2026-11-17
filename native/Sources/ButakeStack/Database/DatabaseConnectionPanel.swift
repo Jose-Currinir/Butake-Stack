@@ -153,7 +153,7 @@ struct RootPasswordSection: View {
     }
     /// The new password goes to the Keychain only after MySQL accepted it.
     func setPassword() async {
-        let password = DatabaseVault.generate()
+        guard let password = DatabaseVault.generate() else { client.store.notify(L("db.passwordGenerateFailed")); return }
         let sites = client.store.projects.filter { $0.services.contains("mysql") }.map(\.title)
         let title = sites.isEmpty ? L("db.root.confirm") : String(format: L("db.root.confirmSites"), sites.joined(separator: ", "))
         struct Done: Decodable { let accounts: Int }
