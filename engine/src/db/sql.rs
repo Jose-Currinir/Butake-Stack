@@ -300,10 +300,69 @@ pub fn is_read_only(statement: &str, dialect: Dialect) -> bool {
         return false;
     }
     // EXPLAIN ANALYZE runs the statement; PRAGMA x = y writes; SELECT … FOR UPDATE locks rows.
-    if first == "pragma" && strip_comments(statement, dialect).contains('=') {
-        return false;
+    if first == "pragma" {
+        let text = strip_comments(statement, dialect);
+        // `PRAGMA name(value)` sets too, except these, which ask about a table or the file.
+        const ASKS: &[&str] = &[
+            "table_info",
+            "table_xinfo",
+            "table_list",
+            "index_list",
+            "index_info",
+            "index_xinfo",
+            "foreign_key_list",
+            "foreign_key_check",
+            "integrity_check",
+            "quick_check",
+            "collation_list",
+        ];
+        let sets = text.contains('=')
+            || (text.contains('(')
+                && !words
+                    .get(1)
+                    .is_some_and(|name| ASKS.contains(&name.as_str())));
+        if sets {
+            return false;
+        }
     }
-    !words.iter().skip(1).any(|w| WRITE.contains(&w.as_str()))
+    // Words are whole names, so `dblink_exec` is not `dblink`: functions with effects are matched
+    // by what they start with (a server-side connection, large objects, files, configuration).
+    const WRITE_PREFIXES: &[&str] = &[
+        "dblink",
+        "lo_create",
+        "lo_unlink",
+        "lo_put",
+        "lo_from",
+        "lo_open",
+        "lo_write",
+        "lo_truncate",
+        "lowrite",
+        "pg_read_",
+        "pg_reload_",
+        "pg_drop_",
+        "pg_create_",
+        "pg_rotate_",
+        "pg_switch_",
+        "pg_promote",
+        "pg_terminate",
+        "pg_cancel",
+        "pg_stat_reset",
+        "pg_replication_",
+        "pg_logical_",
+        "pg_file_",
+        "pg_sleep",
+        "pg_backup_",
+        "pg_start_backup",
+        "pg_stop_backup",
+        "set_config",
+        "load_file",
+        "get_lock",
+        "release_lock",
+    ];
+    !words
+        .iter()
+        .skip(1)
+        .any(|w| WRITE.contains(&w.as_str()) || WRITE_PREFIXES.iter().any(|p| w.starts_with(p)))
 }
 
 /// Whether a statement carries a password (CREATE/ALTER USER … PASSWORD, IDENTIFIED BY, SET
@@ -668,6 +727,28 @@ mod tests {
         }
         assert!(!is_read_only("pragma journal_mode = wal", Dialect::Sqlite));
         assert!(is_read_only("pragma table_info(t)", Dialect::Sqlite));
+        assert!(!is_read_only("pragma journal_mode(wal)", Dialect::Sqlite));
+        assert!(!is_read_only("pragma user_version(5)", Dialect::Sqlite));
+    }
+
+    #[test]
+    fn functions_with_effects_are_not_reads_even_inside_a_select() {
+        let (m, p) = (Dialect::MySql, Dialect::Postgres);
+        for sql in [
+            "select dblink_exec('x', 'y')",
+            "select lo_unlink(1)",
+            "select pg_read_file('/etc/hosts')",
+            "select pg_reload_conf()",
+            "select pg_drop_replication_slot('s')",
+            "select set_config('a', 'b', false)",
+        ] {
+            assert!(!is_read_only(sql, p), "{sql}");
+        }
+        for sql in ["select load_file('/etc/hosts')", "select get_lock('a', 1)"] {
+            assert!(!is_read_only(sql, m), "{sql}");
+        }
+        assert!(is_read_only("select * from pg_catalog.pg_tables", p));
+        assert!(is_read_only("select pg_database_size('x'), now()", p));
     }
 
     #[test]

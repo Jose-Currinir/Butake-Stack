@@ -5,13 +5,34 @@ use anyhow::{bail, ensure, Result};
 use serde_json::{json, Value};
 use std::{
     io::{BufRead, Write},
-    os::unix::net::UnixStream,
+    os::unix::{net::UnixStream, process::CommandExt},
     path::Path,
     process::{Command, Stdio},
     time::{Duration, Instant},
 };
 
 const LABEL: &str = "cl.butake.stack.daemon";
+
+/// The programs (`name (pid)`) that `lsof -F pcn` says keep a file open, leaving out the lock the
+/// migration itself holds (`lock`): it is closed after the move, not something to wait for.
+pub(super) fn holders(report: &str, lock: &Path) -> Vec<String> {
+    let lock = lock.to_string_lossy();
+    let (mut pid, mut command) = (String::new(), String::new());
+    let mut found: Vec<String> = vec![];
+    for line in report.lines() {
+        if let Some(value) = line.strip_prefix('p') {
+            pid = value.to_string();
+        } else if let Some(value) = line.strip_prefix('c') {
+            command = value.to_string();
+        } else if let Some(name) = line.strip_prefix('n') {
+            let holder = format!("{command} ({pid})");
+            if name != lock && !found.contains(&holder) {
+                found.push(holder);
+            }
+        }
+    }
+    found
+}
 
 /// What the migration needs from the running system. Tests use a fake; the app and the CLI use
 /// [`Live`].
@@ -43,6 +64,7 @@ pub struct Live {
 }
 
 fn domain() -> String {
+    // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
     format!("gui/{}", unsafe { libc::geteuid() })
 }
 
@@ -88,7 +110,10 @@ pub fn daemon_holds(root: &Path) -> bool {
     else {
         return false;
     };
+    // SAFETY: `flock` takes a descriptor and flags and touches no memory; the descriptor belongs
+    // to `lock`, which is open until the end of this function.
     let free = unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0;
+    // SAFETY: same descriptor as above, still open.
     free.then(|| unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_UN) });
     !free
 }
@@ -164,23 +189,26 @@ impl Control for Live {
     }
 
     fn open_files(&self, root: &Path) -> Result<Vec<String>> {
-        let output = Command::new("/usr/sbin/lsof")
-            .args(["-n", "-P", "-F", "pc", "+D"])
+        let mut command = Command::new("/usr/sbin/lsof");
+        command
+            .args(["-n", "-P", "-F", "pcn", "+D"])
             .arg(root)
-            .env_clear()
-            .stderr(Stdio::null())
-            .output()?;
-        let mut found = vec![];
-        let mut pid = String::new();
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            if let Some(value) = line.strip_prefix('p') {
-                pid = value.to_string();
-            } else if let Some(name) = line.strip_prefix('c') {
-                found.push(format!("{name} ({pid})"));
-            }
-        }
-        found.dedup();
-        Ok(found)
+            .env_clear();
+        // `lsof` leaves with 1 when nothing is open, so that is no failure; but a run that was cut
+        // short, passed its time or could not start proves nothing and must not read as "all closed".
+        let output = crate::core::process::capture_watched(
+            command,
+            64 << 20,
+            Duration::from_secs(300),
+            "migration_failed",
+            None,
+        )?;
+        ensure!(
+            !(output.timed_out || output.cancelled || output.cut)
+                && matches!(output.code, Some(0 | 1)),
+            "migration_failed"
+        );
+        Ok(holders(&output.stdout, &root.join(super::LOCK)))
     }
 
     fn start(
@@ -200,8 +228,11 @@ impl Control for Live {
                 .status()?;
             ensure!(status.success(), "migration_start_failed");
         } else if !running.is_empty() {
+            // Its own process group, like `request_sync`: closing the one that ran this command
+            // (^C, SIGHUP) must not take the new daemon with it.
             Command::new(std::env::current_exe()?.canonicalize()?)
                 .arg("daemon")
+                .process_group(0)
                 .env_clear()
                 .env("BUTAKE_STACK_HOME", root)
                 .stdin(Stdio::null())

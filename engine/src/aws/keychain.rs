@@ -12,7 +12,9 @@ pub trait Secrets {
     fn get(&self, account: &str) -> Result<Option<Vec<u8>>>;
     fn delete(&self, account: &str) -> Result<()>;
 
-    /// Moves a secret to another account (a renamed profile); nothing leaves the engine.
+    /// Moves a secret to another account; nothing leaves the engine. A renamed profile does not
+    /// use it (`Changes::save` copies first and deletes after the files are written).
+    #[cfg(test)]
     fn rename(&self, from: &str, to: &str) -> Result<()> {
         if let Some(value) = self.get(from)? {
             self.set(to, &value)?;
@@ -107,12 +109,17 @@ mod cf {
     impl Drop for Owned {
         fn drop(&mut self) {
             if !self.0.is_null() {
+                // SAFETY: `self.0` is non-null and an object this wrapper owns (one reference
+                // from a `Create` function or from `SecItemCopyMatching`); it is released once,
+                // here, because `Owned` is neither `Clone` nor `Copy`.
                 unsafe { CFRelease(self.0) }
             }
         }
     }
 
     pub fn string(text: &str) -> Owned {
+        // SAFETY: the pointer and length come from one live `&str` and CoreFoundation copies the
+        // bytes during the call; a null allocator is the default one.
         Owned(unsafe {
             CFStringCreateWithBytes(
                 std::ptr::null(),
@@ -125,12 +132,17 @@ mod cf {
     }
 
     pub fn data(bytes: &[u8]) -> Owned {
+        // SAFETY: the pointer and length come from one live slice and CoreFoundation copies the
+        // bytes during the call; a null allocator is the default one.
         Owned(unsafe { CFDataCreate(std::ptr::null(), bytes.as_ptr(), bytes.len() as CFIndex) })
     }
 
     pub fn dictionary(pairs: &[(CFTypeRef, CFTypeRef)]) -> Owned {
         let keys: Vec<CFTypeRef> = pairs.iter().map(|p| p.0).collect();
         let values: Vec<CFTypeRef> = pairs.iter().map(|p| p.1).collect();
+        // SAFETY: `keys` and `values` are live arrays of `pairs.len()` CF objects that the callers
+        // keep alive for the call (the dictionary retains them with the standard CFType
+        // callbacks, whose statics are valid for the whole process).
         Owned(unsafe {
             CFDictionaryCreate(
                 std::ptr::null(),
@@ -152,6 +164,8 @@ impl Keychain {
         extra: &[(ffi::CFTypeRef, ffi::CFTypeRef)],
     ) -> cf::Owned {
         use ffi::*;
+        // SAFETY: reads extern statics that Security.framework and CoreFoundation initialize before
+        // any code runs and never change.
         let mut pairs = unsafe {
             vec![
                 (kSecClass, kSecClassGenericPassword),
@@ -171,13 +185,16 @@ impl Secrets for Keychain {
         use ffi::*;
         let (name, service, data) = (cf::string(account), cf::string(service()), cf::data(value));
         let query = Self::query(&name, &service, &[]);
+        // SAFETY: reads an extern static that Security.framework initializes and never changes.
         let change = cf::dictionary(&[(unsafe { kSecValueData }, data.0)]);
+        // SAFETY: `query` and `change` are live CF dictionaries owned here; the call keeps neither.
         let updated = unsafe { SecItemUpdate(query.0, change.0) };
         if updated == SUCCESS {
             return Ok(());
         }
         anyhow::ensure!(updated == NOT_FOUND, "aws_keychain_failed");
         let label = cf::string(&format!("Stack · AWS · {account}"));
+        // SAFETY: reads extern statics that Security.framework initializes and never changes.
         let attributes = Self::query(&name, &service, &unsafe {
             [
                 (kSecValueData, data.0),
@@ -188,6 +205,8 @@ impl Secrets for Keychain {
                 ),
             ]
         });
+        // SAFETY: `attributes` is a live CF dictionary owned here, and a null result pointer asks
+        // for no result.
         let added = unsafe { SecItemAdd(attributes.0, std::ptr::null_mut()) };
         anyhow::ensure!(added == SUCCESS, "aws_keychain_failed");
         Ok(())
@@ -196,6 +215,7 @@ impl Secrets for Keychain {
     fn get(&self, account: &str) -> Result<Option<Vec<u8>>> {
         use ffi::*;
         let (name, service) = (cf::string(account), cf::string(service()));
+        // SAFETY: reads extern statics that Security.framework initializes and never changes.
         let query = Self::query(&name, &service, &unsafe {
             [
                 (kSecReturnData, kCFBooleanTrue),
@@ -203,6 +223,8 @@ impl Secrets for Keychain {
             ]
         });
         let mut result: CFTypeRef = std::ptr::null();
+        // SAFETY: `query` is a live CF dictionary and `result` a live local pointer that the call
+        // sets (to a retained object when it succeeds).
         let status = unsafe { SecItemCopyMatching(query.0, &mut result) };
         if status == NOT_FOUND {
             return Ok(None);
@@ -213,22 +235,28 @@ impl Secrets for Keychain {
         );
         let result = cf::Owned(result);
         anyhow::ensure!(
+            // SAFETY: `result` is a non-null CF object owned here; both calls only read it.
             unsafe { CFGetTypeID(result.0) == CFDataGetTypeID() },
             "aws_keychain_failed"
         );
-        let bytes = unsafe {
-            std::slice::from_raw_parts(
-                CFDataGetBytePtr(result.0),
-                CFDataGetLength(result.0) as usize,
-            )
-        };
+        // SAFETY: `result` is a CFData (checked above); the call only reads it.
+        let length = unsafe { CFDataGetLength(result.0) } as usize;
+        // `CFDataGetBytePtr` can return null for an empty item: answer it without building a slice.
+        if length == 0 {
+            return Ok(Some(Vec::new()));
+        }
+        // SAFETY: `result` is a CFData of `length` bytes that stays alive until the end of this
+        // function, and the slice is copied before then.
+        let bytes = unsafe { std::slice::from_raw_parts(CFDataGetBytePtr(result.0), length) };
         Ok(Some(bytes.to_vec()))
     }
 
     fn delete(&self, account: &str) -> Result<()> {
         use ffi::*;
         let (name, service) = (cf::string(account), cf::string(service()));
-        let status = unsafe { SecItemDelete(Self::query(&name, &service, &[]).0) };
+        let query = Self::query(&name, &service, &[]);
+        // SAFETY: `query` is a live CF dictionary owned here; the call does not keep it.
+        let status = unsafe { SecItemDelete(query.0) };
         anyhow::ensure!(
             status == SUCCESS || status == NOT_FOUND,
             "aws_keychain_failed"

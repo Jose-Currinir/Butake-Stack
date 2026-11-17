@@ -38,6 +38,8 @@ pub struct Files {
 const MAX_FILE: u64 = 1_048_576;
 /// Backups kept of each file.
 const BACKUPS: usize = 20;
+/// Days a backup is kept.
+const BACKUP_DAYS: u64 = 30;
 
 impl Files {
     /// As the CLI finds them: the environment's files, or `.aws` in the home (BUTAKE_DEVTOOLS_HOME
@@ -80,12 +82,44 @@ pub fn read(path: &Path) -> Result<String> {
         .map_err(|_| anyhow::anyhow!("aws_file_unreadable"))
 }
 
-/// Copies the file as it is now to Stack's folder (`aws-backups/<config|credentials>-<date>.bak`,
-/// 0600) and keeps the last [`BACKUPS`] of each.
+/// Keys whose values never go to a backup: the copy would outlive the key the user deleted.
+const SECRET_KEYS: [&str; 3] = [
+    "aws_secret_access_key",
+    "aws_session_token",
+    "aws_security_token",
+];
+
+/// `text` with the value of every secret key replaced; the rest of the file is as it was.
+fn without_secrets(text: &str) -> String {
+    text.split_inclusive('\n')
+        .map(|line| {
+            let key = line.split(['=', ':']).next().unwrap_or("").trim();
+            match (
+                SECRET_KEYS.iter().any(|s| key.eq_ignore_ascii_case(s)),
+                line.find(['=', ':']),
+            ) {
+                (true, Some(at)) => {
+                    let end = if line.ends_with('\n') { "\n" } else { "" };
+                    format!("{} = <removed by Stack>{end}", line[..at].trim_end())
+                }
+                _ => line.to_string(),
+            }
+        })
+        .collect()
+}
+
+/// Copies the file as it is now, without its secret keys, to Stack's folder
+/// (`aws-backups/<config|credentials>-<date>.bak`, 0600) and keeps the last [`BACKUPS`] of each,
+/// none older than [`BACKUP_DAYS`] days. It is a record of what changed, not a way to get a key back.
 fn backup(store: &Store, path: &Path, kind: &str) -> Result<()> {
     let Ok(bytes) = fs::read(path) else {
         return Ok(());
     };
+    // A file that is not text cannot be cleaned, so it is not copied.
+    let Ok(text) = String::from_utf8(bytes) else {
+        return Ok(());
+    };
+    let bytes = without_secrets(&text).into_bytes();
     let folder = store.directory("aws-backups")?;
     let stamp = time::utc_stamp(time::now_secs());
     let mut target = folder.join(format!("{kind}-{stamp}.bak"));
@@ -106,6 +140,17 @@ fn backup(store: &Store, path: &Path, kind: &str) -> Result<()> {
     kept.sort();
     while kept.len() > BACKUPS {
         let _ = fs::remove_file(kept.remove(0));
+    }
+    // Copies from before this cleaning (with keys) are removed with the old ones.
+    let limit = std::time::Duration::from_secs(BACKUP_DAYS * 86_400);
+    for old in kept.iter().filter(|p| {
+        fs::metadata(p)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age > limit)
+    }) {
+        let _ = fs::remove_file(old);
     }
     Ok(())
 }
@@ -205,4 +250,40 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Value> {
 pub fn cli_status() -> Value {
     let path = cli::program();
     json!({"installed": path.is_some(), "path": path, "signInLimit": cli::sign_in_limit().as_secs()})
+}
+
+#[cfg(test)]
+mod backup_tests {
+    use super::*;
+
+    #[test]
+    fn backups_keep_the_file_but_not_its_secret_values() {
+        let sentinel = "centinela-secreta-7d41";
+        let text = format!(
+            "[default]\naws_access_key_id = AKIAEJEMPLO\naws_secret_access_key = {sentinel}\nAWS_SESSION_TOKEN={sentinel}\nregion = us-east-1"
+        );
+        let clean = without_secrets(&text);
+        assert!(!clean.contains(sentinel));
+        assert!(clean.contains("[default]") && clean.contains("AKIAEJEMPLO"));
+        assert!(clean.contains("region = us-east-1"));
+        assert!(clean.contains("aws_secret_access_key = <removed by Stack>\n"));
+    }
+
+    #[test]
+    fn the_backup_file_on_disk_has_no_secret() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = Store::new(temp.path().join("store")).unwrap();
+        let credentials = temp.path().join("credentials");
+        fs::write(
+            &credentials,
+            "[p]\naws_secret_access_key = centinela-secreta-7d41\n",
+        )
+        .unwrap();
+        backup(&store, &credentials, "credentials").unwrap();
+        let folder = store.directory("aws-backups").unwrap();
+        let copies: Vec<_> = fs::read_dir(folder).unwrap().flatten().collect();
+        assert_eq!(copies.len(), 1);
+        let copy = fs::read_to_string(copies[0].path()).unwrap();
+        assert!(!copy.contains("centinela-secreta") && copy.contains("[p]"));
+    }
 }

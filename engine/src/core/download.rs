@@ -2,7 +2,7 @@
 //! limit and a size limit, and an empty environment.
 
 use super::{hash, progress};
-use anyhow::{ensure, Result};
+use anyhow::{bail, ensure, Result};
 use std::{
     io::Read,
     path::Path,
@@ -136,14 +136,42 @@ fn size_of(url: &str) -> Option<u64> {
 /// returns the digest that was computed.
 pub fn download_verified(url: &str, target: &Path, sha256: &str) -> Result<String> {
     download(url, target)?;
-    let actual = hash::sha256_file(target)?;
-    ensure!(actual.eq_ignore_ascii_case(sha256), "checksum_mismatch");
+    check_sum(target, sha256)
+}
+
+/// The SHA-256 of `target` must be `sha256`; a file that is not what was expected is deleted, so
+/// nothing unverified stays where another step could pick it up.
+fn check_sum(target: &Path, sha256: &str) -> Result<String> {
+    let actual = match hash::sha256_file(target) {
+        Ok(actual) => actual,
+        Err(error) => {
+            let _ = std::fs::remove_file(target);
+            return Err(error);
+        }
+    };
+    if !actual.eq_ignore_ascii_case(sha256) {
+        let _ = std::fs::remove_file(target);
+        bail!("checksum_mismatch");
+    }
     Ok(actual)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_download_that_does_not_match_its_sum_is_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("pkg");
+        std::fs::write(&file, "hola").unwrap();
+        let sum = hash::sha256_file(&file).unwrap();
+        assert_eq!(check_sum(&file, &sum.to_uppercase()).unwrap(), sum);
+        assert!(file.exists());
+        let error = check_sum(&file, &"0".repeat(64)).unwrap_err();
+        assert_eq!(error.to_string(), "checksum_mismatch");
+        assert!(!file.exists());
+    }
 
     #[test]
     fn only_https_is_accepted() {

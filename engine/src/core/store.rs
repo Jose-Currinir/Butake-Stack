@@ -112,6 +112,8 @@ impl Store {
             .custom_flags(libc::O_NOFOLLOW)
             .open(self.root.join("settings.lock"))?;
         loop {
+            // SAFETY: `flock` takes a descriptor and a flag and touches no memory; the descriptor
+            // belongs to `lock`, which is open for the whole call.
             if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX) } == 0 {
                 return Ok(lock);
             }

@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # The pinned actions (by commit, with their version in a comment) are proposed as pull requests.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

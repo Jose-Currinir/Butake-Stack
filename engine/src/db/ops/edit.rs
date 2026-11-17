@@ -81,7 +81,9 @@ fn key_condition(d: Dialect, key: &Map<String, Value>, readable: bool) -> Result
 }
 
 /// Changes from the grid (edited cells, new rows, deleted rows) as one transaction. Rows are found
-/// by their full primary key and every edit must change exactly one row.
+/// by their full primary key. The batch commits as a whole: the answer says how many rows each
+/// statement changed (`affected`) and which ones did not change exactly one (`unexpected`, by
+/// position), so the app can warn; the engine does not undo the others.
 pub fn edit(target: &Target, request: &Value) -> Result<Value> {
     let d = dialect(target)?;
     let (database, schema, table) = (
@@ -209,12 +211,30 @@ pub fn edit(target: &Target, request: &Value) -> Result<Value> {
         .take(statements.len() - 2)
         .map(|r| r.affected.unwrap_or(-1))
         .collect();
-    Ok(json!({"applied": changed.len(), "affected": changed}))
+    let unexpected: Vec<usize> = unexpected_rows(&changed);
+    Ok(json!({"applied": changed.len(), "affected": changed, "unexpected": unexpected}))
+}
+
+/// Positions of the statements that did not change exactly one row (a key that changed under the
+/// user, or a count the server did not report).
+fn unexpected_rows(affected: &[i64]) -> Vec<usize> {
+    affected
+        .iter()
+        .enumerate()
+        .filter(|(_, rows)| **rows != 1)
+        .map(|(index, _)| index)
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn edits_that_did_not_change_one_row_are_reported() {
+        assert_eq!(unexpected_rows(&[1, 0, 1, -1, 2]), [1, 3, 4]);
+        assert!(unexpected_rows(&[1, 1]).is_empty());
+    }
 
     #[test]
     fn readable_values_for_the_confirmation() {

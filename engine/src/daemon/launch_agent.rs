@@ -76,6 +76,7 @@ pub fn configure(request: &Value, install: bool) -> Result<Value> {
         "unsafe_agent_path"
     );
     let path = directory.join("cl.butake.stack.daemon.plist");
+    // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
     let domain = format!("gui/{}", unsafe { libc::geteuid() });
     if install {
         // A file left by an interrupted install or uninstall, with no agent loaded, is replaced.
@@ -124,6 +125,7 @@ pub fn configure(request: &Value, install: bool) -> Result<Value> {
 pub fn status() -> Value {
     let path = Store::home().map(|h| h.join("Library/LaunchAgents/cl.butake.stack.daemon.plist"));
     let installed = path.as_ref().is_some_and(|p| p.exists());
+    // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
     let domain = format!("gui/{}/cl.butake.stack.daemon", unsafe { libc::geteuid() });
     let loaded = Command::new("/bin/launchctl")
         .args(["print", &domain])

@@ -99,10 +99,56 @@ fn save(root: &Path, journal: &Journal) -> Result<()> {
     crate::core::json::write(&root.join(JOURNAL), journal)
 }
 
-/// While a migration has the folder half done, no daemon may start on it.
+/// While a migration has the folder half done, no daemon may start on it. Before the folder is
+/// renamed (`stopping`, `backup`, `moved` still under the old name) the data is where it was, so
+/// only a run that is alive (it holds `migration.lock`) blocks: after a power cut or a kill the
+/// daemon starts again. After the rename, a half-rewritten folder waits for the run to resume.
 pub fn blocks_daemon(root: &Path) -> bool {
-    journal(root)
-        .is_some_and(|j| ["stopping", "backup", "moved", "rewriting"].contains(&j.phase.as_str()))
+    let Some(journal) = journal(root) else {
+        return false;
+    };
+    if !["stopping", "backup", "moved", "rewriting"].contains(&journal.phase.as_str()) {
+        return false;
+    }
+    journal.to == root || lock_held(root)
+}
+
+const LOCK: &str = "migration.lock";
+
+/// Held by a run for as long as it works on the folder; the system releases it if the process dies.
+fn lock(root: &Path) -> Result<fs::File> {
+    use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(root.join(LOCK))?;
+    ensure!(
+        // SAFETY: `flock` takes a descriptor and flags and touches no memory; the descriptor
+        // belongs to `file`, which is open for the whole call.
+        unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
+        "migration_failed"
+    );
+    Ok(file)
+}
+
+/// Whether a run holds the lock of `root` right now.
+fn lock_held(root: &Path) -> bool {
+    use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
+    let Ok(file) = fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(root.join(LOCK))
+    else {
+        return false;
+    };
+    // SAFETY: `flock` takes a descriptor and flags and touches no memory; the descriptor belongs
+    // to `file`, which is open for the whole call.
+    let free = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0;
+    // Closing `file` releases the lock taken just now.
+    !free
 }
 
 /// What a run would find: `ready`, `resume` (a run was cut short after the move), `done` (the data
@@ -143,6 +189,16 @@ fn backup_path(layout: &Layout) -> PathBuf {
     path
 }
 
+/// Space the backup needs: clones share their blocks, so on a volume that makes them it costs only
+/// its metadata; anywhere else every file is copied in full.
+fn needed_space(bytes: u64, clones: bool) -> u64 {
+    if clones {
+        256 << 20
+    } else {
+        bytes + (256 << 20)
+    }
+}
+
 /// What a migration would do, changing nothing.
 pub fn plan(layout: &Layout, control: &dyn Control) -> Result<Value> {
     let state = state(layout);
@@ -158,12 +214,7 @@ pub fn plan(layout: &Layout, control: &dyn Control) -> Result<Value> {
     let parent = layout.new.parent().unwrap_or(&layout.old);
     let same_volume = tree::same_volume(&layout.old, parent)?;
     let free = tree::free_space(parent)?;
-    // Clones share their blocks: the backup costs only its metadata on the same volume.
-    let needed = if same_volume {
-        256 << 20
-    } else {
-        bytes + (256 << 20)
-    };
+    let needed = needed_space(bytes, same_volume && tree::can_clone(parent));
     let running = control.running(&layout.old);
     let changes = rewrite::find(layout, &layout.old)?;
     let agent = control.agent_loaded() && agent_points_at(layout, &layout.old);
@@ -177,6 +228,8 @@ pub fn plan(layout: &Layout, control: &dyn Control) -> Result<Value> {
         ("running".into(), json!(running)),
         ("agent".into(), json!(agent)),
         ("backup".into(), json!(backup_path(layout))),
+        // Files that name the folder but are links: they are left alone and keep the old path.
+        ("skippedLinks".into(), json!(rewrite::skipped_links(layout))),
         (
             "rewrites".into(),
             json!(changes
@@ -208,6 +261,16 @@ pub enum Cut {
 /// Runs the migration (or finishes one that was cut short). The answer says how it ended: on
 /// failure, `ok: false`, the failed `step`, the `error` code and whether it was `reverted`.
 pub fn run(layout: &Layout, control: &dyn Control, cut: Cut) -> Result<Value> {
+    let result = run_locked(layout, control, cut);
+    // The lock is released (its file closed) by now: no trace of it is left, whichever folder it
+    // ended up in.
+    for root in [&layout.old, &layout.new] {
+        let _ = fs::remove_file(root.join(LOCK));
+    }
+    result
+}
+
+fn run_locked(layout: &Layout, control: &dyn Control, cut: Cut) -> Result<Value> {
     match state(layout) {
         "done" | "nothing" => {
             let journal = journal(&layout.new).unwrap_or_default();
@@ -217,11 +280,13 @@ pub fn run(layout: &Layout, control: &dyn Control, cut: Cut) -> Result<Value> {
         }
         "conflict" => bail!("migration_conflict"),
         "resume" => {
+            let _lock = lock(&layout.new)?;
             let journal = journal(&layout.new).unwrap_or_default();
             return finish(layout, control, journal);
         }
         _ => {}
     }
+    let _lock = lock(&layout.old)?;
     let mut journal = Journal {
         phase: "stopping".into(),
         from: layout.old.clone(),

@@ -276,6 +276,8 @@ pub async fn run() -> Result<()> {
         .custom_flags(libc::O_NOFOLLOW)
         .open(run.join("daemon.lock"))?;
     ensure!(
+        // SAFETY: `flock` takes a descriptor and flags and touches no memory; the descriptor
+        // belongs to `lock`, which is open for the whole call (and stays open until `run` returns).
         unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
         "daemon_already_running"
     );
@@ -313,7 +315,9 @@ pub async fn run() -> Result<()> {
     crate::daemon::supervisor::reap_orphans().await;
     let mut supervisor = Supervisor::new(store.directory("logs")?);
     let started = async {
-        supervisor.reload(specs(&store, listeners.fds())?).await?;
+        supervisor
+            .reload(blocking_specs(listeners.fds()).await?)
+            .await?;
         sync_extras(&store, &supervisor.events).await;
         Ok::<(), anyhow::Error>(())
     }
@@ -355,13 +359,17 @@ fn same_user(stream: &UnixStream) -> Result<bool> {
         let mut uid = 0;
         let mut gid = 0;
         ensure!(
+            // SAFETY: the descriptor belongs to `stream`, open for the call, and `uid` and `gid` are
+            // live local integers that `getpeereid` writes once each.
             unsafe { libc::getpeereid(stream.as_raw_fd(), &mut uid, &mut gid) } == 0,
             "peer_unavailable"
         );
+        // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
         Ok(uid == unsafe { libc::geteuid() })
     }
     #[cfg(not(target_os = "macos"))]
     {
+        // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
         Ok(stream.peer_cred()?.uid() == unsafe { libc::geteuid() })
     }
 }
@@ -497,6 +505,12 @@ async fn serve(
     }
     Ok(())
 }
+/// `specs` reads every project and may wait minutes (the first start of a database initializes
+/// its data folder), so it runs on a thread meant for blocking work and not on one of the
+/// runtime's, which also serves signals, events and the other requests.
+async fn blocking_specs(fds: WebFds) -> Result<Vec<ProcessSpec>> {
+    tokio::task::spawn_blocking(move || specs(&Store::from_environment()?, fds)).await?
+}
 async fn request_read(request: &Value, supervisor: &SupervisorReader) -> Result<Value> {
     let key = request["params"]["id"].as_str().unwrap_or("");
     match request["method"].as_str().unwrap_or("") {
@@ -556,9 +570,8 @@ async fn request_action(request: &Value, supervisor: &mut Supervisor) -> Result<
                     .map_err(|_| anyhow::anyhow!("lock"))?
                     .remove(key);
             }
-            supervisor
-                .reload(specs(&store, *WEB_FDS.get().unwrap_or(&WebFds::default()))?)
-                .await?;
+            let fds = *WEB_FDS.get().unwrap_or(&WebFds::default());
+            supervisor.reload(blocking_specs(fds).await?).await?;
             Ok(json!(true))
         }
         // A fixed address (P-35): only an existing site that is on and has one can be shared.
@@ -574,17 +587,14 @@ async fn request_action(request: &Value, supervisor: &mut Supervisor) -> Result<
                 );
             }
             public::set_shared(key, on);
-            supervisor
-                .reload(specs(&store, *WEB_FDS.get().unwrap_or(&WebFds::default()))?)
-                .await?;
+            let fds = *WEB_FDS.get().unwrap_or(&WebFds::default());
+            supervisor.reload(blocking_specs(fds).await?).await?;
             Ok(json!(true))
         }
         "cloudflareLogin" => {
-            let store = Store::from_environment()?;
             public::set_login(request["params"]["on"] == true);
-            supervisor
-                .reload(specs(&store, *WEB_FDS.get().unwrap_or(&WebFds::default()))?)
-                .await?;
+            let fds = *WEB_FDS.get().unwrap_or(&WebFds::default());
+            supervisor.reload(blocking_specs(fds).await?).await?;
             Ok(json!(true))
         }
         "start" => {
@@ -612,9 +622,8 @@ async fn request_action(request: &Value, supervisor: &mut Supervisor) -> Result<
                 shares.retain(|id| enabled.contains(id));
             }
             public::retain(&enabled);
-            supervisor
-                .reload(specs(&store, *WEB_FDS.get().unwrap_or(&WebFds::default()))?)
-                .await?;
+            let fds = *WEB_FDS.get().unwrap_or(&WebFds::default());
+            supervisor.reload(blocking_specs(fds).await?).await?;
             sync_extras(&store, &supervisor.events).await;
             Ok(json!(true))
         }

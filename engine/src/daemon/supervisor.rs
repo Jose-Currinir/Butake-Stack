@@ -7,6 +7,7 @@ use crate::{
 use anyhow::{ensure, Result};
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::process::CommandExt;
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -384,19 +385,35 @@ async fn transition(
 /// keeps a port or a datadir.
 pub static PID_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
+/// Pids above 1 only: `kill(0, …)` is our own group and `kill(-1, …)` everyone's, and a pid that
+/// does not fit an `i32` would wrap into one of those.
+fn valid_pid(pid: u32) -> Option<i32> {
+    i32::try_from(pid).ok().filter(|pid| *pid > 1)
+}
 fn image(pid: u32) -> Option<String> {
+    let pid = valid_pid(pid)?;
     let mut buffer = vec![0u8; 4096];
+    // SAFETY: the pointer is to `buffer`, alive and writable for the length passed; `proc_pidpath`
+    // writes at most that many bytes and keeps no pointer.
     let length =
-        unsafe { libc::proc_pidpath(pid as i32, buffer.as_mut_ptr().cast(), buffer.len() as u32) };
+        unsafe { libc::proc_pidpath(pid, buffer.as_mut_ptr().cast(), buffer.len() as u32) };
     (length > 0).then(|| String::from_utf8_lossy(&buffer[..length as usize]).into_owned())
 }
 fn alive(pid: u32) -> bool {
-    unsafe { libc::kill(pid as i32, 0) == 0 }
+    // SAFETY: `kill` with signal 0 touches no memory and sends nothing; it only reports whether
+    // the process exists. `valid_pid` rules out the values that mean a group or everyone.
+    valid_pid(pid).is_some_and(|pid| unsafe { libc::kill(pid, 0) } == 0)
+}
+/// Whether `pid` leads its own process group (the supervisor starts every child that way).
+fn leads_group(pid: u32) -> bool {
+    // SAFETY: `getpgid` takes an integer and touches no memory.
+    valid_pid(pid).is_some_and(|pid| unsafe { libc::getpgid(pid) } == pid)
 }
 fn record(id: &str, pid: u32) {
     if let (Some(dir), Some(image)) = (PID_DIR.get(), image(pid)) {
         let _ = std::fs::create_dir_all(dir);
-        let _ = std::fs::write(dir.join(id), format!("{pid}\n{image}\n"));
+        let started = crate::core::watch::started(pid as i32).unwrap_or(0);
+        let _ = std::fs::write(dir.join(id), format!("{pid}\n{image}\n{started}\n"));
     }
 }
 fn forget(id: &str) {
@@ -404,51 +421,121 @@ fn forget(id: &str) {
         let _ = std::fs::remove_file(dir.join(id));
     }
 }
-/// Stops what a previous daemon left running. A pid only counts if it still runs the same image,
-/// so a recycled pid of an unrelated program is never touched.
+/// What a pid file says: pid, executable image and, since the start time was added, when it began
+/// (`None` for a file an older daemon wrote).
+struct Recorded {
+    pid: u32,
+    image: String,
+    started: Option<u64>,
+}
+fn parse_record(text: &str) -> Option<Recorded> {
+    let mut lines = text.lines();
+    let pid = lines.next()?.parse().ok()?;
+    let image = lines.next()?.to_string();
+    let started = lines.next().and_then(|line| line.parse().ok());
+    Some(Recorded {
+        pid,
+        image,
+        started,
+    })
+}
+/// The recorded process is still the one started back then: same image, same start time and the
+/// leader of its group. Pids are reused after a restart of the Mac, so the pid alone proves nothing.
+fn is_recorded(recorded: &Recorded) -> bool {
+    alive(recorded.pid)
+        && image(recorded.pid).as_deref() == Some(recorded.image.as_str())
+        && leads_group(recorded.pid)
+        && recorded.started.is_none_or(|started| {
+            started == 0 || crate::core::watch::started(recorded.pid as i32) == Some(started)
+        })
+}
+/// Stops what a previous daemon left running. A pid only counts if it still is the same process
+/// (see [`is_recorded`]), so a recycled pid of an unrelated program is never touched.
 pub async fn reap_orphans() {
-    let Some(dir) = PID_DIR.get() else { return };
+    if let Some(dir) = PID_DIR.get() {
+        reap_dir(dir).await;
+    }
+}
+async fn reap_dir(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
     let mut orphans = vec![];
     for entry in entries.flatten() {
         let text = std::fs::read_to_string(entry.path()).unwrap_or_default();
-        let mut lines = text.lines();
-        if let (Some(Ok(pid)), Some(recorded)) = (lines.next().map(str::parse::<u32>), lines.next())
-        {
-            if pid > 1 && alive(pid) && image(pid).as_deref() == Some(recorded) {
-                kill_group(pid, libc::SIGTERM);
-                orphans.push(pid);
-            }
+        if let Some(recorded) = parse_record(&text).filter(is_recorded) {
+            kill_group(recorded.pid, libc::SIGTERM);
+            orphans.push(recorded);
         }
         let _ = std::fs::remove_file(entry.path());
     }
     // Databases flush on SIGTERM; give them the same grace as a normal stop.
     let deadline = Instant::now() + Duration::from_secs(30);
-    while orphans.iter().any(|pid| alive(*pid)) && Instant::now() < deadline {
+    while orphans.iter().any(is_recorded) && Instant::now() < deadline {
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
-    for pid in orphans {
-        kill_group(pid, libc::SIGKILL);
+    // Only those still the same process: one that left meanwhile may have had its pid reused.
+    for recorded in orphans.iter().filter(|recorded| is_recorded(recorded)) {
+        kill_group(recorded.pid, libc::SIGKILL);
     }
 }
 fn kill_group(pid: u32, signal: i32) {
+    let Some(pid) = valid_pid(pid) else { return };
+    // SAFETY: `kill` takes two integers and touches no memory; `valid_pid` guarantees `-pid`
+    // names one process group, never our own (0) or everyone's (-1).
     unsafe {
-        libc::kill(-(pid as i32), signal);
+        libc::kill(-pid, signal);
     }
 }
+/// Waits for a process group to empty, up to `grace`.
+async fn wait_group(pid: u32, grace: Duration) {
+    let deadline = Instant::now() + grace;
+    while crate::core::watch::group_alive(pid as i32) && Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+/// What is left of a group after its leader is gone: SIGTERM and up to `grace` to leave, then
+/// SIGKILL. A wrapper (`npm run dev`) that exits first does not cost its children their grace.
+async fn settle_group(pid: u32, grace: Duration) {
+    if crate::core::watch::group_alive(pid as i32) {
+        kill_group(pid, libc::SIGTERM);
+        wait_group(pid, grace).await;
+    }
+    kill_group(pid, libc::SIGKILL);
+}
 async fn terminate(child: &mut Child, pid: u32, grace: u64) {
+    let grace = Duration::from_secs(grace.max(1));
     kill_group(pid, libc::SIGTERM);
-    if tokio::time::timeout(Duration::from_secs(grace.max(1)), child.wait())
-        .await
-        .is_err()
-    {
+    let began = Instant::now();
+    if tokio::time::timeout(grace, child.wait()).await.is_err() {
         kill_group(pid, libc::SIGKILL);
         let _ = child.wait().await;
     }
-    // The group leader may exit while descendants ignore SIGTERM.
+    // The group leader may exit while descendants still shut down (or ignore SIGTERM): they get
+    // what is left of the grace period before the final SIGKILL.
+    wait_group(pid, grace.saturating_sub(began.elapsed())).await;
     kill_group(pid, libc::SIGKILL);
+}
+/// Most descriptors a process can be handed (Caddy takes three).
+const MAX_INHERIT: usize = 8;
+/// Copies of `fds` at 100 and up, closed on exec, to be moved to 3, 4, 5… in the child. Moving
+/// through copies keeps `dup2` from overwriting a descriptor that is still to be copied, and
+/// leaves nothing open in the child above the ones it was given.
+fn inherit_copies(fds: &[i32]) -> std::io::Result<Vec<OwnedFd>> {
+    if fds.len() > MAX_INHERIT {
+        return Err(std::io::ErrorKind::InvalidInput.into());
+    }
+    fds.iter()
+        .map(|fd| {
+            // SAFETY: `fcntl` with `F_DUPFD_CLOEXEC` takes integers and touches no memory.
+            let copy = unsafe { libc::fcntl(*fd, libc::F_DUPFD_CLOEXEC, 100) };
+            if copy < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            // SAFETY: `copy` is a new descriptor that nothing else owns.
+            Ok(unsafe { OwnedFd::from_raw_fd(copy) })
+        })
+        .collect()
 }
 /// Window in which five crashes make the supervisor stop restarting a process.
 const CRASH_WINDOW: Duration = Duration::from_secs(600);
@@ -504,36 +591,10 @@ async fn supervise(
             .stderr(Stdio::piped())
             .kill_on_drop(true);
         command.as_std_mut().process_group(0);
-        if !spec.inherit.is_empty() {
-            let fds = spec.inherit.clone();
-            // Safety: only async-signal-safe calls (fcntl/dup2) between fork and exec.
-            unsafe {
-                command.as_std_mut().pre_exec(move || {
-                    let mut high = Vec::with_capacity(fds.len());
-                    for fd in &fds {
-                        let copy = libc::fcntl(*fd, libc::F_DUPFD, 100);
-                        if copy < 0 {
-                            return Err(std::io::Error::last_os_error());
-                        }
-                        high.push(copy);
-                    }
-                    for (index, fd) in high.iter().enumerate() {
-                        if libc::dup2(*fd, 3 + index as i32) < 0 {
-                            return Err(std::io::Error::last_os_error());
-                        }
-                    }
-                    Ok(())
-                });
-            }
-        }
-        // A child that did not start, or came without its pipes or its pid, counts as a failed start.
-        let started = match command.spawn() {
-            Ok(mut child) => (|| {
-                let pid = child.id()?;
-                let stdout = child.stdout.take()?;
-                let stderr = child.stderr.take()?;
-                Some((child, pid, stdout, stderr))
-            })(),
+        // Descriptors handed over (launchd's sockets) are duplicated here, before the fork, so the
+        // child only calls `dup2` between fork and exec (no allocation, async-signal-safe).
+        let copies = match inherit_copies(&spec.inherit) {
+            Ok(copies) => Some(copies),
             Err(error) => {
                 note(
                     &logs,
@@ -544,6 +605,42 @@ async fn supervise(
                 None
             }
         };
+        if let Some(copies) = copies.as_ref().filter(|copies| !copies.is_empty()) {
+            let numbers: Vec<i32> = copies.iter().map(AsRawFd::as_raw_fd).collect();
+            // SAFETY: the closure runs between fork and exec and only calls `dup2`, which is
+            // async-signal-safe, on integers captured by value; it neither allocates nor locks.
+            unsafe {
+                command.as_std_mut().pre_exec(move || {
+                    for (index, fd) in numbers.iter().enumerate() {
+                        if libc::dup2(*fd, 3 + index as i32) < 0 {
+                            return Err(std::io::Error::last_os_error());
+                        }
+                    }
+                    Ok(())
+                });
+            }
+        }
+        // A child that did not start, or came without its pipes or its pid, counts as a failed start.
+        let started = match copies.as_ref().map(|_| command.spawn()) {
+            None => None,
+            Some(Ok(mut child)) => (|| {
+                let pid = child.id()?;
+                let stdout = child.stdout.take()?;
+                let stderr = child.stderr.take()?;
+                Some((child, pid, stdout, stderr))
+            })(),
+            Some(Err(error)) => {
+                note(
+                    &logs,
+                    &events,
+                    &spec.id,
+                    &format!("Stack: no se pudo iniciar ({:?})", error.kind()),
+                );
+                None
+            }
+        };
+        // The child has its own copies now; ours (at 100 and up) are not needed.
+        drop(copies);
         let mut lived = Duration::ZERO;
         if let Some((mut child, pid, stdout, stderr)) = started {
             let began = Instant::now();
@@ -569,7 +666,7 @@ async fn supervise(
                 transition(&state, &events, "stopping", Some(pid)).await;
                 terminate(&mut child, pid, spec.stop_timeout).await;
             } else {
-                kill_group(pid, libc::SIGKILL);
+                settle_group(pid, Duration::from_secs(spec.stop_timeout.max(1))).await;
             }
             forget(&spec.id);
             drain(out).await;
@@ -799,5 +896,150 @@ mod tests {
         supervisor.reload(vec![spec("a.one", "60")]).await.unwrap();
         assert!(!supervisor.entries.contains_key("a.two"));
         supervisor.shutdown().await;
+    }
+
+    fn job(script: &str, cwd: &Path, inherit: Vec<i32>) -> ProcessSpec {
+        ProcessSpec {
+            id: "job.fd".into(),
+            executable: "/bin/sh".into(),
+            args: vec!["-c".into(), script.into()],
+            cwd: cwd.into(),
+            autostart: true,
+            restart_on_exit: false,
+            environment: BTreeMap::new(),
+            inherit,
+            stop_timeout: 2,
+            env_file: None,
+            blocked: None,
+        }
+    }
+    async fn run_to_end(supervisor: &mut Supervisor, spec: ProcessSpec) {
+        supervisor.reload(vec![spec]).await.unwrap();
+        let task = supervisor
+            .entries
+            .get("job.fd")
+            .unwrap()
+            .task
+            .as_ref()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !task.is_finished() {
+            assert!(Instant::now() < deadline);
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    }
+    /// A handed-over descriptor arrives as 3 (even when it already was 3 or 4 here), and the copies
+    /// made to move it (100 and up) are not left open in the child.
+    #[tokio::test]
+    async fn inherited_descriptors_arrive_at_3_and_leave_no_copies() {
+        let temp = tempfile::tempdir().unwrap();
+        let (first, second) = (temp.path().join("one"), temp.path().join("two"));
+        std::fs::write(&first, "uno").unwrap();
+        std::fs::write(&second, "dos").unwrap();
+        let (a, b) = (
+            std::fs::File::open(&first).unwrap(),
+            std::fs::File::open(&second).unwrap(),
+        );
+        let out = temp.path().join("out.txt");
+        let script = format!(
+            "cat <&3 > '{0}'; cat <&4 >> '{0}'; (: <&100) 2>/dev/null && echo copy-left >> '{0}'; (: <&101) 2>/dev/null && echo copy-left >> '{0}'",
+            out.display()
+        );
+        let mut supervisor = Supervisor::new(temp.path().into());
+        run_to_end(
+            &mut supervisor,
+            job(&script, temp.path(), vec![b.as_raw_fd(), a.as_raw_fd()]),
+        )
+        .await;
+        assert_eq!(std::fs::read_to_string(out).unwrap(), "dosuno");
+        supervisor.shutdown().await;
+    }
+    #[tokio::test]
+    async fn too_many_descriptors_is_a_failed_start() {
+        let temp = tempfile::tempdir().unwrap();
+        let file = std::fs::File::open(temp.path()).unwrap();
+        let fds = vec![file.as_raw_fd(); MAX_INHERIT + 1];
+        let mut supervisor = Supervisor::new(temp.path().into());
+        run_to_end(&mut supervisor, job("exit 0", temp.path(), fds)).await;
+        let state = supervisor
+            .entries
+            .get("job.fd")
+            .unwrap()
+            .state
+            .lock()
+            .await
+            .clone();
+        assert_eq!(state.state, "crashed");
+        supervisor.shutdown().await;
+    }
+    #[test]
+    fn pid_files_parse_and_wrong_pids_never_match() {
+        let old = parse_record("123\n/bin/sleep\n").unwrap();
+        assert_eq!((old.pid, old.started), (123, None));
+        let new = parse_record("123\n/bin/sleep\n456\n").unwrap();
+        assert_eq!(new.started, Some(456));
+        assert!(parse_record("x\n/bin/sleep\n").is_none());
+        for pid in [0u32, 1, u32::MAX, i32::MAX as u32 + 1] {
+            assert!(valid_pid(pid).is_none(), "{pid}");
+            assert!(!alive(pid));
+        }
+        assert!(valid_pid(2).is_some());
+    }
+    /// Only the process that was recorded is stopped: same image, same start time, group leader.
+    #[tokio::test]
+    async fn orphans_are_reaped_only_when_it_is_the_same_process() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("pids");
+        std::fs::create_dir_all(&dir).unwrap();
+        let spawn = || {
+            let mut command = std::process::Command::new("/bin/sleep");
+            command.arg("60").process_group(0);
+            command.spawn().unwrap()
+        };
+        let (mut same, mut reused) = (spawn(), spawn());
+        // Not a group leader: it shares the group of this test, so it is never ours to stop.
+        let mut follower = std::process::Command::new("/bin/sleep");
+        let mut follower = follower.arg("60").spawn().unwrap();
+        let write = |name: &str, child: &std::process::Child, started: u64| {
+            let image = image(child.id()).unwrap();
+            std::fs::write(
+                dir.join(name),
+                format!("{}\n{image}\n{started}\n", child.id()),
+            )
+            .unwrap();
+        };
+        let real =
+            |child: &std::process::Child| crate::core::watch::started(child.id() as i32).unwrap();
+        write("same", &same, real(&same));
+        // A pid reused by another process: same image, another start time.
+        write("reused", &reused, real(&reused) + 1_000_000);
+        write("follower", &follower, real(&follower));
+        reap_dir(&dir).await;
+        assert!(same.wait().is_ok_and(|status| !status.success()));
+        assert!(reused.try_wait().unwrap().is_none());
+        assert!(follower.try_wait().unwrap().is_none());
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+        let _ = reused.kill();
+        let _ = follower.kill();
+        let _ = reused.wait();
+        let _ = follower.wait();
+    }
+    /// A wrapper that exits at once does not take the grace of its children with it.
+    #[tokio::test]
+    async fn children_of_a_wrapper_that_left_get_their_grace() {
+        let temp = tempfile::tempdir().unwrap();
+        let done = temp.path().join("done");
+        let script = format!(
+            "(trap 'sleep 1; echo graceful > {}; exit 0' TERM; while :; do sleep 0.1; done) & exit 0",
+            done.display()
+        );
+        let mut command = tokio::process::Command::new("/bin/sh");
+        command.args(["-c", &script]).process_group(0);
+        let mut child = command.spawn().unwrap();
+        let pid = child.id().unwrap();
+        child.wait().await.unwrap();
+        settle_group(pid, Duration::from_secs(10)).await;
+        assert_eq!(std::fs::read_to_string(&done).unwrap().trim(), "graceful");
+        assert!(!crate::core::watch::group_alive(pid as i32));
     }
 }

@@ -49,7 +49,8 @@ pub fn valid_name(name: &str) -> Result<()> {
 }
 
 /// A type as written in SQL: words, digits and one argument list of numbers, e.g. `varchar(255)`,
-/// `numeric(10, 2)`, `timestamp with time zone`, `int unsigned`, `text[]`. No quotes, no `;`.
+/// `numeric(10, 2)`, `timestamp with time zone`, `int unsigned`, `text[]`. No quotes, no `;`, and
+/// none of the words that start a column clause (`primary key`, `references`, `default`…).
 pub fn valid_type(kind: &str) -> Result<()> {
     ensure!(
         !kind.is_empty() && kind.len() <= 64 && kind.starts_with(|c: char| c.is_ascii_alphabetic()),
@@ -74,6 +75,49 @@ pub fn valid_type(kind: &str) -> Result<()> {
         }
     }
     ensure!(depth == 0, "invalid_ddl");
+    // Types are open (extensions add their own: citext, geometry…), but the words that open a
+    // clause of the column are not part of a type: the form has its own fields for those.
+    const CLAUSES: &[&str] = &[
+        "primary",
+        "key",
+        "unique",
+        "references",
+        "check",
+        "default",
+        "not",
+        "null",
+        "constraint",
+        "generated",
+        "collate",
+        "auto_increment",
+        "autoincrement",
+        "identity",
+        "as",
+        "on",
+        "comment",
+        "using",
+        "stored",
+        "virtual",
+        "after",
+        "first",
+    ];
+    let outside: String = kind
+        .chars()
+        .scan(0, |depth, c| {
+            match c {
+                '(' => *depth += 1,
+                ')' => *depth -= 1,
+                _ => {}
+            }
+            Some(if *depth == 0 && c != ')' { c } else { ' ' })
+        })
+        .collect();
+    ensure!(
+        !outside
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .any(|word| CLAUSES.contains(&word.to_ascii_lowercase().as_str())),
+        "invalid_ddl"
+    );
     Ok(())
 }
 
@@ -109,11 +153,12 @@ pub fn default_sql(dialect: Dialect, value: &str) -> String {
     string_literal(dialect, value)
 }
 
-/// A readable string literal: doubled quotes, and backslashes doubled for MySQL (safe with or
-/// without NO_BACKSLASH_ESCAPES: neither reading lets the value end the string).
+/// A readable string literal (doubled quotes). A MySQL value with a backslash is written in hex
+/// instead: the server reads a doubled backslash as one or two characters depending on
+/// `NO_BACKSLASH_ESCAPES`, and hex means the same in every mode.
 pub fn string_literal(dialect: Dialect, value: &str) -> String {
     match dialect {
-        Dialect::MySql => format!("'{}'", value.replace('\\', "\\\\").replace('\'', "''")),
+        Dialect::MySql if value.contains('\\') => crate::db::sql::literal(dialect, value),
         _ => format!("'{}'", value.replace('\'', "''")),
     }
 }
@@ -400,6 +445,11 @@ mod tests {
             "",
             "1int",
             "int /* */",
+            "int primary key",
+            "text unique",
+            "int references other",
+            "int NOT NULL",
+            "varchar(10) collate x",
         ] {
             assert!(valid_type(bad).is_err(), "{bad}");
         }
@@ -423,10 +473,14 @@ mod tests {
         assert_eq!(default_sql(Dialect::Postgres, "-1.5"), "-1.5");
         assert_eq!(default_sql(Dialect::Postgres, "now()"), "NOW()");
         assert_eq!(default_sql(Dialect::Postgres, "it's"), "'it''s'");
+        // A backslash goes in hex: the same value whatever the server's SQL mode.
+        let tricky = "a\\'); x; --";
         assert_eq!(
-            default_sql(Dialect::MySql, "a\\'); drop table x; --"),
-            "'a\\\\''); drop table x; --'"
+            default_sql(Dialect::MySql, tricky),
+            crate::db::sql::literal(Dialect::MySql, tricky)
         );
+        assert!(!default_sql(Dialect::MySql, tricky).contains("x;"));
+        assert_eq!(default_sql(Dialect::MySql, "it's"), "'it''s'");
         assert_eq!(default_sql(Dialect::Sqlite, "1.2.3"), "'1.2.3'");
     }
 
