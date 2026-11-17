@@ -19,16 +19,16 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Herramientas
         run: |
           sudo xcode-select -s /Applications/Xcode_27.2.app
           xcodebuild -version
-          rustup update stable
-          rustup default stable
-          rustup component add clippy rustfmt
+          # The toolchain of rust-toolchain.toml (version and components), the same as on every Mac.
+          rustup toolchain install
+          rustc --version
       - name: Calidad de Rust
         run: |
           cargo fmt --manifest-path engine/Cargo.toml -- --check
@@ -44,3 +44,20 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: git diff --check "$BASE_SHA" HEAD
+
+  dependencies:
+    # Known vulnerabilities (RustSec), licenses and sources of the engine's dependencies.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: cargo audit
+        run: |
+          rustup toolchain install
+          cargo install --locked --version 0.23.0 cargo-audit
+          cargo audit --file engine/Cargo.lock
+      - name: cargo deny
+        uses: EmbarkStudios/cargo-deny-action@70f81531115945ba6eb6b941ec9d39d063438eb9 # v2.1.2
+        with:
+          manifest-path: ./engine/Cargo.toml
+          command: check
