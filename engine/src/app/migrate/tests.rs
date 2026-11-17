@@ -518,3 +518,11 @@ fn links_that_name_the_old_folder_are_listed_not_rewritten() {
         json!(zprofile)
     );
 }
+
+#[test]
+fn the_migration_lock_is_not_a_file_kept_open() {
+    let lock = Path::new("/d/migration.lock");
+    let report = "p10\ncmysqld\nf5\nn/d/data/ibdata1\np20\ncbutake-stack\nf3\nn/d/migration.lock\n";
+    assert_eq!(control::holders(report, lock), ["mysqld (10)"]);
+    assert!(control::holders("p20\ncbutake-stack\nf3\nn/d/migration.lock\n", lock).is_empty());
+}

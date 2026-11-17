@@ -13,6 +13,27 @@ use std::{
 
 const LABEL: &str = "cl.butake.stack.daemon";
 
+/// The programs (`name (pid)`) that `lsof -F pcn` says keep a file open, leaving out the lock the
+/// migration itself holds (`lock`): it is closed after the move, not something to wait for.
+pub(super) fn holders(report: &str, lock: &Path) -> Vec<String> {
+    let lock = lock.to_string_lossy();
+    let (mut pid, mut command) = (String::new(), String::new());
+    let mut found: Vec<String> = vec![];
+    for line in report.lines() {
+        if let Some(value) = line.strip_prefix('p') {
+            pid = value.to_string();
+        } else if let Some(value) = line.strip_prefix('c') {
+            command = value.to_string();
+        } else if let Some(name) = line.strip_prefix('n') {
+            let holder = format!("{command} ({pid})");
+            if name != lock && !found.contains(&holder) {
+                found.push(holder);
+            }
+        }
+    }
+    found
+}
+
 /// What the migration needs from the running system. Tests use a fake; the app and the CLI use
 /// [`Live`].
 pub trait Control {
@@ -170,7 +191,7 @@ impl Control for Live {
     fn open_files(&self, root: &Path) -> Result<Vec<String>> {
         let mut command = Command::new("/usr/sbin/lsof");
         command
-            .args(["-n", "-P", "-F", "pc", "+D"])
+            .args(["-n", "-P", "-F", "pcn", "+D"])
             .arg(root)
             .env_clear();
         // `lsof` leaves with 1 when nothing is open, so that is no failure; but a run that was cut
@@ -187,17 +208,7 @@ impl Control for Live {
                 && matches!(output.code, Some(0 | 1)),
             "migration_failed"
         );
-        let mut found = vec![];
-        let mut pid = String::new();
-        for line in output.stdout.lines() {
-            if let Some(value) = line.strip_prefix('p') {
-                pid = value.to_string();
-            } else if let Some(name) = line.strip_prefix('c') {
-                found.push(format!("{name} ({pid})"));
-            }
-        }
-        found.dedup();
-        Ok(found)
+        Ok(holders(&output.stdout, &root.join(super::LOCK)))
     }
 
     fn start(
