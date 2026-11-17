@@ -455,6 +455,33 @@ private func samplePayload() -> VaultArchive.Payload {
     #expect(parsed.fields[0].role == .keyId)
 }
 
+/// A pasted key, a JSON of credentials or a password with a line break comes back whole from the plain folder.
+@Test func dataFilesKeepValuesWithSeveralLines() {
+    let pem = PEM.block("NO-ES-REAL\nSEGUNDA-LINEA")
+    var item = VaultItem(container: UUID(), kind: .note, name: "Multilínea")
+    item.fields = [VaultField(role: .custom, label: "Clave pegada", value: pem, secret: true),
+                   VaultField(role: .custom, label: "Con CRLF", value: "a\r\nb\\n \"c\" $d", secret: true),
+                   VaultField(role: .custom, label: "Ruta", value: "C:\\nueva\\carpeta", secret: false)]
+    let text = VaultFolder.dataFile(item)
+    #expect(text.components(separatedBy: "\n").filter { $0.hasPrefix("CLAVE_PEGADA=") }.count == 1)
+    let parsed = VaultFolder.parseDataFile(text)
+    #expect(parsed.fields.map(\.value) == item.fields.map(\.value))
+    #expect(parsed.fields.map(\.secret) == [true, true, false])
+}
+
+/// Lines without a marker are hidden unless the name is clearly public.
+@Test(arguments: [
+    ("DATABASE_URL", "postgres://usuario:clave@servidor/base", true), ("DATABASE_URL", "postgres://servidor/base", false),
+    ("SIGNING_KEY", "x", true), ("JWT_KEY", "x", true), ("SENTRY_DSN", "x", true), ("CREDENTIALS_JSON", "{}", true),
+    ("CLAVE_PORTAL", "x", true), ("APP_KEY", "x", true), ("DB_PASSWORD", "x", true), ("API_KEY", "x", true),
+    ("ASC_KEY_ID", "ABC", false), ("PORT", "8080", false), ("DB_HOST", "localhost", false), ("APP_URL", "https://demo.test", false),
+    ("ALGO_RARO", "x", true),
+])
+func unmarkedValuesAreSecretUnlessTheNameIsClearlyPublic(name: String, value: String, secret: Bool) {
+    #expect(VaultFolder.looksSecret(name: name, value: value) == secret)
+    #expect(VaultFolder.parseDataFile("\(name)=\(VaultFolder.quoted(value))\n").fields.first?.secret == secret)
+}
+
 @Test @MainActor func failedIndexCommitKeepsVaultStateAndRemovesStagedBlob() async throws {
     let root = try temporaryFolder()
     defer { try? FileManager.default.removeItem(at: root) }

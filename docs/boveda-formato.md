@@ -118,7 +118,9 @@ vista previa (solo nombres de variables y si se crean o reemplazan), confirmaci�
 - `README.md` (generado): qué hay, vencimientos, metadatos y variables de entorno sugeridas; sin valores.
 - Los campos de un elemento van junto a su archivo como `<archivo>.datos.txt` (líneas de dotenv con
   comentarios `# <rol>[ secreto]: <etiqueta>`, `# tipo:`, `# entorno:` y notas en líneas `#| `), y
-  se vuelven a leer al importar esa carpeta.
+  se vuelven a leer al importar esa carpeta. Un valor de varias líneas va entre comillas con `\n`, y una línea
+  sin comentario de rol queda como secreta salvo que su nombre sea claramente público (`*_PORT`, `*_HOST`,
+  `*_ID`, una URL sin credenciales…).
 - «Importar carpeta» acepta la carpeta maestra, una app, `_SERVICIOS` o un servicio; muestra una vista
   previa para elegir tipo, sección y entorno, sólo lee el origen y omite enlaces simbólicos, archivos
   ocultos del sistema y archivos de más de 20 MB. Cada `<cuenta>` de un servicio es una cuenta de ese

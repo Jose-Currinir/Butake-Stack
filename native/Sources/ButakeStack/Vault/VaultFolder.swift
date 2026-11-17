@@ -134,10 +134,59 @@ enum VaultFolder {
         return trimmed.isEmpty ? "VALOR" : (trimmed.first!.isNumber ? "_" + trimmed : trimmed)
     }
 
+    /// A value as one dotenv line: quoted when it has spaces, quotes, `$`, `\` or line breaks; line breaks travel as `\n`
+    /// so a pasted key or a JSON of credentials comes back whole when the folder is imported.
     static func quoted(_ value: String) -> String {
-        let single = value.replacingOccurrences(of: "\n", with: " ")
-        guard single.contains(where: { " #\"'$\\".contains($0) }) else { return single }
-        return "\"" + single.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "$", with: "\\$") + "\""
+        guard value.unicodeScalars.contains(where: { " #\"'$\\\n\r".unicodeScalars.contains($0) }) else { return value }
+        var out = "\""
+        for scalar in value.unicodeScalars {
+            switch scalar {
+            case "\\": out += "\\\\"
+            case "\"": out += "\\\""
+            case "$": out += "\\$"
+            case "\n": out += "\\n"
+            case "\r": out += "\\r"
+            default: out.unicodeScalars.append(scalar)
+            }
+        }
+        return out + "\""
+    }
+
+    /// The text of a double-quoted value as `quoted` wrote it (the text after the opening quote), or nil when the quote never closes.
+    private static func unquoted(_ text: Substring) -> String? {
+        var out = "", escaped = false
+        for scalar in text.unicodeScalars {
+            if escaped {
+                switch scalar {
+                case "n": out += "\n"
+                case "r": out += "\r"
+                case "\\", "\"", "$": out.unicodeScalars.append(scalar)
+                default: out += "\\"; out.unicodeScalars.append(scalar)
+                }
+                escaped = false
+            } else if scalar == "\\" { escaped = true }
+            else if scalar == "\"" { return out }
+            else { out.unicodeScalars.append(scalar) }
+        }
+        return nil
+    }
+
+    /// Secret unless the name is clearly not: a value written by hand with no marker is hidden by default.
+    static func looksSecret(name: String, value: String) -> Bool {
+        let upper = name.dataCapitals
+        let words = Set(upper.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))
+        if ["PASS", "PWD", "SECRET", "TOKEN", "PRIVATE", "CREDENTIAL", "DSN", "CLAVE", "JWT", "SIGN", "AUTH", "APIKEY"].contains(where: { upper.contains($0) }) { return true }
+        let isKey = upper.contains("KEY")
+        if isKey && !(words.contains("ID") || upper.hasSuffix("KEYID")) { return true }
+        if upper.hasSuffix("_URL") || upper.hasSuffix("_URI") || words == ["URL"] || words == ["URI"] {
+            // A link is public unless it carries credentials (`scheme://user:password@host`).
+            guard let scheme = value.range(of: "://") else { return false }
+            let authority = value[scheme.upperBound...].prefix { $0 != "/" && $0 != "?" && $0 != "#" }
+            return authority.contains("@")
+        }
+        let open: Set<String> = ["ID", "PORT", "HOST", "HOSTNAME", "USER", "USERNAME", "NAME", "ENV", "REGION", "ENDPOINT", "EMAIL", "DEBUG", "LEVEL", "TIMEOUT", "VERSION", "MODE", "DOMAIN"]
+        if !words.isDisjoint(with: open) { return false }
+        return true
     }
 
     /// Reads a fields file back: kind, environment, fields (role, label, secret) and notes.
@@ -159,13 +208,21 @@ enum VaultFolder {
                 continue
             }
             if line.hasPrefix("#") || line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
-            guard let (key, value) = DotEnv.parse(line).first else { continue }
+            guard let parsed = DotEnv.parse(line).first else { continue }
+            let key = parsed.0
+            var value = parsed.1
+            // A double-quoted value is read as `quoted` wrote it (line breaks as `\n`), not as DotEnv reads `.env` files.
+            var declaration = line.trimmingCharacters(in: .whitespaces)
+            if declaration.hasPrefix("export ") { declaration = String(declaration.dropFirst(7)) }
+            if let equals = declaration.firstIndex(of: "=") {
+                let raw = declaration[declaration.index(after: equals)...].trimmingCharacters(in: .whitespaces)
+                if raw.hasPrefix("\""), let whole = unquoted(raw.dropFirst()) { value = whole }
+            }
             if let (role, secret, label) = pending {
                 let defaultTitle = role == .custom ? "" : L("vault.field.\(role.rawValue)")
                 fields.append(VaultField(role: role, label: label == defaultTitle ? "" : label, value: value, secret: secret, envVar: key))
             } else {
-                let upper = key.dataCapitals
-                let secret = ["PASS", "SECRET", "TOKEN", "PRIVATE", "API_KEY", "APIKEY"].contains { upper.contains($0) }
+                let secret = looksSecret(name: key, value: value)
                 fields.append(VaultField(role: .custom, label: key, value: value, secret: secret, envVar: key))
             }
             pending = nil
