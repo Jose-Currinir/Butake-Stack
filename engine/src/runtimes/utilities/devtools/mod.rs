@@ -247,10 +247,12 @@ fn place(source: &Path, name: &str) -> Result<PathBuf> {
 fn find_file(root: &Path, name: &str) -> Option<PathBuf> {
     for entry in fs::read_dir(root).ok()?.flatten() {
         let path = entry.path();
-        if path.file_name().is_some_and(|n| n == name) && path.is_file() {
+        // A link is neither the file nor a folder to walk into (`is_file` would follow it).
+        let kind = fs::symlink_metadata(&path).ok()?.file_type();
+        if path.file_name().is_some_and(|n| n == name) && kind.is_file() {
             return Some(path);
         }
-        if path.is_dir() {
+        if kind.is_dir() {
             if let Some(found) = find_file(&path, name) {
                 return Some(found);
             }
