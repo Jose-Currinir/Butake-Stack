@@ -417,7 +417,10 @@ pub fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
-/// Verified host keys, no shared master connection, keepalives and the chosen key only.
+/// Verified host keys (Stack's own known_hosts, strict), no shared master connection, keepalives
+/// and the chosen key first (`IdentitiesOnly`). The user's own `~/.ssh/config` still applies to
+/// everything these arguments do not set (extra `IdentityFile`s, `ProxyJump`, `ForwardAgent`…):
+/// whether to ignore it (`-F`) is a product decision, see the audit (R-112).
 fn verified_options(store: &Store, host: &Host) -> Result<Vec<String>> {
     let mut args: Vec<String> = [
         "-o",
