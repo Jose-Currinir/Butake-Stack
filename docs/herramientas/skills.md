@@ -158,7 +158,8 @@ hasta que el usuario la vacía, y «Eliminar datos…» de la herramienta tampoc
 importación mueve las carpetas originales a su lugar, vuelve a crear los enlaces ajenos, quita los enlaces
 a Stack y manda la skill de Stack a la papelera de skills (30 días), solo si esa copia no cambió desde la
 importación; si cambió, o una ruta original está ocupada, responde `{restored: [], conflicts}` y no hace
-nada. Vaciar es el único borrado definitivo y exige `confirmed` con la lista exacta de carpetas.
+nada. Si la copia de Stack ya no existe (eliminada, renombrada o con «Eliminar datos…»), devuelve igual
+las carpetas y los enlaces ajenos y no manda nada a la papelera. Vaciar es el único borrado definitivo y exige `confirmed` con la lista exacta de carpetas.
 
 La hoja de la app muestra por skill desde dónde se copia, cada ruta que cambia («va a la papelera» o «solo se
 quita el enlace»), las fuentes que quedan como están, y una advertencia general: otros programas con

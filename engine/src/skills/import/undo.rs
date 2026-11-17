@@ -1,6 +1,7 @@
 //! Undo of one import and «Vaciar papelera de importación». Undo puts the original folders and
 //! links back and sends Stack's copy to the skills trash (30 days), only while that copy is still
-//! the one imported. Emptying is the only permanent removal of the whole import.
+//! the one imported. If the copy is gone (deleted, renamed, data removed) the originals come back
+//! anyway and nothing goes to the trash; a copy that exists and changed blocks the undo. Emptying is the only permanent removal of the whole import.
 use super::record::{self, Saved};
 use super::{plan::conflicts_json, tree};
 use crate::skills::model::{fail, Ctx, Index};
@@ -23,6 +24,9 @@ pub struct Undo {
     /// Links to Stack's copy that go away.
     remove: Vec<PathBuf>,
     skill: PathBuf,
+    /// Stack's copy still exists and is the imported one: it goes to the skills trash. When it is
+    /// gone (deleted, renamed, «Eliminar datos») there is nothing to send.
+    trash_copy: bool,
     conflicts: Vec<(String, String)>,
 }
 
@@ -41,12 +45,16 @@ pub fn plan(ctx: &Ctx, index: &Index, trash_id: &str) -> Result<Undo> {
         relink: vec![],
         remove: links::existing(ctx, index, &id),
         skill: skill.clone(),
+        trash_copy: false,
         conflicts: vec![],
     };
-    let unchanged = index.skills.contains_key(&id)
+    let listed = index.skills.contains_key(&id);
+    let gone = !listed && fs::symlink_metadata(&skill).is_err();
+    let unchanged = listed
         && skill_file::real_dir(&skill)
         && tree::digest(&skill).is_ok_and(|t| t.hash == saved.hash);
-    if !unchanged {
+    undo.trash_copy = unchanged;
+    if !unchanged && !gone {
         undo.conflicts
             .push((skill.to_string_lossy().to_string(), "changed".into()));
     }
@@ -89,7 +97,7 @@ pub fn plan_json(undo: &Undo) -> Value {
             .map(|(path, target)| json!({"path": path.to_string_lossy(), "target": target.to_string_lossy()}))
             .collect::<Vec<_>>(),
         "remove": strings(&undo.remove),
-        "trash": [undo.skill.to_string_lossy()],
+        "trash": if undo.trash_copy { vec![undo.skill.to_string_lossy()] } else { vec![] },
         "conflicts": conflicts_json(&undo.conflicts),
     })
 }
@@ -111,6 +119,9 @@ pub fn apply(ctx: &Ctx, index: &mut Index, undo: &Undo) -> Result<Value> {
         for pair in &undo.restore {
             fs::rename(&pair.0, &pair.1)?;
             moved.push(pair);
+        }
+        if !undo.trash_copy {
+            return Ok(());
         }
         let entry = index
             .skills

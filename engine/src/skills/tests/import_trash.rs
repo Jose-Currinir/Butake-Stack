@@ -2,7 +2,12 @@
 use super::import::*;
 use super::*;
 use crate::skills::import::FAIL_AFTER_FIRST;
-use std::{collections::BTreeMap, fs, os::unix::fs::symlink};
+use std::{
+    collections::BTreeMap,
+    fs,
+    os::unix::fs::symlink,
+    path::{Path, PathBuf},
+};
 
 #[test]
 fn the_copy_is_byte_identical_and_inner_links_are_not_followed() {
@@ -102,6 +107,67 @@ fn undo_with_a_changed_copy_does_nothing() {
         .unwrap()
         .file_type()
         .is_symlink());
+}
+
+/// Imports `a` (real folder in Claude, link in `.agents`) and returns what undo must bring back.
+fn imported_with_links(env: &Env) -> (String, PathBuf, PathBuf, PathBuf) {
+    let real = folder(env, ".claude/skills", "a", &[("n.md", "n")]);
+    let target = elsewhere(env, "a");
+    let foreign = link(env, ".agents/skills", "a", &target);
+    apply(env, &["a"]);
+    (first_trash_id(env), real, foreign, target)
+}
+
+fn assert_undone(env: &Env, trash_id: &str, real: &Path, foreign: &Path, target: &Path) {
+    let done = env.ok(
+        "skillsImportUndo",
+        json!({"trashId": trash_id, "confirmed": true}),
+    );
+    assert_eq!(done["conflicts"], json!([]));
+    assert!(fs::symlink_metadata(real).unwrap().is_dir());
+    assert_eq!(fs::read_to_string(real.join("n.md")).unwrap(), "n");
+    assert_eq!(fs::read_link(foreign).unwrap(), target);
+    assert!(!trash_dir(env).join(trash_id).exists());
+}
+
+#[test]
+fn undo_after_the_skill_was_deleted_returns_the_originals_and_trashes_nothing() {
+    let env = env();
+    let (trash_id, real, foreign, target) = imported_with_links(&env);
+    env.ok("skillsDelete", json!({"id": "a", "confirmed": true}));
+    let deleted = snap(&trash_dir(&env))
+        .into_keys()
+        .filter(|k| !k.starts_with("import-"))
+        .collect::<Vec<_>>();
+    assert_undone(&env, &trash_id, &real, &foreign, &target);
+    let after = snap(&trash_dir(&env))
+        .into_keys()
+        .filter(|k| !k.starts_with("import-"))
+        .collect::<Vec<_>>();
+    assert_eq!(after, deleted);
+}
+
+#[test]
+fn undo_after_the_skill_was_renamed_returns_the_originals() {
+    let env = env();
+    let (trash_id, real, foreign, target) = imported_with_links(&env);
+    env.ok(
+        "skillsRename",
+        json!({"id": "a", "newId": "b", "confirmed": true}),
+    );
+    assert!(env.skills_dir().join("b").exists());
+    assert_undone(&env, &trash_id, &real, &foreign, &target);
+    // The renamed copy is not Stack's copy of the import any more: it stays.
+    assert!(env.skills_dir().join("b").exists());
+}
+
+#[test]
+fn undo_after_delete_all_returns_the_originals() {
+    let env = env();
+    let (trash_id, real, foreign, target) = imported_with_links(&env);
+    crate::skills::delete_all(&env.store).unwrap();
+    assert!(!env.skills_dir().join("a").exists());
+    assert_undone(&env, &trash_id, &real, &foreign, &target);
 }
 
 #[test]
