@@ -75,3 +75,38 @@ fn deleting_the_tool_data_removes_own_links_only() {
     assert!(own.symlink_metadata().is_err());
     assert!(foreign.is_dir());
 }
+
+/// An `index.json` that cannot be read does not stop the tool: it is set aside as `index.json.bad`,
+/// the skills on disk are adopted again, and «Eliminar datos» still removes Stack's own links.
+#[test]
+fn an_unreadable_index_is_set_aside_and_deleting_the_data_still_removes_the_links() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let home = root.join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let store = Store::new(root.join("store")).unwrap();
+    let call = |method: &str, request: Value| {
+        super::super::dispatch_in(&store, &home, method, &request).unwrap()
+    };
+    call(
+        "skillsCreate",
+        json!({"id": "a", "group": "personal", "template": "blank", "name": "a", "description": "d"}),
+    );
+    call(
+        "skillsLinkApply",
+        json!({"changes": [{"skill": "a", "agent": "claude", "on": true}], "confirmed": true}),
+    );
+    let own = home.join(".claude/skills/a");
+    assert!(own.symlink_metadata().unwrap().file_type().is_symlink());
+    let index = store.root().join("skills/index.json");
+    std::fs::write(&index, "{ esto no es JSON").unwrap();
+    // The tool keeps working: the folder `a` is adopted from disk.
+    let listed = call("skillsList", json!({}));
+    assert!(listed.to_string().contains("\"a\""), "{listed}");
+    assert!(store.root().join("skills/index.json.bad").is_file());
+    // Damaged again, then «Eliminar datos»: the link Stack made goes with the data.
+    std::fs::write(&index, "{ otra vez").unwrap();
+    crate::skills::delete_all_in(&store, &home).unwrap();
+    assert!(own.symlink_metadata().is_err());
+    assert!(!crate::skills::has_data(&store));
+}
