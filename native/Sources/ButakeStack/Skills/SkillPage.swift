@@ -56,9 +56,9 @@ struct SkillPage: View {
         if tool.outsideText != nil {
             Notice(.warning, L("skills.editor.outside.title"), detail: L("skills.editor.outside.detail")) {
                 Button(L("skills.editor.outside.reload")) { tool.outsideChoice = .reload }
-                    .buttonStyle(.bordered).accessibilityIdentifier("skills.editor.outside.reload")
+                    .buttonStyle(.bordered).help(L("skills.editor.outside.reloadHelp")).accessibilityIdentifier("skills.editor.outside.reload")
                 Button(L("skills.editor.outside.keep")) { tool.outsideChoice = .keep }
-                    .buttonStyle(.bordered).accessibilityIdentifier("skills.editor.outside.keep")
+                    .buttonStyle(.bordered).help(L("skills.editor.outside.keepHelp")).accessibilityIdentifier("skills.editor.outside.keep")
             }
             .padding(12)
             .accessibilityIdentifier("skills.editor.outside")

@@ -4091,7 +4091,9 @@
 "skills.editor.discard" = "Descartar cambios";
 "skills.editor.saveHelp" = "Guarda el texto (⌘S).";
 "skills.editor.outside.title" = "SKILL.md cambió fuera de Stack";
-"skills.editor.outside.detail" = "Tienes texto sin guardar. Recarga para ver la versión del disco (se pierde lo que escribiste) o conserva lo escrito; al guardar reemplazará la versión del disco.";
+"skills.editor.outside.detail" = "Tienes texto sin guardar. Elige qué versión queda.";
+"skills.editor.outside.reloadHelp" = "Descarta lo que escribiste y muestra la versión del disco.";
+"skills.editor.outside.keepHelp" = "Conserva lo escrito; al guardar reemplaza la versión del disco.";
 "skills.editor.outside.reload" = "Recargar";
 "skills.editor.outside.keep" = "Conservar lo escrito";
 "skills.editor.switch.title" = "Hay texto sin guardar";
