@@ -54,6 +54,9 @@ import SwiftUI
         if env["BUTAKE_QA_PALETTE"] != nil {
             Task { try? await Task.sleep(for: .seconds(2)); StackStore.shared.showPalette = true }
         }
+        if env["BUTAKE_QA_SHORTCUTS"] != nil {
+            Task { try? await Task.sleep(for: .seconds(2)); StackStore.shared.showShortcuts = true }
+        }
         if let language = env["BUTAKE_QA_LANGUAGE"] {
             Task { try? await Task.sleep(for: .seconds(1)); StackStore.shared.route = .language(language) }
         }
