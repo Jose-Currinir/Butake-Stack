@@ -305,6 +305,8 @@ import SwiftUI
     /// as done and, when running, the supervisor answers with a few services. The QA store never
     /// starts a supervisor, and these screenshots never touch the real one.
     static var simulatesStack: Bool { value("BUTAKE_QA_STACK") != nil }
+    /// BUTAKE_QA_STACK=reconnecting: the supervisor does not answer and the bar shows «Reconectando…».
+    static var simulatesReconnecting: Bool { value("BUTAKE_QA_STACK") == "reconnecting" }
     /// Every site answers 200 (BUTAKE_QA_SITES_ONLINE): presentation screenshots with sites online.
     static var simulatesSitesOnline: Bool { value("BUTAKE_QA_SITES_ONLINE") != nil }
     static var simulatedStatus: StackStatus? {
