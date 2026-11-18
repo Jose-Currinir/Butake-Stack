@@ -5,6 +5,8 @@ import SwiftUI
 struct WorkStep: View {
     @Bindable var store: StackStore
     @AppStorage("setup.profiles") private var profilesRaw = ""
+    /// What most people who start with Stack work on: marked by «Marcar lo habitual».
+    static let usual: Set<String> = ["laravel", "web"]
     var chosen: Set<String> { Set(profilesRaw.split(separator: ",").map(String.init)) }
     /// PHP, Node and Apple's tools have their own rows in the next step, with their versions.
     var tools: [String] {
@@ -14,6 +16,15 @@ struct WorkStep: View {
 
     var body: some View {
         Form {
+            Section {
+                Button { profilesRaw = chosen.union(Self.usual).sorted().joined(separator: ",") } label: {
+                    Label(L("profiles.usual"), systemImage: Symbols.success)
+                }
+                .disabled(Self.usual.isSubset(of: chosen))
+                .accessibilityIdentifier("profiles.usual")
+            } footer: {
+                Text(L("profiles.usualDetail")).font(.uiCaption).foregroundStyle(.secondary)
+            }
             ForEach(WorkProfile.categories, id: \.self) { category in
                 Section(L("category.work.\(category)")) {
                     ForEach(WorkProfile.all.filter { $0.category == category }) { profile in

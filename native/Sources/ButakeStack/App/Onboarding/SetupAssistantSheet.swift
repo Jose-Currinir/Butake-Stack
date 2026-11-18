@@ -7,6 +7,7 @@ struct SetupAssistantSheet: View {
     @Bindable var store: StackStore
     @AppStorage("welcome.seen") private var seen = false
     @State private var step: Step
+    @AppStorage("setup.profiles") private var profilesRaw = ""
 
     enum Step: Int, CaseIterable {
         case welcome, work, base
@@ -43,7 +44,7 @@ struct SetupAssistantSheet: View {
     var body: some View {
         SheetFrame(title: title, symbol: step == .welcome ? nil : (step == .work ? Symbols.project : Symbols.setup), detail: detail,
                    width: 720, height: 600,
-                   actionTitle: step == .base ? L("common.done") : L("assistant.next"),
+                   actionTitle: step == .base ? L("common.done") : (step == .work && !profilesRaw.isEmpty ? L("assistant.prepare") : L("assistant.next")),
                    actionID: "assistant.next",
                    canAct: step != .base || store.setupComplete,
                    cancelID: step == .base && store.setupComplete ? nil : "assistant.later",
