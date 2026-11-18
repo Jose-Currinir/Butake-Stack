@@ -1053,6 +1053,11 @@
 "env.view" = "Vista";
 "env.auditFailed" = "No se pudo registrar la acción en la bitácora de auditoría; no se continuó.";
 "env.hide" = "Ocultar";
+"env.actions" = "Acciones del entorno";
+"env.duplicate" = "Duplicar";
+"env.rename" = "Renombrar…";
+"env.renameStandard" = "Los entornos estándar conservan su nombre.";
+"env.copyName" = "%@ copia";
 "env.kind.local" = "Local";
 "env.kind.development" = "Desarrollo";
 "env.kind.testing" = "Pruebas";
@@ -1105,6 +1110,17 @@
 "env.gitignore.failed" = "No se pudo escribir el .gitignore del proyecto. Si es un enlace o no tienes permiso, agrega la línea .env a mano.";
 "env.drop.invalid" = "Suelta un archivo .env de hasta 1 MB (por ejemplo .env o .env.local).";
 "env.drop.empty" = "Ese archivo no tiene variables que importar.";
+"env.drop.title" = "Importar como entorno nuevo";
+"env.drop.detail" = "%@ tiene %d variables. Se crea un entorno nuevo; los que ya tienes no cambian.";
+"env.drop.note" = "No se muestran los valores. Los secretos van al Llavero.";
+"env.drop.import" = "Importar";
+"env.drop.renamed" = "Ese nombre ya existe: se llamará «%@».";
+"env.drop.variables" = "Variables";
+"env.drop.defaultName" = "Importado";
+"env.drop.imported" = "Entorno %@ importado";
+"env.undo.duplicate" = "Duplicar %@";
+"env.undo.activate" = "Activar %@";
+"env.undo.rename" = "Renombrar %@";
 
 /* Servicios */
 "category.database" = "Bases de datos";
@@ -3858,6 +3874,7 @@
 "dumps.clearHelp" = "Elimina los dumps recibidos";
 "dumps.setupTitle" = "Recibe los dump() de tus proyectos";
 "dumps.setupDetail" = "Configura tu proyecto para enviar sus dump() a 127.0.0.1:%d y aparecerán aquí. Se guardan en memoria, hasta 300 o 8 MiB.";
+"dumps.delete" = "Eliminar";
 
 /* Herramienta Registros */
 "logs.filter" = "Filtrar líneas";

@@ -78,35 +78,6 @@ enum EnvImportFile {
     }
 }
 
-extension StackStore {
-    /// A `.env` the user dropped becomes the project's «Local» environment, the same way «Importar»
-    /// does with the project's own `.env`: secrets go to the Keychain, nothing is lost (R8).
-    func importEnvFile(_ project: Project, from url: URL) async -> Bool {
-        guard EnvImportFile.accepts(url), let text = try? String(contentsOf: url, encoding: .utf8) else {
-            errorMessage = L("env.drop.invalid")
-            return false
-        }
-        let pairs = DotEnv.parse(text)
-        guard !pairs.isEmpty else { errorMessage = L("env.drop.empty"); return false }
-        let secret = await classify(pairs.map(\.0))
-        var entries: [EnvEntry] = []
-        var secrets: [String: String] = [:]
-        for (index, pair) in pairs.enumerated() {
-            if secret[index] { secrets[pair.0] = pair.1 }
-            entries.append(EnvEntry(key: pair.0, value: secret[index] ? "" : pair.1, secret: secret[index]))
-        }
-        guard await updateSecrets(project.id, "local", set: secrets) else { return false }
-        var site = envs[project.id]?.site ?? ProjectEnvironments(active: nil, environments: [])
-        site.environments.removeAll { $0.id == "local" }
-        site.environments.insert(EnvEnvironment(id: "local", name: L("env.kind.local"), kind: .local, entries: entries), at: 0)
-        site.active = "local"
-        guard await saveEnvs(project.id, site) else { return false }
-        await envAudit(project.id, env: "local", action: "importar")
-        notify(L("env.imported"))
-        return true
-    }
-}
-
 /// The `.env` is not ignored (a warning with its fix: one line in `.gitignore`, after a yes that says
 /// which line and which file) or is tracked (an error: that one takes `git rm --cached`, which Stack
 /// does not run for the user).
