@@ -180,3 +180,158 @@ async fn branch_counts_creation_and_snapshot_diff_are_real() {
     assert!(branch_details(root, "feature/stats", "main").await.unwrap()["creation"].is_null());
     assert!(branch_details(root, "--all", "main").await.is_err());
 }
+
+/// A pull request merged on the provider with «delete the branch»: «Actualizar» and «Bajar» stop
+/// listing `origin/…`, the local branch reads as merged and goes without forcing; one with a
+/// commit only on this Mac is kept.
+#[tokio::test]
+async fn a_merged_and_deleted_branch_is_pruned_and_goes_without_forcing() {
+    use crate::git::actions::{Action, execute};
+    let temp = repository().await;
+    let root = temp.path();
+    let remote = tempfile::tempdir().unwrap();
+    let remote_path = remote.path().to_str().unwrap().to_string();
+    git(remote.path(), &["init", "-q", "--bare"]).await.unwrap();
+    git(root, &["remote", "add", "origin", &remote_path])
+        .await
+        .unwrap();
+    for (name, file) in [
+        ("feature/pagos", "pagos.txt"),
+        ("feature/local", "local.txt"),
+        ("feature/extra", "extra.txt"),
+    ] {
+        git(root, &["switch", "-q", "-c", name, "develop"])
+            .await
+            .unwrap();
+        commit_file(root, file, "x\n", &format!("feat: {file}")).await;
+    }
+    git(root, &["switch", "-q", "develop"]).await.unwrap();
+    git(
+        root,
+        &[
+            "push",
+            "-q",
+            "-u",
+            "origin",
+            "develop",
+            "feature/pagos",
+            "feature/local",
+            "feature/extra",
+        ],
+    )
+    .await
+    .unwrap();
+    // A commit of feature/local that never reached the remote.
+    git(root, &["switch", "-q", "feature/local"]).await.unwrap();
+    commit_file(root, "solo.txt", "solo\n", "feat: solo aquí").await;
+    git(root, &["switch", "-q", "develop"]).await.unwrap();
+
+    // The provider merges feature/pagos into develop and deletes it; feature/local is deleted too.
+    let provider = tempfile::tempdir().unwrap();
+    let other = provider.path();
+    git(other, &["clone", "-q", "-b", "develop", &remote_path, "."])
+        .await
+        .unwrap();
+    git(
+        other,
+        &[
+            "-c",
+            "user.name=Proveedor",
+            "-c",
+            "user.email=pr@example.invalid",
+            "merge",
+            "-q",
+            "--no-ff",
+            "-m",
+            "Merge pull request #7",
+            "origin/feature/pagos",
+        ],
+    )
+    .await
+    .unwrap();
+    git(other, &["push", "-q", "origin", "develop"])
+        .await
+        .unwrap();
+    git(
+        other,
+        &[
+            "push",
+            "-q",
+            "origin",
+            "--delete",
+            "feature/pagos",
+            "feature/local",
+        ],
+    )
+    .await
+    .unwrap();
+
+    execute(root, Action::Fetch, "", false).await.unwrap();
+    let state = snapshot(root).await.unwrap();
+    let branch = |name: &str| state.branches.iter().find(|b| b.name == name).unwrap();
+    assert!(branch("feature/pagos").gone);
+    assert!(branch("feature/pagos").merged);
+    assert!(branch("feature/local").gone && !branch("feature/local").merged);
+    assert!(!branch("feature/extra").gone && !branch("feature/extra").merged);
+    assert!(
+        !state
+            .remote_branches
+            .iter()
+            .any(|b| b.short == "feature/pagos")
+    );
+    // Not merged into develop on this Mac yet: `-d` refuses, the merged variant does not.
+    assert_eq!(
+        execute(root, Action::DeleteBranch, "feature/pagos", true)
+            .await
+            .unwrap_err()
+            .code,
+        "branch_not_merged"
+    );
+    assert_eq!(
+        execute(root, Action::DeleteMergedBranch, "feature/pagos", false)
+            .await
+            .unwrap_err()
+            .code,
+        "confirmation_required"
+    );
+    execute(root, Action::DeleteMergedBranch, "feature/pagos", true)
+        .await
+        .unwrap();
+    assert_eq!(
+        execute(root, Action::DeleteMergedBranch, "feature/local", true)
+            .await
+            .unwrap_err()
+            .code,
+        "branch_not_merged"
+    );
+    assert_eq!(
+        execute(root, Action::DeleteMergedBranch, "develop", true)
+            .await
+            .unwrap_err()
+            .code,
+        "protected_branch"
+    );
+
+    // «Bajar» prunes too: feature/extra, deleted on the remote after the last «Actualizar».
+    git(
+        other,
+        &["push", "-q", "origin", "--delete", "feature/extra"],
+    )
+    .await
+    .unwrap();
+    execute(root, Action::Pull, "", true).await.unwrap();
+    let after = snapshot(root).await.unwrap();
+    assert!(
+        !after
+            .remote_branches
+            .iter()
+            .any(|b| b.short == "feature/extra")
+    );
+    assert!(!after.branches.iter().any(|b| b.name == "feature/pagos"));
+    assert!(
+        after
+            .branches
+            .iter()
+            .any(|b| b.name == "feature/local" && b.gone)
+    );
+}
