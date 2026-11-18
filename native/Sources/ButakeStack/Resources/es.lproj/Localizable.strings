@@ -203,6 +203,7 @@
 "home.stoppedDetail" = "Tus proyectos .test no se sirven hasta que lo inicies.";
 "home.setupDetail" = "Instala lo mínimo para servir tus proyectos .test.";
 "home.noSites" = "Crea un proyecto o agrega una carpeta existente.";
+"home.state.crashed" = "Falló: ver registros";
 
 /* Asistente de configuración y activación */
 "setup.title" = "Preparar Stack";
@@ -339,6 +340,11 @@
 "project.credentials.locked" = "La Bóveda está bloqueada";
 "project.credentials.unlock" = "Desbloquear…";
 "project.credentials.open" = "Abrir en la Bóveda";
+"project.version.seeLanguages" = "Ver en Lenguajes";
+"project.version.help" = "Cambiar la versión de %@ de este proyecto";
+"project.version.label" = "Versión de %@";
+"project.version.changed" = "Este proyecto usa ahora %@ %@";
+"project.version.undo" = "Cambiar la versión de %@";
 
 "kind.laravel" = "Laravel";
 "kind.php" = "PHP";
@@ -498,6 +504,15 @@
 
 "process.autostart" = "Inicio automático";
 "process.logs" = "Ver registro";
+"process.autostartShort" = "Automático";
+"process.logsShort" = "Registros";
+"process.restart" = "Reiniciar";
+"process.copyCommand" = "Copiar comando";
+"process.commandCopied" = "Comando copiado";
+"process.all" = "Acciones para todos los procesos";
+"process.startAll" = "Iniciar todos";
+"process.stopAll" = "Detener todos";
+"process.restartAll" = "Reiniciar todos";
 
 "task.composer" = "composer install";
 "task.npm" = "npm install";
@@ -1019,6 +1034,7 @@
 "env.portRestarted" = "Los procesos de %@ se reiniciaron con el puerto nuevo de %@.";
 "env.view" = "Vista";
 "env.auditFailed" = "No se pudo registrar la acción en la bitácora de auditoría; no se continuó.";
+"env.hide" = "Ocultar";
 "env.kind.local" = "Local";
 "env.kind.development" = "Desarrollo";
 "env.kind.testing" = "Pruebas";
@@ -1062,6 +1078,15 @@
 "env.text.label" = "Variables del entorno";
 "env.text.note" = "Los secretos se ven como %@ y siguen en el Llavero: deja la línea así para conservar el valor o escribe uno nuevo. Solo se guardan las líneas NOMBRE=valor (los comentarios no). ⌘F busca.";
 "env.template.header" = "# Plantilla del entorno «%@» (sin valores secretos)";
+"env.gitignore.addButton" = "Agregar a .gitignore…";
+"env.gitignore.confirmTitle" = "¿Agregar el .env a .gitignore?";
+"env.gitignore.confirmDetail" = "Se agrega la línea «%@» al final de «%@». Si el archivo no existe, se crea. Puedes deshacerlo con ⌘Z.";
+"env.gitignore.add" = "Agregar";
+"env.gitignore.added" = "Se agregó «%@» a .gitignore";
+"env.gitignore.undo" = "Agregar %@ a .gitignore";
+"env.gitignore.failed" = "No se pudo escribir el .gitignore del proyecto. Si es un enlace o no tienes permiso, agrega la línea .env a mano.";
+"env.drop.invalid" = "Suelta un archivo .env de hasta 1 MB (por ejemplo .env o .env.local).";
+"env.drop.empty" = "Ese archivo no tiene variables que importar.";
 
 /* Servicios */
 "category.database" = "Bases de datos";

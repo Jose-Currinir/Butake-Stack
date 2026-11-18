@@ -44,6 +44,21 @@ struct EnvRowView: View {
                 Text(row.key).font(.uiSubheadline.weight(.semibold).monospaced()).textSelection(.enabled)
             }
         }
+        // The same actions as the row's buttons, the removal last.
+        .contextMenu {
+            if row.secret {
+                Button(action: reveal) { Label(revealed == nil ? L("env.reveal") : L("env.hide"), systemImage: revealed == nil ? Symbols.reveal : Symbols.hide) }
+                    .disabled(!hasSecret).accessibilityIdentifier("env.menu.reveal.\(row.key)")
+                Button(action: copy) { Label(L("env.copy"), systemImage: Symbols.copy) }
+                    .disabled(!hasSecret).accessibilityIdentifier("env.menu.copy.\(row.key)")
+                Button(action: edit) { Label(L("env.setSecret"), systemImage: Symbols.edit) }.accessibilityIdentifier("env.menu.edit.\(row.key)")
+            } else {
+                Button(action: toggleSecret) { Label(L("env.makeSecret"), systemImage: Symbols.unlocked) }.accessibilityIdentifier("env.menu.secret.\(row.key)")
+            }
+            Divider()
+            Button(role: .destructive, action: remove) { Label(L("env.removeKey"), systemImage: Symbols.remove) }
+                .accessibilityIdentifier("env.menu.remove.\(row.key)")
+        }
     }
     /// Inserts `{port:<id>}`: Stack puts that project's port there when the environment is applied.
     private var portMenu: some View {

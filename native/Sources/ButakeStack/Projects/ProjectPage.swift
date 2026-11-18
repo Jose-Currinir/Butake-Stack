@@ -170,6 +170,12 @@ struct ProjectPage: View {
                 ForEach(project.processes) { process in
                     ProcessRow(store: store, id: "\(project.id).\(process.name)", process: process) { id in logProcess = id; tab = .logs }
                 }
+            } header: {
+                HStack {
+                    Text(L("site.processes"))
+                    Spacer()
+                    ProcessBatchMenu(store: store, project: project)
+                }
             } footer: {
                 Text(String(format: L("site.processesRunning"), store.runningProcesses(project), project.processes.count))
                     .font(.uiCaption).foregroundStyle(.secondary).multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)

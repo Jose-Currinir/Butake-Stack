@@ -324,7 +324,9 @@ private struct GroupRow: View {
     /// After a drop: the folder opens to show where the project went.
     let dropped: () -> Void
     @State private var targeted = false
-    var running: Int { members.filter { store.sitePhase($0) == .running }.count }
+    /// Its count and its running ones take every project inside it, folders within folders too.
+    var inside: [Project] { store.projects(inside: group) }
+    var running: Int { inside.filter { store.sitePhase($0) == .running }.count }
     var body: some View {
         Label {
             HStack(spacing: 6) {
@@ -337,7 +339,7 @@ private struct GroupRow: View {
                         .padding(.horizontal, 5).padding(.vertical, 1).background(Brand.success, in: Capsule())
                         .help(String(format: L("groups.running"), running))
                 }
-                Text("\(members.count)").font(.subheadline.weight(.medium)).foregroundStyle(.secondary).monospacedDigit()
+                Text("\(inside.count)").font(.subheadline.weight(.medium)).foregroundStyle(.secondary).monospacedDigit()
                 if let toggle {
                     // A project's row opens its page: its chevron is a button of its own, at the end of the row.
                     Button(action: toggle) {

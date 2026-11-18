@@ -7,6 +7,8 @@ struct HomePage: View {
     @Bindable var store: StackStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var services: [String] { Route.allEngines.filter { store.engineVersion($0) != nil } }
+    /// How far a folder inside another is moved in, as in the sidebar.
+    static let indent: CGFloat = 20
     var online: Int { store.projects.filter { store.sitePhase($0) == .running }.count }
 
     var body: some View {
@@ -53,16 +55,19 @@ struct HomePage: View {
     private var projects: some View {
         VStack(alignment: .leading, spacing: 18) {
             SectionHeading(title: L("route.sites"), detail: String(format: L("sites.online"), online))
-            // Each folder as its own group of cards, closed or open as in the sidebar (one state for
-            // both); projects without a folder after them.
-            ForEach(store.groups) { group in
-                let members = store.projects(in: group)
-                if !members.isEmpty {
+            // The folders as the sidebar draws them: each inside the one it is in, a folder closed hides
+            // everything under it, and a folder counts every project inside it. Cards are the folder's
+            // own projects; the ones of a folder inside it are under that folder's title.
+            ForEach(store.folderTree) { entry in
+                let group = entry.group
+                let inside = store.projects(inside: group)
+                if !inside.isEmpty && store.ancestors(of: group).allSatisfy({ store.folderOpen($0.id) }) {
+                    let members = store.projects(in: group)
                     VStack(alignment: .leading, spacing: 10) {
                         // A project of several parts says so and leads to its page.
                         HStack(spacing: 4) {
                             HomeFolderHeader(store: store, id: group.id, title: group.name,
-                                             symbol: group.isProject ? Symbols.compositeProject : Symbols.folder, members: members)
+                                             symbol: group.isProject ? Symbols.compositeProject : Symbols.folder, members: inside)
                             if group.isProject {
                                 Button { store.openComposite(group.id) } label: {
                                     Label(L("composite.open"), systemImage: Symbols.compositeProject).labelStyle(.iconOnly)
@@ -72,8 +77,9 @@ struct HomePage: View {
                                 .accessibilityIdentifier("home.folder.\(group.id).open")
                             }
                         }
-                        if store.folderOpen(group.id) { grid(members) { HomeProjectCard(store: store, project: $0).draggable($0.id) } }
+                        if store.folderOpen(group.id) && !members.isEmpty { grid(members) { HomeProjectCard(store: store, project: $0).draggable($0.id) } }
                     }
+                    .padding(.leading, CGFloat(entry.depth) * HomePage.indent)
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
@@ -117,7 +123,8 @@ struct HomePage: View {
 
     private var servicesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: L("sidebar.services"), detail: String(format: L("status.engines"), store.runningEngines, store.engineCount))
+            // No count of what runs here: the status bar says it once for the whole window.
+            SectionHeading(title: L("sidebar.services"))
             grid(services.map(ServiceID.init)) { HomeServiceCard(store: store, name: $0.id) }
         }
     }
@@ -268,9 +275,17 @@ private struct HomeProjectCard: View {
     var detail: String { detail(kind: project.tech.title) }
     func detail(kind: String) -> String {
         if project.isMissing { return L("missing.title") }
+        let state = stateText
         let branch = store.git[project.id].map { $0.branch.isEmpty ? L("git.detached") : $0.branch }
         let unserved = project.isServed || project.technology == nil ? nil : L("kind.unserved")
-        return ([kind] + [unserved, project.php.map { "PHP \($0)" }, branch].compactMap { $0 }).joined(separator: " · ")
+        return ([state, kind] + [unserved, project.php.map { "PHP \($0)" }, branch]).compactMap { $0 }.joined(separator: " · ")
+    }
+    /// What is not running says so in words, first in the line: the ring and the switch say it only by color.
+    private var stateText: String? {
+        guard project.isServed else { return nil }
+        guard project.enabled else { return L("site.off") }
+        let phase = store.sitePhase(project)
+        return phase == .running ? nil : phase == .crashed ? L("home.state.crashed") : L("state.\(phase.rawValue)")
     }
     var body: some View {
         let phase = store.sitePhase(project)
@@ -309,9 +324,11 @@ private struct HomeServiceCard: View {
     var body: some View {
         let tech = Tech.of(name)
         let enabled = store.engineEnabled(name)
-        HomeCard(tech: tech, title: tech.title, detail: [store.engineVersion(name), store.enginePort(name).map(String.init)].compactMap { $0 }.joined(separator: " · "),
+        let phase = store.phase("stack.\(name)")
+        let state = !enabled ? L("site.off") : phase == .running ? nil : phase == .crashed ? L("home.state.crashed") : L("state.\(phase.rawValue)")
+        HomeCard(tech: tech, title: tech.title, detail: [state, store.engineVersion(name), store.enginePort(name).map(String.init)].compactMap { $0 }.joined(separator: " · "),
                  identifier: "home.service.\(name)", open: open) {
-            if enabled { StatusRing(phase: store.phase("stack.\(name)")) }
+            if enabled { StatusRing(phase: phase) }
             Toggle(tech.title, isOn: Binding(get: { enabled }, set: { on in Task { await store.setEngine(name, enabled: on) } }))
                 .toggleStyle(.switch).controlSize(.small).labelsHidden()
                 .accessibilityIdentifier("home.service.toggle.\(name)")

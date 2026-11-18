@@ -87,6 +87,21 @@ extension StackStore {
     func projects(in group: ProjectGroup) -> [Project] {
         group.sites.compactMap { id in projects.first { $0.id == id } }
     }
+    /// The projects of a folder and of every folder inside it, each once: what its count says.
+    func projects(inside group: ProjectGroup) -> [Project] {
+        var ids = Set([group.id])
+        var grew = true
+        // Parents come before their folders, but the loop does not depend on the order.
+        while grew {
+            grew = false
+            for other in groups where !ids.contains(other.id) && other.parent.map(ids.contains) == true {
+                ids.insert(other.id)
+                grew = true
+            }
+        }
+        var seen = Set<String>()
+        return groups.filter { ids.contains($0.id) }.flatMap(projects(in:)).filter { seen.insert($0.id).inserted }
+    }
 
     /// Applies the change right away (so the sidebar animates with it) and saves it. Saves are queued:
     /// several quick changes (an import placing many sites) never race, and the last state wins.
