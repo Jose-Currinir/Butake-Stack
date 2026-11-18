@@ -61,6 +61,20 @@ Nube                 solo las cuentas activas: AWS · Google Cloud (sin ninguna,
 Componentes          Servicios · Lenguajes · Utilidades
 ```
 
+**Proyectos sigue las carpetas del disco.** La carpeta de proyectos (`~/Stack/Projects` o la elegida en
+Ajustes › Avanzado) es el árbol: cada subcarpeta es una carpeta de la barra lateral, anidada a cualquier
+profundidad (sangría de un nivel por carpeta; cerrar una carpeta oculta lo que tiene dentro). Un proyecto de
+varias partes es una carpeta del disco marcada como tal (clic derecho › Convertir en proyecto, o «Convertir»
+en la sugerencia que aparece cuando una carpeta tiene dos o más repositorios con el mismo prefijo).
+
+- Estados, siempre dichos con palabras: **No encontrado** (proyecto sin carpeta; clic derecho › Ubicar…, Quitar de
+  Stack) y **Nuevo** (repositorio del disco que no es proyecto; botón Agregar). Nada se agrega ni se quita solo.
+- Lo que se mueve en Finder se sigue solo; Stack avisa en una línea (««X» se movió a …»).
+- Arrastrar un proyecto o una carpeta sobre otra carpeta (o sobre el título Proyectos, para sacarla) mueve la
+  carpeta en el disco, siempre tras una confirmación que dice de dónde a dónde, y se deshace con ⌘Z.
+- Clic derecho en una carpeta: Nueva carpeta aquí…, Mostrar en Finder, Cambiar nombre… (renombra en el disco) y
+  Eliminar carpeta (solo vacías).
+
 Herramientas, Nube y Componentes no se pliegan. Cada fila de Componentes abre su página con sus
 categorías en la columna de contenido y la categoría en el detalle; la fila recuerda la última
 categoría vista:

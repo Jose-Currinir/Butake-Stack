@@ -113,6 +113,7 @@ private func single(_ items: MemoryKeychainItems, _ account: String, _ values: [
     try makeProject("tienda", in: store)
     try makeProject("bodega", in: store)
     let stack = StackStore(engine: engine)
+    stack.projectsFolderOverride = FileManager.default.temporaryDirectory.appendingPathComponent("sin-proyectos-\(UUID().uuidString)").path
     await stack.refresh()
     let items = MemoryKeychainItems()
     let secrets = EnvSecrets(items: items)

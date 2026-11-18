@@ -86,6 +86,10 @@ const PUBLIC_ERRORS: &[&str] = &[
     "folder_exists",
     "folder_missing",
     "folder_in_use",
+    "folder_not_empty",
+    "folder_move_failed",
+    "move_into_itself",
+    "invalid_folder",
     "not_a_project",
     "site_exists",
     "invalid_name",
@@ -332,6 +336,7 @@ async fn main() {
         Some("watch-status") => Some("state"),
         Some("watch-logs") => Some("logs"),
         Some("watch-dumps") => Some("dumps"),
+        Some("watch-disk") => Some("disk"),
         _ => None,
     };
     if let Some(topic) = topic {

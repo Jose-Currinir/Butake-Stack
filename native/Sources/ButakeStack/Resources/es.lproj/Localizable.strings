@@ -46,6 +46,7 @@
 "busy.reloading" = "Reiniciando Stack…";
 "busy.removing" = "Quitando…";
 "busy.saving" = "Guardando…";
+"busy.moving" = "Moviendo…";
 "busy.starting" = "Iniciando el supervisor…";
 "busy.start" = "Iniciando…";
 "busy.stop" = "Deteniendo…";
@@ -365,12 +366,33 @@
 "groups.untitled" = "Carpeta sin nombre";
 "groups.loose" = "Sin carpeta";
 "groups.empty" = "Arrastra proyectos aquí";
+"groups.newInside" = "Nueva carpeta aquí…";
+"groups.newRepo" = "Nuevo";
+"groups.newRepoAdd" = "Agregar";
+"groups.newRepoHelp" = "Hay un repositorio nuevo en esta carpeta del disco. Stack no lo agrega solo.";
+"groups.suggest" = "¿Varias partes?";
+"groups.suggestConvert" = "Convertir";
+"groups.moveConfirm" = "¿Mover la carpeta en el disco?";
+"groups.moveAction" = "Mover";
+"groups.moveDetail" = "«%1$@» pasa a «%2$@»: se mueve la carpeta en el disco, de %3$@ a %4$@. Puedes deshacerlo con ⌘Z.";
+"groups.undoMove" = "Mover «%@»";
+"groups.followedOne" = "«%1$@» se movió a %2$@. Stack siguió su carpeta.";
+"groups.followedMany" = "%d proyectos se movieron en el disco. Stack siguió sus carpetas.";
 "groups.collapse" = "Cerrar carpeta";
 "groups.expand" = "Abrir carpeta";
 "groups.open" = "Abierta";
 "groups.closed" = "Cerrada";
 "groups.collapseAll" = "Plegar todas las carpetas";
 "groups.expandAll" = "Desplegar todas las carpetas";
+"groups.migrate.title" = "Ordenar según las carpetas del disco";
+"groups.migrate.detail" = "La barra lateral ahora sigue las carpetas de tu carpeta de proyectos. Estas carpetas de Stack no existen en el disco todavía.";
+"groups.migrate.matches" = "Carpetas que ya coinciden con el disco: %d. Se convierten solas.";
+"groups.migrate.folder" = "Se crea «%@» y se mueven:";
+"groups.migrate.conflict" = "Ya existe: no se mueve";
+"groups.migrate.accept" = "Mover y convertir";
+"groups.migrate.keep" = "Dejar como están";
+"groups.migrate.keepHelp" = "Los proyectos no se mueven. Las carpetas de antes siguen guardadas en groups.json.";
+"groups.migrate.later" = "Ahora no";
 
 "import.title" = "Abrir «%@»";
 "import.summary" = "%1$d proyectos encontrados · %2$d con sitio web";
@@ -397,7 +419,9 @@
 
 "missing.title" = "Carpeta no encontrada";
 "missing.detail" = "Se movió o se renombró fuera de Stack, o está en un disco desconectado. No se inicia hasta encontrarla.";
-"missing.find" = "Buscar carpeta…";
+"missing.find" = "Ubicar…";
+"missing.badge" = "No encontrado";
+"missing.remove" = "Quitar de Stack";
 "missing.findPrompt" = "Usar esta carpeta";
 "missing.findMessage" = "Elige dónde está ahora la carpeta de «%@».";
 "missing.found" = "Carpeta encontrada";
@@ -4486,6 +4510,10 @@
 "error.folder_exists" = "Ya existe una carpeta con ese nombre en esa ubicación.";
 "error.folder_missing" = "No se encuentra la carpeta del proyecto. Búscala o quita el proyecto.";
 "error.folder_in_use" = "Esa carpeta ya es de otro proyecto de Stack.";
+"error.folder_not_empty" = "La carpeta no está vacía: solo se quitan carpetas vacías.";
+"error.folder_move_failed" = "No se pudo mover la carpeta. Nada cambió.";
+"error.move_into_itself" = "Una carpeta no se puede mover dentro de sí misma.";
+"error.invalid_folder" = "El nombre de la carpeta no es válido.";
 "error.not_a_project" = "Esa carpeta no parece un proyecto. Elige la carpeta del proyecto.";
 "error.site_exists" = "Ya hay un proyecto con ese nombre en Stack. Elige otro nombre.";
 "error.invalid_name" = "El nombre solo puede tener letras, números, guiones y guiones bajos (hasta 40).";

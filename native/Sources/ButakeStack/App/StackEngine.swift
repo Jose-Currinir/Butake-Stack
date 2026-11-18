@@ -93,6 +93,11 @@ actor StackEngine {
         snapshots(["watch-status"])
     }
 
+    /// A line each time the projects folder changes on the disk (the daemon looks at it).
+    nonisolated func diskStream() -> AsyncThrowingStream<DiskRevision, Error> {
+        snapshots(["watch-disk"])
+    }
+
     nonisolated func logStream(_ id: String) -> AsyncThrowingStream<[String], Error> {
         snapshots(["watch-logs", id])
     }

@@ -72,7 +72,9 @@ opaco.
 ~/Library/Application Support/Stack/
   stack.json              configuración global (versiones, puertos, TLD, Correo, Dumps, Xdebug)
   projects/<id>.json      un archivo por proyecto
-  groups.json             carpetas y proyectos de varias partes
+  groups.json             proyectos de varias partes (por ruta relativa) y las carpetas de antes
+  groups.pre-disk.json    copia de groups.json antes de la primera comparación con el disco
+  disk.json               carpeta de proyectos elegida, identidades de las carpetas de los proyectos, movimientos seguidos
   watched.json            carpetas vigiladas
   envs/<id>.json          entornos de un proyecto, sin valores secretos
   data/<servicio>/        datadir de cada servicio; data/caddy/ guarda la CA local

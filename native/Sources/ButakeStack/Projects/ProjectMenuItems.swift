@@ -9,6 +9,9 @@ struct ProjectMenuItems: View {
     var body: some View {
         if project.isMissing {
             Button { openWindow(id: "main"); store.findFolder(project) } label: { Label(L("missing.find"), systemImage: Symbols.findFolder) }
+                .accessibilityIdentifier("project.menu.find")
+            Button(role: .destructive) { openWindow(id: "main"); store.removing = project } label: { Label(L("missing.remove"), systemImage: Symbols.remove) }
+                .accessibilityIdentifier("project.menu.removeMissing")
         } else if project.isServed {
             Button { Task { await store.setSite(project, enabled: !project.enabled) } } label: {
                 Label(project.enabled ? L("palette.stop") : L("palette.start"), systemImage: project.enabled ? Symbols.stop : Symbols.start)

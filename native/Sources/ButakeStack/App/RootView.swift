@@ -133,7 +133,7 @@ struct RootView: View {
             ProjectSettingsSheet(store: store, project: box.detection.project, notes: box.detection.notes, isNew: true).themedSheet()
         }
         .sheet(isPresented: $store.showNewProject) { NewProjectSheet(store: store).themedSheet() }
-        .sheet(item: $store.groupNaming) { naming in GroupNameSheet(store: store, naming: naming).themedSheet() }
+        .sheet(item: $store.groupNaming, onDismiss: { store.newFolderParent = nil }) { naming in GroupNameSheet(store: store, naming: naming).themedSheet() }
         .sheet(item: $store.importScan, onDismiss: { Task { await store.refreshWatched() } }) { scan in ImportFolderSheet(store: store, scan: scan).themedSheet() }
         .sheet(isPresented: $store.showPalette) { CommandPalette(store: store).themedSheet() }
         .sheet(isPresented: $updates.showingSheet) { UpdateSheet(updates: updates).themedSheet() }
@@ -144,6 +144,17 @@ struct RootView: View {
             Button(L("site.delete"), role: .destructive) { Task { await store.delete(project) } }
             Button(L("common.cancel"), role: .cancel) {}
         } message: { _ in Text(L("site.deleteDetail")) }
+        .confirmationDialog(L("groups.moveConfirm"), isPresented: Binding(get: { store.pendingDiskMove != nil }, set: { if !$0 { store.pendingDiskMove = nil } }),
+                            presenting: store.pendingDiskMove) { request in
+            Button(L("groups.moveAction")) { Task { await store.performDiskMove(request) } }.accessibilityIdentifier("groups.move.confirm")
+            Button(L("common.cancel"), role: .cancel) {}
+        } message: { request in
+            Text(String(format: L("groups.moveDetail"), request.title, request.intoName, store.relativeToProjects(request.from), store.relativeToProjects(request.into)))
+        }
+        .sheet(item: Binding(get: { store.migrationDeferred ? nil : store.disk?.migration.flatMap { $0.proposals.isEmpty ? nil : $0 }.map(MigrationBox.init) },
+                                  set: { if $0 == nil { store.migrationDeferred = true } })) { box in
+            DiskMigrationSheet(store: store, plan: box.plan).themedSheet()
+        }
         .confirmationDialog(L("env.portRestartTitle"), isPresented: Binding(get: { store.portRestartOffer != nil }, set: { if !$0 { store.portRestartOffer = nil } }),
                             presenting: store.portRestartOffer) { offer in
             Button(L("env.restartProcesses")) { Task { for project in offer.projects { await store.restartProcesses(project) } } }
@@ -167,7 +178,7 @@ struct RootView: View {
         .task { await store.refreshVisibleProjects() }
         // Back to the front: what changed meanwhile outside the app (a project removed on the command line).
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await store.refreshProjects() }
+            Task { await store.refreshDisk() }
         }
         .task {
             await store.bootstrap()

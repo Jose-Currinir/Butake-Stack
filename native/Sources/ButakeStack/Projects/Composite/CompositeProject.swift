@@ -17,6 +17,7 @@ extension StackStore {
 
     /// «Convertir en proyecto» (opens its page) and «Volver a carpeta» (nothing is removed).
     func setKind(_ id: String, _ kind: ProjectGroup.Kind) {
+        if followsDisk { setMultipartOnDisk(id, kind == .project); return }
         updateGroups { groups in
             if let index = groups.firstIndex(where: { $0.id == id }) { groups[index].kind = kind }
         }
