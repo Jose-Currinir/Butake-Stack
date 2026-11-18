@@ -89,6 +89,7 @@ import SwiftUI
             do {
                 try await work()
                 phase = .done
+                SystemNotices.shared.installFinished(tool: tool)
             } catch where Self.cancelled(error) {
                 phase = .cancelled
             } catch {

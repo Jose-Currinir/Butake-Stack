@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             // Dock, ⌘Tab and menu bar while a window is open; the menu bar only otherwise.
             ActivationController.shared.start()
+            SystemNotices.shared.start(store: StackStore.shared)
             #if DEBUG
             QAHooks.appDidLaunch()
             #endif
