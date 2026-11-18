@@ -43,6 +43,12 @@ import Testing
 }
 private struct SkipDisk: Error {}
 
+/// Waits for what a background task saves (the engine, then the disk) to show; a loaded machine
+/// running the whole suite can take seconds, so a fixed sleep is not enough.
+@MainActor private func eventually(_ condition: () -> Bool) async {
+    for _ in 0..<200 where !condition() { try? await Task.sleep(for: .milliseconds(50)) }
+}
+
 @Test func aFolderKeepsItsPlaceOnTheDiskAndOlderOnesDoNot() throws {
     let group = ProjectGroup(id: "salud", name: "Salud", sites: ["a"], kind: .project, path: "Apps/Salud", parent: "apps")
     let back = try JSONDecoder().decode(ProjectGroup.self, from: JSONEncoder().encode(group))
@@ -90,7 +96,7 @@ private struct SkipDisk: Error {}
     // Two repositories of a prefix are suggested as a project of several parts.
     #expect(disk.model.suggestion(for: salud)?.parts.sorted() == ["Salud", "Salud-Web"])
     disk.model.setKind(salud.id, .project)
-    try await Task.sleep(for: .milliseconds(800))
+    await eventually { disk.model.groups.first { $0.path == "Apps/Salud" }?.isProject == true }
     #expect(disk.model.groups.first { $0.path == "Apps/Salud" }?.isProject == true)
 }
 
