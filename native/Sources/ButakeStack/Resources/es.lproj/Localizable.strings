@@ -144,6 +144,7 @@
 "menu.undoDone" = "Hecho: %@";
 "menu.undoAction" = "Deshacer";
 "menu.projectTabs" = "Ir a la pestaña";
+"menu.shortcuts" = "Atajos de teclado…";
 "menu.undo.start" = "Iniciar %@";
 "menu.undo.stop" = "Detener %@";
 "menu.undo.rename" = "Renombrar %@";
@@ -155,8 +156,10 @@
 "palette.start" = "Iniciar";
 "palette.stop" = "Detener";
 "palette.settings" = "Ajustes";
-"palette.settingsGeneral" = "Ajustes generales";
-"palette.manageTools" = "Administrar herramientas";
+"palette.settingsTab" = "Ajustes: %@";
+"palette.recent" = "Recientes";
+"palette.clearRecent" = "Borrar recientes";
+"palette.clearRecentHelp" = "Olvida las acciones usadas hace poco";
 "palette.pages" = "Páginas";
 "palette.actions" = "Acciones";
 "palette.empty" = "Nada coincide con la búsqueda.";
@@ -169,6 +172,26 @@
 "palette.forwardStart" = "Iniciar reenvío";
 "palette.openFiles" = "Abrir archivos (SFTP)";
 "palette.hint.toggle" = "Iniciar o detener";
+
+"shortcuts.title" = "Atajos de teclado";
+"shortcuts.detail" = "Los de cada menú y los de las páginas que tienen los suyos.";
+"shortcuts.search" = "Buscar un atajo";
+"shortcuts.empty" = "Ningún atajo coincide con la búsqueda.";
+"shortcuts.goTool" = "Ir a la herramienta %@";
+"shortcuts.startStop" = "Iniciar o detener el proyecto";
+"shortcuts.splitRight" = "Dividir a la derecha";
+"shortcuts.splitDown" = "Dividir hacia abajo";
+"shortcuts.group.app" = "Stack";
+"shortcuts.group.file" = "Archivo";
+"shortcuts.group.edit" = "Edición";
+"shortcuts.group.view" = "Visualización";
+"shortcuts.group.go" = "Ir";
+"shortcuts.group.project" = "Proyecto";
+"shortcuts.group.git" = "Git";
+"shortcuts.group.help" = "Ayuda";
+"shortcuts.group.database" = "Bases de datos";
+"shortcuts.group.terminal" = "Terminal";
+"shortcuts.group.vault" = "Bóveda";
 
 "panel.engines" = "Servicios";
 "panel.notInstalled" = "Sin instalar";
@@ -3036,7 +3059,7 @@
 "db.newConnectionHelp" = "Agrega una conexión a otro servidor o a un archivo SQLite.";
 "db.editConnectionEllipsis" = "Editar conexión…";
 "db.connectHelp" = "Abre la sesión con el servidor (y el túnel SSH si la conexión lo usa).";
-"db.reloadHelp" = "Vuelve a leer las bases, las tablas y lo que se muestra (⌘R).";
+"db.reloadHelp" = "Vuelve a leer las bases, las tablas y lo que se muestra (⌥⌘R).";
 "db.openInSQL" = "Abrir en SQL";
 "db.openInSQLHelp" = "Abre una consulta SELECT de esta tabla en el editor SQL de su base.";
 "db.openDatabase" = "Abrir la base";

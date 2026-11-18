@@ -20,21 +20,21 @@ struct GitMenuItems: View {
     var body: some View {
         ForEach(GitTab.allCases) { tab in
             Button(tab.title) { commands?.tool.tab = tab }.accessibilityIdentifier("git.menu.tab.\(tab.rawValue)")
-                .keyboardShortcut(tab.shortcut, modifiers: [.command, .option])
+                .shortcut(Shortcuts.gitTab(tab.shortcut, title: tab.title))
                 .disabled(commands == nil)
         }
         Divider()
         let repository = commands?.tool.repository
         Button(repository?.syncState.title ?? L("git.sync.fetch")) { Task { await repository?.sync() } }.accessibilityIdentifier("git.menu.sync")
-            .keyboardShortcut("s", modifiers: [.command, .option])
+            .shortcut(Shortcuts.gitSync)
             .disabled(repository == nil || repository?.busy == true)
         Button(L("git.branch.newEllipsis")) { commands?.tool.creatingBranch = true }.accessibilityIdentifier("git.menu.newBranch")
-            .keyboardShortcut("b", modifiers: [.command, .shift])
+            .shortcut(Shortcuts.gitNewBranch)
             .disabled(repository == nil || repository?.busy == true)
         GitAssistantMenu(directory: repository?.root)
         Divider()
         Button(L("git.dictionary.titleEllipsis")) { GitDictionaryLink.open(openWindow) }.accessibilityIdentifier("git.menu.dictionary")
-            .keyboardShortcut("d", modifiers: [.command, .option])
+            .shortcut(Shortcuts.gitDictionary)
     }
 }
 

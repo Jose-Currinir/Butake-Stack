@@ -165,7 +165,7 @@ private struct VaultDetail: View {
         if vault.inspected.flatMap(vault.index.item) != nil || vault.signing != nil {
             ToolbarItem(placement: .navigation) {
                 Button { if vault.inspected != nil { vault.inspected = nil } else { vault.signing = nil } } label: { Label(backTitle, systemImage: Symbols.back) }
-                    .keyboardShortcut("[", modifiers: .command)
+                    .shortcut(Shortcuts.vaultBack)
                     .help(backTitle).accessibilityIdentifier("vault.toolbar.back")
             }
         }

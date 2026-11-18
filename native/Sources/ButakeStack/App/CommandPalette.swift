@@ -9,14 +9,18 @@ struct CommandPalette: View {
     @State private var query = ""
     @State private var selection = 0
     @FocusState private var focused: Bool
+    /// Where the recents are kept (the tests give their own).
+    var defaults = UserDefaults.standard
 
     struct Command: Identifiable {
-        let id: String
-        let section: String
+        var id: String
+        var section: String
         let title: String
         let detail: String
         let tech: Tech?
         var symbol: String = ""
+        /// The chord of the same action in the menus, drawn on the right ("" = none).
+        var shortcut = ""
         let run: @MainActor () -> Void
         /// ⌘Return.
         var secondary: (title: String, run: @MainActor () -> Void)?
@@ -122,28 +126,37 @@ struct CommandPalette: View {
             list.append(Command(id: "terminal.local", section: L("palette.actions"), title: L("ssh.local.newConsole"), detail: "", tech: nil, symbol: Symbols.terminal,
                                 run: { store.route = .tool("ssh-terminal"); SSHWorkspace.shared.openLocal() }))
         }
-        list.append(Command(id: "page.home", section: L("palette.pages"), title: L("route.home"), detail: "", tech: nil, symbol: Symbols.home, run: { store.route = .home }))
-        // Preferences are not pages: these open Ajustes on their tab.
-        list.append(Command(id: "settings.general", section: L("palette.pages"), title: L("palette.settingsGeneral"), detail: L("palette.settings"),
-                            tech: nil, symbol: Symbols.settings, run: { SettingsRouter.shared.open(.general) }))
-        list.append(Command(id: "settings.tools", section: L("palette.pages"), title: L("palette.manageTools"), detail: L("palette.settings"),
-                            tech: nil, symbol: Symbols.tools, run: { SettingsRouter.shared.open(.tools) }))
+        list.append(Command(id: "page.home", section: L("palette.pages"), title: L("route.home"), detail: "", tech: nil, symbol: Symbols.home, shortcut: Shortcuts.home.display, run: { store.route = .home }))
+        // Preferences are not pages: one row per tab of Ajustes.
+        for tab in SettingsTab.allCases {
+            list.append(Command(id: "settings.\(tab.rawValue)", section: L("palette.pages"), title: String(format: L("palette.settingsTab"), tab.title),
+                                detail: L("palette.settings"), tech: nil, symbol: tab.symbol,
+                                shortcut: tab == .general ? Shortcuts.settings.display : "", run: { SettingsRouter.shared.open(tab) }))
+        }
         for page in Self.pages(enabled: store.enabledPlugins.map(\.id)) {
             list.append(Command(id: "page.\(page.id)", section: page.section, title: page.route.title, detail: page.detail, tech: page.tech,
                                 run: { store.route = page.route }))
         }
-        list.append(Command(id: "new", section: L("palette.actions"), title: L("menu.newProject"), detail: "", tech: .of("static"), run: { store.showNewProject = true }))
-        list.append(Command(id: "add", section: L("palette.actions"), title: L("menu.addExisting"), detail: "", tech: nil, symbol: Symbols.folder, run: { store.chooseFolder() }))
+        list.append(Command(id: "new", section: L("palette.actions"), title: L("menu.newProject"), detail: "", tech: .of("static"), shortcut: Shortcuts.newProject.display, run: { store.showNewProject = true }))
+        list.append(Command(id: "add", section: L("palette.actions"), title: L("menu.addExisting"), detail: "", tech: nil, symbol: Symbols.folder, shortcut: Shortcuts.addExisting.display, run: { store.chooseFolder() }))
         list.append(Command(id: "import", section: L("palette.actions"), title: L("menu.importFolder"), detail: "", tech: nil, symbol: Symbols.importFolder,
                             run: { store.chooseFolder(scan: true) }))
         list.append(Command(id: "clone", section: L("palette.actions"), title: L("menu.cloneRepository"), detail: "", tech: nil, symbol: Symbols.gitClone,
                             run: { store.showClone = true }))
         list.append(Command(id: "restart", section: L("palette.actions"), title: L("menu.restartAll"), detail: "", tech: nil, symbol: Symbols.reload, run: { Task { await store.reloadStack() } }))
-        let words = query.lowercased().split(separator: " ")
-        return words.isEmpty ? list : list.filter { command in
-            let haystack = (command.title + " " + command.detail).lowercased()
-            return words.allSatisfy { haystack.contains($0) }
+        if query.trimmingCharacters(in: .whitespaces).isEmpty {
+            // The last rows used, first; the rest keeps its own sections below.
+            let recent: [Command] = PaletteRecents.ids(defaults).compactMap { id in
+                list.first { $0.id == id }.map { command in
+                    var copy = command
+                    copy.id = PaletteRecents.prefix + id
+                    copy.section = L("palette.recent")
+                    return copy
+                }
+            }
+            return recent + list
         }
+        return PaletteMatch.rank(list, query: query, title: \.title, detail: { $0.detail })
     }
 
     var body: some View {
@@ -171,8 +184,16 @@ struct CommandPalette: View {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, command in
                             VStack(alignment: .leading, spacing: 2) {
                                 if index == 0 || items[index - 1].section != command.section {
-                                    Text(command.section).font(.uiCaption.weight(.semibold)).foregroundStyle(.secondary)
-                                        .padding(.horizontal, 12).padding(.top, index == 0 ? 2 : 10).padding(.bottom, 2)
+                                    HStack {
+                                        Text(command.section).font(.uiCaption.weight(.semibold)).foregroundStyle(.secondary)
+                                        Spacer()
+                                        if command.id.hasPrefix(PaletteRecents.prefix) {
+                                            Button(L("palette.clearRecent")) { PaletteRecents.clear(defaults); selection = 0 }
+                                                .buttonStyle(.borderless).font(.uiCaption).foregroundStyle(.secondary)
+                                                .help(L("palette.clearRecentHelp")).accessibilityIdentifier("palette.clearRecent")
+                                        }
+                                    }
+                                    .padding(.horizontal, 12).padding(.top, index == 0 ? 2 : 10).padding(.bottom, 2)
                                 }
                                 Button { selection = index; run(items, modifiers: []) } label: { row(command, selected: index == selection) }
                                     .buttonStyle(HighlightButtonStyle(radius: Radius.small))
@@ -201,7 +222,7 @@ struct CommandPalette: View {
             .padding(.horizontal, 14).padding(.vertical, 8)
         }
         .frame(width: 580)
-        .onAppear { focused = true }
+        .onAppear { focused = true; if let text = PaletteQA.query { query = text } }
         .task {
             if store.pluginEnabled("database-client"), DatabaseClient.shared.connections.isEmpty { await DatabaseClient.shared.loadConnections() }
             if store.pluginEnabled("ssh-terminal"), SSHTerminal.shared.hosts.isEmpty { await SSHTerminal.shared.load() }
@@ -215,17 +236,28 @@ struct CommandPalette: View {
     private func row(_ command: Command, selected: Bool) -> some View {
         HStack(spacing: 12) {
             if let tech = command.tech { TechLogo(tech: tech, size: 24) } else { IconTile(symbol: command.symbol, size: 24) }
-            Text(command.title).font(.uiBody.weight(.medium))
+            titleText(command.title).font(.uiBody.weight(.medium))
             if !command.detail.isEmpty { Text(command.detail).font(.uiCaption).foregroundStyle(.secondary) }
             Spacer()
             if selected {
                 if let toggle = command.toggle { Text("⌥↩ " + toggle.title).font(.uiCaption).foregroundStyle(.secondary) }
                 if command.secondary != nil { Text("⌘↩").font(.uiCaption).foregroundStyle(.secondary) }
             }
+            if !command.shortcut.isEmpty {
+                Text(command.shortcut).font(.uiCaption).fontDesign(.rounded).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("palette.shortcut.\(command.id)")
+            }
         }
         .padding(.horizontal, 12).padding(.vertical, 7)
         .background(selected ? Brand.accent.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .contentShape(Rectangle())
+    }
+
+    /// The title with what matched the query in semibold.
+    private func titleText(_ title: String) -> Text {
+        PaletteMatch.segments(of: title, query: query).reduce(Text("")) { text, piece in
+            text + (piece.matched ? Text(piece.text).fontWeight(.bold) : Text(piece.text))
+        }
     }
 
     private func hint(_ key: String, _ text: String) -> some View {
@@ -245,6 +277,7 @@ struct CommandPalette: View {
         if modifiers.contains(.command), let secondary = command.secondary { action = secondary.run }
         else if modifiers.contains(.option), let toggle = command.toggle { action = toggle.run }
         else { action = command.run }
+        PaletteRecents.record(command.id, defaults)
         dismiss()
         action()
     }

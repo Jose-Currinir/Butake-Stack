@@ -92,7 +92,7 @@ struct DatabaseClientView: View {
                         .disabled(client.status[connection.id] == .checking)
                 }
                 Button { Task { await client.reload(connection) } } label: { Label(L("common.refresh"), systemImage: Symbols.reload) }
-                    .keyboardShortcut("r")
+                    .shortcut(Shortcuts.dbReload)
                     .help(L("db.reloadHelp")).accessibilityIdentifier("db.toolbar.reload")
             }
         }

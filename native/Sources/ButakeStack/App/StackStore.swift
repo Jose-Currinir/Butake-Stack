@@ -150,6 +150,8 @@ import SwiftUI
 
     /// The setup assistant (first launch, while something is missing, Ayuda).
     var showSetup = false
+    /// Ayuda › Atajos de teclado.
+    var showShortcuts = false
     var phpCatalog: [PhpCatalogEntry] = []
     /// Apple's command line tools (Git, compiler): needed for new projects and engines built from source.
     var appleTools = true

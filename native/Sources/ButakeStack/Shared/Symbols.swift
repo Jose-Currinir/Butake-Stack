@@ -111,6 +111,8 @@ enum Symbols {
     /// Leads back: the previous page of a listing.
     static let back = "chevron.left"
     static let search = "magnifyingglass"
+    /// The keyboard shortcuts sheet.
+    static let keyboard = "keyboard"
     static let filter = "line.3.horizontal.decrease"
     static let sort = "arrow.up.and.down.text.horizontal"
     static let history = "clock.arrow.circlepath"

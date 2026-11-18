@@ -163,6 +163,7 @@ struct RootView: View {
         .sheet(item: $store.importScan, onDismiss: { Task { await store.refreshWatched() } }) { scan in ImportFolderSheet(store: store, scan: scan).themedSheet() }
         .sheet(isPresented: $store.showPalette) { CommandPalette(store: store).themedSheet() }
         .sheet(isPresented: $updates.showingSheet) { UpdateSheet(updates: updates).themedSheet() }
+        .sheet(isPresented: $store.showShortcuts) { ShortcutsSheet().themedSheet() }
         .sheet(isPresented: $store.showSetup) { SetupAssistantSheet(store: store).themedSheet() }
         .sheet(item: $store.restoreRequest) { request in RestoreSheet(store: store, request: request).themedSheet() }
         .sheet(item: $store.renaming) { request in ProjectRenameSheet(store: store, request: request).themedSheet() }
@@ -190,7 +191,7 @@ struct RootView: View {
             Text(String(format: L("env.portRestartDetail"), offer.changed, offer.projects.map(\.title).joined(separator: ", ")))
         }
         // ⌘K opens the palette too (Ir › Abrir rápidamente… is ⇧⌘O).
-        .background { Button(L("menu.quickOpen")) { store.showPalette = true }.keyboardShortcut("k").hidden() }
+        .background { Button(L("menu.quickOpen")) { store.showPalette = true }.shortcut(Shortcuts.quickOpenAlt).hidden() }
         .focusedSceneValue(\.selectedProject, currentProject)
         // Edición › Buscar (⌘F): a page with a search of its own (`textFinder`, the terminal's included) goes first.
         .focusedSceneValue(\.sidebarSearch, SidebarSearchFocus { store.findRequests += 1 })
