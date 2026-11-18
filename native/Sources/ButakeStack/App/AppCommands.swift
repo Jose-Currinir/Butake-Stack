@@ -87,7 +87,7 @@ struct AppCommands: Commands {
         SidebarCommands()
         CommandGroup(after: .sidebar) {
             Button(L(listHidden ? "menu.showList" : "menu.hideList")) { ContentColumnVisibility.shared.toggle(store.route) }
-                .keyboardShortcut("l", modifiers: [.command, .option]).disabled(!hasList)
+                .shortcut(Shortcuts.toggleList).disabled(!hasList)
         }
         CommandGroup(after: .toolbar) {
             Button(L("menu.reload")) { Task { await reload() } }.shortcut(Shortcuts.reload)

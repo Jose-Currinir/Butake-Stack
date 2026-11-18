@@ -79,6 +79,7 @@ enum Shortcuts {
     static let textBigger = AppShortcut(id: "textBigger", group: .view, titleKey: "menu.textBigger", key: "+")
     static let textSmaller = AppShortcut(id: "textSmaller", group: .view, titleKey: "menu.textSmaller", key: "-")
     static let textReset = AppShortcut(id: "textReset", group: .view, titleKey: "menu.textReset", key: "0")
+    static let toggleList = AppShortcut(id: "toggleList", group: .view, titleKey: "menu.hideList", key: "l", modifiers: [.command, .option])
     // Ir
     static let back = AppShortcut(id: "back", group: .go, titleKey: "menu.back", key: "[")
     static let forward = AppShortcut(id: "forward", group: .go, titleKey: "menu.forward", key: "]")
@@ -143,7 +144,7 @@ enum Shortcuts {
     /// Every shortcut, in the order of the menus. The tabs and tools are listed with their
     /// positions; titles are read when called, so they follow the language.
     static var all: [AppShortcut] {
-        var list = [settings, newProject, addExisting, newFolder, find, reload, textBigger, textSmaller, textReset,
+        var list = [settings, newProject, addExisting, newFolder, find, reload, textBigger, textSmaller, textReset, toggleList,
                     back, forward, home, projects, services, languages, utilities, tools, cloud, quickOpen, quickOpenAlt]
         list += (1...9).map { goTool($0, title: "\($0)") }
         list += [startStop, openInBrowser, showInFinder, projectSettings, removeProject]
