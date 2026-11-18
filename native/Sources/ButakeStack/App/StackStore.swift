@@ -43,6 +43,11 @@ import SwiftUI
     var projectVersions: [String: String] = [:]
     var status: StackStatus?
     var daemonRunning = false
+    /// The supervisor stopped answering a moment ago: «Reconectando…» until `DaemonLiveness.grace` ends.
+    var daemonReconnecting = false
+    @ObservationIgnored var liveness = DaemonLiveness()
+    @ObservationIgnored private var graceTask: Task<Void, Never>?
+    @ObservationIgnored private var wakeObserver: NSObjectProtocol?
     var agent: AgentStatus?
     var config: StackConfig?
     var phpRuntimes: [PhpRuntimeSummary] = []
@@ -240,12 +245,45 @@ import SwiftUI
         applyStatus(value)
     }
 
-    private func applyStatus(_ value: StackStatus?) {
+    func applyStatus(_ value: StackStatus?, at now: Date = Date()) {
         #if DEBUG
         let value = QAHooks.simulatedStatus ?? value
         #endif
         if status != value { status = value }
         if daemonRunning != (value != nil) { daemonRunning = value != nil }
+        liveness.observe(up: value != nil, at: now)
+        updateReconnecting(at: now)
+        #if DEBUG
+        if QAHooks.simulatesReconnecting { daemonReconnecting = true }
+        #endif
+    }
+
+    /// «Reconectando…» while the grace lasts; a task ends it so the bar says «Detenido» on time.
+    private func updateReconnecting(at now: Date) {
+        let left = liveness.remaining(at: now)
+        let reconnecting = liveness.phase(at: now) == .reconnecting
+        if daemonReconnecting != reconnecting { daemonReconnecting = reconnecting }
+        graceTask?.cancel()
+        guard let left else { return }
+        graceTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(left + 0.05))
+            guard !Task.isCancelled, let self else { return }
+            self.updateReconnecting(at: Date())
+        }
+    }
+
+    /// A Mac that wakes up reads the state at once instead of waiting for the next turn of the poll,
+    /// and a read that failed across the sleep does not count as «Detenido».
+    private func observeWake() {
+        guard wakeObserver == nil else { return }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.liveness.wake(at: Date())
+                Task { await self.refreshStatus(); await self.refreshDisk() }
+            }
+        }
     }
     func refreshRuntimes() async {
         phpRuntimes = (try? await call(["method": "listPhpRuntimes"])) ?? []
@@ -342,6 +380,7 @@ import SwiftUI
     /// exits or after an upgrade, without restarting it on behalf of the user.
     func startPolling() {
         startDiskWatch()
+        observeWake()
         guard statusObserver == nil else { return }
         statusObserver = Task { [weak self] in
             var delay = 5.0

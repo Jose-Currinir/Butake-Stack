@@ -8,6 +8,7 @@ struct GeneralSettings: View {
     var body: some View {
         Form {
             LoginSection(store: store)
+            NoticesSection()
             Section(L("settings.text")) {
                 LabeledContent(L("settings.textSize")) {
                     Stepper {
@@ -95,6 +96,27 @@ private struct LoginSection: View {
             } icon: {
                 Image(systemName: ok ? Symbols.success : Symbols.warning).foregroundStyle(ok ? Brand.success : Brand.warning)
             }
+        }
+    }
+}
+
+/// Avisos: macOS notices while Stack is in the background. Off until the user turns them on; macOS
+/// is asked for permission only then.
+private struct NoticesSection: View {
+    private let notices = SystemNotices.shared
+    var body: some View {
+        Section {
+            Toggle(isOn: Binding(get: { notices.enabled }, set: { on in Task { await notices.setEnabled(on) } })) {
+                Text(L("settings.notices.title"))
+                Text(L("settings.notices.detail")).foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("settings.notices")
+            if notices.denied {
+                Text(L("settings.notices.denied")).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("settings.notices.denied")
+            }
+        } header: {
+            Text(L("settings.notices.section"))
         }
     }
 }

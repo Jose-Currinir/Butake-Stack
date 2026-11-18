@@ -7,6 +7,9 @@ enum StackState: String, CaseIterable {
     case setup
     /// The supervisor is not running: no project is served.
     case stopped
+    /// The supervisor stopped answering a moment ago (a restart, a Mac waking up): said calmly for
+    /// a few seconds before «Detenido».
+    case reconnecting
     /// Running, with a process that crashed or the web server without its ports.
     case attention
     case running
@@ -16,7 +19,7 @@ enum StackState: String, CaseIterable {
         switch self {
         case .running: Brand.success
         case .stopped: Brand.danger
-        case .setup, .attention: Brand.warning
+        case .setup, .attention, .reconnecting: Brand.warning
         }
     }
     /// Inicio shows its header only when the user has something to do.
@@ -26,7 +29,7 @@ enum StackState: String, CaseIterable {
 extension StackStore {
     var stackState: StackState {
         if !setupComplete { return .setup }
-        if !daemonRunning { return .stopped }
+        if !daemonRunning { return daemonReconnecting ? .reconnecting : .stopped }
         return health == .green ? .running : .attention
     }
 }
@@ -42,7 +45,11 @@ struct StackStateIndicator: View {
             Label {
                 Text(state.title).lineLimit(1)
             } icon: {
-                Circle().fill(state.color).frame(width: 8, height: 8)
+                if state == .reconnecting {
+                    ProgressView().controlSize(.mini).frame(width: 8, height: 8)
+                } else {
+                    Circle().fill(state.color).frame(width: 8, height: 8)
+                }
             }
         }
         .buttonStyle(.accessoryBar)
@@ -67,7 +74,7 @@ struct StackStatePopover: View {
             Section {
                 LabeledContent {
                     HStack(spacing: 8) {
-                        Text(store.daemonRunning ? L("state.running") : L("state.stopped")).foregroundStyle(.secondary)
+                        Text(store.daemonRunning ? L("state.running") : (store.daemonReconnecting ? L("stackState.reconnecting") : L("state.stopped"))).foregroundStyle(.secondary)
                         if store.daemonRunning {
                             Button { Task { await store.reloadStack() } } label: { Label(L("stackState.restart"), systemImage: Symbols.reload) }
                                 .buttonStyle(.bordered)
