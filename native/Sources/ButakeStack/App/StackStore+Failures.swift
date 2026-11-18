@@ -7,7 +7,13 @@ enum ReadArea: String, Hashable, Sendable, CaseIterable {
     /// The mail catcher's inbox (Correo).
     case mail
 
-    var titleKey: String { "error.read.\(rawValue)" }
+    /// Written whole: the engine's test of error texts finds the keys the app names itself.
+    var titleKey: String {
+        switch self {
+        case .runtimes: "error.read.runtimes"
+        case .mail: "error.read.mail"
+        }
+    }
 }
 
 /// One failure of this session, kept (a few) for the problem report. The engine's own detail may hold a
