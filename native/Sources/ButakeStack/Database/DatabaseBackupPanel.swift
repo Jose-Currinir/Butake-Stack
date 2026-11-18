@@ -182,12 +182,7 @@ struct BackupPanel: View {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "sql") ?? .plainText, .gzip, .plainText]
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let request: [String: Any] = ["database": restoreTarget, "path": url.path, "create": createTarget]
-        struct Restored: Decodable { let bytes: Int }
-        if let _: Restored = await client.longRun(String(format: L("db.confirm.restore"), url.lastPathComponent, restoreTarget, connection.title), "dbRestore", connection, request, confirm: true) {
-            client.store.notify(L("db.restored"))
-            await client.refresh(connection)
-        }
+        await client.restore(url, into: restoreTarget, of: connection, create: createTarget)
     }
     func importCSV(_ object: DBObject) async {
         guard let database else { return }

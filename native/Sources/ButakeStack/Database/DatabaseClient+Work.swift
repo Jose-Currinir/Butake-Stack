@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 /// The work done on an open connection: long runs with progress, the SQL history, query tabs,
 /// the schema for completion and the diagram, manual transactions and exports.
@@ -27,6 +28,30 @@ extension DatabaseClient {
         defer { poll.cancel(); progress = nil }
         if confirm { return await change(method, connection, payload, title: title) }
         do { return try await read(method, connection, payload) } catch { store.report(error); return nil }
+    }
+
+    /// A file that can be restored: a SQL script, plain or gzipped.
+    nonisolated static func isSQLDump(_ url: URL) -> Bool {
+        let name = url.lastPathComponent.lowercased()
+        return name.hasSuffix(".sql") || name.hasSuffix(".sql.gz")
+    }
+
+    /// Restores `url` into `database`. The engine asks first, and says which database it replaces.
+    func restore(_ url: URL, into database: String, of connection: DBConnection, create: Bool = false) async {
+        let request: [String: Any] = ["database": database, "path": url.path, "create": create]
+        struct Restored: Decodable { let bytes: Int }
+        if let _: Restored = await longRun(String(format: L("db.confirm.restore"), url.lastPathComponent, database, connection.title), "dbRestore", connection, request, confirm: true) {
+            store.notify(L("db.restored"))
+            await refresh(connection)
+        }
+    }
+
+    /// «Restaurar un archivo…» from a database's menu: the file is chosen first.
+    func chooseAndRestore(into database: String, of connection: DBConnection) async {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "sql") ?? .plainText, .gzip, .plainText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        await restore(url, into: database, of: connection)
     }
 
     static func progressFile(_ token: String) -> URL {

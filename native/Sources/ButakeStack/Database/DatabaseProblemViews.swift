@@ -55,6 +55,12 @@ struct ConnectionProblemView: View {
                             Button { client.editing = connection } label: { Label(L("db.editConnectionEllipsis"), systemImage: Symbols.edit) }
                                 .buttonStyle(.bordered).accessibilityIdentifier("db.problem.edit")
                         }
+                        if let process = stoppedService {
+                            Button { Task { await client.store.processAction(process, "start"); await client.check(connection) } } label: {
+                                Label(String(format: L("db.problem.startService"), connection.tech.title), systemImage: Symbols.start)
+                            }
+                            .buttonStyle(.bordered).accessibilityIdentifier("db.problem.startService")
+                        }
                         Button { Task { await client.check(connection) } } label: { Label(L("common.retry"), systemImage: Symbols.reload) }
                             .buttonStyle(.borderedProminent).accessibilityIdentifier("db.problem.retry")
                     }
@@ -67,6 +73,14 @@ struct ConnectionProblemView: View {
         .formStyle(.grouped)
         .themedScroll()
     }
+    /// The supervised process of a Stack database that is not running (`stack-mysql` → `stack.mysql`).
+    private var stoppedService: String? {
+        guard connection.builtin, problem.kind == .offline else { return nil }
+        let id = connection.id.replacingOccurrences(of: "stack-", with: "stack.")
+        guard let process = client.store.status?.processes.first(where: { $0.id == id }), client.store.phase(id) != .running else { return nil }
+        return process.id
+    }
+
     /// Kept in the Keychain only if the server accepts it.
     func tryPassword() async {
         trying = true; defer { trying = false }

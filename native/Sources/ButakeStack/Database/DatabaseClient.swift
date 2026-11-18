@@ -215,7 +215,7 @@ struct PendingConfirmation: Identifiable {
             let short = value.version.components(separatedBy: " on ").first?.components(separatedBy: " (").first ?? value.version
             status[connection.id] = .ok(short)
         } catch {
-            status[connection.id] = .failed(DBProblem.from(error))
+            status[connection.id] = .failed(DBProblem.connecting(error, to: connection))
         }
     }
 
@@ -232,13 +232,13 @@ struct PendingConfirmation: Identifiable {
                 let list = keys.databases.isEmpty ? [RedisKeys.Database(index: 0, keys: 0)] : keys.databases
                 databases[key] = list.map { DBDatabase(name: String($0.index), size: nil, tables: $0.keys, system: false) }
                 errors[key] = nil
-            } catch { errors[key] = DBProblem.from(error) }
+            } catch { errors[key] = DBProblem.connecting(error, to: connection) }
             return
         }
         do {
             databases[key] = try await read("dbDatabases", connection)
             errors[key] = nil
-        } catch { errors[key] = DBProblem.from(error) }
+        } catch { errors[key] = DBProblem.connecting(error, to: connection) }
     }
 
     func loadObjects(_ connection: DBConnection, _ database: String) async {
