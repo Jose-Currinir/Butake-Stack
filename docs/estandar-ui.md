@@ -222,10 +222,15 @@ de excepciones con el motivo.
 9. Todo lo pulsable es `Button` o un control. Prohibido `onTapGesture` para acciones.
 10. Botón de solo ícono: `Label(...).labelStyle(.iconOnly)` con `.help` e identificador.
 11. Un SF Symbol por concepto, tomado de `Symbols`. Sin alternar relleno y contorno por estado.
-    Íconos de fila en ficha de color sólido con símbolo blanco (`IconTile`, o `TechLogo` con el
-    logo del producto), como en Ajustes del Sistema: un color por concepto (`TileColor`), el
-    mismo en toda la app; sin fichas teñidas del acento ni del verde de marca. El color de estado
-    (correcto, aviso, error) solo cuando la ficha dice un estado.
+    La barra lateral usa símbolos monocromos del sistema (`Label` con el símbolo de `Symbols`; macOS
+    los tiñe y los pone blancos al seleccionar) y, en las filas de proyecto, el logo pequeño del
+    proyecto (`TechLogo`) con su estado como punto (`SidebarStateDot`, sobre `StatusDot`: verde en
+    marcha, contorno gris detenido, ámbar o rojo si falla; con «Diferenciar sin color», un símbolo de
+    forma propia). Nube (AWS, Google Cloud) usa el símbolo de nube, no su logo. Las fichas de color
+    sólido con símbolo blanco (`IconTile`, `TechLogo`) quedan para Ajustes, las listas de cada
+    herramienta y las páginas de Componentes: un color por concepto (`TileColor`), el mismo en toda
+    la app; sin fichas teñidas del acento ni del verde de marca. El color de estado (correcto,
+    aviso, error) solo cuando la ficha dice un estado.
 12. Estados vacíos con `ContentUnavailableView`; en búsquedas, `.search(text:)`.
 13. Confirmaciones con `.confirmationDialog` o `.alert` y `role: .destructive`. La acción
     destructiva nunca es la predeterminada.

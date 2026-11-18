@@ -115,6 +115,16 @@ enum SidebarLayout {
         let other = enabled.filter { !tools.contains($0) && !clouds.contains($0) }
         return known + other + ["logs"]
     }
+    /// The gray symbol of a tool's row: the one its concept has in `Symbols`; the providers' accounts
+    /// are a cloud, not their colored logo.
+    static func symbol(ofTool id: String) -> String {
+        clouds.contains(id) ? Symbols.cloud : Tech.of(id).symbol
+    }
+    /// The symbol of a category found by the search: its own, or its component's when the catalog only has a logo.
+    static func symbol(ofCategory category: String, in component: Component) -> String {
+        let tech = component.tech(of: category)
+        return tech.svg == nil && tech.simple == nil ? tech.symbol : component.tech.symbol
+    }
     /// The cloud accounts that are on; none, and Nube is not shown.
     static func cloudRows(enabled: [String]) -> [String] { clouds.filter(enabled.contains) }
 
