@@ -9,6 +9,20 @@ struct ProjectSettingsRequest {
 extension FocusedValues {
     /// «Ajustes del proyecto…» of the project on screen (Proyecto menu, ⌘I).
     @Entry var projectSettings: ProjectSettingsRequest?
+    /// The tabs of the project on screen (Proyecto menu, ⌃⌥1…4).
+    @Entry var projectTabs: ProjectTabRequest?
+}
+
+/// What the Proyecto menu does with the tabs of the project on screen (⌃⌥1…4).
+struct ProjectTabRequest {
+    /// The tabs the page has now (Procesos only when the project runs processes).
+    let available: [ProjectPage.Tab]
+    let select: @MainActor (ProjectPage.Tab) -> Void
+}
+
+extension ProjectPage.Tab {
+    /// The key of each tab in Proyecto: ⌃⌥ + 1…4. ⌘⌥ + number is Git's, ⌃⌘ + number goes to the tools.
+    var shortcutKey: Character { switch self { case .summary: "1"; case .envs: "2"; case .processes: "3"; case .logs: "4" } }
 }
 
 /// A project as its own page, like an inspector: the name and kind live in the window's bar, the
@@ -50,6 +64,7 @@ struct ProjectPage: View {
         .toolbar { toolbar }
         .sheet(isPresented: $editing) { ProjectSettingsSheet(store: store, project: project, notes: [], isNew: false).themedSheet() }
         .focusedSceneValue(\.projectSettings, project.isMissing ? nil : ProjectSettingsRequest { editing = true })
+        .focusedSceneValue(\.projectTabs, project.isMissing ? nil : ProjectTabRequest(available: tabs) { tab = $0 })
         .onAppear {
             // The saved tab may belong to a project with processes.
             if let requested = Self.requestedTab { tab = requested; Self.requestedTab = nil }

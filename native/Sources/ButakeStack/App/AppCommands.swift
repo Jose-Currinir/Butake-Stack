@@ -51,6 +51,7 @@ struct AppCommands: Commands {
     @FocusedValue(\.sidebarSearch) private var search
     @FocusedValue(\.textFinder) private var finder
     @FocusedValue(\.projectSettings) private var projectSettings
+    @FocusedValue(\.projectTabs) private var projectTabs
 
     static let website = URL(string: "https://jose-currinir.github.io/Butake-Stack/")!
 
@@ -133,6 +134,15 @@ struct AppCommands: Commands {
             Button(L("menu.showInFinder")) { if let path = project?.path { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path) } }
                 .keyboardShortcut("r", modifiers: [.command, .shift]).disabled(project == nil || project?.isMissing == true)
             Button(L("project.settings")) { projectSettings?.open() }.keyboardShortcut("i").disabled(projectSettings == nil)
+            // ⌃⌥1…4, only on a project's page (⌘⌥ + number is Git's).
+            Menu(L("menu.projectTabs")) {
+                ForEach(ProjectPage.Tab.allCases) { tab in
+                    Button(L("site.tab.\(tab.rawValue)")) { projectTabs?.select(tab) }
+                        .keyboardShortcut(KeyEquivalent(tab.shortcutKey), modifiers: [.control, .option])
+                        .disabled(projectTabs?.available.contains(tab) != true)
+                }
+            }
+            .disabled(projectTabs == nil)
             Button(L("menu.renameProject")) { if let project { inWindow { store.renaming = RenameRequest(project: project) } } }
                 .disabled(project == nil)
             Button(L("menu.changeFolder")) { if let project { inWindow { store.changeFolder(project) } } }

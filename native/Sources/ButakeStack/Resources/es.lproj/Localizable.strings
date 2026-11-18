@@ -141,6 +141,9 @@
 "menu.goTool" = "Ir a herramienta";
 "menu.findProject" = "Buscar proyecto";
 "menu.cloneRepository" = "Clonar repositorio…";
+"menu.undoDone" = "Hecho: %@";
+"menu.undoAction" = "Deshacer";
+"menu.projectTabs" = "Ir a la pestaña";
 "menu.undo.start" = "Iniciar %@";
 "menu.undo.stop" = "Detener %@";
 "menu.undo.rename" = "Renombrar %@";
@@ -203,6 +206,7 @@
 "favorites.openSiteFor" = "Abrir %@ en el navegador";
 
 /* Inicio */
+"home.filter" = "Filtrar proyectos";
 "home.more" = "Más acciones de Inicio";
 "home.empty" = "Aún no hay proyectos";
 "home.stopped" = "Stack está detenido";
@@ -282,6 +286,9 @@
 "profiles.question" = "¿Con qué trabajas?";
 "profiles.hint" = "Marca todo lo que usas. Abajo verás qué necesita y qué ya tienes; nada se instala sin preguntarte.";
 "profiles.needs" = "Lo que necesita";
+"profiles.detected" = "Según tus proyectos";
+"profiles.detectedReason" = "%1$@, por %2$@. Necesita %3$@.";
+"profiles.detectedMark" = "Marcar lo que piden tus proyectos";
 "profiles.usual" = "Marcar lo habitual";
 "profiles.usualDetail" = "Marca Laravel y JavaScript. Instala PHP, Composer, Node.js y las herramientas de Apple; nada se instala sin tu confirmación.";
 

@@ -6,11 +6,16 @@ struct FilterField: View {
     @Binding var text: String
     let identifier: String
     let prompt: String
+    /// Bumped by a page (⌘F) to put the keyboard in the field.
+    var focusRequests = 0
+    @FocusState private var focused: Bool
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: Symbols.search).font(.uiCallout.weight(.medium)).foregroundStyle(.secondary)
             TextField(prompt, text: $text)
                 .textFieldStyle(.plain).font(.uiBody)
+                .focused($focused)
+                .onChange(of: focusRequests) { focused = true }
                 .onExitCommand { text = "" }
                 .accessibilityIdentifier(identifier)
             if !text.isEmpty {

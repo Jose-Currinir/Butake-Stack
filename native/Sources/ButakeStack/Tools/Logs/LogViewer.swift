@@ -17,7 +17,7 @@ struct LogViewer: View {
         let visible = browser.lines(store, id)
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                FilterField(text: $browser.filter, identifier: "logs.filter", prompt: L("logs.filter"))
+                FilterField(text: $browser.filter, identifier: "logs.filter", prompt: L("logs.filter"), focusRequests: browser.filterRequests)
                 Text(String(format: L("logs.count"), visible.count)).font(.uiCaption.monospacedDigit()).foregroundStyle(.secondary)
                     .accessibilityIdentifier("logs.count")
                 if ownActions {
