@@ -3,6 +3,17 @@ import SwiftUI
 
 /// Work that needs NSApp: the theme's appearance and the activation policy, once the app has launched.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Quitting drops the table edits not yet saved in the database client: the user must agree.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let count = MainActor.assumeIsolated { DatabaseClient.shared.pendingTotal }
+        guard count > 0 else { return .terminateNow }
+        let alert = NSAlert()
+        alert.messageText = String(format: L("db.confirm.quitEdits"), count)
+        alert.addButton(withTitle: L("db.confirm.quitDiscard"))
+        alert.addButton(withTitle: L("common.cancel"))
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         // Database tunnels and sessions must not outlive the app.
         DatabaseClient.disconnectAllNow()

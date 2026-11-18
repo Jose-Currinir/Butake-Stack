@@ -19,9 +19,31 @@ struct TableDataPanel: View {
     @State private var filterOp = "contains"
     @State private var filterValue = ""
     @State private var filters: [[String: String]] = []
-    @State private var edits: [Int: [Int: String?]] = [:]
-    @State private var deleted: Set<Int> = []
-    @State private var inserted: [[String?]] = []
+    /// The unsaved edits live in the client (see `PendingEdits`), so they survive leaving the page.
+    private var pendingKey: String { DatabaseClient.pendingKey(selection) }
+    private var edits: [Int: [Int: String?]] {
+        get { client.pendingEdits[pendingKey]?.edits ?? [:] }
+        nonmutating set { update { $0.edits = newValue } }
+    }
+    private var deleted: Set<Int> {
+        get { client.pendingEdits[pendingKey]?.deleted ?? [] }
+        nonmutating set { update { $0.deleted = newValue } }
+    }
+    private var inserted: [[String?]] {
+        get { client.pendingEdits[pendingKey]?.inserted ?? [] }
+        nonmutating set { update { $0.inserted = newValue } }
+    }
+    /// Writes one change together with the page, filters and sorting it was made under.
+    private func update(_ change: (inout PendingEdits) -> Void) {
+        var value = client.pendingEdits[pendingKey] ?? PendingEdits()
+        change(&value)
+        value.page = page
+        value.filters = filters
+        value.sorts = sorts.map { PendingEdits.Sort(column: $0.column, descending: $0.descending) }
+        client.setPending(pendingKey, value)
+    }
+    /// The first load after the page appears keeps the edits left by the previous visit.
+    @State private var restored = false
     @State private var loading = false
     /// Bumped by every load: an answer that arrives after a newer request is dropped.
     @State private var loadGeneration = 0
@@ -124,6 +146,16 @@ struct TableDataPanel: View {
                 sorts += qa.sorts.map { Sort(column: $0.column, descending: $0.descending) }
             }
             #endif
+            if !restored {
+                restored = true
+                if let saved = client.pendingEdits[pendingKey] {
+                    page = saved.page
+                    filters = saved.filters
+                    sorts = saved.sorts.map { Sort(column: $0.column, descending: $0.descending) }
+                    await load(keepEdits: true)
+                    return
+                }
+            }
             // Recargar (⌘R) also reloads: unsaved edits are only dropped if the user agrees.
             guard await discardEditsConfirmed() else { return }
             await load()
@@ -186,7 +218,7 @@ struct TableDataPanel: View {
                         .buttonStyle(.bordered).accessibilityIdentifier("db.data.addRow")
                 }
                 if changes > 0 {
-                    Button { edits = [:]; deleted = []; inserted = [] } label: { Label(L("db.discard"), systemImage: Symbols.rollback) }
+                    Button { client.pendingEdits[pendingKey] = nil } label: { Label(L("db.discard"), systemImage: Symbols.rollback) }
                         .buttonStyle(.bordered).accessibilityIdentifier("db.data.discard")
                     Button { Task { await save() } } label: { Label(String(format: L("db.saveChanges"), changes), systemImage: Symbols.success) }
                         .buttonStyle(.borderedProminent).keyboardShortcut("s").accessibilityIdentifier("db.data.save")
@@ -253,7 +285,7 @@ struct TableDataPanel: View {
         request["source"] = "table"
         await client.export(connection, format: format, suggested: selection.table ?? "tabla", request)
     }
-    func load() async {
+    func load(keepEdits: Bool = false) async {
         loadGeneration += 1
         let generation = loadGeneration
         loading = true
@@ -265,7 +297,13 @@ struct TableDataPanel: View {
             let value: DBRows = try await client.read("dbRows", connection, request)
             guard generation == loadGeneration else { return }
             data = value; error = nil
-            edits = [:]; deleted = []; inserted = []
+            if keepEdits {
+                var kept = client.pendingEdits[pendingKey] ?? PendingEdits()
+                kept.prune(rows: value.rows.count, columns: value.columns.count)
+                client.setPending(pendingKey, kept)
+            } else {
+                client.pendingEdits[pendingKey] = nil
+            }
             if filterColumn.isEmpty || !value.columns.contains(where: { $0.name == filterColumn }) { filterColumn = value.columns.first?.name ?? "" }
         } catch {
             guard generation == loadGeneration else { return }
