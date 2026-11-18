@@ -749,11 +749,11 @@ fn relocate_dir(store: &Store, root: &Path, from: &Path, destination: &Path) -> 
         let mut groups = store.groups()?;
         let mut changed = false;
         for group in &mut groups {
-            if let (Some(path), Some(new)) = (group.path.clone(), new) {
-                if path == old || path.starts_with(&format!("{old}/")) {
-                    group.path = Some(format!("{new}{}", &path[old.len()..]));
-                    changed = true;
-                }
+            if let (Some(path), Some(new)) = (group.path.clone(), new)
+                && (path == old || path.starts_with(&format!("{old}/")))
+            {
+                group.path = Some(format!("{new}{}", &path[old.len()..]));
+                changed = true;
             }
         }
         if changed {
