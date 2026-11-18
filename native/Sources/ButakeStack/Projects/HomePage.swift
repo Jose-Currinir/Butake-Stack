@@ -237,7 +237,7 @@ private struct HomeFolderHeader: View {
         // No animation of its own: the rows appear and leave at once (Reduce Motion or not).
         Button { store.setFolder(id, open: !open) } label: {
             HStack(spacing: 8) {
-                Label { Text(title) } icon: { IconTile(symbol: symbol, size: TextScale.points(20)) }
+                Label { Text(title) } icon: { Image(systemName: symbol).foregroundStyle(.secondary) }
                     .font(.uiHeadline).foregroundStyle(.secondary)
                 Text("\(members.count)").font(.uiSubheadline.weight(.semibold)).foregroundStyle(.secondary)
                     .padding(.horizontal, 6).padding(.vertical, 1).background(Color.primary.opacity(0.07), in: Capsule())

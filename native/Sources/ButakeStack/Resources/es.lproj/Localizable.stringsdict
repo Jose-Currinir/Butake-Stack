@@ -50,22 +50,6 @@
 			<string>%d instaladas</string>
 		</dict>
 	</dict>
-	<key>category.installedCount</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%1$d de %2$#@m@ instalados</string>
-		<key>m</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%d servicio</string>
-			<key>other</key>
-			<string>%d servicios</string>
-		</dict>
-	</dict>
 	<key>env.missing</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>

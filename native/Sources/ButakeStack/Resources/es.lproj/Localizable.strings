@@ -902,7 +902,6 @@
 
 /* Proyectos: varias partes */
 "composite.title" = "Proyecto";
-"composite.subtitle" = "Proyecto de %ld partes";
 "composite.partsCount" = "%ld partes";
 "composite.hideParts" = "Ocultar las partes";
 "composite.showParts" = "Mostrar las partes";
@@ -1188,7 +1187,7 @@
 "category.installed" = "Instalados";
 "category.available" = "Disponibles";
 "category.install" = "Instalar…";
-"category.runningOf" = "%1$d en marcha de %2$d";
+"category.runningOf" = "%1$d de %2$d en marcha";
 "category.noneInstalled" = "Ninguno instalado";
 "category.work.web" = "Desarrollo web";
 "category.work.native" = "Desarrollo nativo";

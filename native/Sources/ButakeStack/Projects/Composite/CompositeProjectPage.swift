@@ -52,7 +52,7 @@ struct CompositeProjectPage: View {
     private func header(_ parts: [Project]) -> some View {
         let working = store.compositeWorking == group.id
         return DetailHeader(title: group.name) {
-            IconTile(symbol: Symbols.compositeProject, size: ProjectHeader.logoSize).accessibilityHidden(true)
+            IconTile(symbol: Symbols.compositeProject, size: DetailHeaderLogo.size).accessibilityHidden(true)
         } subtitle: {
             Text(String(format: L(group.sites.count == 1 ? "composite.partsCount.one" : "composite.partsCount"), group.sites.count))
         } actions: {

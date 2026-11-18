@@ -7,7 +7,7 @@ import SwiftUI
 ///
 /// ```swift
 /// DetailHeader(title: project.name) {
-///     TechLogo(tech: project.tech, size: DetailHeader.logoSize)
+///     TechLogo(tech: project.tech, size: DetailHeaderLogo.size)
 /// } subtitle: {
 ///     Text(project.kindLine)              // «Laravel · PHP 8.4»
 /// } actions: {
@@ -20,9 +20,6 @@ struct DetailHeader<Logo: View, Subtitle: View, Actions: View>: View {
     @ViewBuilder var logo: Logo
     @ViewBuilder var subtitle: Subtitle
     @ViewBuilder var actions: Actions
-
-    /// The logo's side: it grows with the text size (⌘+ / ⌘−) like the title next to it.
-    static var logoSize: CGFloat { TextScale.points(40) }
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -108,7 +105,7 @@ struct DetailTabs<Tab: Hashable & Identifiable>: View {
     }
 }
 
-/// `DetailHeader.logoSize` cannot be written without the generic arguments; this is the same value.
+/// The side of a `DetailHeader`'s logo: it grows with the text size (⌘+ / ⌘−) like the title next to it.
 enum DetailHeaderLogo {
-    @MainActor static var size: CGFloat { DetailHeader<EmptyView, EmptyView, EmptyView>.logoSize }
+    static var size: CGFloat { TextScale.points(40) }
 }

@@ -9,15 +9,13 @@ struct ProjectHeader: View {
     @Bindable var store: StackStore
     let project: Project
     let openSettings: () -> Void
-    /// `DetailHeader.logoSize` without naming the header's generic arguments.
-    @MainActor static var logoSize: CGFloat { DetailHeader<EmptyView, EmptyView, EmptyView>.logoSize }
 
     var body: some View {
         DetailHeader(title: project.title, logo: { logo }, subtitle: { subtitle }, actions: { actions })
     }
 
     private var logo: some View {
-        TechLogo(tech: project.tech, size: Self.logoSize).accessibilityHidden(true)
+        TechLogo(tech: project.tech, size: DetailHeaderLogo.size).accessibilityHidden(true)
     }
 
     @ViewBuilder private var actions: some View {

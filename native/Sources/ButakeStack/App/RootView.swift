@@ -15,23 +15,9 @@ struct RootView: View {
         if store.route == .tool("database-client") { return L("db.title") }
         return store.route.title
     }
-    /// Each page says something of its own; the overall counts live in the status bar only.
-    var subtitle: String {
-        switch store.route {
-        case .site(let id):
-            guard let project = store.projects.first(where: { $0.id == id }) else { return "" }
-            let branch = store.git[id].map { $0.branch.isEmpty ? L("git.detached") : $0.branch }
-            return ([project.tech.title] + [project.php.map { "PHP \($0)" }, branch].compactMap { $0 }).joined(separator: " · ")
-        case .composite(let id):
-            guard let group = store.composite(id) else { return "" }
-            return String(format: L("composite.subtitle"), group.sites.count)
-        case .service(let category) where !Route.engines(in: category).isEmpty:
-            // Only what Stack installs counts; a type without such services has no subtitle.
-            let engines = Route.engines(in: category)
-            return String(format: L("category.installedCount"), engines.filter { store.engineVersion($0) != nil }.count, engines.count)
-        default: return ""
-        }
-    }
+    /// None: a page that says something of its own says it in its header (`DetailHeader`), and the
+    /// overall counts live in the status bar only.
+    var subtitle: String { "" }
     /// The project on screen, for the Proyecto menu.
     var currentProject: Project? {
         if case .site(let id) = store.route { return store.projects.first { $0.id == id } }
