@@ -7,6 +7,10 @@ de cambiar un texto, un lugar o una regla de la interfaz, se busca aquí si ya h
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-11-18 | Rediseño A: la barra lateral usa símbolos grises del sistema y, en cada proyecto, su logo chico y un punto de estado; las fichas de color quedan para Ajustes, las listas de cada herramienta y las páginas de Componentes | Doce colores en la barra competían con lo importante; el color queda para la identidad del proyecto y su estado |
+| 2026-11-18 | Las páginas de un elemento (proyecto, proyecto de varias partes, tipo de servicio, lenguaje, tipo de utilidad) abren con `DetailHeader`: logo grande, nombre en grande, una línea debajo y sus acciones con texto; las pestañas van debajo y la ventana no repite el subtítulo | El nombre era lo más chico de la página y las acciones eran iconos sin texto en la barra |
+| 2026-11-18 | Las herramientas de tres columnas (Git, Terminal, Bases de datos, Bóveda, Correo…) siguen con sus acciones en la barra de herramientas | Es el patrón de Mail y Xcode para lista y detalle; una cabecera grande quitaría lugar a la lista |
+| 2026-11-18 | Inicio es una sola lista con columnas por carpeta (proyecto, dirección, rama, estado, Iniciar/Detener), con `List` y no `Table` | `Table` no pliega carpetas anidadas ni deja ocultar columnas cuando falta ancho |
 | 2026-11-18 | Avisos de macOS para una actualización lista, un proceso que se detuvo y una instalación terminada: vienen apagados (Ajustes › General), uno por episodio y solo con Stack en segundo plano | Útiles con la ventana cerrada sin volverse ruido; el permiso de macOS se pide solo al encenderlos |
 | 2026-11-18 | El icono de la barra de menús lleva un punto (forma, no color) mientras el estado no es «Todo en marcha» | Stack vive en la barra de menús: con la ventana cerrada es el único lugar donde se ve que algo falla |
 | 2026-11-18 | Una acción pedida que no se hizo es una alerta; una lectura o una parte que falló es una línea en su página, con Reintentar | Un fallo menor no bloquea la ventana, y «no se pudo leer» no se confunde con una lista vacía |
