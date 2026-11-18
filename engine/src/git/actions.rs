@@ -3,7 +3,7 @@
 use super::protection::{main_protected, primary_branch};
 use super::remotes::access_failure;
 use super::runner::{GitError, Result, error, git, git_console, git_env};
-use super::status::{has_conflicts, operation, status, validate_path};
+use super::status::{has_conflicts, on_remote, operation, status, validate_path};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -34,6 +34,10 @@ pub enum Action {
     TrackBranch,
     DeleteBranch,
     ForceDeleteBranch,
+    /// A local branch whose commits are all on a remote branch (its pull request was merged and
+    /// the remote one deleted): it goes even if it is not merged into the current branch, since
+    /// nothing is lost. One with a commit only here is refused.
+    DeleteMergedBranch,
     DeleteRemoteBranch,
     /// `old:new` (':' is not allowed in branch names).
     RenameBranch,
@@ -122,6 +126,7 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
                 | TrackBranch
                 | DeleteBranch
                 | ForceDeleteBranch
+                | DeleteMergedBranch
                 | DeleteRemoteBranch
                 | RenameBranch
                 | SwitchBranch
@@ -153,7 +158,7 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
     }
     if matches!(
         action,
-        ForceDeleteBranch | DeleteRemoteBranch | DeleteBranch
+        ForceDeleteBranch | DeleteMergedBranch | DeleteRemoteBranch | DeleteBranch
     ) && !confirmed
     {
         return Err(error(
@@ -274,10 +279,12 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
         Fetch => git(root, &["fetch", "--prune"])
             .await
             .map_err(access_failure),
-        Pull => pull(root, &["pull", "--ff-only"]).await,
-        PullMerge => pull(root, &["pull", "--no-rebase", "--no-edit"]).await,
-        PullRebase => pull(root, &["pull", "--rebase"]).await,
-        PullAutostash => pull(root, &["pull", "--ff-only", "--autostash"]).await,
+        // `--prune` like «Actualizar»: a branch deleted on the remote (a merged pull request) stops
+        // being listed as `origin/…` after pulling too.
+        Pull => pull(root, &["pull", "--prune", "--ff-only"]).await,
+        PullMerge => pull(root, &["pull", "--prune", "--no-rebase", "--no-edit"]).await,
+        PullRebase => pull(root, &["pull", "--prune", "--rebase"]).await,
+        PullAutostash => pull(root, &["pull", "--prune", "--ff-only", "--autostash"]).await,
         TrackBranch => {
             let (remote, short) = value
                 .split_once('/')
@@ -336,6 +343,24 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
                     failure
                 }
             })
+        }
+        DeleteMergedBranch => {
+            validate_branch(root, value).await?;
+            if value == primary_branch(root).await || value == branch.trim() {
+                return Err(error(
+                    "protected_branch",
+                    "No se puede eliminar la rama principal ni la rama actual.",
+                ));
+            }
+            if !on_remote(root, value).await {
+                return Err(error(
+                    "branch_not_merged",
+                    format!(
+                        "{value} tiene commits que no están en el remoto. Elimínala desde Ramas sólo si ya no los necesitas."
+                    ),
+                ));
+            }
+            git(root, &["branch", "-D", value]).await
         }
         DeleteRemoteBranch => {
             let (remote, short) = value

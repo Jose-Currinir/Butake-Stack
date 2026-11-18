@@ -118,14 +118,26 @@ import Foundation
                 }))
         }
         if let branch, snapshot.hasRemote, !snapshot.detached, snapshot.operation.isEmpty {
-            if branch.gone {
+            let landing = repository.landingBranch
+            let publishAgain = GitProblemAction(title: L("git.problems.publishAgain"), symbol: Symbols.gitPush, id: "publish") {
+                await repository.perform(.push)
+            }
+            if branch.mergedAndGone && landing != branch.name {
+                // Its pull request was merged and its remote branch deleted: what is left is going back.
+                let clean = repository.files.isEmpty
+                list.append(GitProblem(
+                    id: "git.upstreamGone", severity: .note, title: String(format: L("git.problems.merged"), branch.name),
+                    reason: String(format: L(clean ? "git.problems.mergedReason" : "git.problems.mergedDirtyReason"), landing),
+                    symbol: Symbols.gitMerge,
+                    action: clean ? GitProblemAction(title: String(format: L("git.problems.leaveMerged"), landing), symbol: Symbols.gitMerge,
+                                                     id: "leaveMerged") { await repository.leaveMergedBranch() } : nil,
+                    secondary: publishAgain))
+            } else if branch.gone {
                 list.append(GitProblem(
                     id: "git.upstreamGone", severity: .warning, title: L("git.problems.upstreamGone"),
                     reason: String(format: L("git.problems.upstreamGoneReason"), branch.upstream),
                     symbol: Symbols.gitNotPublished,
-                    action: GitProblemAction(title: L("git.problems.publishAgain"), symbol: Symbols.gitPush, id: "publish") {
-                        await repository.perform(.push)
-                    }))
+                    action: publishAgain))
             } else if branch.upstream.isEmpty {
                 list.append(GitProblem(
                     id: "git.notPublished", severity: .note, title: L("git.problems.notPublished"),
@@ -135,6 +147,20 @@ import Foundation
                         await repository.perform(.push)
                     }))
             }
+        }
+        // Other branches whose pull request was merged on the provider: only this Mac still has them.
+        let merged = repository.mergedGoneBranches
+        if snapshot.operation.isEmpty, let first = merged.first {
+            list.append(GitProblem(
+                id: "git.mergedBranches", severity: .note,
+                title: merged.count == 1 ? String(format: L("git.problems.mergedBranchOne"), first.name)
+                    : String(format: L("git.problems.mergedBranches"), merged.count),
+                reason: L("git.problems.mergedBranchesReason"),
+                symbol: Symbols.gitMerge,
+                action: GitProblemAction(title: L("git.problems.deleteMerged"), symbol: Symbols.delete, id: "deleteMerged") {
+                    await repository.deleteMergedBranches()
+                },
+                items: merged.map(\.name)))
         }
         // The last pull or push that failed for another reason (the ones above already say it).
         if let failure, !unreachable, !(diverged && failure.code == "pull_diverged"), failure.code != "pull_conflicts" || repository.conflicts.isEmpty {

@@ -74,7 +74,9 @@ struct GitBranchRow: View {
             }
             Spacer(minLength: 4)
             if protected { Image(systemName: Symbols.locked).foregroundStyle(.secondary).help(L("git.branch.protectedHelp")) }
-            if branch.gone {
+            if branch.mergedAndGone {
+                Text(L("git.branch.merged")).font(.uiCaption).foregroundStyle(.secondary).help(L("git.branch.mergedGoneHelp"))
+            } else if branch.gone {
                 Image(systemName: Symbols.warning).foregroundStyle(Brand.warning).help(L("git.branch.goneHelp"))
             } else if branch.upstream.isEmpty {
                 Text(L(onRemote ? "git.branch.untracked" : "git.branch.localOnly")).font(.uiCaption).foregroundStyle(.secondary)

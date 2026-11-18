@@ -1702,6 +1702,7 @@
 "git.progress.rename_branch" = "Renombrando la rama…";
 "git.progress.delete_branch" = "Eliminando la rama…";
 "git.progress.force_delete_branch" = "Eliminando la rama…";
+"git.progress.delete_merged_branch" = "Eliminando la rama…";
 "git.progress.revert" = "Revirtiendo el commit…";
 "git.progress.cherry_pick" = "Copiando el commit…";
 "git.progress.continue_operation" = "Terminando la operación…";
@@ -1746,6 +1747,8 @@
 "git.done.rename_branch" = "Rama renombrada";
 "git.done.delete_branch" = "Rama eliminada";
 "git.done.force_delete_branch" = "Rama eliminada";
+"git.done.delete_merged_branch" = "Rama eliminada";
+"git.done.deleteMergedBranches" = "Se eliminaron %ld ramas ya combinadas";
 "git.done.revert" = "Commit revertido con un commit nuevo";
 "git.done.cherry_pick" = "Commit copiado";
 "git.done.continue_operation" = "Operación terminada";
@@ -1852,6 +1855,10 @@
 "git.branch.localOnlyHelp" = "Esta rama aún no está en el remoto.";
 "git.branch.gone" = "Se eliminó en el remoto";
 "git.branch.goneHelp" = "Su rama del remoto ya no existe.";
+"git.branch.merged" = "Combinada";
+"git.branch.mergedGone" = "Se combinó y se eliminó en el remoto";
+"git.branch.mergedGoneHelp" = "Se combinó y se eliminó en el remoto: sus commits ya están allí. Puedes eliminarla de este Mac sin perder nada.";
+"git.branch.leftMerged" = "Volviste a %@ y se eliminó %@";
 "git.branch.protectedHelp" = "Rama principal protegida: no se confirma ni se sube directo.";
 "git.branch.currentHelp" = "%@ es la rama actual.";
 "git.branch.currentTitle" = "Rama actual";
@@ -2294,6 +2301,14 @@
 "git.problems.upstreamGone" = "La rama del remoto ya no existe";
 "git.problems.upstreamGoneReason" = "%@ se eliminó en el remoto (quizás ya se combinó). Tus commits siguen aquí; publícala de nuevo si aún la necesitas.";
 "git.problems.publishAgain" = "Publicar de nuevo";
+"git.problems.merged" = "%@ ya se combinó";
+"git.problems.mergedReason" = "Su rama del remoto se eliminó y sus commits ya están allí. Vuelve a %@ y elimínala de este Mac: no se pierde nada.";
+"git.problems.mergedDirtyReason" = "Su rama del remoto se eliminó y sus commits ya están allí. Confirma o guarda temporalmente tus cambios para volver a %@ y eliminarla.";
+"git.problems.leaveMerged" = "Volver a %@ y eliminar la rama";
+"git.problems.mergedBranchOne" = "%@ ya se combinó y sigue en este Mac";
+"git.problems.mergedBranches" = "%ld ramas ya combinadas siguen en este Mac";
+"git.problems.mergedBranchesReason" = "Se eliminaron en el remoto y sus commits ya están allí: puedes eliminarlas de este Mac sin perder nada.";
+"git.problems.deleteMerged" = "Eliminar de este Mac";
 "git.problems.notPublished" = "La rama no está en el remoto";
 "git.problems.notPublishedReason" = "Solo existe en este Mac: nadie más la ve y no tiene copia en el servidor.";
 "git.problems.lastSync" = "Falló el último intento: %@";

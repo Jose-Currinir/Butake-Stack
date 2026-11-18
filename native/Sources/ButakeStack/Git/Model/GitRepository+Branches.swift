@@ -47,6 +47,52 @@ extension GitRepository {
 
     func merge(_ name: String) async { await perform(.merge, value: name) }
 
+    // MARK: After a merged pull request
+
+    /// Where to go back after a merged branch: develop when the repository has it (here or on the
+    /// remote), otherwise the primary branch.
+    var landingBranch: String {
+        let names = Set(snapshot.branches.map(\.name)).union(snapshot.remoteBranches.map(\.short))
+        return names.contains("develop") ? "develop" : snapshot.primaryBranch
+    }
+
+    /// Branches other than the current one whose pull request was merged and whose remote branch
+    /// was deleted: they are only left on this Mac.
+    var mergedGoneBranches: [GitBranch] { localBranches.filter { !$0.current && $0.mergedAndGone && !isProtected($0.name) } }
+
+    /// «Volver a develop y borrar la rama»: the current branch was merged on the provider and its
+    /// remote branch deleted. Goes to `landingBranch`, brings it up to date and deletes the branch
+    /// (the engine checks again that all its commits are on the remote). Only with no changes.
+    func leaveMergedBranch() async {
+        guard operation == nil, files.isEmpty, let current = snapshot.currentBranch, current.mergedAndGone else { return }
+        let target = landingBranch
+        guard target != current.name else { return }
+        await switchTo(target)
+        guard snapshot.branch == target else { return }
+        if snapshot.tracked {
+            guard await perform(.pull, notify: false) else { return }
+        }
+        guard await perform(.deleteMergedBranch, value: current.name, notify: false) else { return }
+        if selectedBranch == current.name { selectedBranch = nil }
+        store.notify(String(format: L("git.branch.leftMerged"), target, current.name))
+    }
+
+    /// «Borrar de este Mac» for every `mergedGoneBranches`: one that is not all on the remote any
+    /// more (a commit added meanwhile) stays, with the engine's reason.
+    func deleteMergedBranches() async {
+        var deleted = 0
+        for branch in mergedGoneBranches {
+            if await perform(.deleteMergedBranch, value: branch.name, notify: false) {
+                deleted += 1
+                if selectedBranch == branch.name { selectedBranch = nil }
+            } else {
+                break
+            }
+        }
+        guard deleted > 0 else { return }
+        store.notify(deleted == 1 ? L("git.done.delete_merged_branch") : String(format: L("git.done.deleteMergedBranches"), deleted))
+    }
+
     /// The selected branch against the current one (`gitBranchDetails`).
     func comparison(of branch: String) async -> GitBranchComparison? {
         guard branch != snapshot.branch, !snapshot.detached else { return nil }

@@ -41,6 +41,9 @@ pub struct Branch {
     pub ahead: u64,
     pub behind: u64,
     pub gone: bool,
+    /// Only for a `gone` branch: every commit of it is on a remote branch (its pull request was
+    /// merged), so deleting it here loses nothing.
+    pub merged: bool,
     /// Last commit date (epoch UTC).
     pub updated: i64,
 }
@@ -420,7 +423,11 @@ pub async fn snapshot_with(root: &Path, limit: usize, with_stats: bool) -> Resul
             })
         })
         .collect();
-    let (branches, remote_branches) = parse_branches(&raw_branches?);
+    let (mut branches, remote_branches) = parse_branches(&raw_branches?);
+    // One look per branch whose remote one is gone (usually none): the others need no extra call.
+    for branch in branches.iter_mut().filter(|branch| branch.gone) {
+        branch.merged = on_remote(root, &branch.name).await;
+    }
     let primary = primary_from(&branches, &remote_branches);
     let divergence = divergence.unwrap_or_default();
     let mut counts = divergence
@@ -455,6 +462,26 @@ pub async fn snapshot_with(root: &Path, limit: usize, with_stats: bool) -> Resul
     })
 }
 
+/// Whether the tip of a local branch is in some remote branch (`refs/remotes/`): all its commits
+/// are on the remote, so deleting it here loses nothing. A squashed pull request leaves other
+/// commits on the remote, so its branch still reads as not there.
+pub async fn on_remote(root: &Path, branch: &str) -> bool {
+    let local = format!("refs/heads/{branch}");
+    git(
+        root,
+        &[
+            "for-each-ref",
+            "--count=1",
+            "--format=%(refname)",
+            "--contains",
+            &local,
+            "refs/remotes/",
+        ],
+    )
+    .await
+    .is_ok_and(|found| !found.trim().is_empty())
+}
+
 /// Splits `for-each-ref` output into local branches (with tracking state) and remote branches.
 pub fn parse_branches(text: &str) -> (Vec<Branch>, Vec<RemoteBranch>) {
     let mut local = Vec::new();
@@ -481,6 +508,7 @@ pub fn parse_branches(text: &str) -> (Vec<Branch>, Vec<RemoteBranch>) {
                 ahead: number("ahead "),
                 behind: number("behind "),
                 gone: track == "gone",
+                merged: false,
                 updated,
             });
         } else if let Some(name) = f[0].strip_prefix("refs/remotes/") {

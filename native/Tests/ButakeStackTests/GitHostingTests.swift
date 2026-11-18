@@ -342,6 +342,45 @@ private func isolateGit(remotes: URL) {
         #expect(ready.failure == nil)
     }
 
+    /// The pull request is merged on the provider's page with «delete the branch»: back in Stack the
+    /// branch is pruned without pressing anything, and one button goes back to main and deletes it.
+    @Test func aPullRequestMergedOnTheWebIsFollowedWhenStackComesBack() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let store = StackStore(engine: StackEngine())
+        let repository = try await fixture.repository(store)
+        defer { repository.stopWatching() }
+        _ = try await fixture.hosting.connect(.github, email: "", token: sentinel)
+        #expect(repository.snapshot.branch == "feature/pagos")
+
+        // What the provider does: merges into main and deletes feature/pagos.
+        let bare = fixture.remotes.appendingPathComponent("acme/tienda.git")
+        let other = fixture.root.appendingPathComponent("proveedor")
+        try run(fixture.root, "clone", "-q", "-b", "main", bare.path, other.path)
+        try run(other, "merge", "-q", "--no-ff", "-m", "Merge pull request #7", "origin/feature/pagos")
+        try run(other, "push", "-q", "origin", "main")
+        try run(other, "push", "-q", "origin", "--delete", "feature/pagos")
+
+        // Back from a page Stack did not open: nothing happens on its own.
+        await fixture.hosting.returnedFromBrowser(in: repository)
+        #expect(repository.snapshot.currentBranch?.gone == false)
+        // Back from the page «Ver en GitHub» opened.
+        fixture.hosting.awaitingReturn = true
+        await fixture.hosting.returnedFromBrowser(in: repository)
+        #expect(!fixture.hosting.awaitingReturn)
+        #expect(repository.snapshot.currentBranch?.mergedAndGone == true)
+        #expect(!repository.snapshot.remoteBranches.contains { $0.short == "feature/pagos" })
+
+        let gone = try #require(GitProblemSources.shared.problems(for: repository).first { $0.id == "git.upstreamGone" })
+        #expect(gone.title == "feature/pagos ya se combinó")
+        #expect(gone.action?.title == "Volver a main y eliminar la rama")
+        await gone.action?.run()
+        #expect(repository.snapshot.branch == "main")
+        #expect(repository.snapshot.branches.map(\.name) == ["main"])
+        #expect(repository.snapshot.behind == 0)
+        #expect(repository.failure == nil)
+    }
+
     @Test func aSlowAnswerForAnotherScopeNeverReplacesTheListOnScreen() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
