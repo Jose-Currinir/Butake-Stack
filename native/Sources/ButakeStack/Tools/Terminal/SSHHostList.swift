@@ -142,6 +142,9 @@ struct SSHHostList: View {
                 .lineLimit(1).truncationMode(.tail)
                 .selectionDisabled()
                 .accessibilityIdentifier("ssh.list.noHosts")
+            Button { terminal.editing = SSHHost() } label: { Label(L("ssh.addHostEllipsis"), systemImage: Symbols.newHost) }
+                .buttonStyle(.link).selectionDisabled()
+                .help(L("ssh.newHostHelp")).accessibilityIdentifier("ssh.list.noHosts.add")
         }
     }
 

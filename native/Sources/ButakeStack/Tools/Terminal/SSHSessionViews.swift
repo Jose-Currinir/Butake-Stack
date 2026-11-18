@@ -31,6 +31,10 @@ struct WorkspaceTabBar: View {
                         workspace.selected = tab.id
                         tab.focusedSession?.focus()
                     }
+                    .contextMenu {
+                        Button(role: .destructive) { workspace.requestClose(tab) } label: { Label(L("ssh.terminal.closeTab"), systemImage: Symbols.close) }
+                            .accessibilityIdentifier("ssh.tabs.menu.close")
+                    }
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
