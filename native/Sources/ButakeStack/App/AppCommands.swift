@@ -57,6 +57,7 @@ struct AppCommands: Commands {
             Button(L("menu.newProject")) { inWindow { store.showNewProject = true } }.keyboardShortcut("n")
             Button(L("menu.addExisting")) { inWindow { store.chooseFolder() } }.keyboardShortcut("n", modifiers: [.command, .option])
             Button(L("menu.importFolder")) { inWindow { store.chooseFolder(scan: true) } }
+            Button(L("menu.cloneRepository")) { inWindow { store.showClone = true } }
             Button(L("menu.newFolder")) { inWindow { store.groupNaming = .new(sites: []) } }.keyboardShortcut("n", modifiers: [.command, .shift])
             Divider()
             Button(L("backup.export")) { Task { await store.exportConfiguration() } }.disabled(store.busy != nil)

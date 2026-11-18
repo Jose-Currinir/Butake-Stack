@@ -108,6 +108,9 @@ struct HomePage: View {
                 Button { store.chooseFolder() } label: { Label(L("menu.addExisting"), systemImage: Symbols.newFolder) }
                     .buttonStyle(.bordered)
                     .accessibilityIdentifier("home.addExisting")
+                Button { store.showClone = true } label: { Label(L("menu.cloneRepository"), systemImage: Symbols.gitClone) }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("home.clone")
             }
             .fixedSize()
         }
