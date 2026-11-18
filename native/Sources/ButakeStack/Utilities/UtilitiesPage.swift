@@ -15,9 +15,15 @@ struct UtilitiesPage: View {
             Section {
                 ForEach(tools, id: \.self) { UtilityRow(store: store, tool: $0) }
             } header: {
-                // The page's state (error or nothing installed) goes above the rows, on its own
-                // surface rather than inside a row.
+                // The page's error goes above the rows, on its own surface rather than inside a row.
                 notice
+            } footer: {
+                // Nothing installed is already said by each row («Sin instalar»): only how they install.
+                if loaded && !store.devTools.isEmpty && installedCount == 0 {
+                    Text(L("utilities.emptyDetail")).font(.uiCaption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("utilities.emptyDetail")
+                }
             }
         }
         .formStyle(.grouped)
@@ -40,9 +46,6 @@ struct UtilitiesPage: View {
                     .accessibilityIdentifier("utilities.retry")
             }
             .textCase(nil)
-        } else if loaded && installedCount == 0 {
-            Notice(.info, L("utilities.empty"), detail: L("utilities.emptyDetail"), symbol: Symbols.utilities)
-                .textCase(nil)
         }
     }
 
