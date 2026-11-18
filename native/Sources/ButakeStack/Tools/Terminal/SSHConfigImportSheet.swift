@@ -56,7 +56,7 @@ struct SSHConfigImportSheet: View {
                 }
                 if let result {
                     Section {
-                        Label(String(format: L("ssh.config.imported"), result.imported.count), systemImage: Symbols.success).foregroundStyle(Brand.success)
+                        Label(String(format: L("ssh.config.imported"), result.imported.count), systemImage: Symbols.success).foregroundStyle(Brand.successText)
                         ForEach(result.skipped, id: \.alias) { skipped in
                             Label(String(format: L("ssh.config.skipped"), skipped.alias, skipped.reason == "jump_unknown" ? L("ssh.config.reason.jump_unknown") : localized("error.\(skipped.reason)") ?? L("engine.requestFailed")),
                                   systemImage: Symbols.warning)
@@ -96,7 +96,7 @@ struct SSHConfigImportSheet: View {
                 Text(host.address).font(.uiCaption.monospaced()).foregroundStyle(.secondary)
                 if !extras.isEmpty { Text(extras.joined(separator: " · ")).font(.uiCaption).foregroundStyle(.secondary) }
                 ForEach(candidate.warnings, id: \.self) { warning in
-                    Label(L("ssh.config.warning.\(warning)"), systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warning)
+                    Label(L("ssh.config.warning.\(warning)"), systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warningText)
                 }
             }
         }

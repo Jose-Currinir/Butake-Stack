@@ -103,7 +103,7 @@ private struct ToolSettingsRow: View {
         .help(plugin.summary)
         // A link led here to a tool that is off: its row stands out until another tab opens.
         .background {
-            if highlighted { RoundedRectangle(cornerRadius: 6).fill(Brand.accent.opacity(0.15)).padding(-6) }
+            if highlighted { RoundedRectangle(cornerRadius: Radius.small).fill(Brand.accent.opacity(0.15)).padding(-6) }
         }
         .accessibilityIdentifier("plugins.row.\(plugin.id)")
     }

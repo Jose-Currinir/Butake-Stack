@@ -82,7 +82,7 @@ struct MenuPanel: View {
                 let unavailable = dns.mode == "unavailable"
                 Label(String(format: L(unavailable ? "panel.dnsOff" : "panel.dnsOn"), store.config?.tld.first ?? "test"),
                       systemImage: unavailable ? Symbols.warning : Symbols.success)
-                    .font(.caption2).foregroundStyle(unavailable ? Brand.warning : .secondary)
+                    .font(.caption2).foregroundStyle(unavailable ? Brand.warningText : .secondary)
                     .help(L("panel.dnsHelp")).padding(.horizontal, 14).padding(.bottom, 2)
                     .accessibilityIdentifier("panel.dns")
             }
@@ -96,7 +96,7 @@ struct MenuPanel: View {
                 Button { NSApp.terminate(nil) } label: { PanelMenuRow(title: L("panel.quit"), shortcut: "⌘Q") }
                     .keyboardShortcut("q").help(L("menu.quitHelp")).accessibilityIdentifier("panel.quit")
             }
-            .buttonStyle(HighlightButtonStyle(radius: 6))
+            .buttonStyle(HighlightButtonStyle(radius: Radius.small))
             .padding(.horizontal, 6).padding(.bottom, 6)
         }
         .frame(width: 320)
@@ -177,14 +177,14 @@ private struct ServiceTileView: View {
         HStack(spacing: 5) {
             TechLogo(tech: tech, size: 16)
             // One line: the dot says whether it runs; the port is in the tooltip.
-            if let phase { Circle().fill(phase.color).frame(width: 5, height: 5) }
+            if let phase { StatusDot(color: phase.color, symbol: phase.markSymbol, label: L("state.\(phase.rawValue)"), size: 5) }
             Text(title).font(.caption).lineLimit(1).minimumScaleFactor(0.75)
             Spacer(minLength: 0)
             Toggle("", isOn: isOn).toggleStyle(.switch).controlSize(.mini).labelsHidden().accessibilityIdentifier(identifier)
                 .accessibilityLabel(title)
         }
         .padding(.horizontal, 6).padding(.vertical, 4)
-        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 7, style: .continuous))  // radius 7: outside the Radius scale, kept as it was
         .help(detail.isEmpty ? title : "\(title) · \(detail)")
     }
 }
@@ -262,7 +262,7 @@ private struct ProjectMenuRow: View {
         }
         .padding(.horizontal, 8).frame(height: Self.height)
         .help("\(project.title) · \(detail)")
-        .background(hover ? Color.primary.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(hover ? Color.primary.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
         .padding(.horizontal, 4)
         .onHover { hover = $0 }
         .contextMenu { ProjectMenuItems(store: store, project: project) }
@@ -290,7 +290,7 @@ private struct PanelFailureBanner: View {
     let dismiss: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(failure.title, systemImage: Symbols.warning).font(.callout.weight(.semibold)).foregroundStyle(Brand.danger)
+            Label(failure.title, systemImage: Symbols.warning).font(.callout.weight(.semibold)).foregroundStyle(Brand.dangerText)
             Text(failure.message).font(.caption).foregroundStyle(.secondary)
             HStack(spacing: 6) {
                 if let retry = failure.retry {
@@ -305,8 +305,8 @@ private struct PanelFailureBanner: View {
             .controlSize(.small)
         }
         .padding(10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Brand.danger.opacity(0.5)))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Brand.danger.opacity(0.5)))
         .accessibilityElement(children: .contain).accessibilityIdentifier("panel.error")
     }
 }

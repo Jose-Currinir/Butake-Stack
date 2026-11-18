@@ -217,7 +217,7 @@ struct RestoreSheet: View {
                     .padding(.horizontal, 12).padding(.vertical, 7)
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))  // radius 10: outside the Radius scale, kept as it was
         }
         PlanPart(isOn: $organize, symbol: Symbols.folder, title: L("backup.part.organize"),
                  detail: String(format: L("backup.organizeDetail"), plan.groups, plan.environments), enabled: plan.groups + plan.environments > 0, part: "organize")
@@ -249,11 +249,11 @@ struct RestoreSheet: View {
                     .frame(width: 18)
                     Text(step.title).foregroundStyle(step.state == .waiting || step.state == .skipped ? .secondary : .primary)
                 }
-                .transition(.opacity)
+                .transitioned(.opacity)
                 if step.state == .working, let current { InstallStepLine(monitor: current, scope: "backup.progress").padding(.leading, 28) }
             }
         }
-        .animation(.snappy, value: steps.map(\.state.hashValue))
+        .animated(.snappy, value: steps.map(\.state.hashValue))
     }
 
     /// Runs the chosen parts in order: downloads, tools, extensions, clones, then sites, folders,
@@ -323,7 +323,7 @@ struct RestoreSheet: View {
             }
         }
         steps = work.map { Step(title: $0.0, state: .waiting) }
-        withAnimation(.smooth) { running = true }
+        Motion.run(.smooth) { running = true }
         for (index, item) in work.enumerated() {
             if stopping { steps[index].state = .skipped; continue }
             steps[index].state = .working
@@ -338,7 +338,7 @@ struct RestoreSheet: View {
             }
         }
         running = false
-        withAnimation(.smooth) { finished = true }
+        Motion.run(.smooth) { finished = true }
         store.notify(L(stopping ? "backup.stopped" : "backup.restored"))
     }
 }
@@ -363,7 +363,7 @@ private struct PlanPart: View {
             Spacer()
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))  // radius 10: outside the Radius scale, kept as it was
         .opacity(enabled ? 1 : 0.6)
     }
 }

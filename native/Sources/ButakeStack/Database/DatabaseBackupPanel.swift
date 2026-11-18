@@ -98,7 +98,7 @@ struct BackupPanel: View {
             Toggle(L("db.compress"), isOn: $compress).accessibilityIdentifier("db.backup.compress")
             HStack {
                 if let last {
-                    Label(last, systemImage: Symbols.success).font(.uiCaption).foregroundStyle(Brand.success).textSelection(.enabled)
+                    Label(last, systemImage: Symbols.success).font(.uiCaption).foregroundStyle(Brand.successText).textSelection(.enabled)
                         .accessibilityIdentifier("db.backup.last")
                 }
                 Spacer()

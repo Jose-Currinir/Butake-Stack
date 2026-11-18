@@ -72,7 +72,7 @@ private struct SSHTabButton: View {
             }
         }
         .padding(.leading, 9).padding(.trailing, close == nil ? 9 : 5).padding(.vertical, 4)
-        .background(selected ? Color.primary.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .background(selected ? Color.primary.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))  // radius 7: outside the Radius scale, kept as it was
         .accessibilityElement(children: .contain)
     }
 }
@@ -164,7 +164,7 @@ private struct TerminalPaneView: View {
                         }
                     }
                     .padding(18)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))  // radius 14: outside the Radius scale, kept as it was
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 24)
                 }

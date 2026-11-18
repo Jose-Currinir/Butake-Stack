@@ -34,6 +34,6 @@ struct WatchBanner: View {
         .padding(.horizontal, 16).padding(.vertical, 10)
         .background(Brand.info.opacity(0.1))
         .overlay(alignment: .top) { Divider() }
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transitioned(.move(edge: .bottom).combined(with: .opacity))
     }
 }

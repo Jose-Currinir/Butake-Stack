@@ -60,8 +60,7 @@ struct Notice<Actions: View>: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(tint.opacity(0.3)))
+        .tintedFill(tint, fill: 0.1, edge: 0.3, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     }
 }
 

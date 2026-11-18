@@ -75,7 +75,7 @@ struct LiveLog: View {
     let id: String
     @State private var browser = LogsBrowser()
     var body: some View {
-        LogViewer(store: store, id: id, browser: browser, ownActions: true, minHeight: 420).workSurface(radius: 14)
+        LogViewer(store: store, id: id, browser: browser, ownActions: true, minHeight: 420).workSurface(radius: 14)  // radius 14: outside the Radius scale, kept as it was
     }
 }
 

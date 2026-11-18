@@ -29,10 +29,10 @@ extension StackStore {
     /// Shows «Hecho: <acción> · Deshacer» for a few seconds.
     private func offerUndo(_ name: String) {
         let offer = UndoOffer(name: name)
-        withAnimation(.snappy) { undoOffer = offer }
+        Motion.run(.snappy) { undoOffer = offer }
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.undoOfferSeconds))
-            withAnimation(.snappy) { if self?.undoOffer == offer { self?.undoOffer = nil } }
+            Motion.run(.snappy) { if self?.undoOffer == offer { self?.undoOffer = nil } }
         }
     }
 

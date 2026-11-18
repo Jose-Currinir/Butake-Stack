@@ -54,7 +54,7 @@ private struct ConnectionNode: View {
         DisclosureGroup(isExpanded: expansion(client, key) { await client.loadDatabases(connection) }) {
             if let error = client.errors[key] {
                 Label(error.kind == .offline ? L("db.noConnection") : error.title, systemImage: error.symbol)
-                    .font(.uiCaption).foregroundStyle(Brand.danger).lineLimit(2)
+                    .font(.uiCaption).foregroundStyle(Brand.dangerText).lineLimit(2)
                     .help(error.message).selectionDisabled()
                     .accessibilityIdentifier("db.list.error.\(key)")
             }
@@ -97,13 +97,12 @@ private struct ConnectionNode: View {
                 HStack(spacing: 5) {
                     Text(connection.title).font(.uiBody).lineLimit(1)
                     if client.isConnected(connection.id) {
-                        Circle().fill(Brand.success).frame(width: 6, height: 6).help(L("db.connected"))
-                            .accessibilityLabel(L("db.connected"))
+                        StatusDot(color: Brand.success, symbol: Symbols.success, label: L("db.connected"))
                     }
                     if connection.production {
                         Text(L("db.mode.productionShort")).font(.uiCaption2.weight(.bold)).foregroundStyle(.white)
                             .padding(.horizontal, 4).padding(.vertical, 1)
-                            .background(Brand.danger, in: RoundedRectangle(cornerRadius: 3))
+                            .background(Brand.danger, in: RoundedRectangle(cornerRadius: 3))  // radius 3: outside the Radius scale, kept as it was
                             .help(L("db.mode.production"))
                     }
                     if connection.readOnly {
@@ -135,7 +134,7 @@ private struct DatabaseNode: View {
         if connection.isSQL {
             DisclosureGroup(isExpanded: expansion(client, key) { await client.loadObjects(connection, database.name) }) {
                 if let error = client.errors[key] {
-                    Label(error.title, systemImage: error.symbol).font(.uiCaption).foregroundStyle(Brand.danger).lineLimit(2)
+                    Label(error.title, systemImage: error.symbol).font(.uiCaption).foregroundStyle(Brand.dangerText).lineLimit(2)
                         .help(error.message).selectionDisabled()
                         .accessibilityIdentifier("db.list.error.\(key)")
                 }
@@ -153,7 +152,7 @@ private struct DatabaseNode: View {
                 Task { await client.restore(file, into: database.name, of: connection) }
                 return true
             } isTargeted: { dropTargeted = $0 }
-            .background(RoundedRectangle(cornerRadius: 6).fill(dropTargeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
+            .background(RoundedRectangle(cornerRadius: Radius.small).fill(dropTargeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
             .accessibilityIdentifier("db.list.database.\(database.name)")
         } else {
             label.tag(selection).accessibilityIdentifier("db.list.database.\(database.name)")

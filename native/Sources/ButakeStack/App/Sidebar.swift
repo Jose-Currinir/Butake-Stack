@@ -221,7 +221,7 @@ extension Sidebar {
                 Spacer()
                 if project.isMissing {
                     // Said in words: a project whose folder is not there is never lost in silence.
-                    Text(L("missing.badge")).font(.caption).foregroundStyle(Brand.warning).lineLimit(1)
+                    Text(L("missing.badge")).font(.caption).foregroundStyle(Brand.warningText).lineLimit(1)
                         .help(L("missing.title")).accessibilityIdentifier("route.site.missing.\(project.id)")
                 } else {
                     // Open to anyone on the internet while shared (temporary or fixed address).
@@ -237,7 +237,7 @@ extension Sidebar {
             .tag(SidebarRow.site(project.id)).accessibilityIdentifier("route.site.\(project.id)")
             .contextMenu { ProjectMenuItems(store: store, project: project) }
             .draggable(project.id) {
-                Label(project.title, systemImage: Symbols.project).padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                Label(project.title, systemImage: Symbols.project).padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.small))
             }
             .dropDestination(for: String.self) { ids, _ in
                 for id in ids where id != project.id && (store.projects.contains(where: { $0.id == id }) || id.hasPrefix(StackStore.folderDragPrefix)) {
@@ -252,7 +252,7 @@ extension Sidebar {
             HStack(spacing: 6) {
                 Text(repository.title).lineLimit(1).foregroundStyle(.secondary)
                 Spacer()
-                Text(L("groups.newRepo")).font(.caption.weight(.semibold)).foregroundStyle(Brand.info)
+                Text(L("groups.newRepo")).font(.caption.weight(.semibold)).foregroundStyle(Brand.infoText)
                     .accessibilityIdentifier("sidebar.new.badge.\(repository.title)")
                 Button(L("groups.newRepoAdd")) { Task { await store.openFolder(repository.path) } }
                     .buttonStyle(.borderless).font(.caption).foregroundStyle(Brand.accent)
@@ -305,7 +305,7 @@ private extension View {
     @ViewBuilder func draggableFolder(_ payload: String?, title: String) -> some View {
         if let payload {
             draggable(payload) {
-                Label(title, systemImage: Symbols.folder).padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                Label(title, systemImage: Symbols.folder).padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.small))
             }
         } else { self }
     }
@@ -327,7 +327,7 @@ private struct SitesHeader: View {
             }
         }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
+            .background(RoundedRectangle(cornerRadius: Radius.small).fill(targeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
             .contextMenu {
                 Button { store.groupNaming = .new(sites: []) } label: { Label(L("menu.newFolder"), systemImage: Symbols.newFolder) }
                     .accessibilityIdentifier("sidebar.newFolder")
@@ -336,7 +336,7 @@ private struct SitesHeader: View {
                 for id in ids { store.move(id, to: nil) }
                 return true
             } isTargeted: { targeted = $0 }
-            .animation(.easeOut(duration: 0.15), value: targeted)
+            .animated(.easeOut(duration: 0.15), value: targeted)
     }
 }
 
@@ -391,8 +391,8 @@ private struct GroupRow: View {
             IconTile(symbol: group.isProject ? Symbols.compositeProject : Symbols.folder, size: 18)
         }
         .padding(.vertical, 1)
-        .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.18) : .clear).padding(.horizontal, -6))
-        .animation(.easeOut(duration: 0.15), value: targeted)
+        .background(RoundedRectangle(cornerRadius: Radius.small).fill(targeted ? Brand.accent.opacity(0.18) : .clear).padding(.horizontal, -6))
+        .animated(.easeOut(duration: 0.15), value: targeted)
         .dropDestination(for: String.self) { ids, _ in
             for id in ids { store.move(id, to: group.id) }
             dropped()

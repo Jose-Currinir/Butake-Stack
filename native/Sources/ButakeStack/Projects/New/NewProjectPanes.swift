@@ -49,7 +49,7 @@ extension NewProjectSheet {
         .overlay {
             // The system's drop highlight: the accent around the area while a folder is over it.
             if dropping {
-                RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Brand.accent, lineWidth: 3).padding(10)
+                RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Brand.accent, lineWidth: 3).padding(10)  // radius 10: outside the Radius scale, kept as it was
             }
         }
         .dropDestination(for: URL.self) { urls, _ in

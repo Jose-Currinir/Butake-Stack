@@ -19,6 +19,6 @@ struct StatusBar: View {
         .padding(.horizontal, 10).frame(height: 29)
         .background(Brand.bar)
         .overlay(alignment: .top) { Divider() }
-        .animation(.snappy, value: store.busy)
+        .animated(.snappy, value: store.busy)
     }
 }

@@ -195,7 +195,7 @@ private struct InstalledVersionRow: View {
                     HStack(spacing: 6) {
                         if let cycle { Chip(cycle: cycle).fixedSize() }
                         if let problem = item.problem {
-                            Label(problem, systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warning)
+                            Label(problem, systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warningText)
                         } else if let detail = item.detail {
                             Text(detail).font(.uiCaption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -379,7 +379,7 @@ struct VersionPickerSheet: View {
                         if let cycle = cycle(entry) { Chip(cycle: cycle).fixedSize() }
                         Spacer(minLength: 8)
                         if installed {
-                            Label(L("runtimes.installedShort"), systemImage: Symbols.success).font(.uiCaption).foregroundStyle(Brand.success)
+                            Label(L("runtimes.installedShort"), systemImage: Symbols.success).font(.uiCaption).foregroundStyle(Brand.successText)
                         } else if let detail = entry.detail {
                             Text(detail).font(.uiCaption.monospacedDigit()).foregroundStyle(.secondary)
                         }

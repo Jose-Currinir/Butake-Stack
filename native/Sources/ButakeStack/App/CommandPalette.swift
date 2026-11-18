@@ -175,7 +175,7 @@ struct CommandPalette: View {
                                         .padding(.horizontal, 12).padding(.top, index == 0 ? 2 : 10).padding(.bottom, 2)
                                 }
                                 Button { selection = index; run(items, modifiers: []) } label: { row(command, selected: index == selection) }
-                                    .buttonStyle(HighlightButtonStyle(radius: 6))
+                                    .buttonStyle(HighlightButtonStyle(radius: Radius.small))
                                     // The query field keeps the keyboard: arrows and Return move and open.
                                     .focusable(false)
                                     .accessibilityIdentifier("palette.command.\(command.id)")
@@ -224,7 +224,7 @@ struct CommandPalette: View {
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 7)
-        .background(selected ? Brand.accent.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(selected ? Brand.accent.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .contentShape(Rectangle())
     }
 
@@ -232,7 +232,7 @@ struct CommandPalette: View {
         HStack(spacing: 4) {
             Text(key).font(.uiCaption.weight(.semibold)).fontDesign(.rounded)
                 .padding(.horizontal, 5).padding(.vertical, 1)
-                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))  // radius 4: outside the Radius scale, kept as it was
             Text(text).font(.uiCaption)
         }
         .foregroundStyle(.secondary)

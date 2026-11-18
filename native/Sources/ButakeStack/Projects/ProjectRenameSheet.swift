@@ -65,7 +65,7 @@ struct ProjectRenameSheet: View {
                         .font(.uiBody.monospaced()).accessibilityIdentifier("rename.id")
                 }
             } footer: {
-                Text(idProblem ?? L("rename.id.hint")).font(.uiCaption).foregroundStyle(idProblem == nil ? Color.secondary : Brand.warning)
+                Text(idProblem ?? L("rename.id.hint")).font(.uiCaption).foregroundStyle(idProblem == nil ? Color.secondary : Brand.warningText)
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("rename.id.note")
             }

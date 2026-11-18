@@ -35,7 +35,7 @@ struct DiskMigrationSheet: View {
                                     Text(store.relativeToProjects(move.to)).font(.uiCaption.monospaced()).foregroundStyle(.secondary)
                                         .lineLimit(1).truncationMode(.middle)
                                     if move.conflict {
-                                        Text(L("groups.migrate.conflict")).font(.uiCaption).foregroundStyle(Brand.warning)
+                                        Text(L("groups.migrate.conflict")).font(.uiCaption).foregroundStyle(Brand.warningText)
                                     }
                                 }
                                 .padding(.leading, 22)

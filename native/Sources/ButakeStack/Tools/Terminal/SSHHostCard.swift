@@ -97,7 +97,7 @@ struct SSHHostCard: View {
                 if keyring.encrypted(id) {
                     LabeledContent(L("ssh.keys.agent")) {
                         if keyring.loaded(id) {
-                            Label(L("ssh.keys.inAgent"), systemImage: Symbols.success).foregroundStyle(Brand.success)
+                            Label(L("ssh.keys.inAgent"), systemImage: Symbols.success).foregroundStyle(Brand.successText)
                         } else {
                             Button { Task { _ = await keyring.ensureAgent(id) } } label: { Label(L("ssh.keys.loadAgent"), systemImage: Symbols.key) }
                                 .buttonStyle(.bordered).accessibilityIdentifier("ssh.card.loadAgent")
@@ -105,7 +105,7 @@ struct SSHHostCard: View {
                     }
                 }
             } else {
-                Label(L("error.unknown_ssh_key"), systemImage: Symbols.error).foregroundStyle(Brand.danger)
+                Label(L("error.unknown_ssh_key"), systemImage: Symbols.error).foregroundStyle(Brand.dangerText)
             }
         } else if let identity = host.identity {
             InfoRow(title: L("ssh.auth.file"), value: identity, mono: true, lines: 2)
@@ -159,7 +159,7 @@ struct SSHFingerprintRows: View {
             .accessibilityIdentifier("ssh.card.hostState")
         }
         if let owner {
-            Text(String(format: L("ssh.hostState.jumpFirst"), owner.name)).font(.uiCaption).foregroundStyle(Brand.warning)
+            Text(String(format: L("ssh.hostState.jumpFirst"), owner.name)).font(.uiCaption).foregroundStyle(Brand.warningText)
         }
         Text(L("ssh.hostState.\(state?.state ?? "unchecked").detail")).font(.uiCaption)
             .foregroundStyle(state?.state == "unreachable" || state?.state == "changed" ? Self.color(state?.state) : .secondary)
@@ -228,9 +228,9 @@ private struct SSHForwardRow: View {
                         .textSelection(.enabled)
                     if let since {
                         Text(String(format: L("ssh.forward.since"), since.formatted(date: .omitted, time: .shortened)))
-                            .font(.uiCaption).foregroundStyle(Brand.success)
+                            .font(.uiCaption).foregroundStyle(Brand.successText)
                     } else if let dropped {
-                        Text(droppedText(dropped)).font(.uiCaption).foregroundStyle(Brand.warning)
+                        Text(droppedText(dropped)).font(.uiCaption).foregroundStyle(Brand.warningText)
                     }
                 }
             } icon: {

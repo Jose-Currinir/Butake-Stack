@@ -215,7 +215,13 @@ seguir diciendo `engine` o `site` en identificadores internos; el glosario rige 
     derecha; tamaño mínimo e ideal, nunca fijo.
 15. Columnas con `Table`; listas seleccionables con `List(selection:)`.
 16. Encabezados de sección con mayúscula inicial, sin `.uppercased()` ni ícono decorativo.
-17. Animaciones que respetan `accessibilityReduceMotion`; sin `scaleEffect` al pasar el ratón.
+17. Animaciones que respetan `accessibilityReduceMotion`; sin `scaleEffect` al pasar el ratón. Todo
+    movimiento pasa por `Shared/Motion.swift` (`Motion.run`, `.animated`, `.transitioned`); `lint-ui.sh`
+    cuenta `raw-animation` (tope 0). Contraste: un color de estado escrito como texto usa
+    `Brand.successText/warningText/dangerText/infoText` (4,5:1, probado en `BrandContrastTests`); el
+    color pleno queda para iconos y bordes. Con Aumentar contraste, tintes y bordes salen de
+    `tintedFill`/`separatorEdge` (`Shared/Styles.swift`). Un punto de estado es un `StatusDot`
+    (forma con «Diferenciar sin color»). Radios de `Radius` (6, 8, 12, 16).
 18. Ningún control invisible a la espera del ratón.
 19. Rutas largas con `truncationMode(.middle)` y el valor completo en `.help`.
 20. Navegación y pestaña activa persistidas con `@SceneStorage`.

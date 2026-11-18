@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 struct RootView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.undoManager) private var undoManager
     @Bindable var store: StackStore
@@ -66,7 +65,7 @@ struct RootView: View {
                 // view taller than it (AppKit would center it and put every column under the title bar, P-15).
                 .frame(minHeight: 0, maxHeight: .infinity)
                 .frame(maxWidth: .infinity)
-                .transition(.opacity)
+                .transitioned(.opacity)
                 if let pending = store.watchedPending.first, store.importScan == nil {
                     WatchBanner(store: store, scan: pending)
                 }
@@ -128,7 +127,7 @@ struct RootView: View {
                     .padding(.horizontal, 14).padding(.vertical, 9)
                     .chromeGlass()
                     .padding(.bottom, 46)
-                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                    .transitioned(.move(edge: .bottom).combined(with: .opacity))
                     .accessibilityIdentifier("toast.undoOffer")
                 } else if let toast = store.toast {
                     Label(toast, systemImage: Symbols.success)
@@ -136,11 +135,11 @@ struct RootView: View {
                         .padding(.horizontal, 14).padding(.vertical, 9)
                         .chromeGlass()
                         .padding(.bottom, 46)
-                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                        .transitioned(.move(edge: .bottom).combined(with: .opacity))
                         .accessibilityIdentifier("toast")
                 }
             }
-            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: store.route)
+            .animated(.smooth(duration: 0.25), value: store.route)
             // Dropping a project folder on the window adds it as a site.
             .dropDestination(for: URL.self) { urls, _ in
                 guard let folder = urls.first(where: { $0.hasDirectoryPath || (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }) else { return false }

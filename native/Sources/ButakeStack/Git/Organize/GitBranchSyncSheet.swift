@@ -54,7 +54,7 @@ struct GitBranchSyncSheet: View {
                 } else if loading {
                     Section { ProgressView().frame(maxWidth: .infinity) }
                 } else if let failure {
-                    Section { Label(failure, systemImage: Symbols.warning).foregroundStyle(Brand.warning) }
+                    Section { Label(failure, systemImage: Symbols.warning).foregroundStyle(Brand.warningText) }
                 }
             }
             .formStyle(.grouped)

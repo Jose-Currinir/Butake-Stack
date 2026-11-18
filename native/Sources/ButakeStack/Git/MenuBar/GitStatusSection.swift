@@ -70,7 +70,7 @@ private struct GitStatusRowView: View {
                 .font(.caption).frame(width: 16).accessibilityHidden(true)
             // One line: the name and, fainter, what it has pending.
             Text(row.entry.name).font(.callout).lineLimit(1).layoutPriority(1)
-            Text(failure.map { $0.title } ?? row.detail).font(.caption2).foregroundStyle(failure == nil ? .secondary : Brand.warning)
+            Text(failure.map { $0.title } ?? row.detail).font(.caption2).foregroundStyle(failure == nil ? .secondary : Brand.warningText)
                 .lineLimit(1).truncationMode(.tail)
                 .accessibilityLabel(failure.map { $0.title } ?? row.spokenDetail)
             Spacer(minLength: 4)

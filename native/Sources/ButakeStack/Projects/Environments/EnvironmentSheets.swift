@@ -45,7 +45,7 @@ struct NewEnvironmentSheet: View {
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L("env.kindDetail.\(kind.rawValue)") + " " + String(format: L("env.appEnvNote"), identifier.isEmpty ? "…" : identifier))
-                        if kind == .production { Text(L("env.productionNote")).foregroundStyle(Brand.danger) }
+                        if kind == .production { Text(L("env.productionNote")).foregroundStyle(Brand.dangerText) }
                     }
                     .font(.uiCaption).foregroundStyle(.secondary).multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
                 }

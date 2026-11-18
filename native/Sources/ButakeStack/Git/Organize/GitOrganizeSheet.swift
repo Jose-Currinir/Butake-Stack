@@ -74,7 +74,7 @@ struct GitOrganizeSheet: View {
                 .themedScroll()
                 .accessibilityIdentifier("git.organize.list")
                 if let failure {
-                    Label(failure, systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warning)
+                    Label(failure, systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warningText)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(10).textSelection(.enabled)
                 }
             }
@@ -186,10 +186,10 @@ private struct GitOrganizeRow: View {
                 Text(item.subject.isEmpty ? L("git.organize.noMessage") : item.subject).font(.uiBody).lineLimit(1)
                     .strikethrough(item.drop).foregroundStyle(item.drop ? .secondary : .primary)
                 if item.commits.count > 1 {
-                    Text(String(format: L("git.organize.combined"), item.commits.count)).font(.uiCaption).foregroundStyle(Brand.info)
+                    Text(String(format: L("git.organize.combined"), item.commits.count)).font(.uiCaption).foregroundStyle(Brand.infoText)
                 }
-                if item.renamed && !item.drop { Text(L("git.organize.renamed")).font(.uiCaption).foregroundStyle(Brand.info) }
-                if item.drop { Text(L("git.organize.removed")).font(.uiCaption).foregroundStyle(Brand.danger) }
+                if item.renamed && !item.drop { Text(L("git.organize.renamed")).font(.uiCaption).foregroundStyle(Brand.infoText) }
+                if item.drop { Text(L("git.organize.removed")).font(.uiCaption).foregroundStyle(Brand.dangerText) }
                 Spacer(minLength: 4)
                 Text(item.commits.map(\.short).joined(separator: " + ")).font(.uiCaption.monospaced()).foregroundStyle(.secondary).lineLimit(1)
             }

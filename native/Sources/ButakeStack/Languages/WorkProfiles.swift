@@ -155,10 +155,10 @@ struct ToolRow: View {
                         .help(String(format: L("tools.installedVersion"), update.installed))
                         .accessibilityIdentifier("tool.update.\(tool)")
                 }
-                Label(status.version ?? L("setup.ready"), systemImage: Symbols.success).font(.uiCaption.weight(.medium)).foregroundStyle(Brand.success).lineLimit(1)
+                Label(status.version ?? L("setup.ready"), systemImage: Symbols.success).font(.uiCaption.weight(.medium)).foregroundStyle(Brand.successText).lineLimit(1)
             } else {
                 if status?.broken == true {
-                    Label(L("tools.broken"), systemImage: Symbols.warning).font(.uiCaption.weight(.medium)).foregroundStyle(Brand.warning)
+                    Label(L("tools.broken"), systemImage: Symbols.warning).font(.uiCaption.weight(.medium)).foregroundStyle(Brand.warningText)
                         .help(L("tools.brokenHelp"))
                 }
                 action

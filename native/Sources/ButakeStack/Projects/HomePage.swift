@@ -20,7 +20,6 @@ enum HomeFilter {
 /// Stack's state itself is said by the status bar.
 struct HomePage: View {
     @Bindable var store: StackStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var services: [String] { Route.allEngines.filter { store.engineVersion($0) != nil } }
     /// How far a folder inside another is moved in, as in the sidebar.
     static let indent: CGFloat = 20
@@ -73,7 +72,7 @@ struct HomePage: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: TextScale.points(290)), spacing: 12)], spacing: 12) {
             ForEach(items) { card($0) }
         }
-        .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: items.map(\.id))
+        .animated(.snappy(duration: 0.3), value: items.map(\.id))
     }
 
     private var projects: some View {
@@ -110,7 +109,7 @@ struct HomePage: View {
                         if (filtering || store.folderOpen(group.id)) && !members.isEmpty { grid(members) { HomeProjectCard(store: store, project: $0).draggable($0.id) } }
                     }
                     .padding(.leading, CGFloat(entry.depth) * HomePage.indent)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transitioned(.opacity.combined(with: .move(edge: .top)))
                 }
             }
             let loose = HomeFilter.shown(store.ungroupedProjects, folder: nil, query: query)
@@ -246,7 +245,7 @@ private struct HomeHeader: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .workSurface(radius: 18)
+        .workSurface(radius: 18)  // radius 18: outside the Radius scale, kept as it was
         .accessibilityIdentifier("home.header")
     }
 }
@@ -294,7 +293,7 @@ private struct HomeCard<Trailing: View>: View {
             .padding(12)
             .workSurface()
         }
-        .buttonStyle(HighlightButtonStyle(radius: 16))
+        .buttonStyle(HighlightButtonStyle(radius: Radius.panel))
         .overlay(alignment: .trailing) {
             HStack(spacing: 10) { trailing }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { trailingWidth = $0 }
@@ -327,10 +326,10 @@ private struct HomeProjectCard: View {
         let phase = store.sitePhase(project)
         HomeCard(tech: project.tech, title: project.title, detail: detail,
                  shortDetail: project.tech.shortTitle == project.tech.title ? nil : detail(kind: project.tech.shortTitle), identifier: "home.site.\(project.id)",
-                 open: { withAnimation(.smooth(duration: 0.3)) { store.openSite(project.id) } }) {
+                 open: { Motion.run(.smooth(duration: 0.3)) { store.openSite(project.id) } }) {
             // Something it needs (P-42): the first cause on hover, the rest on its page.
             if !project.isMissing, let first = store.attention[project.id]?.first {
-                Image(systemName: Symbols.warning).foregroundStyle(Brand.warning).help(store.attentionText(first))
+                Image(systemName: Symbols.warning).foregroundStyle(Brand.warningText).help(store.attentionText(first))
                     .accessibilityLabel(L("attention.title"))
                     .accessibilityIdentifier("home.site.attention.\(project.id)")
             }

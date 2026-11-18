@@ -14,4 +14,6 @@ plain-action-button=0
 toolbar-item-without-label=0
 file-too-long=0
 strings-order=0
+raw-animation=0
+radius-literal=21
 exemptions=2

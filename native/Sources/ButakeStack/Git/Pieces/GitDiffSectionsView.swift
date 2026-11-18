@@ -58,7 +58,6 @@ private struct GitDiffFileHeader: View {
     let open: Bool
     var expandable = true
     let action: () -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var shape: UnevenRoundedRectangle {
         UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: open ? 0 : 8, bottomTrailingRadius: open ? 0 : 8, topTrailingRadius: 8)
@@ -69,7 +68,7 @@ private struct GitDiffFileHeader: View {
             HStack(spacing: 9) {
                 Image(systemName: Symbols.disclosure).font(.uiCaption.weight(.bold)).foregroundStyle(.secondary)
                     .rotationEffect(.degrees(open ? 90 : 0)).frame(width: 12).opacity(expandable ? 1 : 0)
-                    .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: open)
+                    .animated(.snappy(duration: 0.2), value: open)
                 FileTypeIcon(path: file.path, size: 17)
                 Text((file.path as NSString).lastPathComponent).font(.uiCallout.weight(.semibold)).lineLimit(1)
                 if case let folder = (file.path as NSString).deletingLastPathComponent, !folder.isEmpty {

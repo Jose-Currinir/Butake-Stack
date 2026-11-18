@@ -69,7 +69,7 @@ struct ShareSection: View {
                         }
                         .buttonStyle(.borderless).help(L("share.copy")).accessibilityIdentifier("share.copy")
                     } else if phase == .crashed || phase == .stopped {
-                        Text(L("share.failed")).foregroundStyle(Brand.danger)
+                        Text(L("share.failed")).foregroundStyle(Brand.dangerText)
                         Button { store.showLogs("share.\(project.id)") } label: { Label(L("process.logs"), systemImage: Symbols.logs) }
                             .buttonStyle(.bordered).controlSize(.small).accessibilityIdentifier("share.logs")
                     } else {
@@ -83,7 +83,7 @@ struct ShareSection: View {
                 }
             } label: {
                 Text(L("share.temporary"))
-                Label(L("share.publicWarning"), systemImage: Symbols.warning).foregroundStyle(Brand.warning)
+                Label(L("share.publicWarning"), systemImage: Symbols.warning).foregroundStyle(Brand.warningText)
             }
         } else {
             LabeledContent {

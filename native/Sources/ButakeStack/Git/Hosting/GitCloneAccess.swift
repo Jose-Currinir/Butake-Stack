@@ -107,7 +107,7 @@ struct GitCloneAccessNotice: View {
                 }
             }
             if let problem {
-                Label(problem, systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.danger)
+                Label(problem, systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.dangerText)
                     .accessibilityIdentifier("git.access.problem")
             }
         }

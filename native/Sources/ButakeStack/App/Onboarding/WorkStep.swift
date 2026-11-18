@@ -73,7 +73,7 @@ struct WorkStep: View {
         .formStyle(.grouped)
         // The sheet is the background: no second surface behind the sections.
         .scrollContentBackground(.hidden)
-        .animation(.snappy(duration: 0.25), value: tools)
+        .animated(.snappy(duration: 0.25), value: tools)
         .task { await store.refreshDevTools() }
         .onAppear {
             if !suggested && profilesRaw.isEmpty && !suggestions.isEmpty {
