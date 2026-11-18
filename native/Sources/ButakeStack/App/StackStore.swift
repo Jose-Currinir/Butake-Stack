@@ -262,13 +262,19 @@ import SwiftUI
         #if DEBUG
         let value = QAHooks.simulatedStatus ?? value
         #endif
-        if status != value { status = value }
-        if daemonRunning != (value != nil) { daemonRunning = value != nil }
         liveness.observe(up: value != nil, at: now)
+        // During the grace the last state stays on screen: one missed reading is not «Detenido»
+        // on every card. When the grace ends, `updateReconnecting` lets it go.
+        if value != nil || liveness.phase(at: now) != .reconnecting { show(value) }
         updateReconnecting(at: now)
         #if DEBUG
         if QAHooks.simulatesReconnecting { daemonReconnecting = true }
         #endif
+    }
+
+    private func show(_ value: StackStatus?) {
+        if status != value { status = value }
+        if daemonRunning != (value != nil) { daemonRunning = value != nil }
     }
 
     /// «Reconectando…» while the grace lasts; a task ends it so the bar says «Detenido» on time.
@@ -276,6 +282,7 @@ import SwiftUI
         let left = liveness.remaining(at: now)
         let reconnecting = liveness.phase(at: now) == .reconnecting
         if daemonReconnecting != reconnecting { daemonReconnecting = reconnecting }
+        if !reconnecting, liveness.phase(at: now) == .stopped { show(nil) }
         graceTask?.cancel()
         guard let left else { return }
         graceTask = Task { [weak self] in

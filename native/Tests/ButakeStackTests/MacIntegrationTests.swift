@@ -348,3 +348,17 @@ private func settle() async { for _ in 0..<5 { await Task.yield() } }
         #expect(!notice.title.isEmpty && !notice.body.isEmpty)
     }
 }
+
+/// One missed reading after the service was seen: the cards keep their last state during the grace
+/// (no «Detenido» everywhere for a second), and lose it only when the grace ends.
+@MainActor @Test func aMissedReadingKeepsTheLastStateOnScreen() throws {
+    let store = try readyStore()
+    let t0 = Date()
+    let running = StackStatus(listeners: [:], processes: [])
+    store.applyStatus(running, at: t0)
+    #expect(store.daemonRunning && store.status != nil)
+    store.applyStatus(nil, at: t0.addingTimeInterval(1))
+    #expect(store.daemonReconnecting && store.daemonRunning && store.status != nil)
+    store.applyStatus(nil, at: t0.addingTimeInterval(30))
+    #expect(!store.daemonReconnecting && !store.daemonRunning && store.status == nil)
+}
