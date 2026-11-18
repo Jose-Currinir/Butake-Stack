@@ -84,6 +84,7 @@ struct EnvironmentsView: View {
     @State private var offerRestart: EnvEnvironment?
     @State private var creatingDatabase = false
     @State private var changingPassword = false
+    @State private var dropTargeted = false
 
     struct Row: Identifiable, Hashable {
         let id = UUID()
@@ -177,10 +178,14 @@ struct EnvironmentsView: View {
         return guardState.tracked ? L("env.guard.tracked") : L("env.guard.notIgnored")
     }
 
+    @ViewBuilder var guardNotice: some View {
+        if let guardProblem { EnvGuardNotice(store: store, project: project, message: guardProblem, tracked: state?.gitGuard.tracked == true) }
+    }
+
     // MARK: Empty: import the current .env or start from .env.example
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            if let guardProblem { Notice(.error, guardProblem).padding(.horizontal, 20).padding(.top, 14) }
+        VStack(spacing: 0) {
+            if guardProblem != nil { guardNotice.padding(.horizontal, 20).padding(.top, 14) }
             ContentUnavailableView {
                 Label(L("env.title"), systemImage: Symbols.environments)
             } description: {
@@ -196,14 +201,26 @@ struct EnvironmentsView: View {
                     }
                 }
             }
+            .frame(maxHeight: .infinity)
             .help(L("env.securityNote"))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // A `.env` dropped here is imported the same way as «Importar»: secrets to the Keychain.
+        .overlay {
+            if dropTargeted {
+                RoundedRectangle(cornerRadius: 12).strokeBorder(Brand.accent, lineWidth: 2).padding(8).allowsHitTesting(false)
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            Task { if await store.importEnvFile(project, from: url) { selected = "local"; load() } }
+            return true
+        } isTargeted: { dropTargeted = $0 }
     }
 
     /// What is wrong with this environment, one notice each; both modes show them.
     @ViewBuilder var notices: some View {
-        if let guardProblem { Notice(.error, guardProblem) }
+        guardNotice
         if !missingPorts.isEmpty {
             Notice(.error, String(format: L("env.portMissing"), missingPorts.joined(separator: ", ")), detail: L("env.portMissingDetail"))
         }
