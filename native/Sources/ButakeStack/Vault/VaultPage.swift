@@ -115,9 +115,9 @@ private struct VaultDetail: View {
         // NavigationStack here would replace the window's toolbar while an item is open.
         Group {
             if let item = vault.inspected.flatMap(vault.index.item) {
-                VaultItemDetail(vault: vault, item: item).id(item.id)
+                VaultItemDetail(vault: vault, item: item).id(item.id).vaultFileDrop(vault, container: item.container)
             } else if let app = vault.signing.flatMap(vault.index.container) {
-                VaultSigningDetail(vault: vault, container: app).id(app.id)
+                VaultSigningDetail(vault: vault, container: app).id(app.id).vaultFileDrop(vault, container: app.id)
             } else {
                 switch vault.selection {
                 case .container(let id):

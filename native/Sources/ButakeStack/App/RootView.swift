@@ -91,6 +91,10 @@ struct RootView: View {
                             TerminalNewItems()
                             Divider()
                         }
+                        if store.route == .tool("git"), store.canShow(.tool("git")), GitTool.shared.requirement.ready {
+                            GitNewItems()
+                            Divider()
+                        }
                         if store.route == .tool("skills"), store.canShow(.tool("skills")) {
                             Button { SkillsTool.shared.sheet = .newSkill } label: { Label(L("skills.newEllipsis"), systemImage: Symbols.skill) }
                                 .help(L("skills.newHelp")).accessibilityIdentifier("toolbar.add.newSkill")

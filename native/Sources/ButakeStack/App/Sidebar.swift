@@ -106,6 +106,7 @@ struct Sidebar: View {
                         Label { Text(component.title) } icon: { TechLogo(tech: component.tech, size: 18) }
                             .tag(SidebarRow.component(component))
                             .accessibilityIdentifier("route.components.\(component.rawValue)")
+                            .contextMenu { ComponentMenuItems(store: store, component: component) }
                     }
                     ForEach(found, id: \.self) { categoryRow($0) }
                 } header: { Text(L("sidebar.components")) }
@@ -166,6 +167,7 @@ extension Sidebar {
         } icon: { TechLogo(tech: .of(id), size: 18) }
             .tag(SidebarRow.tool(id))
             .accessibilityIdentifier("route.tool.\(id)")
+            .contextMenu { ToolMenuItems(store: store, id: id) }
     }
     /// A category found by the search, with the component that holds it.
     func categoryRow(_ route: Route) -> some View {
@@ -179,6 +181,10 @@ extension Sidebar {
         } icon: { TechLogo(tech: component.tech(of: category), size: 18) }
             .tag(SidebarRow.category(route))
             .accessibilityIdentifier("route.\(route.storageValue.replacingOccurrences(of: ":", with: "."))")
+            .contextMenu {
+                Button { store.route = route } label: { Label(L("common.open"), systemImage: Symbols.forward) }
+                    .accessibilityIdentifier("sidebar.menu.open.\(category)")
+            }
     }
     var selectedProject: Project? {
         if case .site(let id) = store.route { return store.projects.first { $0.id == id } }

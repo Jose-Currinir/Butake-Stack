@@ -59,13 +59,7 @@ struct VaultContainerDetail: View {
         .font(.uiBody)
         .themedScroll()
         .accessibilityIdentifier("vault.detail")
-        .dropDestination(for: URL.self) { urls, _ in
-            Task {
-                let added = await vault.add(files: urls, to: container.id, section: nil)
-                if added > 0 { vault.notice = String(format: L("vault.added"), added) }
-            }
-            return true
-        }
+        .vaultFileDrop(vault, container: container.id)
     }
 
     private var subtitle: String { container.kind == .app ? (container.bundleId ?? L("vault.noBundle")) : (container.subtitlePath ?? L("vault.serviceKind")) }

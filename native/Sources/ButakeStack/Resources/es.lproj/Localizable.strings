@@ -101,6 +101,10 @@
 "sidebar.components" = "Componentes";
 "sidebar.closedCount" = "%d proyectos";
 "sidebar.tools" = "Herramientas";
+"sidebar.menu.toolSettings" = "Ajustes de la herramienta…";
+"sidebar.menu.turnOff" = "Apagar herramienta";
+"sidebar.menu.undoTurnOff" = "Apagar %@";
+"sidebar.menu.category" = "Abrir categoría";
 
 "menu.restartAll" = "Reiniciar todo";
 "menu.open" = "Abrir Stack";
@@ -1629,10 +1633,8 @@
 "git.repo.changeHelp" = "Cambiar de repositorio";
 "git.repo.changeLabel" = "Repositorio %@. Cambiar de repositorio";
 "git.repo.recent" = "Recientes";
-"git.repo.listEmpty" = "Agrega, clona o crea un repositorio con «Agregar», abajo.";
+"git.repo.listEmpty" = "Agrega, clona o crea un repositorio con «+», arriba a la derecha.";
 "git.repo.addHelp" = "Agrega la carpeta de un repositorio que ya está en este Mac";
-"git.repo.addMenu" = "Agregar";
-"git.repo.addMenuHelp" = "Agregar un repositorio de este Mac, clonar uno o crear uno nuevo";
 "git.repo.other" = "Otros";
 "git.sync.publishRepository" = "Publicar repositorio…";
 "git.sync.publishRepositoryHelp" = "Este repositorio solo existe en tu Mac: créalo en GitHub o Bitbucket y sube sus ramas.";
