@@ -1,6 +1,6 @@
 use crate::core::store::Store;
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use std::{fs, process::Command};
 
 fn escape(value: &str) -> String {
@@ -76,6 +76,7 @@ pub fn configure(request: &Value, install: bool) -> Result<Value> {
         "unsafe_agent_path"
     );
     let path = directory.join("cl.butake.stack.daemon.plist");
+    // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
     let domain = format!("gui/{}", unsafe { libc::geteuid() });
     if install {
         // A file left by an interrupted install or uninstall, with no agent loaded, is replaced.
@@ -120,10 +121,28 @@ pub fn configure(request: &Value, install: bool) -> Result<Value> {
     Ok(json!({"applied":true}))
 }
 
+/// Whether the session agent's file runs the daemon of the store at `root`: only then may that
+/// agent be restarted for it (a test or QA store never touches the user's agent).
+pub fn serves(root: &std::path::Path) -> bool {
+    let Some(path) =
+        Store::home().map(|h| h.join("Library/LaunchAgents/cl.butake.stack.daemon.plist"))
+    else {
+        return false;
+    };
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    text.contains(&format!(
+        "<key>BUTAKE_STACK_HOME</key><string>{}</string>",
+        escape(&root.to_string_lossy())
+    ))
+}
+
 /// Whether the LaunchAgent file exists and launchd has it loaded.
 pub fn status() -> Value {
     let path = Store::home().map(|h| h.join("Library/LaunchAgents/cl.butake.stack.daemon.plist"));
     let installed = path.as_ref().is_some_and(|p| p.exists());
+    // SAFETY: `geteuid` takes no arguments, cannot fail and touches no memory.
     let domain = format!("gui/{}/cl.butake.stack.daemon", unsafe { libc::geteuid() });
     let loaded = Command::new("/bin/launchctl")
         .args(["print", &domain])

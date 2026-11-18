@@ -10,7 +10,7 @@ mod trash_groups;
 
 use super::dispatch_in;
 use crate::core::store::Store;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::PathBuf;
 
 pub struct Env {

@@ -26,14 +26,26 @@ extension StackStore {
         }
     }
     /// Turns a site on (served, processes running) or off.
-    func setSite(_ project: Project, enabled: Bool) async {
+    /// An error shows where it was asked (`surface`) and can be undone with ⌘Z.
+    func setSite(_ project: Project, enabled: Bool, from surface: StopSurface = .window) async {
         // A project without its folder never starts: it is found again or removed first.
         // A project without a server has no switch.
         guard !project.isMissing, project.isServed else { return }
         var started: [String] = []
-        await run(enabled ? L("busy.start") : L("busy.stop"), refresh: true) {
+        var done = false
+        await run(enabled ? L("busy.start") : L("busy.stop"), refresh: true, from: surface,
+                  failureTitle: String(format: L(enabled ? "error.startFailed" : "error.stopFailed"), project.title)) {
             let answer: SiteSwitch = try await self.call(["method": "setSiteEnabled", "id": project.id, "enabled": enabled])
             started = answer.servicesStarted ?? []
+            done = true
+        }
+        if done {
+            let switchSite: @MainActor (Bool) async -> Void = { [weak self] on in
+                guard let self, let current = self.projects.first(where: { $0.id == project.id }) else { return }
+                await self.setSite(current, enabled: on, from: surface)
+            }
+            undoable(String(format: L(enabled ? "menu.undo.start" : "menu.undo.stop"), project.title),
+                     undo: { await switchSite(!enabled) }, redo: { await switchSite(enabled) })
         }
         // Its services that were off came on with it: said, never silent (P-42).
         if !started.isEmpty {

@@ -35,7 +35,8 @@ struct DumpsPage: View {
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 Toggle(isOn: Binding(get: { browser.frozen != nil }, set: { browser.frozen = $0 ? store.dumps : nil })) {
-                    Label(L("dumps.pause"), systemImage: Symbols.pause)
+                    let paused = browser.frozen != nil
+                    Label(L(paused ? "dumps.resume" : "dumps.pause"), systemImage: paused ? Symbols.resume : Symbols.pause)
                 }
                 .toggleStyle(.button).help(L("dumps.pauseHelp")).accessibilityIdentifier("dumps.toolbar.pause")
                 Button {
@@ -50,6 +51,7 @@ struct DumpsPage: View {
                 ReceiverOptionsButton(tool: "dumps", store: store)
             }
         }
+        .focusedSceneValue(\.textFinder, TextFinderRequest { browser.searchRequests += 1 })
         .task(id: store.daemonRunning) { await store.watchDumps() }
         .onChange(of: browser.entries(store).first?.id) { _, newest in
             // The newest is shown while nothing else was chosen, like a console following its end.
@@ -68,7 +70,7 @@ private struct DumpDetail: View {
                 if let source = dump.source, let place = dump.place {
                     GridRow {
                         label(L("dumps.file"))
-                        Button { Editor.open(source.file) } label: { Label(place, systemImage: Symbols.editor) }
+                        Button { DumpFile.open(source.file, store: StackStore.shared) } label: { Label(place, systemImage: Symbols.editor) }
                             .buttonStyle(.link).help(source.file).accessibilityIdentifier("dumps.detail.open")
                     }
                 }

@@ -134,10 +134,10 @@ pub fn resolve(store: &Store, project: &Project, fetch: install::Fetch<'_>) -> R
     }
     let engine = install::engine(store, "postgres", None)?;
     for id in to_install(&issues) {
-        if let Some(recipe) = catalog::recipe("postgres", id) {
-            if !install::state(&engine.root).extensions.contains_key(id) {
-                install::install(store, &engine, recipe, fetch)?;
-            }
+        if let Some(recipe) = catalog::recipe("postgres", id)
+            && !install::state(&engine.root).extensions.contains_key(id)
+        {
+            install::install(store, &engine, recipe, fetch)?;
         }
     }
     crate::core::progress::step("activate");

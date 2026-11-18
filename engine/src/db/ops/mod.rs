@@ -5,11 +5,11 @@
 use crate::{
     core::fsutil::write_private,
     core::store::Store,
-    db::client::{self, query, run_sql, Connection, Target, MAX_ROWS},
-    db::sql::{self, ident, literal, Dialect},
+    db::client::{self, Connection, MAX_ROWS, Target, query, run_sql},
+    db::sql::{self, Dialect, ident, literal},
 };
-use anyhow::{bail, ensure, Result};
-use serde_json::{json, Map, Value};
+use anyhow::{Result, bail, ensure};
+use serde_json::{Map, Value, json};
 use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -162,7 +162,37 @@ const WRITE_METHODS: &[&str] = &[
 ];
 
 /// Request methods of the client (`db*`).
+/// Files with a password that a request leaves behind when the engine is stopped before it can
+/// clean up (`Secret::drop` does not run on SIGTERM): the MySQL options file of a client and the
+/// terminal script. Both are read by the client within seconds, so old ones are only leftovers.
+fn sweep_leftovers(store: &Store) {
+    let Ok(run) = store.directory("run") else {
+        return;
+    };
+    sweep_older_than(&run, Duration::from_secs(30 * 60));
+}
+
+fn sweep_older_than(run: &Path, age: Duration) {
+    for entry in std::fs::read_dir(run).into_iter().flatten().flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let ours = (name.starts_with("client-") && name.ends_with(".cnf"))
+            || (name.starts_with("terminal-") && name.ends_with(".command"));
+        let old = entry
+            .metadata()
+            .ok()
+            .filter(|meta| meta.is_file())
+            .and_then(|meta| meta.modified().ok())
+            .and_then(|time| time.elapsed().ok())
+            .is_some_and(|elapsed| elapsed >= age);
+        if ours && old {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
 pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Value> {
+    sweep_leftovers(store);
     match method {
         "dbConnections" => Ok(serde_json::to_value(client::list(store)?)?),
         "dbHistory" => Ok(json!(crate::db::history::list(
@@ -382,6 +412,30 @@ mod tests {
     }
 
     #[test]
+    fn leftover_password_files_are_swept_and_nothing_else() {
+        let temp = tempfile::tempdir().unwrap();
+        for name in [
+            "client-aa.cnf",
+            "terminal-bb.command",
+            "keep.json",
+            "client-x.txt",
+        ] {
+            std::fs::write(temp.path().join(name), "x").unwrap();
+        }
+        // Recent ones belong to a request that is running.
+        sweep_older_than(temp.path(), Duration::from_secs(3600));
+        assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 4);
+        sweep_older_than(temp.path(), Duration::ZERO);
+        let mut left: Vec<String> = std::fs::read_dir(temp.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        left.sort();
+        assert_eq!(left, ["client-x.txt", "keep.json"]);
+    }
+
+    #[test]
     fn read_only_connections_refuse_every_write() {
         let (_temp, store, file) = sqlite_store(true, false);
         // Reads work.
@@ -420,11 +474,12 @@ mod tests {
             10,
         )
         .unwrap();
-        assert!(out
-            .error
-            .unwrap_or_default()
-            .to_lowercase()
-            .contains("readonly"));
+        assert!(
+            out.error
+                .unwrap_or_default()
+                .to_lowercase()
+                .contains("readonly")
+        );
         assert_eq!(count(&store), 3);
     }
 
@@ -448,13 +503,15 @@ mod tests {
         assert!(dispatch(&store, "dbRun", &typed).unwrap()["error"].is_null());
         assert_eq!(count(&store), 4);
         // Reads need nothing.
-        assert!(dispatch(
-            &store,
-            "dbRun",
-            &json!({"connection": "qa", "sql": "select 1"})
-        )
-        .unwrap()["needsConfirmation"]
-            .is_null());
+        assert!(
+            dispatch(
+                &store,
+                "dbRun",
+                &json!({"connection": "qa", "sql": "select 1"})
+            )
+            .unwrap()["needsConfirmation"]
+                .is_null()
+        );
     }
 
     #[test]
@@ -465,7 +522,10 @@ mod tests {
             {"name": "texto", "type": "text", "nullable": false, "default": "vacía"},
         ]});
         let preview = dispatch(&store, "dbDdl", &create).unwrap();
-        assert_eq!(preview["statements"][0], "CREATE TABLE \"notas\" (\n    \"id\" integer PRIMARY KEY AUTOINCREMENT,\n    \"texto\" text NOT NULL DEFAULT 'vacía'\n)");
+        assert_eq!(
+            preview["statements"][0],
+            "CREATE TABLE \"notas\" (\n    \"id\" integer PRIMARY KEY AUTOINCREMENT,\n    \"texto\" text NOT NULL DEFAULT 'vacía'\n)"
+        );
         let mut run = create.clone();
         run["confirmed"] = json!(true);
         dispatch(&store, "dbDdl", &run).unwrap();
@@ -491,18 +551,22 @@ mod tests {
         )
         .unwrap();
         assert!(plan["raw"].as_str().unwrap().contains("t"));
-        assert!(dispatch(
-            &store,
-            "dbExplain",
-            &json!({"connection": "qa", "sql": "(analyze) select 1"})
-        )
-        .is_err());
-        assert!(dispatch(
-            &store,
-            "dbExplain",
-            &json!({"connection": "qa", "sql": "select 1; select 2"})
-        )
-        .is_err());
+        assert!(
+            dispatch(
+                &store,
+                "dbExplain",
+                &json!({"connection": "qa", "sql": "(analyze) select 1"})
+            )
+            .is_err()
+        );
+        assert!(
+            dispatch(
+                &store,
+                "dbExplain",
+                &json!({"connection": "qa", "sql": "select 1; select 2"})
+            )
+            .is_err()
+        );
     }
 
     #[test]

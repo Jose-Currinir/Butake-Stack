@@ -126,12 +126,17 @@ private struct NewUserSheet: View {
         }
     }
     func create() async -> Bool {
-        let password = DatabaseVault.generate()
+        guard let password = DatabaseVault.generate() else { client.store.notify(L("db.passwordGenerateFailed")); return false }
         let request: [String: Any] = ["name": name, "host": host, "newPassword": password, "database": database, "access": access]
         guard let _: Bool = await client.change("dbCreateUser", connection, request, title: String(format: L("db.confirm.user"), name, connection.title)) else { return false }
-        DatabaseVault.set(password, for: "user:\(connection.id)/\(name)", label: "\(connection.title) · \(name)")
-        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(password, forType: .string)
-        client.store.notify(String(format: L("db.userCreated"), name))
+        // Copied as concealed (clipboard managers skip it, cleared after 30 s), like every other secret.
+        VaultSession.copyConcealed(password)
+        if DatabaseVault.set(password, for: "user:\(connection.id)/\(name)", label: "\(connection.title) · \(name)") {
+            client.store.notify(String(format: L("db.userCreated"), name))
+        } else {
+            // The account exists with this password: the clipboard copy is the only one left.
+            client.store.notify(String(format: L("db.userKeychainFailed"), name))
+        }
         await done()
         return true
     }

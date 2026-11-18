@@ -147,11 +147,26 @@ mod tests {
     #[test]
     fn messages_become_codes() {
         for (message, code) in [
-            ("ERROR: (gcloud.projects.list) There was a problem refreshing your current auth tokens: Reauthentication failed.", "gcp_session_expired"),
-            ("ERROR: (gcloud.projects.list) Your current active account [qa@ejemplo.test] does not have any valid credentials", "gcp_session_expired"),
-            ("ERROR: gcloud crashed (TransportError): HTTPSConnectionPool: Failed to establish a new connection: nodename nor servname provided", "gcp_offline"),
-            ("ERROR: (gcloud.projects.list) PERMISSION_DENIED: Cloud Resource Manager API has not been used in project 123 before or it is disabled.", "gcp_api_disabled"),
-            ("ERROR: (gcloud.projects.list) PERMISSION_DENIED: The caller does not have permission", "gcp_access_denied"),
+            (
+                "ERROR: (gcloud.projects.list) There was a problem refreshing your current auth tokens: Reauthentication failed.",
+                "gcp_session_expired",
+            ),
+            (
+                "ERROR: (gcloud.projects.list) Your current active account [qa@ejemplo.test] does not have any valid credentials",
+                "gcp_session_expired",
+            ),
+            (
+                "ERROR: gcloud crashed (TransportError): HTTPSConnectionPool: Failed to establish a new connection: nodename nor servname provided",
+                "gcp_offline",
+            ),
+            (
+                "ERROR: (gcloud.projects.list) PERMISSION_DENIED: Cloud Resource Manager API has not been used in project 123 before or it is disabled.",
+                "gcp_api_disabled",
+            ),
+            (
+                "ERROR: (gcloud.projects.list) PERMISSION_DENIED: The caller does not have permission",
+                "gcp_access_denied",
+            ),
             ("algo raro", "gcp_failed"),
         ] {
             assert_eq!(translate(message), code, "{message}");

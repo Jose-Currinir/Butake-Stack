@@ -12,8 +12,8 @@ mod runtimes;
 mod skills;
 mod ssh;
 mod web;
-use anyhow::{bail, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, bail};
+use serde_json::{Value, json};
 use std::io::Read;
 
 fn dispatch(request: Value) -> Result<Value> {
@@ -73,6 +73,8 @@ fn dispatch_with(
 }
 /// Error codes the app may show with their own message.
 const PUBLIC_ERRORS: &[&str] = &[
+    // A daemon of another protocol that could not be restarted (R-76).
+    "daemon_outdated",
     // Renaming and moving a project (P-41).
     "invalid_new_id",
     "same_id",
@@ -84,6 +86,10 @@ const PUBLIC_ERRORS: &[&str] = &[
     "folder_exists",
     "folder_missing",
     "folder_in_use",
+    "folder_not_empty",
+    "folder_move_failed",
+    "move_into_itself",
+    "invalid_folder",
     "not_a_project",
     "site_exists",
     "invalid_name",
@@ -115,6 +121,9 @@ const PUBLIC_ERRORS: &[&str] = &[
     "python_not_installed",
     "swiftly_not_installed",
     "version_not_in_catalog",
+    // The PHP catalog must carry Stack's signature (R-62).
+    "catalog_unsigned",
+    "catalog_signature_invalid",
     "download_failed",
     "download_offline",
     "install_cancelled",
@@ -330,6 +339,7 @@ async fn main() {
         Some("watch-status") => Some("state"),
         Some("watch-logs") => Some("logs"),
         Some("watch-dumps") => Some("dumps"),
+        Some("watch-disk") => Some("disk"),
         _ => None,
     };
     if let Some(topic) = topic {
@@ -391,10 +401,10 @@ async fn main() {
     }
     // A persistent read session of the database client (see dbsession.rs).
     if std::env::args().nth(1).as_deref() == Some("dbsession") {
-        if let Err(error) = db::session::serve() {
-            if std::env::var_os("BUTAKE_STACK_DEBUG").is_some() {
-                eprintln!("{error:#}");
-            }
+        if let Err(error) = db::session::serve()
+            && std::env::var_os("BUTAKE_STACK_DEBUG").is_some()
+        {
+            eprintln!("{error:#}");
         }
         return;
     }

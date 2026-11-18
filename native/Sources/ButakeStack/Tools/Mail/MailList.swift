@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The inbox's selection and search, shared by the list (content column) and the message (detail).
@@ -6,6 +7,8 @@ import SwiftUI
     var selection: MailSummary.ID?
     var search = ""
     var confirmingClear = false
+    /// Edición › Buscar (⌘F): the list takes the keyboard in its search field.
+    var searchRequests = 0
 
     func visible(_ messages: [MailSummary]) -> [MailSummary] {
         let query = search.trimmingCharacters(in: .whitespaces)
@@ -18,6 +21,7 @@ import SwiftUI
 struct MailList: View {
     @Bindable var store: StackStore
     @Bindable var browser = MailBrowser.shared
+    @FocusState private var searchFocused: Bool
     var body: some View {
         let messages = browser.visible(store.mailMessages)
         List(selection: $browser.selection) {
@@ -25,6 +29,11 @@ struct MailList: View {
                 MailRow(mail: mail)
                     .tag(mail.id)
                     .contextMenu {
+                        Button { Self.copy(mail.subject) } label: { Label(L("mail.copySubject"), systemImage: Symbols.copy) }
+                            .disabled(mail.subject.isEmpty).accessibilityIdentifier("mail.list.menu.copySubject")
+                        Button { Self.copy(mail.from) } label: { Label(L("mail.copySender"), systemImage: Symbols.copy) }
+                            .disabled(mail.from.isEmpty).accessibilityIdentifier("mail.list.menu.copySender")
+                        Divider()
                         Button(role: .destructive) { Task { await store.deleteMail(mail.id) } } label: { Label(L("common.delete"), systemImage: Symbols.delete) }
                             .accessibilityIdentifier("mail.list.menu.delete")
                     }
@@ -34,11 +43,20 @@ struct MailList: View {
         .listStyle(.sidebar)
         .themedScroll()
         .overlay {
-            if store.mailMessages.isEmpty { ContentUnavailableView(L("mail.empty"), systemImage: Symbols.message) }
+            if store.mailMessages.isEmpty { Text(L("mail.empty")).font(.uiCallout).foregroundStyle(.secondary) }
             else if messages.isEmpty { ContentUnavailableView.search(text: browser.search) }
         }
         .searchable(text: $browser.search, placement: .sidebar, prompt: L("mail.search"))
+        .searchFocused($searchFocused)
+        .onChange(of: browser.searchRequests) { searchFocused = true }
         .accessibilityIdentifier("mail.list")
+    }
+}
+
+extension MailList {
+    static func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }
 

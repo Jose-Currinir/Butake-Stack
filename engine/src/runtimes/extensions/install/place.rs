@@ -144,10 +144,8 @@ pub(super) fn rpaths(file: &Path) -> Result<Vec<String>> {
         let line = line.trim();
         if line.starts_with("cmd ") {
             in_rpath = line == "cmd LC_RPATH";
-        } else if in_rpath {
-            if let Some(rest) = line.strip_prefix("path ") {
-                found.push(rest.split(" (offset").next().unwrap_or("").to_string());
-            }
+        } else if in_rpath && let Some(rest) = line.strip_prefix("path ") {
+            found.push(rest.split(" (offset").next().unwrap_or("").to_string());
         }
     }
     Ok(found)

@@ -59,16 +59,25 @@ extension GitRepository {
 
     // MARK: Primary button
 
+    /// Pushing a tracked primary branch straight asks first (`confirmingPushMain`).
+    var pushNeedsConfirmation: Bool { snapshot.tracked && snapshot.branch == snapshot.primaryBranch }
+
+    /// The one way to push from the interface: asks first when `pushNeedsConfirmation`, otherwise
+    /// pushes. The dialog's «Subir de todos modos» calls `perform(.push)` itself.
+    func push() async {
+        if pushNeedsConfirmation { confirmingPushMain = true } else { await perform(.push) }
+    }
+
     /// What the primary button does in its current state.
     func sync() async {
         switch syncState {
         case .running: return
         case .publishRepository: GitHosting.shared.publishing = true
         case .unfinished: GitTool.shared.tab = .problems
-        case .publishBranch, .push: await perform(.push)
+        case .publishBranch, .push: await push()
         case .pull(_, let thenPush):
             guard await perform(.pull, notify: thenPush == 0) else { return }
-            if snapshot.ahead > 0 { await perform(.push) }
+            if snapshot.ahead > 0 { await push() }
         case .fetch: await perform(.fetch)
         }
     }
@@ -77,7 +86,7 @@ extension GitRepository {
     func resolvePull(_ action: GitAction) async {
         pullProblem = nil
         guard await perform(action) else { return }
-        if snapshot.ahead > 0, snapshot.behind == 0, snapshot.tracked { await perform(.push) }
+        if snapshot.ahead > 0, snapshot.behind == 0, snapshot.tracked { await push() }
     }
 
     // MARK: Changes
@@ -90,6 +99,7 @@ extension GitRepository {
         let store = self.store, root = self.root
         chain = Task { [weak self] in
             await previous?.value
+            await self?.whenIdle()
             do {
                 let _: Int = try await store.call(["method": "gitStagePaths", "path": root, "paths": paths, "staged": !included])
             } catch { self?.failure = GitFailure(error) }
@@ -106,6 +116,7 @@ extension GitRepository {
         let store = self.store
         chain = Task { [weak self] in
             await previous?.value
+            await self?.whenIdle()
             do { let _: String = try await store.call(request) } catch { self?.failure = GitFailure(error) }
             await self?.refresh(filesOnly: true)
         }

@@ -3,7 +3,7 @@
 //! one action touches many files (renaming or moving a project).
 
 use super::{fsutil, json};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Serialize;
 use std::{
     fs,

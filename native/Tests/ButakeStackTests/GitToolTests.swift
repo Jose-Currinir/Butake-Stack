@@ -69,6 +69,11 @@ private func snapshot(branch: String = "develop", ahead: Int = 0, behind: Int = 
     #expect(rejected.detail == L("git.message.rejected") && !rejected.needsPullAssistant)
     let unknown = GitFailure(EngineFailure(code: "git_failed", messageKey: "git.error.git_failed", detail: "error: algo que Git dijo"))
     #expect(unknown.detail == "error: algo que Git dijo")
+    // Only a branch name clash says «una rama»: another «already exists» keeps Git's own words.
+    let branch = GitFailure(EngineFailure(code: "git_failed", messageKey: "git.error.git_failed", detail: "fatal: a branch named 'x' already exists"))
+    #expect(branch.detail == L("git.message.branchExists"))
+    let tag = GitFailure(EngineFailure(code: "git_failed", messageKey: "git.error.git_failed", detail: "fatal: tag 'v1' already exists"))
+    #expect(tag.detail == "fatal: tag 'v1' already exists")
     #expect(GitFailure(EngineFailure(code: "cancelled", messageKey: "git.error.cancelled")).cancelled)
     #expect(GitFailure(CancellationError()).cancelled)
     // Another part of the engine (the tool turned off) keeps its own text.

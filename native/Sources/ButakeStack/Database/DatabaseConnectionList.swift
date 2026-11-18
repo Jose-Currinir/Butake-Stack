@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The column of connections: Stack's services and the saved ones, each a tree of databases and
@@ -52,7 +53,8 @@ private struct ConnectionNode: View {
         let key = connection.id
         DisclosureGroup(isExpanded: expansion(client, key) { await client.loadDatabases(connection) }) {
             if let error = client.errors[key] {
-                Label(error.title, systemImage: error.symbol).font(.uiCaption).foregroundStyle(Brand.danger).lineLimit(2)
+                Label(error.kind == .offline ? L("db.noConnection") : error.title, systemImage: error.symbol)
+                    .font(.uiCaption).foregroundStyle(Brand.danger).lineLimit(2)
                     .help(error.message).selectionDisabled()
                     .accessibilityIdentifier("db.list.error.\(key)")
             }
@@ -126,6 +128,7 @@ private struct DatabaseNode: View {
     @Bindable var client: DatabaseClient
     let connection: DBConnection
     let database: DBDatabase
+    @State private var dropTargeted = false
     var body: some View {
         let key = "\(connection.id)/\(database.name)"
         let selection = DBSelection(connection: connection.id, database: database.name)
@@ -141,9 +144,37 @@ private struct DatabaseNode: View {
                 label
             }
             .tag(selection)
+            .contextMenu { menu(key) }
+            .dropDestination(for: URL.self) { urls, _ in
+                guard connection.allowsWrites, let file = urls.first(where: DatabaseClient.isSQLDump) else {
+                    client.store.notify(L("db.drop.rejected"))
+                    return false
+                }
+                Task { await client.restore(file, into: database.name, of: connection) }
+                return true
+            } isTargeted: { dropTargeted = $0 }
+            .background(RoundedRectangle(cornerRadius: 6).fill(dropTargeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
             .accessibilityIdentifier("db.list.database.\(database.name)")
         } else {
             label.tag(selection).accessibilityIdentifier("db.list.database.\(database.name)")
+        }
+    }
+
+    /// The same as what the row offers: reload what it holds, copy its name and, where the connection
+    /// writes, restore a file into it (a file dropped on the row does the same).
+    @ViewBuilder private func menu(_ key: String) -> some View {
+        Button { Task { await client.loadObjects(connection, database.name) } } label: { Label(L("menu.reload"), systemImage: Symbols.reload) }
+            .accessibilityIdentifier("db.list.menu.database.reload")
+        Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(database.name, forType: .string) } label: {
+            Label(L("db.copyName"), systemImage: Symbols.copy)
+        }
+        .accessibilityIdentifier("db.list.menu.database.copy")
+        if connection.allowsWrites {
+            Divider()
+            Button { Task { await client.chooseAndRestore(into: database.name, of: connection) } } label: {
+                Label(L("db.restoreFileEllipsis"), systemImage: Symbols.restore)
+            }
+            .accessibilityIdentifier("db.list.menu.database.restore")
         }
     }
 
@@ -184,6 +215,12 @@ private struct ObjectNode: View {
             .font(.uiBody).lineLimit(1)
             .tag(DBSelection(connection: connection.id, database: database, schema: object.schema.flatMap { $0.isEmpty ? nil : $0 },
                              table: object.name, isView: object.view))
+            .contextMenu {
+                Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(object.name, forType: .string) } label: {
+                    Label(L("db.copyName"), systemImage: Symbols.copy)
+                }
+                .accessibilityIdentifier("db.list.menu.table.copy")
+            }
             .accessibilityIdentifier("db.list.table.\(object.name)")
     }
 }

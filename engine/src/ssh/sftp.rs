@@ -14,7 +14,7 @@ use crate::{
     ssh::common::ssh_error,
     ssh::hosts::{self, Host},
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::Serialize;
 use std::{
     io::Write,
@@ -251,7 +251,10 @@ fn parse_listing(text: &str, dir: &str, today: (i64, u32, u32)) -> Vec<Entry> {
 
 fn today() -> (i64, u32, u32) {
     let mut now: libc::time_t = 0;
+    // SAFETY: `tm` is plain integers (and a nullable pointer) for which all-zero bytes are valid.
     let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    // SAFETY: `now` and `tm` are valid, distinct and writable for the whole call; `localtime_r`
+    // is the reentrant variant and keeps no pointer to them.
     unsafe {
         libc::time(&mut now);
         libc::localtime_r(&now, &mut tm);
@@ -305,6 +308,22 @@ pub fn rename(store: &Store, host: &Host, from: &str, to: &str) -> Result<()> {
     .map(|_| ())
 }
 
+/// First character of the mode column (`d`, `l`, `-`…) of the first entry an `ls -l` printed,
+/// ignoring the echoed `sftp>` commands.
+fn first_mode_char(output: &str) -> Option<char> {
+    output
+        .lines()
+        .map(str::trim_start)
+        .find(|l| !l.is_empty() && !l.starts_with("sftp>"))
+        .and_then(|l| l.split_whitespace().next())
+        // `drwxr-xr-x`: a type and nine permission characters, so an error message never passes.
+        .filter(|mode| {
+            mode.len() >= 10 && mode.chars().skip(1).take(9).all(|c| "rwxsStT-".contains(c))
+        })
+        .and_then(|mode| mode.chars().next())
+        .filter(|c| matches!(c, 'd' | 'l' | '-' | 'b' | 'c' | 'p' | 's'))
+}
+
 /// Removes a file, a link or (only with `recursive`) a folder and everything inside it. Links
 /// are removed, never followed.
 pub fn delete(store: &Store, host: &Host, path: &str, kind: &str, recursive: bool) -> Result<()> {
@@ -320,6 +339,14 @@ pub fn delete(store: &Store, host: &Host, path: &str, kind: &str, recursive: boo
                 "sftp_failed" => anyhow::anyhow!("sftp_not_empty"),
                 _ => e,
             });
+    }
+    // The client says `dir`, the server decides: a link (or anything that is not a folder) at
+    // this path is removed as a file, never listed, so nothing behind it is touched.
+    let probe = run(store, host, &format!("ls -lnad {}\n", glob_arg(&path)))?;
+    match first_mode_char(&probe) {
+        Some('d') => {}
+        Some(_) => return run(store, host, &format!("rm {}\n", glob_arg(&path))).map(|_| ()),
+        None => bail!("sftp_failed"),
     }
     // Walk level by level (one connection per level), then remove files and folders deepest first.
     let mut files: Vec<String> = vec![];
@@ -503,6 +530,29 @@ pub fn dispatch(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_server_says_what_is_at_the_path_before_a_recursive_delete() {
+        let echo = "sftp> ls -lnad /srv/datos\n";
+        assert_eq!(
+            super::first_mode_char(&format!(
+                "{echo}drwxr-xr-x 2 1000 1000 4096 Nov 17 10:00 /srv/datos\n"
+            )),
+            Some('d')
+        );
+        // A link that replaced the folder after the listing: removed as a file, not walked into.
+        assert_eq!(
+            super::first_mode_char(&format!(
+                "{echo}lrwxrwxrwx 1 1000 1000 9 Nov 17 10:00 /srv/datos -> /home\n"
+            )),
+            Some('l')
+        );
+        assert_eq!(super::first_mode_char(echo), None);
+        assert_eq!(
+            super::first_mode_char("ls: /srv/datos: No such file\n"),
+            None
+        );
+    }
+
     use super::*;
 
     #[test]

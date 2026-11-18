@@ -10,7 +10,7 @@ use std::{
     os::unix::process::CommandExt,
     path::Path,
     process::{Command, Stdio},
-    sync::mpsc,
+    sync::{atomic::Ordering, mpsc},
     time::{Duration, Instant},
 };
 
@@ -21,6 +21,8 @@ pub struct Captured {
     pub stderr: String,
     /// The process exited with success and its output was not cut.
     pub success: bool,
+    /// The exit code (`None` when a signal ended it).
+    pub code: Option<i32>,
     /// Stdout reached `max_output` and the process was killed.
     pub cut: bool,
     /// The run passed its time limit and its process group was ended (see [`capture_watched`]).
@@ -42,9 +44,21 @@ fn read_stderr(stderr: &mut impl Read) -> String {
 /// that the process is killed and the run reports `cut`. `not_installed` is the error when the
 /// program cannot be started.
 pub fn capture(
+    command: Command,
+    input: &[u8],
+    max_output: u64,
+    not_installed: &'static str,
+) -> Result<Captured> {
+    capture_limited(command, input, max_output, None, not_installed)
+}
+
+/// [`capture`] with a time limit: past `limit` the process is killed and the run reports
+/// `timed_out` (a server that does not answer, a statement waiting for a lock).
+pub fn capture_limited(
     mut command: Command,
     input: &[u8],
     max_output: u64,
+    limit: Option<Duration>,
     not_installed: &'static str,
 ) -> Result<Captured> {
     let mut child = command
@@ -57,6 +71,24 @@ pub fn capture(
         .stdin
         .take()
         .ok_or_else(|| anyhow::anyhow!("invalid_request"))?;
+    let finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let expired = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    if let (Some(limit), Ok(pid)) = (limit, i32::try_from(child.id())) {
+        let (finished, expired) = (finished.clone(), expired.clone());
+        std::thread::spawn(move || {
+            let deadline = Instant::now() + limit;
+            while !finished.load(Ordering::SeqCst) {
+                if Instant::now() >= deadline {
+                    expired.store(true, Ordering::SeqCst);
+                    // SAFETY: `kill` takes two integers and touches no memory; `pid` is the
+                    // child's, still not reaped because `finished` is only set after `wait`.
+                    unsafe { libc::kill(pid, libc::SIGKILL) };
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        });
+    }
     let input = input.to_vec();
     let writer = std::thread::spawn(move || {
         let _ = stdin.write_all(&input);
@@ -82,6 +114,8 @@ pub fn capture(
     }
     drop(stdout);
     let status = child.wait();
+    finished.store(true, Ordering::SeqCst);
+    let timed_out = expired.load(Ordering::SeqCst);
     let _ = writer.join();
     let stderr = errors.join().unwrap_or_default();
     read?;
@@ -89,9 +123,10 @@ pub fn capture(
     Ok(Captured {
         stdout: String::from_utf8_lossy(&out).into_owned(),
         stderr,
-        success: status.success() && !cut,
+        success: status.success() && !cut && !timed_out,
+        code: status.code(),
         cut,
-        timed_out: false,
+        timed_out,
         cancelled: false,
     })
 }
@@ -185,10 +220,14 @@ fn capture_until(
         .unwrap_or_default();
     let cut = out.len() as u64 > max_output;
     out.truncate(usize::try_from(max_output).unwrap_or(usize::MAX));
+    // A stop that arrived while the child was ending is still a stop: the caller must not go on
+    // to the next step as if nothing had been asked.
+    let cancelled = cancelled || (!timed_out && stop());
     Ok(Captured {
         stdout: String::from_utf8_lossy(&out).into_owned(),
         stderr,
         success: status.success() && !cut && !timed_out && !cancelled,
+        code: status.code(),
         cut,
         timed_out,
         cancelled,
@@ -248,6 +287,22 @@ mod tests {
     }
 
     #[test]
+    fn a_run_past_its_limit_is_killed_and_says_so() {
+        let mut slow = Command::new("/bin/sleep");
+        slow.arg("30").env_clear();
+        let start = Instant::now();
+        let done =
+            capture_limited(slow, b"", 1024, Some(Duration::from_millis(300)), "missing").unwrap();
+        assert!(done.timed_out && !done.success);
+        assert!(start.elapsed() < Duration::from_secs(5));
+        let mut quick = Command::new("/bin/echo");
+        quick.arg("ok").env_clear();
+        let done =
+            capture_limited(quick, b"", 1024, Some(Duration::from_secs(30)), "missing").unwrap();
+        assert!(done.success && !done.timed_out);
+    }
+
+    #[test]
     fn output_is_cut_and_missing_programs_report_the_given_code() {
         let mut yes = Command::new("/usr/bin/yes");
         yes.env_clear();
@@ -285,7 +340,28 @@ mod tests {
 
     fn alive(pid: i32) -> bool {
         // A process that ended and was not reaped yet (a zombie) has no start time.
+        // SAFETY: `kill` with signal 0 sends nothing; it only reports whether `pid` exists.
         watch::started(pid).is_some() && unsafe { libc::kill(pid, 0) } == 0
+    }
+
+    #[test]
+    fn a_stop_that_arrives_as_the_child_ends_is_reported() {
+        let temp = tempfile::tempdir().unwrap();
+        let flag = temp.path().join("stop");
+        let mut quick = Command::new("/bin/sh");
+        quick
+            .args(["-c", &format!("sleep 0.1; : > '{}'", flag.display())])
+            .env_clear();
+        let done = capture_until(
+            quick,
+            1024,
+            Duration::from_secs(5),
+            "missing",
+            None,
+            &|| flag.exists(),
+        )
+        .unwrap();
+        assert!(done.cancelled && !done.success && !done.timed_out);
     }
 
     #[test]
@@ -342,11 +418,13 @@ mod tests {
         assert_eq!(ended.len(), 2);
         assert!(ended.iter().all(|pid| !alive(*pid)), "{ended:?}");
         // No record is left behind.
-        assert!(!std::fs::read_dir(temp.path()).unwrap().any(|e| e
-            .unwrap()
-            .path()
-            .extension()
-            .is_some_and(|x| x == "json")));
+        assert!(
+            !std::fs::read_dir(temp.path()).unwrap().any(|e| e
+                .unwrap()
+                .path()
+                .extension()
+                .is_some_and(|x| x == "json"))
+        );
 
         let error = capture_until(
             Command::new("/nonexistent/x"),

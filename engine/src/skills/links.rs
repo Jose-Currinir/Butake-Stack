@@ -1,9 +1,9 @@
 //! Symlinks from the AI folders to the real copy of each skill. Planned first, applied only with
 //! `confirmed`; only links that resolve into Stack's skills folder are ever removed.
 use super::agents;
-use super::model::{fail, valid_id, Ctx, Index};
+use super::model::{Ctx, Index, fail, valid_id};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     path::{Component, Path, PathBuf},
@@ -162,17 +162,9 @@ pub fn plan(ctx: &Ctx, index: &Index, request: &Request) -> Result<Plan> {
         };
         let path = folder.join(&change.skill);
         let action = if is_link_to(ctx, &path, &change.skill) {
-            if want {
-                Action::Skip
-            } else {
-                Action::Remove
-            }
+            if want { Action::Skip } else { Action::Remove }
         } else if absent(&path) {
-            if want {
-                Action::Create
-            } else {
-                Action::Skip
-            }
+            if want { Action::Create } else { Action::Skip }
         } else if want {
             Action::Conflict("exists")
         } else {
@@ -240,7 +232,22 @@ pub fn apply(ctx: &Ctx, index: &mut Index, request: &Request, plan: &Plan) -> Re
         let Some(path) = &op.path else { continue };
         match op.action {
             Action::Create => {
-                if create(ctx, &op.change.skill, path)? {
+                let made = match create(ctx, &op.change.skill, path) {
+                    Ok(made) => made,
+                    Err(error) => {
+                        // A failure halfway: the links made so far go, so the index (not yet
+                        // updated) and the disk say the same thing.
+                        for earlier in &plan.ops {
+                            if let Some(done) =
+                                earlier.path.as_ref().filter(|p| created.contains(*p))
+                            {
+                                remove(ctx, &earlier.change.skill, done);
+                            }
+                        }
+                        return Err(error);
+                    }
+                };
+                if made {
                     created.push(path.clone());
                 } else {
                     conflicts_list

@@ -185,3 +185,46 @@ struct DatabasePasswordSheet: View {
         return false
     }
 }
+
+extension EnvironmentsView {
+    /// The new database's connection goes into this environment; passwords as secrets that land in
+    /// the Keychain on save. An account that already existed keeps its password: its key is left
+    /// as it is, and the notice says how to change it.
+    func fill(_ created: CreatedDatabase) {
+        func upsert(_ key: String, _ value: String?, secret: Bool = false) {
+            guard let value else { return }
+            if let i = draft.firstIndex(where: { $0.key == key }) {
+                if secret { draft[i].secret = true; draft[i].newSecret = value } else { draft[i].value = value }
+            } else {
+                draft.append(Row(key: key, value: secret ? "" : value, secret: secret, newSecret: secret ? value : nil))
+            }
+        }
+        let owner = created.migrationUser ?? created.user
+        let ownerPassword = created.migrationUser == nil ? created.password : created.migrationPassword
+        if created.engine == "mysql" || draft.contains(where: { $0.key == "DB_CONNECTION" || $0.key == "DB_DATABASE" }) {
+            // Laravel-style: one connection that also runs the migrations, so it gets the owner.
+            upsert("DB_CONNECTION", created.engine == "mysql" ? "mysql" : "pgsql")
+            upsert("DB_HOST", created.host)
+            upsert("DB_PORT", String(created.port))
+            upsert("DB_DATABASE", created.database)
+            upsert("DB_USERNAME", owner)
+            upsert("DB_PASSWORD", ownerPassword, secret: true)
+        } else {
+            // JDBC style (KMP backends): the app's login for runtime, the owner for migrations.
+            upsert("DATABASE_URL", created.jdbc)
+            upsert("DATABASE_USER", created.user)
+            upsert("DATABASE_PASSWORD", created.password, secret: true)
+            if created.migrationUser != nil || draft.contains(where: { $0.key == "DATABASE_MIGRATION_USER" }) {
+                upsert("DATABASE_MIGRATION_URL", created.jdbc)
+                upsert("DATABASE_MIGRATION_USER", owner)
+                upsert("DATABASE_MIGRATION_PASSWORD", ownerPassword, secret: true)
+            }
+        }
+        dirty = true
+        var kept: [String] = []
+        if created.password == nil { kept.append(created.user) }
+        if let owner = created.migrationUser, created.migrationPassword == nil { kept.append(owner) }
+        store.notify(kept.isEmpty ? String(format: L("env.databaseCreated"), created.database)
+                                  : String(format: L("env.databaseKept"), created.database, kept.joined(separator: ", ")))
+    }
+}

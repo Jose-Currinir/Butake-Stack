@@ -32,10 +32,13 @@ pub(super) fn read_state(store: &Store, host: &str, forward: &str) -> Option<For
 }
 
 pub fn stop_forward(store: &Store, host: &str, forward: &str) {
-    if let Some(state) = read_state(store, host, forward) {
-        if alive(state.pid) && is_ssh(state.pid) {
-            unsafe { libc::kill(state.pid, libc::SIGTERM) };
-        }
+    if let Some(state) = read_state(store, host, forward)
+        && alive(state.pid)
+        && is_forward_process(state.pid)
+    {
+        // SAFETY: `alive` guarantees `pid > 0`, so this signals one process only, and
+        // `is_forward_process` that it is a forward's own ssh and not a reused pid.
+        unsafe { libc::kill(state.pid, libc::SIGTERM) };
     }
     if let Ok(path) = state_file(store, host, forward) {
         let _ = std::fs::remove_file(path.with_extension("log"));
@@ -75,7 +78,7 @@ pub fn start_forward(store: &Store, host_id: &str, forward_id: &str) -> Result<u
             .map(|j| (&j.host, j.port, &j.user, &j.key, &j.identity)),
     ))?;
     if let Some(state) = read_state(store, host_id, forward_id) {
-        if state.spec == spec && alive(state.pid) && is_ssh(state.pid) {
+        if state.spec == spec && alive(state.pid) && is_forward_process(state.pid) {
             return Ok(state.started);
         }
         stop_forward(store, host_id, forward_id);
@@ -157,7 +160,7 @@ pub fn heal(store: &Store) -> Result<serde_json::Value> {
             let Some(state) = read_state(store, &host.id, &forward.id) else {
                 continue;
             };
-            if (alive(state.pid) && is_ssh(state.pid)) || state.retry_at > now_secs() {
+            if (alive(state.pid) && is_forward_process(state.pid)) || state.retry_at > now_secs() {
                 continue;
             }
             match start_forward(store, &host.id, &forward.id) {
@@ -197,7 +200,7 @@ pub fn overview(store: &Store) -> Result<serde_json::Value> {
             let Some(state) = read_state(store, &host.id, &forward.id) else {
                 continue;
             };
-            if alive(state.pid) && is_ssh(state.pid) {
+            if alive(state.pid) && is_forward_process(state.pid) {
                 active.push(serde_json::json!({"host": host.id, "forward": forward.id, "since": state.started}));
             } else {
                 down.push(serde_json::json!({"host": host.id, "forward": forward.id, "failures": state.failures, "retryAt": state.retry_at, "error": state.error, "keepAlive": forward.keep_alive}));

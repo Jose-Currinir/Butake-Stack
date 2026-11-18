@@ -12,7 +12,9 @@ struct LogsPage: View {
         Group {
             if let source = browser.selection {
                 if source == LogsBrowser.vaultSource {
-                    VaultAccessLog(vault: .shared).id(source)
+                    // Also here, not only in the list: the tool turned off shows nothing of its log.
+                    if store.pluginEnabled("vault") { VaultAccessLog(vault: .shared).id(source) }
+                    else { ContentUnavailableView(L("logs.choose"), systemImage: Symbols.logs) }
                 } else {
                     LogViewer(store: store, id: source, browser: browser).id(source)
                 }
@@ -22,6 +24,10 @@ struct LogsPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar { toolbar }
+        .focusedSceneValue(\.textFinder, TextFinderRequest {
+            // The lines of the log on screen; with none, the list of sources.
+            if let source = browser.selection, source != LogsBrowser.vaultSource { browser.filterRequests += 1 } else { browser.searchRequests += 1 }
+        })
         .onChange(of: groups, initial: true) { _, groups in
             // Keep what was asked for; otherwise the web server, or the first source on screen.
             let sources = groups.flatMap(\.sources)
@@ -50,7 +56,8 @@ struct LogsPage: View {
             .pickerStyle(.menu).help(L("logs.originHelp")).accessibilityIdentifier("logs.toolbar.origin")
             Toggle(isOn: Binding(get: { source.map(browser.isPaused) ?? false },
                                  set: { on in if let source { browser.setPaused(source, on, store: store) } })) {
-                Label(L("logs.pause"), systemImage: Symbols.pause)
+                let paused = source.map(browser.isPaused) ?? false
+                Label(L(paused ? "logs.resume" : "logs.pause"), systemImage: paused ? Symbols.resume : Symbols.pause)
             }
             .toggleStyle(.button).disabled(!isProcess).help(L("logs.pauseHelp")).accessibilityIdentifier("logs.toolbar.pause")
             Button { if let source { browser.clear(source, store: store) } } label: { Label(L("logs.clear"), systemImage: Symbols.clearView) }

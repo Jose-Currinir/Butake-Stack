@@ -1,8 +1,8 @@
 //! The console's policy, its read-only queries, the dictionary and the console subcommand.
 use super::{commit_file, sandbox};
 use crate::git::console::{
-    capabilities, check_query, command_help, command_names, prepare, public_output,
-    rebase_candidates, run_console, validate_rebase, write_plan, RebasePlan, RebaseStep,
+    RebasePlan, RebaseStep, capabilities, check_query, command_help, command_names, prepare,
+    public_output, rebase_candidates, run_console, validate_rebase, write_plan,
 };
 use crate::git::runner::git;
 use std::ffi::OsString;
@@ -61,14 +61,16 @@ fn protected_main_cannot_be_moved_from_another_branch() {
 
 #[test]
 fn push_requires_exact_destination_and_no_force() {
-    assert!(prepare(
-        "push",
-        "origin refs/heads/develop:refs/heads/develop",
-        "develop",
-        "main",
-        true
-    )
-    .is_ok());
+    assert!(
+        prepare(
+            "push",
+            "origin refs/heads/develop:refs/heads/develop",
+            "develop",
+            "main",
+            true
+        )
+        .is_ok()
+    );
     for args in [
         "",
         "origin",
@@ -157,14 +159,18 @@ async fn dictionary_capabilities_and_help() {
     assert!(names.len() > 100 && names.iter().any(|n| n == "rebase"));
     let found = capabilities().await.unwrap();
     assert!(found.version.starts_with("git version"));
-    assert!(found
-        .commands
-        .iter()
-        .any(|c| c.name == "status" && c.available));
-    assert!(found
-        .commands
-        .iter()
-        .any(|c| c.name == "sh-setup" && c.library && !c.available));
+    assert!(
+        found
+            .commands
+            .iter()
+            .any(|c| c.name == "status" && c.available)
+    );
+    assert!(
+        found
+            .commands
+            .iter()
+            .any(|c| c.name == "sh-setup" && c.library && !c.available)
+    );
     assert_eq!(
         command_help("rm -rf").await.unwrap_err().code,
         "unknown_command"

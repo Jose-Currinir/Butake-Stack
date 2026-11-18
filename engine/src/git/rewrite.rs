@@ -2,7 +2,7 @@
 //! editor. Every rewrite stores a backup ref first (`refs/butake/backup/<branch>/<epoch>`) so it
 //! can be undone with `reset --keep`.
 use super::protection::{main_protected, primary_branch};
-use super::runner::{error, git, git_env, Result};
+use super::runner::{Result, error, git, git_env};
 use super::status::{has_conflicts, snapshot};
 use crate::core::time::now_secs;
 use serde::{Deserialize, Serialize};
@@ -283,7 +283,9 @@ pub async fn apply(root: &Path, plan: &RewritePlan) -> Result<RewriteResult> {
             if has_conflicts(root).await? {
                 Err(error(
                     "rewrite_conflicts",
-                    format!("Al reordenar, dos commits chocan. Resuelve el conflicto y pulsa «Continuar», o «Cancelar» para volver atrás. Respaldo: {backup}"),
+                    format!(
+                        "Al reordenar, dos commits chocan. Resuelve el conflicto y pulsa «Continuar», o «Cancelar» para volver atrás. Respaldo: {backup}"
+                    ),
                 ))
             } else {
                 let _ = git(root, &["rebase", "--abort"]).await;

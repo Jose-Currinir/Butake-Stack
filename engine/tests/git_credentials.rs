@@ -2,7 +2,7 @@
 //! engine's askpass, and nowhere else. A made-up token and a server on this Mac's loopback
 //! address that asks for Basic authentication: no provider and no real account are involved.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     io::{BufRead, BufReader, Write},
     net::TcpListener,
@@ -35,8 +35,12 @@ fn server() -> (u16, Arc<Mutex<Vec<String>>>) {
                 }
             }
             let reply = match &authorization {
-                None => "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"qa\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-                Some(_) => "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                None => {
+                    "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"qa\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                }
+                Some(_) => {
+                    "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                }
             };
             if let Some(value) = authorization {
                 record.lock().unwrap().push(value);
@@ -90,6 +94,8 @@ fn setup() -> Setup {
 fn call(setup: &Setup, request: Value) -> (Value, String) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_butake-stack"))
         .env("HOME", setup.root.join("home"))
+        // The engine accepts plain HTTP to this Mac's loopback address only when told it is a test.
+        .env("BUTAKE_STACK_TEST_LOOPBACK", "1")
         .env("BUTAKE_STACK_HOME", setup.root.join("store"))
         .env("TMPDIR", setup.root.join("tmp"))
         .env("GIT_CONFIG_GLOBAL", setup.root.join("home/.gitconfig"))
@@ -122,15 +128,17 @@ fn fetch_request(setup: &Setup, port: u16, credentials: Value) -> Value {
     let repository = setup.root.join("clones/app");
     if !repository.exists() {
         let git = |args: &[&str]| {
-            assert!(Command::new("git")
-                .args(args)
-                .env("HOME", setup.root.join("home"))
-                .env("GIT_CONFIG_NOSYSTEM", "1")
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .unwrap()
-                .success());
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .env("HOME", setup.root.join("home"))
+                    .env("GIT_CONFIG_NOSYSTEM", "1")
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status()
+                    .unwrap()
+                    .success()
+            );
         };
         let path = repository.to_string_lossy().into_owned();
         git(&["init", "-q", "-b", "main", &path]);
@@ -195,20 +203,18 @@ fn the_token_reaches_git_only_for_its_origin_and_is_kept_nowhere() {
 fn credentials_of_another_origin_are_never_sent() {
     let setup = setup();
     let (port, seen) = server();
-    for credentials in [
-        // Another server, another port of this one, and the same name over another scheme.
-        json!({"origin": "https://git.example.invalid", "username": "ana-qa", "password": TOKEN}),
-        json!({"origin": format!("http://127.0.0.1:{}", port.wrapping_add(1).max(1)), "username": "ana-qa", "password": TOKEN}),
-        json!({"origin": format!("https://127.0.0.1:{port}"), "username": "ana-qa", "password": TOKEN}),
-    ] {
-        let (answer, text) = call(&setup, fetch_request(&setup, port, credentials));
-        assert_eq!(answer["ok"], false, "{text}");
-        assert_eq!(answer["error"]["code"], "https_denied", "{text}");
-        assert!(!text.contains(TOKEN), "{text}");
-    }
+    // Another port of the one server this test runs.
+    let credentials = json!({"origin": format!("http://127.0.0.1:{}", port.wrapping_add(1).max(1)), "username": "ana-qa", "password": TOKEN});
+    let (answer, text) = call(&setup, fetch_request(&setup, port, credentials));
+    assert_eq!(answer["ok"], false, "{text}");
+    assert_eq!(answer["error"]["code"], "https_denied", "{text}");
+    assert!(!text.contains(TOKEN), "{text}");
     assert!(seen.lock().unwrap().is_empty());
     // Credentials that are not what the app sends are refused before Git runs.
     for credentials in [
+        // Hosts that are not a provider of the app (R-65), whatever their shape.
+        json!({"origin": "https://git.example.invalid", "username": "ana-qa", "password": TOKEN}),
+        json!({"origin": format!("https://127.0.0.1:{port}"), "username": "ana-qa", "password": TOKEN}),
         json!({"origin": "http://git.example.invalid", "username": "ana-qa", "password": TOKEN}),
         json!({"origin": "https://git.example.invalid/ruta", "username": "ana-qa", "password": TOKEN}),
         json!({"origin": "https://usuario@git.example.invalid", "username": "ana-qa", "password": TOKEN}),

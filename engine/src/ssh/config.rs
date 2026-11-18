@@ -8,7 +8,7 @@ use crate::{
     core::validate,
     ssh::hosts::{self, Forward, Host},
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -649,11 +649,12 @@ Host *
         assert_eq!(web.jump_alias.as_deref(), Some("bastion"));
         assert_eq!(web.host.forwards.len(), 3);
         assert_eq!(web.host.forwards[1].target_host, "::1");
-        assert!(web
-            .host
-            .forwards
-            .iter()
-            .any(|f| f.kind == "dynamic" && f.listen_port == 18080));
+        assert!(
+            web.host
+                .forwards
+                .iter()
+                .any(|f| f.kind == "dynamic" && f.listen_port == 18080)
+        );
         assert!(web.host.identity.is_none());
         assert_eq!(
             web.warnings,

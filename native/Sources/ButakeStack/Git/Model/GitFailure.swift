@@ -61,6 +61,6 @@ struct GitFailure: Equatable, Identifiable, Sendable {
         ("Please tell me who you are", "git.message.identity"),
         ("nothing to commit", "git.message.nothingToCommit"),
         ("no changes added to commit", "git.message.nothingToCommit"),
-        ("already exists", "git.message.branchExists"),
+        ("a branch named", "git.message.branchExists"),
     ]
 }

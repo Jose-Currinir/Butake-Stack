@@ -4,7 +4,7 @@
 //! (a PHP `unserialize` reader that never instantiates anything) and turned into text like the
 //! CLI dumper's. Dumps live in the daemon's memory only (the newest 300).
 use crate::core::codec;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     collections::{HashSet, VecDeque},
     sync::Mutex,
@@ -239,17 +239,17 @@ fn property(key: &Key) -> String {
     let Key::Str(raw) = key else {
         return format!("+{}", key_text(key));
     };
-    if raw.first() == Some(&0) {
-        if let Some(end) = raw[1..].iter().position(|&b| b == 0) {
-            let scope = &raw[1..1 + end];
-            let name = String::from_utf8_lossy(&raw[end + 2..]);
-            return match scope {
-                b"*" => format!("#{name}"),
-                b"+" => format!("+{name}"),
-                b"~" => format!("~{name}"),
-                _ => format!("-{name}"),
-            };
-        }
+    if raw.first() == Some(&0)
+        && let Some(end) = raw[1..].iter().position(|&b| b == 0)
+    {
+        let scope = &raw[1..1 + end];
+        let name = String::from_utf8_lossy(&raw[end + 2..]);
+        return match scope {
+            b"*" => format!("#{name}"),
+            b"+" => format!("+{name}"),
+            b"~" => format!("~{name}"),
+            _ => format!("-{name}"),
+        };
     }
     format!("+{}", String::from_utf8_lossy(raw))
 }
@@ -435,7 +435,7 @@ impl Render<'_> {
         }
         let stub = match self.node(index).clone() {
             Node::Array(entries) if entries.is_empty() => {
-                return self.emit(depth, format!("{prefix}[]"))
+                return self.emit(depth, format!("{prefix}[]"));
             }
             Node::Array(entries) => self.array_stub(&entries),
             Node::Object(..) => match self.stub(index) {
@@ -626,13 +626,15 @@ pub fn decode(line: &str) -> Option<Value> {
         }
         if let Some(request) = field(&context, "request") {
             let request = render.entries(request).to_vec();
-            out["origin"] = json!(format!(
-                "{} {}",
-                render.text(field(&request, "method")),
-                render.text(field(&request, "uri"))
-            )
-            .trim()
-            .to_string());
+            out["origin"] = json!(
+                format!(
+                    "{} {}",
+                    render.text(field(&request, "method")),
+                    render.text(field(&request, "uri"))
+                )
+                .trim()
+                .to_string()
+            );
         } else if let Some(cli) = field(&context, "cli") {
             out["origin"] = json!(render.text(field(render.entries(cli), "command_line")));
         }
@@ -686,6 +688,24 @@ pub fn clear() {
         dumps.items.clear();
         dumps.bytes = 0;
     }
+}
+
+/// Removes one dump by its id. Whether it was there (it may have been cleared or pushed out).
+pub fn remove(id: u64) -> bool {
+    let Ok(mut dumps) = DUMPS.lock() else {
+        return false;
+    };
+    let Some(position) = dumps
+        .items
+        .iter()
+        .position(|(value, _)| value["id"].as_u64() == Some(id))
+    else {
+        return false;
+    };
+    if let Some((_, size)) = dumps.items.remove(position) {
+        dumps.bytes -= size;
+    }
+    true
 }
 
 pub async fn serve(listener: TcpListener, events: tokio::sync::broadcast::Sender<Value>) {
@@ -785,5 +805,25 @@ mod tests {
         }
         let nested = "a:1:{i:0;".repeat(600);
         assert!(unserialize(nested.as_bytes()).is_none());
+    }
+
+    #[test]
+    fn removes_one_dump_by_id_and_keeps_the_rest() {
+        clear();
+        keep(json!({"lines":["a"]}));
+        keep(json!({"lines":["b"]}));
+        keep(json!({"lines":["c"]}));
+        let ids: Vec<u64> = list(0).iter().map(|d| d["id"].as_u64().unwrap()).collect();
+        assert!(ids.len() >= 3);
+        let middle = ids[ids.len() - 2];
+        assert!(remove(middle));
+        let left: Vec<u64> = list(0).iter().map(|d| d["id"].as_u64().unwrap()).collect();
+        assert_eq!(left.len(), ids.len() - 1);
+        assert!(!left.contains(&middle));
+        // Gone already: nothing else changes.
+        assert!(!remove(middle));
+        assert!(!remove(u64::MAX));
+        assert_eq!(list(0).len(), left.len());
+        clear();
     }
 }

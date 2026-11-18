@@ -18,11 +18,11 @@ use crate::{
     core::fsutil::write_private,
     core::store::Store,
     ssh::common::{
-        alive, fingerprints_of, identity_file, is_ssh, known_hosts, known_hosts_option, port_open,
-        ssh_error, ssh_fingerprints, trust_scanned,
+        alive, fingerprints_of, identity_file, is_forward_process, known_hosts, known_hosts_option,
+        port_open, ssh_error, ssh_fingerprints, trust_scanned,
     },
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
@@ -417,7 +417,10 @@ pub fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
-/// Verified host keys, no shared master connection, keepalives and the chosen key only.
+/// Verified host keys (Stack's own known_hosts, strict), no shared master connection, keepalives
+/// and the chosen key first (`IdentitiesOnly`). The user's own `~/.ssh/config` still applies to
+/// everything these arguments do not set (extra `IdentityFile`s, `ProxyJump`, `ForwardAgent`…):
+/// whether to ignore it (`-F`) is a product decision, see the audit (R-112).
 fn verified_options(store: &Store, host: &Host) -> Result<Vec<String>> {
     let mut args: Vec<String> = [
         "-o",

@@ -3,7 +3,7 @@
 //! migrations) and the matching tasks run with the stack's own PHP, Composer and Node.
 //! Git always runs as `/usr/bin/git` with arguments (no shell) and never with optional locks.
 use crate::{core::model::Project, core::store::Store, web::projects::scaffold::Toolchain};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Serialize;
 use std::{
     path::{Path, PathBuf},
@@ -34,10 +34,12 @@ pub struct BranchChanges {
     pub migrations: usize,
 }
 
-fn git(path: &Path, args: &[&str]) -> Result<String> {
-    // A repository is the user's, but not necessarily trusted (a clone): its own configuration
-    // must not be able to run a program (`core.fsmonitor`, hooks) when Stack reads its state.
-    let output = Command::new("/usr/bin/git")
+/// A `/usr/bin/git -C <path>` command for reading a repository's state. A repository is the user's,
+/// but not necessarily trusted (a clone): its own configuration must not be able to run a program
+/// (`core.fsmonitor`, hooks) when Stack reads it. Every Git call on a project folder starts here.
+pub(crate) fn command(path: &Path) -> Command {
+    let mut command = Command::new("/usr/bin/git");
+    command
         .args([
             "-c",
             "core.fsmonitor=false",
@@ -46,16 +48,18 @@ fn git(path: &Path, args: &[&str]) -> Result<String> {
         ])
         .arg("-C")
         .arg(path)
-        .args(args)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("HOME", Store::home().unwrap_or_default())
         .env("GIT_OPTIONAL_LOCKS", "0")
         .env("LANG", "en_US.UTF-8")
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()?;
+        .stdin(Stdio::null());
+    command
+}
+
+fn git(path: &Path, args: &[&str]) -> Result<String> {
+    let output = command(path).args(args).stderr(Stdio::null()).output()?;
     ensure!(output.status.success(), "git_failed");
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
@@ -305,7 +309,9 @@ mod tests {
     use super::*;
     #[test]
     fn parses_status_worktrees_and_changes() {
-        let info = parse_status("# branch.oid 0123456789abcdef0123456789abcdef01234567\n# branch.head develop\n# branch.upstream origin/develop\n# branch.ab +2 -1\n1 .M N... 100644 100644 100644 a b app.php\n? nuevo.txt\n");
+        let info = parse_status(
+            "# branch.oid 0123456789abcdef0123456789abcdef01234567\n# branch.head develop\n# branch.upstream origin/develop\n# branch.ab +2 -1\n1 .M N... 100644 100644 100644 a b app.php\n? nuevo.txt\n",
+        );
         assert_eq!(
             (info.branch.as_str(), info.changes, info.ahead, info.behind),
             ("develop", 2, 2, 1)
@@ -314,7 +320,9 @@ mod tests {
             parse_status("# branch.oid (initial)\n# branch.head (detached)\n").branch,
             ""
         );
-        let list = parse_worktrees("worktree /a\nHEAD 1\nbranch refs/heads/main\n\nworktree /b\nHEAD 2\nbranch refs/heads/feature/login\n\nworktree /c\nHEAD 3\ndetached\n");
+        let list = parse_worktrees(
+            "worktree /a\nHEAD 1\nbranch refs/heads/main\n\nworktree /b\nHEAD 2\nbranch refs/heads/feature/login\n\nworktree /c\nHEAD 3\ndetached\n",
+        );
         assert_eq!(
             list,
             vec![
@@ -325,7 +333,9 @@ mod tests {
         );
         assert_eq!(slug("Feature/Login_Nuevo"), "feature-login-nuevo");
         assert_eq!(slug("///"), "");
-        let changes = classify("composer.lock\napp/x.php\ndatabase/migrations/2026_a.php\ndatabase/migrations/2026_b.php\n");
+        let changes = classify(
+            "composer.lock\napp/x.php\ndatabase/migrations/2026_a.php\ndatabase/migrations/2026_b.php\n",
+        );
         assert_eq!(
             changes,
             BranchChanges {

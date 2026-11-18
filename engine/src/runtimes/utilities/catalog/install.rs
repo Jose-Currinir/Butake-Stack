@@ -8,6 +8,11 @@ use super::*;
 pub fn install(store: &Store, tool: &str, version: &str, replace: bool) -> Result<ToolManifest> {
     validate_tool(tool)?;
     validate_version(version)?;
+    // A JDK release is `<major>.<minor>.<patch>[.<build>]`: the download names need all three.
+    ensure!(
+        tool != "jdk" || version.split('.').count() >= 3,
+        "invalid_version"
+    );
     let root = tool_root(store, tool)?;
     let target = root.join(version);
     ensure!(!target.exists() || replace, "runtime_exists");
@@ -24,7 +29,11 @@ pub fn install(store: &Store, tool: &str, version: &str, replace: bool) -> Resul
     let steps = plan(tool);
     progress::step(steps[0]);
     let expected = match &src.verify {
-        Verify::Codesign(_) | Verify::HttpsOnly => None,
+        Verify::Codesign(_) => None,
+        Verify::Pinned(sum) => Some(
+            sum.ok_or_else(|| anyhow::anyhow!("checksum_missing"))?
+                .to_string(),
+        ),
         Verify::GithubDigest(api) => {
             let release = crate::core::github::api(store, api)?;
             let digest = release["assets"]
@@ -86,11 +95,10 @@ pub fn install(store: &Store, tool: &str, version: &str, replace: bool) -> Resul
             );
         }
         match src.verify {
-            Verify::Sha256 | Verify::GithubDigest(_) => ensure!(
+            Verify::Sha256 | Verify::GithubDigest(_) | Verify::Pinned(_) => ensure!(
                 Some(hash::sha256_file(&archive)?) == expected,
                 "checksum_mismatch"
             ),
-            Verify::HttpsOnly => {}
             Verify::Sha512 => ensure!(
                 Some(hash::sha512_file(&archive)?) == expected,
                 "checksum_mismatch"

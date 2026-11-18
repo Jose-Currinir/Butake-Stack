@@ -93,10 +93,12 @@ fn postgres_without_contrib_is_detected() {
     )
     .unwrap();
     assert!(!text.contains("extensions"));
-    assert!(installed(&store, "node")
-        .unwrap()
-        .iter()
-        .all(|m| m.extensions.is_none()));
+    assert!(
+        installed(&store, "node")
+            .unwrap()
+            .iter()
+            .all(|m| m.extensions.is_none())
+    );
     // A reinstall without `replace` is refused; the plan says it builds from source.
     assert_eq!(
         install(&store, "postgres", "16.16", false)
@@ -133,4 +135,32 @@ fn postgres_without_contrib_is_detected() {
     assert!(no_whitespace(&work) && work.is_dir());
     fs::remove_dir(&work).unwrap();
     assert_eq!(OPENSSL_SHA256.len(), 64);
+}
+
+/// A JDK version with two numbers passes `validate_version` but is not a release: it is refused
+/// with `invalid_version` instead of failing on an index while naming the download.
+#[test]
+fn a_jdk_version_without_a_patch_number_is_refused() {
+    let temp = tempfile::tempdir().unwrap();
+    let store = Store::new(temp.path().join("s")).unwrap();
+    let error = install(&store, "jdk", "21.0", false).unwrap_err();
+    assert_eq!(error.to_string(), "invalid_version");
+}
+
+/// Typesense has no published checksum: only the pinned releases have one, the others are
+/// refused before anything is downloaded.
+#[test]
+fn typesense_is_installed_only_with_a_pinned_checksum() {
+    for (version, sum) in TYPESENSE {
+        assert!(
+            matches!(source("typesense", version).verify, Verify::Pinned(Some(s)) if s == *sum)
+        );
+        assert_eq!(sum.len(), 64);
+        assert!(sum.bytes().all(|c| c.is_ascii_hexdigit()));
+    }
+    assert!(matches!(
+        source("typesense", "99.0").verify,
+        Verify::Pinned(None)
+    ));
+    assert_eq!(plan("typesense"), ["download", "verifySum", "install"]);
 }

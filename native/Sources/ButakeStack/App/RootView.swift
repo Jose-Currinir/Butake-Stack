@@ -4,6 +4,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.undoManager) private var undoManager
     @Bindable var store: StackStore
     @Bindable var updates = UpdateService.shared
     /// The page on screen, kept with the window (state restoration).
@@ -76,11 +77,22 @@ struct RootView: View {
             .scaledText()
             .contentColumn(shown: store.showsContentColumn)
             .toolbar {
+                // Like a browser's: the pages already visited, nearest first.
+                ToolbarItemGroup(placement: .navigation) {
+                    Button { store.goBack() } label: { Label(L("menu.back"), systemImage: Symbols.back).labelStyle(.iconOnly) }
+                        .disabled(!store.history.canGoBack).help(L("menu.backHelp")).accessibilityIdentifier("toolbar.back")
+                    Button { store.goForward() } label: { Label(L("menu.forward"), systemImage: Symbols.forward).labelStyle(.iconOnly) }
+                        .disabled(!store.history.canGoForward).help(L("menu.forwardHelp")).accessibilityIdentifier("toolbar.forward")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         // On the Terminal, its own additions first: one «+» per window.
                         if store.route == .tool("ssh-terminal") {
                             TerminalNewItems()
+                            Divider()
+                        }
+                        if store.route == .tool("git"), store.canShow(.tool("git")), GitTool.shared.requirement.ready {
+                            GitNewItems()
                             Divider()
                         }
                         if store.route == .tool("skills"), store.canShow(.tool("skills")) {
@@ -94,6 +106,8 @@ struct RootView: View {
                             .accessibilityIdentifier("toolbar.add.existing")
                         Button { store.chooseFolder(scan: true) } label: { Label(L("menu.importFolder"), systemImage: Symbols.importFolder) }
                             .accessibilityIdentifier("toolbar.add.importFolder")
+                        Button { store.showClone = true } label: { Label(L("menu.cloneRepository"), systemImage: Symbols.gitClone) }
+                            .accessibilityIdentifier("toolbar.add.clone")
                         Divider()
                         Button { store.groupNaming = .new(sites: []) } label: { Label(L("menu.newFolder"), systemImage: Symbols.newFolder) }
                             .accessibilityIdentifier("toolbar.add.newFolder")
@@ -104,7 +118,19 @@ struct RootView: View {
                 }
             }
             .overlay(alignment: .bottom) {
-                if let toast = store.toast {
+                if let offer = store.undoOffer {
+                    HStack(spacing: 12) {
+                        Label(String(format: L("menu.undoDone"), offer.name), systemImage: Symbols.success).font(.uiCallout.weight(.medium))
+                        Button(L("menu.undoAction")) { store.undoOffered() }
+                            .buttonStyle(.borderless).font(.uiCallout.weight(.semibold))
+                            .accessibilityIdentifier("toast.undo")
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 9)
+                    .chromeGlass()
+                    .padding(.bottom, 46)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                    .accessibilityIdentifier("toast.undoOffer")
+                } else if let toast = store.toast {
                     Label(toast, systemImage: Symbols.success)
                         .font(.uiCallout.weight(.medium))
                         .padding(.horizontal, 14).padding(.vertical, 9)
@@ -133,7 +159,8 @@ struct RootView: View {
             ProjectSettingsSheet(store: store, project: box.detection.project, notes: box.detection.notes, isNew: true).themedSheet()
         }
         .sheet(isPresented: $store.showNewProject) { NewProjectSheet(store: store).themedSheet() }
-        .sheet(item: $store.groupNaming) { naming in GroupNameSheet(store: store, naming: naming).themedSheet() }
+        .sheet(isPresented: $store.showClone) { CloneRepositoryEntry(store: store).themedSheet() }
+        .sheet(item: $store.groupNaming, onDismiss: { store.newFolderParent = nil }) { naming in GroupNameSheet(store: store, naming: naming).themedSheet() }
         .sheet(item: $store.importScan, onDismiss: { Task { await store.refreshWatched() } }) { scan in ImportFolderSheet(store: store, scan: scan).themedSheet() }
         .sheet(isPresented: $store.showPalette) { CommandPalette(store: store).themedSheet() }
         .sheet(isPresented: $updates.showingSheet) { UpdateSheet(updates: updates).themedSheet() }
@@ -144,6 +171,17 @@ struct RootView: View {
             Button(L("site.delete"), role: .destructive) { Task { await store.delete(project) } }
             Button(L("common.cancel"), role: .cancel) {}
         } message: { _ in Text(L("site.deleteDetail")) }
+        .confirmationDialog(L("groups.moveConfirm"), isPresented: Binding(get: { store.pendingDiskMove != nil }, set: { if !$0 { store.pendingDiskMove = nil } }),
+                            presenting: store.pendingDiskMove) { request in
+            Button(L("groups.moveAction")) { Task { await store.performDiskMove(request) } }.accessibilityIdentifier("groups.move.confirm")
+            Button(L("common.cancel"), role: .cancel) {}
+        } message: { request in
+            Text(String(format: L("groups.moveDetail"), request.title, request.intoName, store.relativeToProjects(request.from), store.relativeToProjects(request.into)))
+        }
+        .sheet(item: Binding(get: { store.migrationDeferred ? nil : store.disk?.migration.flatMap { $0.proposals.isEmpty ? nil : $0 }.map(MigrationBox.init) },
+                                  set: { if $0 == nil { store.migrationDeferred = true } })) { box in
+            DiskMigrationSheet(store: store, plan: box.plan).themedSheet()
+        }
         .confirmationDialog(L("env.portRestartTitle"), isPresented: Binding(get: { store.portRestartOffer != nil }, set: { if !$0 { store.portRestartOffer = nil } }),
                             presenting: store.portRestartOffer) { offer in
             Button(L("env.restartProcesses")) { Task { for project in offer.projects { await store.restartProcesses(project) } } }
@@ -155,25 +193,27 @@ struct RootView: View {
         // ⌘K opens the palette too (Ir › Abrir rápidamente… is ⇧⌘O).
         .background { Button(L("menu.quickOpen")) { store.showPalette = true }.keyboardShortcut("k").hidden() }
         .focusedSceneValue(\.selectedProject, currentProject)
-        // Edición › Buscar (⌘F); the SSH terminal keeps ⌘F for its own search.
-        .focusedSceneValue(\.sidebarSearch, store.route == .tool("ssh-terminal") ? nil : SidebarSearchFocus { store.findRequests += 1 })
+        // Edición › Buscar (⌘F): a page with a search of its own (`textFinder`, the terminal's included) goes first.
+        .focusedSceneValue(\.sidebarSearch, SidebarSearchFocus { store.findRequests += 1 })
         .serviceStopConfirmation(store)
-        .alert(L("error.title"), isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
-            Button(L("common.close"), role: .cancel) { store.errorMessage = nil }
-        } message: { Text(store.errorMessage ?? "") }
+        .failureAlert(store)
+        .swipeNavigation(store)
         // Colors are read while drawing: a change of theme repaints in place, keeping page and scroll.
         .themedTint()
         .opensSettings()
         .task { await store.refreshVisibleProjects() }
         // Back to the front: what changed meanwhile outside the app (a project removed on the command line).
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await store.refreshProjects() }
+            Task { await store.refreshDisk() }
         }
         .task {
             await store.bootstrap()
             store.restore(savedRoute)
         }
+        // Edición › Deshacer acts on this window's manager (StackStore+Undo).
+        .onChange(of: undoManager, initial: true) { store.undoManager = undoManager }
         .onChange(of: store.route) {
+            store.history.visit(store.route)
             savedRoute = store.route.storageValue
             // A row of Componentes opens again on the last category seen.
             Component.remember(store.route)

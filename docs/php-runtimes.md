@@ -54,6 +54,7 @@ Los binarios instalados no se reemplazan silenciosamente.
 
 Este paso comprueba los hashes y `mb_split()`, conserva licencias y produce un `.tar.gz`
 por versión y arquitectura, junto con `catalog.json` (versión, tamaño, nombre y SHA-256).
+El mismo comando firma el catálogo (`catalog.json.sig`, ver «Publicar los runtimes de PHP» en `operations.md`).
 La compresión y los metadatos del archivo son deterministas para un mismo runtime.
 
 El catálogo local deja `download_url` en `null`: no publica, crea remotos, tags ni sube archivos.

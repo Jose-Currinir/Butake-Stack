@@ -2,7 +2,7 @@
 
 use crate::{core::store::Store, daemon, web};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Requests of this domain; `None` when `method` is not one of them.
 pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<Value>> {
@@ -38,6 +38,12 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<V
             Ok(json!(true))
         }
         "dumpsClear" => daemon::request_sync(store, "clearDumps", json!({}), false),
+        "dumpsDelete" => daemon::request_sync(
+            store,
+            "deleteDump",
+            json!({"dump": request["dump"].as_u64().unwrap_or(u64::MAX)}),
+            false,
+        ),
         _ => return Ok(None),
     };
     result.map(Some)

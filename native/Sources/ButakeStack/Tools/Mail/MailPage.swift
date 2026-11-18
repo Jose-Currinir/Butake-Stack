@@ -61,6 +61,7 @@ struct MailPage: View {
                 try? await Task.sleep(for: .seconds(2.5))
             }
         }
+        .focusedSceneValue(\.textFinder, TextFinderRequest { browser.searchRequests += 1 })
         .task(id: browser.selection) {
             message = nil
             if let selected = browser.selection {

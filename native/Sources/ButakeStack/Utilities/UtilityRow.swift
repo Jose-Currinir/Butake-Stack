@@ -18,6 +18,9 @@ struct UtilityRow: View {
     var apple: Bool { status?.apple == true }
     var update: String? { store.devUpdates.tools[tool].flatMap { $0.update ? $0.latest : nil } }
     var name: String { L("tool.\(tool)") }
+    /// Install (or Stack's own build over Apple's) is offered, and an update is.
+    var canInstall: Bool { apple || (!installed && store.devUpdates.unknownReason(tool) == nil) }
+    var canUpdate: Bool { installed && managed && !apple && update != nil }
 
     var body: some View {
         LogoRow {
@@ -75,6 +78,21 @@ struct UtilityRow: View {
                 Text(L("toolDetail.\(tool)")).font(.uiCaption).foregroundStyle(.secondary).lineLimit(1)
             }
         }
+        // The same actions as the row's buttons and its «⋯» menu.
+        .contextMenu {
+            if canInstall {
+                Button { installing = true } label: { Label(L("utilities.install"), systemImage: Symbols.install) }
+                    .disabled(store.busy != nil)
+                    .accessibilityIdentifier("\(scope).install.context")
+                Divider()
+            } else if canUpdate, let update {
+                Button { installing = true } label: { Label(String(format: L("tools.updateTo"), update), systemImage: Symbols.update) }
+                    .disabled(store.busy != nil)
+                    .accessibilityIdentifier("\(scope).update.context")
+                Divider()
+            }
+            menuItems
+        }
         .sheet(isPresented: $installing) {
             UtilityInstallSheet(store: store, tool: tool, updating: installed && managed).themedSheet()
         }
@@ -89,7 +107,15 @@ struct UtilityRow: View {
     }
 
     private var more: some View {
-        Menu {
+        Menu { menuItems } label: {
+            Label(String(format: L("utilities.actions"), name), systemImage: Symbols.more).labelStyle(.iconOnly)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .help(String(format: L("utilities.actions"), name))
+        .accessibilityIdentifier("\(scope).menu")
+    }
+
+    @ViewBuilder private var menuItems: some View {
             // A terminal assistant found on this Mac opens in a tab of the Terminal, while it is on.
             if store.pluginEnabled("ssh-terminal"), let program = LocalConsoles.program(tool), !program.isShell {
                 Button { LocalConsoles.open(program) } label: { Label(L("ssh.local.openInTerminal"), systemImage: Symbols.terminal) }
@@ -110,11 +136,5 @@ struct UtilityRow: View {
                 .disabled(!managed || store.busy != nil)
                 .help(installed && !managed ? L(apple ? "utilities.appleHelp" : "utilities.elsewhereHelp") : "")
                 .accessibilityIdentifier("\(scope).remove")
-        } label: {
-            Label(String(format: L("utilities.actions"), name), systemImage: Symbols.more).labelStyle(.iconOnly)
-        }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-        .help(String(format: L("utilities.actions"), name))
-        .accessibilityIdentifier("\(scope).menu")
     }
 }

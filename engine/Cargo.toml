@@ -1,7 +1,9 @@
 [package]
 name = "butake-stack"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+publish = false
+rust-version = "1.100"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -14,3 +16,11 @@ sha2 = "0.10"
 
 [dev-dependencies]
 tempfile = "3"
+
+# Every `unsafe` says why it is sound (auditoría R-12, R-14): a block without `// SAFETY:` fails
+# `cargo clippy -D warnings`, the same as in CI.
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+undocumented_unsafe_blocks = "warn"

@@ -186,9 +186,11 @@ fn a_rename_reaches_every_place() {
     let history = crate::web::projects::envs::audit_lines(&store, "backend").unwrap();
     assert_eq!(history[0]["action"], "renombrar");
     assert!(history.iter().any(|l| l["action"] == "guardar"));
-    assert!(crate::web::projects::envs::audit_lines(&store, "api")
-        .unwrap()
-        .is_empty());
+    assert!(
+        crate::web::projects::envs::audit_lines(&store, "api")
+            .unwrap()
+            .is_empty()
+    );
     // What the app finishes.
     let pending = pending(&store).unwrap();
     assert_eq!(
@@ -198,9 +200,11 @@ fn a_rename_reaches_every_place() {
     step_done(&store, "api", "backend", "keychain").unwrap();
     step_done(&store, "api", "backend", "vault").unwrap();
     assert!(step_done(&store, "api", "backend", "otro").is_err());
-    assert!(step_done(&store, "api", "backend", "app")
-        .unwrap()
-        .is_empty());
+    assert!(
+        step_done(&store, "api", "backend", "app")
+            .unwrap()
+            .is_empty()
+    );
 }
 
 /// Without `domain` every domain stays; without a vault or environments there is no step for
@@ -294,11 +298,13 @@ fn a_missing_project_can_be_renamed() {
     rename_project(&store, "web", "portal", &options()).unwrap();
     let portal = store.record("portal").unwrap();
     assert_eq!(portal.domains, vec!["portal.test".to_string()]);
-    assert!(store
-        .folder_missing()
-        .unwrap()
-        .iter()
-        .any(|p| p.id == "portal"));
+    assert!(
+        store
+            .folder_missing()
+            .unwrap()
+            .iter()
+            .any(|p| p.id == "portal")
+    );
     assert_eq!(store.groups().unwrap()[0].sites, ["api", "portal"]);
 }
 

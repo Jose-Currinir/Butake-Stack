@@ -38,13 +38,18 @@ struct NewProjectSheet: View {
     @State var dropping = false
     @FocusState var nameFocused: Bool
 
-    enum Selection: Hashable { case kind(String), open }
+    enum Selection: Hashable { case kind(String), open, clone }
     enum Phase { case form, creating, done(CreatedProject), failed(String) }
 
     var kind: String { if case .kind(let id) = selection { id } else { "" } }
     var info: ProjectKindInfo { ProjectKindInfo.of(kind) }
-    var slug: String {
-        name.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" }.reduce(into: "") { $0.append($1) }
+    var slug: String { Self.slug(name) }
+    /// The folder and domain name a typed name becomes: as the engine accepts it (ASCII letters and
+    /// digits, dashes), so «Diseño web» is `diseno-web`, never `diseño-web`.
+    nonisolated static func slug(_ name: String) -> String {
+        let plain = name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX")).lowercased()
+        return plain.unicodeScalars.map { ($0.value >= 97 && $0.value <= 122) || ($0.value >= 48 && $0.value <= 57) ? Character($0) : "-" }
+            .reduce(into: "") { $0.append($1) }
             .split(separator: "-").joined(separator: "-")
     }
     var template: String { templates[kind] ?? ProjectKindInfo.templates[kind]?.first?.id ?? "" }
@@ -54,7 +59,7 @@ struct NewProjectSheet: View {
     /// Avanzado (in the place's subfolder unless sorting is off there).
     var parent: String { chosenParent ?? Folder.newProjects(in: place) }
     var target: String { (parent as NSString).appendingPathComponent(slug) }
-    var address: String { "\(info.proxied ? "https" : "http")://\(slug).test" }
+    var address: String { "\(info.proxied ? "https" : "http")://\(slug).\(store.config?.tld.first ?? "test")" }
 
     // MARK: Requirements and validation
 
@@ -109,7 +114,7 @@ struct NewProjectSheet: View {
     /// What's wrong with the name, if anything: checked as the user types.
     var nameProblem: String? {
         if slug.isEmpty { return nil }
-        if slug.count > 40 { return L("new.problem.long") }
+        if slug.utf8.count > 40 { return L("new.problem.long") }
         if FileManager.default.fileExists(atPath: target) { return L("new.problem.folder") }
         if store.projects.contains(where: { $0.id == slug }) { return L("new.problem.site") }
         return nil
@@ -157,6 +162,8 @@ struct NewProjectSheet: View {
     }
 
     var isCreating: Bool { if case .creating = phase { true } else { false } }
+    /// The kinds (not «open» or «clone») show the project form and its Crear button.
+    var showsForm: Bool { selection != .open && selection != .clone && !info.wizard }
     var isForm: Bool { if case .form = phase { true } else { false } }
 
     // MARK: Sidebar
@@ -177,6 +184,9 @@ struct NewProjectSheet: View {
                 Label { Text(L("new.modeOpen")) } icon: { IconTile(symbol: Symbols.folder, size: 20) }
                     .tag(Selection.open)
                     .accessibilityIdentifier("new.mode.open")
+                Label { Text(L("new.modeClone")) } icon: { IconTile(symbol: Symbols.gitClone, size: 20) }
+                    .tag(Selection.clone)
+                    .accessibilityIdentifier("new.mode.clone")
             }
         }
         .listStyle(.sidebar)
@@ -195,7 +205,7 @@ struct NewProjectSheet: View {
         switch phase {
         case .form:
             Group {
-                if selection == .open { openPane } else if info.wizard { wizardPane } else { form }
+                if selection == .open { openPane } else if selection == .clone { clonePane } else if info.wizard { wizardPane } else { form }
             }
             .id(selection)
             .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 8)), removal: .opacity))
@@ -223,7 +233,7 @@ struct NewProjectSheet: View {
         HStack(spacing: 10) {
             switch phase {
             case .form:
-                if selection != .open && !info.wizard {
+                if showsForm {
                     if let blockedReason {
                         Label(blockedReason, systemImage: Symbols.info).font(.uiCaption).foregroundStyle(.secondary)
                             .lineLimit(2).truncationMode(.tail).help(blockedReason)
@@ -235,7 +245,7 @@ struct NewProjectSheet: View {
                 }
                 Spacer()
                 Button(L("common.cancel")) { dismiss() }.keyboardShortcut(.cancelAction).accessibilityIdentifier("new.cancel")
-                if selection != .open && !info.wizard {
+                if showsForm {
                     Button(L("new.create")) { create() }
                         .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
                         .disabled(!canCreate).accessibilityIdentifier("new.create")
@@ -268,6 +278,14 @@ struct NewProjectSheet: View {
         panel.directoryURL = FileManager.default.fileExists(atPath: parent) ? URL(fileURLWithPath: parent) : URL(fileURLWithPath: NSHomeDirectory())
         panel.prompt = L("new.choosePrompt")
         if panel.runModal() == .OK, let url = panel.url { chosenParent = url.path }
+    }
+    /// The Git tool's clone sheet opens once this sheet is gone (two sheets can't stack).
+    func clone() {
+        dismiss()
+        Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            store.showClone = true
+        }
     }
     func chooseExisting() {
         let panel = NSOpenPanel()

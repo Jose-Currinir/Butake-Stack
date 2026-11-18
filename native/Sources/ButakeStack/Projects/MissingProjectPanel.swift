@@ -29,7 +29,7 @@ struct MissingProjectPanel: View {
         Button { store.findFolder(project) } label: { Label(L("missing.find"), systemImage: Symbols.findFolder) }
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("project.missing.find")
-        Button(role: .destructive) { store.removing = project } label: { Label(L("menu.removeProject"), systemImage: Symbols.remove) }
+        Button(role: .destructive) { store.removing = project } label: { Label(L("missing.remove"), systemImage: Symbols.remove) }
             .buttonStyle(.bordered)
             .accessibilityIdentifier("project.missing.remove")
     }

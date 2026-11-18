@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     io::Write,
     process::{Command, Stdio},
@@ -78,12 +78,14 @@ fn ssh_keys_with_passphrase_use_askpass_and_a_private_agent() {
             .starts_with("ssh-ed25519 ")
     );
     let locked = temp.path().join("locked");
-    assert!(Command::new("/usr/bin/ssh-keygen")
-        .args(["-q", "-t", "ed25519", "-N", "otra frase", "-f"])
-        .arg(&locked)
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new("/usr/bin/ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-N", "otra frase", "-f"])
+            .arg(&locked)
+            .status()
+            .unwrap()
+            .success()
+    );
     let path = locked.to_string_lossy();
     assert_eq!(
         call(
@@ -273,10 +275,12 @@ fn a_project_console_gets_its_versions_and_no_secrets() {
     assert!(path.contains(".venv/bin:"), "{path}");
     assert!(path.contains("runtimes/php/8.3/bin"), "{path}");
     assert!(path.ends_with("/usr/bin:/bin:/usr/sbin:/sbin"), "{path}");
-    assert!(value["VIRTUAL_ENV"]
-        .as_str()
-        .unwrap()
-        .ends_with("api/.venv"));
+    assert!(
+        value["VIRTUAL_ENV"]
+            .as_str()
+            .unwrap()
+            .ends_with("api/.venv")
+    );
     assert!(!value.to_string().contains("no-se-lee"));
     assert_eq!(
         call(

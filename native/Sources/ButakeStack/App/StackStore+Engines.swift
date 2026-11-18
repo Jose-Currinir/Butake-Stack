@@ -14,15 +14,23 @@ extension StackStore {
     func engineEnabled(_ name: String) -> Bool { config?.engines?[name]?.enabled == true }
     func engineVersion(_ name: String) -> String? { installedTools[name]?.first?.version }
     /// Turns a service on or off. Turning off one that projects that are on use asks first, naming
-    /// them (`serviceStop`); `confirmed` is that answer.
-    func setEngine(_ name: String, enabled: Bool, confirmed: Bool = false) async {
-        await run(enabled ? L("busy.start") : L("busy.stop")) {
+    /// them (`serviceStop`), on the surface it was asked from; `confirmed` is that answer.
+    func setEngine(_ name: String, enabled: Bool, confirmed: Bool = false, from surface: StopSurface = .window) async {
+        var done = false
+        await run(enabled ? L("busy.start") : L("busy.stop"), from: surface,
+                  failureTitle: String(format: L(enabled ? "error.startFailed" : "error.stopFailed"), Tech.of(name).title)) {
             do {
                 self.config = try await self.call(["method": "setEngine", "engine": name, "enabled": enabled,
                                                    "confirmed": confirmed, "actor": "app"])
+                done = true
             } catch let failure as EngineFailure where failure.code == "service_in_use" {
-                self.serviceStop = ServiceStopRequest(service: name, users: failure.detail ?? "")
+                self.serviceStop = ServiceStopRequest(service: name, users: failure.detail ?? "", surface: surface)
             }
+        }
+        if done {
+            undoable(String(format: L(enabled ? "menu.undo.start" : "menu.undo.stop"), Tech.of(name).title),
+                     undo: { [weak self] in await self?.setEngine(name, enabled: !enabled, confirmed: true, from: surface) },
+                     redo: { [weak self] in await self?.setEngine(name, enabled: enabled, confirmed: true, from: surface) })
         }
         try? await Task.sleep(for: .milliseconds(900))
         await refreshStatus()

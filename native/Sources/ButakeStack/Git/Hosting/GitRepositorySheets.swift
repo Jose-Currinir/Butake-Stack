@@ -117,7 +117,7 @@ struct GitPublishRepositorySheet: View {
     private var form: some View {
         Form {
             Picker(L("git.publish.provider"), selection: $provider) { ForEach(connected) { Text($0.title).tag($0) } }
-                .onChange(of: provider) { Task { await loadOwners() } }
+                .onChange(of: provider) { owners = []; owner = ""; Task { await loadOwners() } }
                 .accessibilityIdentifier("git.publish.provider")
             Picker(L(provider == .bitbucket ? "git.publish.workspace" : "git.publish.owner"), selection: $owner) {
                 ForEach(owners, id: \.self) { Text($0).tag($0) }
@@ -166,16 +166,21 @@ struct GitPublishRepositorySheet: View {
     }
 
     private func loadOwners() async {
-        guard hosting.account(for: provider) != nil else { owners = []; owner = ""; return }
+        let asked = provider
+        guard hosting.account(for: asked) != nil else { owners = []; owner = ""; return }
         loading = true
-        defer { loading = false }
+        // Only the answer for the provider still chosen counts: a slower one for the previous provider is dropped.
+        defer { if asked == provider { loading = false } }
         do {
-            let credentials = try await hosting.credentials(for: provider)
-            owners = try await hosting.client.owners(provider, credentials: credentials)
+            let credentials = try await hosting.credentials(for: asked)
+            let found = try await hosting.client.owners(asked, credentials: credentials)
+            guard asked == provider else { return }
+            owners = found
             if let hosted = hosting.session(for: repository).hosted, owners.contains(hosted.owner) { owner = hosted.owner }
             else if !owners.contains(owner) { owner = owners.first ?? "" }
             failure = nil
         } catch {
+            guard asked == provider else { return }
             owners = []
             owner = ""
             failure = (error as? GitHostingFailure)?.errorDescription

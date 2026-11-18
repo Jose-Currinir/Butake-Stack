@@ -26,7 +26,10 @@ pub fn available(store: &Store, tool: &str) -> Result<Vec<Available>> {
             majors.sort_by(|a, b| b.cmp(a));
             let mut out = vec![];
             for major in majors {
-                let url = format!("{base}/release_versions?architecture=aarch64&os=mac&image_type=jdk&vendor=eclipse&release_type=ga&page_size=10&sort_order=DESC&project=jdk&version=%5B{major}%2C{}%29", major + 1);
+                let url = format!(
+                    "{base}/release_versions?architecture=aarch64&os=mac&image_type=jdk&vendor=eclipse&release_type=ga&page_size=10&sort_order=DESC&project=jdk&version=%5B{major}%2C{}%29",
+                    major + 1
+                );
                 let data: serde_json::Value = serde_json::from_slice(&fetch(&url, 500_000)?)?;
                 let mut count = 0;
                 for v in data["versions"].as_array().into_iter().flatten() {
@@ -289,9 +292,12 @@ pub fn available(store: &Store, tool: &str) -> Result<Vec<Available>> {
                 .filter_map(|r| {
                     let version = r["tag_name"].as_str()?.trim_start_matches('v');
                     validate_version(version).ok()?;
+                    // Only the releases whose checksum Stack has pinned can be installed.
+                    (tool != "typesense" || TYPESENSE.iter().any(|(v, _)| *v == version))
+                        .then_some(())?;
                     Some(Available {
                         version: version.into(),
-                        label: (tool == "typesense").then(|| "Sólo HTTPS".into()),
+                        label: None,
                         date: r["published_at"]
                             .as_str()
                             .map(|d| d[..10.min(d.len())].into()),

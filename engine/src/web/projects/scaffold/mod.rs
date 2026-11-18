@@ -15,7 +15,7 @@ use crate::{
     core::download, core::model::Project, core::store::Store, runtimes::utilities::catalog,
     web::projects::detect,
 };
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -251,8 +251,9 @@ fn set_env(file: &Path, values: &[(&str, String)]) -> Result<()> {
             lines.push(entry);
         }
     }
-    fs::write(file, lines.join("\n") + "\n")?;
-    Ok(())
+    // Owner-only from the first byte (a temporary file, then renamed over the old one): the file
+    // may now hold a database password, and a link at `file` is replaced, never followed.
+    crate::core::fsutil::write_private(file, &(lines.join("\n") + "\n"))
 }
 
 /// Allowed templates per generator: only these strings ever reach a command line.

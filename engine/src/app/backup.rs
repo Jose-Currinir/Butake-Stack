@@ -10,8 +10,8 @@ use crate::{
     web::projects::envs,
     web::projects::git,
 };
-use anyhow::{ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, ensure};
+use serde_json::{Value, json};
 use std::{
     fs,
     io::Read,
@@ -20,6 +20,12 @@ use std::{
 };
 
 const FORMAT: &str = "butake-stack-entorno";
+
+/// The version of Stack that makes the file: `VERSION` at the root of the repository, the only
+/// source of it (`Cargo.toml` has its own number, which nobody keeps in step).
+fn stack_version() -> &'static str {
+    include_str!("../../../VERSION").trim()
+}
 
 fn site_records(store: &Store) -> Vec<Project> {
     let mut sites = store.list().unwrap_or_default();
@@ -88,7 +94,7 @@ pub fn export(store: &Store, profiles: Vec<String>) -> Result<Value> {
     let python = crate::runtimes::languages::python::installed_lines(store);
     Ok(json!({
         "format": FORMAT, "version": 1,
-        "stackVersion": env!("CARGO_PKG_VERSION"),
+        "stackVersion": stack_version(),
         "profiles": profiles,
         "config": store.config()?,
         "runtimes": {"php": php, "tools": tools_map},
@@ -187,7 +193,10 @@ pub fn plan(store: &Store, data: &Value) -> Result<Value> {
             else if path.is_dir() && restorable_folder(&path) { "ready" }
             else if remote.is_some() { "clone" }
             else { "unavailable" };
-        json!({"id": id, "name": project["name"], "kind": project["kind"], "path": path, "remote": remote, "branch": site["git"]["branch"], "state": state})
+        // What would run when the site is turned on: shown so the user decides on it (see `restore`).
+        let processes: Vec<Value> = project["processes"].as_array().into_iter().flatten()
+            .map(|p| json!({"name": p["name"], "program": p["program"], "args": p["args"]})).collect();
+        json!({"id": id, "name": project["name"], "kind": project["kind"], "path": path, "remote": remote, "branch": site["git"]["branch"], "state": state, "processes": processes})
     }).collect();
     // Extensions installed there and not here, per PostgreSQL version (P-43).
     let have = crate::runtimes::extensions::snapshot(store);
@@ -212,8 +221,22 @@ pub fn plan(store: &Store, data: &Value) -> Result<Value> {
     }))
 }
 
+/// A site read from the file, as it may be registered. The file comes from outside (it is made to
+/// be shared): hand-typed variables (`NODE_OPTIONS=--require …`) are never taken, as `export`
+/// never writes them, and neither are the commands of its processes (`node -e …`) unless the user
+/// accepted them after seeing them in the plan (`parts.processes`). The site starts off.
+fn for_restore(mut project: Project, with_processes: bool) -> Project {
+    project.enabled = false;
+    project.env.clear();
+    if !with_processes {
+        project.processes.clear();
+    }
+    project
+}
+
 /// Applies the settings, folders, sites whose folder is here (registered off) and environments
-/// (without secrets, never over existing ones). Downloads and clones are separate calls.
+/// (without secrets, never over existing ones). Downloads and clones are separate calls. The
+/// processes of the sites come only with `parts.processes` (the plan lists their commands).
 pub fn restore(store: &Store, data: &Value, parts: &Value) -> Result<Value> {
     check(data)?;
     let mut done = serde_json::Map::new();
@@ -228,7 +251,7 @@ pub fn restore(store: &Store, data: &Value, parts: &Value) -> Result<Value> {
     if parts["sites"] == true {
         let registered: Vec<String> = store.list()?.into_iter().map(|p| p.id).collect();
         for site in data["sites"].as_array().into_iter().flatten() {
-            let Ok(mut project) = serde_json::from_value::<Project>(site["project"].clone()) else {
+            let Ok(project) = serde_json::from_value::<Project>(site["project"].clone()) else {
                 continue;
             };
             if registered.contains(&project.id)
@@ -237,7 +260,7 @@ pub fn restore(store: &Store, data: &Value, parts: &Value) -> Result<Value> {
             {
                 continue;
             }
-            project.enabled = false;
+            let project = for_restore(project, parts["processes"] == true);
             if store.save(project.clone()).is_ok() {
                 added.push(project.id);
             }
@@ -427,6 +450,36 @@ mod tests {
         assert!(!inside_home(&home.join("../outside")));
         assert!(!inside_home(&home.join("Stack/../../outside")));
         assert!(!inside_home(Path::new("/tmp/stack-site")));
+    }
+
+    #[test]
+    fn backups_carry_the_version_of_stack() {
+        let file =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../VERSION")).unwrap();
+        assert_eq!(stack_version(), file.trim());
+        let parts: Vec<&str> = stack_version().split('.').collect();
+        assert!(parts.len() == 3 && parts.iter().all(|p| p.parse::<u32>().is_ok()));
+    }
+
+    #[test]
+    fn a_shared_file_brings_neither_variables_nor_commands_unless_accepted() {
+        let project = |processes: bool| {
+            serde_json::from_value::<Project>(json!({
+                "id": "demo", "name": "Demo", "path": "/Users/ana/demo", "domains": ["demo.test"],
+                "https": false, "kind": "static", "runtime": {}, "docroot": "/Users/ana/demo",
+                "services": [], "databases": [],
+                "processes": if processes {
+                    json!([{"name": "dev", "program": "node", "args": ["-e", "1"], "autostart": true}])
+                } else { json!([]) },
+                "enabled": true, "env": {"NODE_OPTIONS": "--require /tmp/x.js"}
+            }))
+            .unwrap()
+        };
+        let plain = for_restore(project(true), false);
+        assert!(plain.env.is_empty() && plain.processes.is_empty() && !plain.enabled);
+        let accepted = for_restore(project(true), true);
+        assert!(accepted.env.is_empty() && !accepted.enabled);
+        assert_eq!(accepted.processes[0].args, ["-e", "1"]);
     }
 
     #[test]

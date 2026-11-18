@@ -28,6 +28,7 @@ La página muestra lo que el proyecto necesita: `VAR_DUMPER_FORMAT=server` (y
 |---|---|
 | `pluginSetEnabled {id: "dumps"}` | Enciende o apaga el receptor |
 | `dumpsClear` | Vacía la lista (pide al daemon `clearDumps`) |
+| `dumpsDelete {dump}` | Borra un volcado por su id (pide al daemon `deleteDump`); responde si estaba |
 | `setDumps {enabled, port}` | Cambia la configuración del receptor («Opciones…» de la página) |
 
 La lista llega por el subcomando `butake-stack watch-dumps` (suscripción al daemon, que la app abre al

@@ -2,7 +2,7 @@
 //! notarized by Apple, and installer packages signed by that team. Only the system's own tools
 //! (`codesign`, `spctl`, `pkgutil`) with a cleared environment; nothing downloaded is run.
 
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{
     path::Path,
     process::{Command, Stdio},

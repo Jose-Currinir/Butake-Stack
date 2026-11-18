@@ -2,7 +2,7 @@
 //! operation in progress, read with concurrent Git calls.
 use super::protection::{primary_from, repository_config};
 use super::remotes::without_credentials;
-use super::runner::{error, git, git_input, Result};
+use super::runner::{Result, error, git, git_input};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 

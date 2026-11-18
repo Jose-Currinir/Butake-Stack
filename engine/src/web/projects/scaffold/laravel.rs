@@ -119,10 +119,10 @@ pub(super) fn create_laravel(
                 &["install", "--no-audit", "--no-fund"],
             )?;
             runner.run(&target, &node.join("npm"), &["run", "build"])?;
-            if let Some(major) = node_major(node) {
-                if !target.join(".nvmrc").exists() {
-                    fs::write(target.join(".nvmrc"), format!("{major}\n"))?;
-                }
+            if let Some(major) = node_major(node)
+                && !target.join(".nvmrc").exists()
+            {
+                fs::write(target.join(".nvmrc"), format!("{major}\n"))?;
             }
         } else {
             notes.push("frontend_needs_node".into());
@@ -208,8 +208,6 @@ pub(super) fn create_laravel(
                 }
             };
             set_env(&env, &values)?;
-            // The .env now may hold a password: owner-only, like the environments manager writes it.
-            let _ = fs::set_permissions(&env, std::os::unix::fs::PermissionsExt::from_mode(0o600));
             if ready {
                 artisan(&["migrate", "--force", "--no-interaction"])?;
             }
@@ -227,10 +225,10 @@ pub(super) fn create_laravel(
         "mysql" => Some("mysql"),
         _ => None,
     };
-    if let Some(service) = service {
-        if !project.services.iter().any(|s| s == service) {
-            project.services.push(service.into());
-        }
+    if let Some(service) = service
+        && !project.services.iter().any(|s| s == service)
+    {
+        project.services.push(service.into());
     }
     store.save(project)
 }

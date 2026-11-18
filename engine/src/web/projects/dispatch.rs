@@ -3,7 +3,7 @@
 
 use crate::{core::store::Store, daemon, web};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Requests of this domain; `None` when `method` is not one of them.
 pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<Value>> {
@@ -112,18 +112,67 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<V
             // Secret by default for credential-like names (R2); names only, never values.
             let keys: Vec<String> =
                 serde_json::from_value(request["keys"].clone()).unwrap_or_default();
-            Ok(json!(keys
-                .iter()
-                .map(|k| web::projects::envs::looks_secret(k))
-                .collect::<Vec<_>>()))
+            Ok(json!(
+                keys.iter()
+                    .map(|k| web::projects::envs::looks_secret(k))
+                    .collect::<Vec<_>>()
+            ))
         }
         "envAuditLog" => Ok(serde_json::to_value(web::projects::envs::audit_lines(
             store, id,
         )?)?),
-        "siteGroups" => Ok(serde_json::to_value(store.groups()?)?),
-        "saveSiteGroups" => Ok(serde_json::to_value(
-            store.save_groups(serde_json::from_value(request["groups"].clone())?)?,
+        "siteGroups" => Ok(serde_json::to_value(
+            if web::projects::disk::load(store)?.enabled {
+                web::projects::disk::groups_view(store)?
+            } else {
+                store.groups()?
+            },
         )?),
+        "saveSiteGroups" => {
+            let groups = serde_json::from_value(request["groups"].clone())?;
+            Ok(serde_json::to_value(
+                if web::projects::disk::load(store)?.enabled {
+                    web::projects::disk::save_groups(store, groups)?
+                } else {
+                    store.save_groups(groups)?
+                },
+            )?)
+        }
+        // The folders of the disk (the sidebar follows them): state, acting on them and the
+        // first comparison with `groups.json`. See web/projects/disk.rs.
+        "diskState" => Ok(web::projects::disk::state(
+            store,
+            request["root"].as_str().map(std::path::Path::new),
+        )?),
+        "diskMove" => web::projects::disk::move_into(
+            store,
+            std::path::Path::new(request["path"].as_str().unwrap_or("")),
+            std::path::Path::new(request["into"].as_str().unwrap_or("")),
+        ),
+        "diskRenameFolder" => web::projects::disk::rename_folder(
+            store,
+            std::path::Path::new(request["path"].as_str().unwrap_or("")),
+            request["name"].as_str().unwrap_or(""),
+        ),
+        "diskCreateFolder" => web::projects::disk::create_folder(
+            store,
+            std::path::Path::new(request["parent"].as_str().unwrap_or("")),
+            request["name"].as_str().unwrap_or(""),
+        ),
+        "diskRemoveFolder" => web::projects::disk::remove_folder(
+            store,
+            std::path::Path::new(request["path"].as_str().unwrap_or("")),
+        ),
+        "diskMultipart" => Ok(serde_json::to_value(web::projects::disk::set_multipart(
+            store,
+            request["path"].as_str().unwrap_or(""),
+            request["on"] == true,
+        )?)?),
+        "diskMigrate" => web::projects::disk::migrate(store, request["accept"] == true),
+        "diskMode" => {
+            web::projects::disk::set_enabled(store, request["enabled"] == true)?;
+            Ok(json!(true))
+        }
         // Points a project whose folder went away at where it is now: a project folder that no
         // other project uses.
         "relocateProject" => {

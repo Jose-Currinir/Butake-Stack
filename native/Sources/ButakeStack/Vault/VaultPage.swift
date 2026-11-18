@@ -56,7 +56,7 @@ private struct VaultLockedView: View {
             case .absent:
                 Button { Task { await vault.create() } } label: { Label(L("vault.create"), systemImage: Symbols.add) }
                     .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction)
-                    .help(L("vault.createHelp")).accessibilityIdentifier("vault.create")
+                    .disabled(vault.creating).help(L("vault.createHelp")).accessibilityIdentifier("vault.create")
             case .missingKey, .unreadable:
                 Button(role: .destructive) { confirmingSetAside = true } label: { Label(L("vault.startOver"), systemImage: Symbols.startOver) }
                     .buttonStyle(.bordered).accessibilityIdentifier("vault.startOver")
@@ -115,9 +115,9 @@ private struct VaultDetail: View {
         // NavigationStack here would replace the window's toolbar while an item is open.
         Group {
             if let item = vault.inspected.flatMap(vault.index.item) {
-                VaultItemDetail(vault: vault, item: item).id(item.id)
+                VaultItemDetail(vault: vault, item: item).id(item.id).vaultFileDrop(vault, container: item.container)
             } else if let app = vault.signing.flatMap(vault.index.container) {
-                VaultSigningDetail(vault: vault, container: app).id(app.id)
+                VaultSigningDetail(vault: vault, container: app).id(app.id).vaultFileDrop(vault, container: app.id)
             } else {
                 switch vault.selection {
                 case .container(let id):

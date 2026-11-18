@@ -1,6 +1,6 @@
 //! `index.json`: groups, per-skill metadata and agents. Written atomically (0600) by the engine only.
 use super::agents;
-use super::model::{valid_id, Ctx, Entry, Group, Index, INDEX_VERSION};
+use super::model::{Ctx, Entry, Group, INDEX_VERSION, Index, valid_id};
 use crate::core::json;
 use anyhow::Result;
 use std::{collections::BTreeMap, fs};
@@ -25,15 +25,25 @@ fn default_groups() -> Vec<Group> {
 /// disk without an entry (put in the first group). Nothing is written.
 pub fn load(ctx: &Ctx) -> Result<Index> {
     let path = ctx.skills.join("index.json");
+    let fresh = || Index {
+        version: INDEX_VERSION,
+        groups: default_groups(),
+        skills: BTreeMap::new(),
+        agents: BTreeMap::new(),
+    };
     let mut index: Index = if fs::symlink_metadata(&path).is_ok() {
-        json::read_regular(&path, Some(1_048_576))?
-    } else {
-        Index {
-            version: INDEX_VERSION,
-            groups: default_groups(),
-            skills: BTreeMap::new(),
-            agents: BTreeMap::new(),
+        match json::read_regular(&path, Some(1_048_576)) {
+            Ok(index) => index,
+            Err(_) => {
+                // An index that cannot be read (damaged by hand or by a sync, too large, not a
+                // regular file) is set aside as `index.json.bad` and the tool starts from the
+                // defaults: the skill folders on disk are adopted again below.
+                let _ = fs::rename(&path, ctx.skills.join("index.json.bad"));
+                fresh()
+            }
         }
+    } else {
+        fresh()
     };
     index.version = INDEX_VERSION;
     index.groups.retain(|g| valid_id(&g.id));

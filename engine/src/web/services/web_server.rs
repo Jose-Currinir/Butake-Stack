@@ -6,7 +6,7 @@ use crate::{
     core::store::Store,
     runtimes::{languages::php, utilities::catalog},
 };
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use std::{collections::BTreeSet, fs};
 
 pub fn php_series(project: &Project, config: &StackConfig) -> Option<String> {
@@ -60,6 +60,18 @@ fn quoted(value: &str) -> Result<String> {
     Ok(format!("\"{value}\""))
 }
 
+/// Answers 404 to any path with a segment that starts with a dot (`.env`, `.git/config`, `..`),
+/// before PHP or the file server see it, so a folder served from the project root never publishes
+/// them. Only `/.well-known/` stays reachable, and only through segments that do not start with a
+/// dot themselves (`/.well-known/../.env` is refused). Caddy's regular expressions have no
+/// look-ahead, hence the second, negated, expression.
+const HIDDEN_FILES: &str = "\t@hidden {\n\t\tpath_regexp hidden (^|/)\\.\n\t\tnot path_regexp wellknown ^/\\.well-known/([^/.][^/]*/?)*$\n\t}\n\trespond @hidden 404\n";
+
+/// Whether the folder a site serves can go into the Caddyfile (`quoted` refuses `{ } \\ " \``).
+pub fn serves_safely(project: &Project) -> bool {
+    quoted(&project.path.join(&project.docroot).to_string_lossy()).is_ok()
+}
+
 enum Backend {
     Php(std::path::PathBuf),
     /// Port, and whether the Host header must be rewritten (Vite's allowed hosts).
@@ -74,6 +86,9 @@ fn html(text: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
+        // Caddy substitutes `{env.X}` and `{file.<path>}` inside the heredoc body when it runs.
+        .replace('{', "&#123;")
+        .replace('}', "&#125;")
 }
 
 /// Page served while a site is off: its name and address, light and dark, and a link that opens
@@ -83,22 +98,27 @@ pub fn off_page(project: &Project) -> String {
     let name = html(&project.name);
     let domain = html(project.domains.first().map(String::as_str).unwrap_or(""));
     let id = html(&project.id);
-    format!(concat!(
-        "<!doctype html><html lang=es><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>",
-        "<title>{name} está apagado</title><style>",
-        ":root{{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e5e5ea;--accent:#0b8147}}",
-        "@media (prefers-color-scheme:dark){{:root{{--bg:#111;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989d;--line:#2c2c2e;--accent:#19d79f}}}}",
-        "*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,'Inter',sans-serif}}",
-        ".card{{max-width:440px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:32px;box-shadow:0 20px 50px #0000001a}}",
-        ".state{{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted);padding:4px 10px;border:1px solid var(--line);border-radius:999px}}",
-        ".dot{{width:8px;height:8px;border-radius:50%;background:var(--muted)}}h1{{font-size:26px;line-height:1.2;margin:18px 0 6px}}",
-        "code{{font:14px ui-monospace,SFMono-Regular,monospace;color:var(--muted)}}p{{color:var(--muted);margin:16px 0 24px}}",
-        "a.button{{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;font-weight:600;padding:11px 18px;border-radius:12px}}",
-        "@media (prefers-color-scheme:dark){{a.button{{color:#0b2b20}}}}footer{{margin-top:24px;font-size:12px;color:var(--muted)}}",
-        "</style><main class=card><span class=state><span class=dot></span>Apagado</span><h1>{name}</h1><code>{domain}</code>",
-        "<p>Este sitio está registrado en Stack, pero no se está sirviendo. Enciéndelo desde la app o desde la barra de menús.</p>",
-        "<a class=button href='butakestack://site/{id}'>Abrir en Stack</a><footer>Stack, de Butake · desarrollo local</footer></main></html>"
-    ), name = name, domain = domain, id = id)
+    format!(
+        concat!(
+            "<!doctype html><html lang=es><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>",
+            "<title>{name} está apagado</title><style>",
+            ":root{{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e5e5ea;--accent:#0b8147}}",
+            "@media (prefers-color-scheme:dark){{:root{{--bg:#111;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989d;--line:#2c2c2e;--accent:#19d79f}}}}",
+            "*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,'Inter',sans-serif}}",
+            ".card{{max-width:440px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:32px;box-shadow:0 20px 50px #0000001a}}",
+            ".state{{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted);padding:4px 10px;border:1px solid var(--line);border-radius:999px}}",
+            ".dot{{width:8px;height:8px;border-radius:50%;background:var(--muted)}}h1{{font-size:26px;line-height:1.2;margin:18px 0 6px}}",
+            "code{{font:14px ui-monospace,SFMono-Regular,monospace;color:var(--muted)}}p{{color:var(--muted);margin:16px 0 24px}}",
+            "a.button{{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;font-weight:600;padding:11px 18px;border-radius:12px}}",
+            "@media (prefers-color-scheme:dark){{a.button{{color:#0b2b20}}}}footer{{margin-top:24px;font-size:12px;color:var(--muted)}}",
+            "</style><main class=card><span class=state><span class=dot></span>Apagado</span><h1>{name}</h1><code>{domain}</code>",
+            "<p>Este sitio está registrado en Stack, pero no se está sirviendo. Enciéndelo desde la app o desde la barra de menús.</p>",
+            "<a class=button href='butakestack://site/{id}'>Abrir en Stack</a><footer>Stack, de Butake · desarrollo local</footer></main></html>"
+        ),
+        name = name,
+        domain = domain,
+        id = id
+    )
 }
 
 /// Caddyfile for every PHP site. `skip_install_trust`: Caddy never touches the keychain itself;
@@ -135,6 +155,11 @@ pub fn caddyfile(
             _ => continue,
         };
         let root = project.path.join(&project.docroot);
+        // A folder Caddy cannot be told about safely is left out, not allowed to void the file of
+        // every other site; the project's page says why (`unsafe_web_path`).
+        if project.enabled && !serves_safely(project) && !matches!(backend, Backend::Proxy(..)) {
+            continue;
+        }
         let mut schemes = vec![("http", "fd/3")];
         if project.https {
             schemes.push(("https", "fd/4"));
@@ -176,7 +201,7 @@ pub fn caddyfile(
             }
             match &backend {
                 Backend::Php(socket) => out.push_str(&format!(
-                    "\troot * {}\n\tencode zstd gzip\n\tphp_fastcgi {}\n\tfile_server\n}}\n\n",
+                    "\troot * {}\n\tencode zstd gzip\n{HIDDEN_FILES}\tphp_fastcgi {}\n\tfile_server\n}}\n\n",
                     quoted(&root.to_string_lossy())?,
                     quoted(&format!("unix/{}", socket.to_string_lossy()))?
                 )),
@@ -191,7 +216,7 @@ pub fn caddyfile(
                     }
                 )),
                 Backend::Files => out.push_str(&format!(
-                    "\troot * {}\n\tencode zstd gzip\n\tfile_server\n}}\n\n",
+                    "\troot * {}\n\tencode zstd gzip\n{HIDDEN_FILES}\tfile_server\n}}\n\n",
                     quoted(&root.to_string_lossy())?
                 )),
             }
@@ -251,6 +276,11 @@ mod tests {
         assert!(
             off_page(&evil_name).contains("&lt;script&gt;") && !off_page(&evil_name).contains('\n')
         );
+        // Caddy placeholders in a name never reach the page as such (R-04).
+        let mut braces = evil_name.clone();
+        braces.name = "{env.HOME}{file./etc/hosts}".into();
+        let page = off_page(&braces);
+        assert!(!page.contains("{env.") && !page.contains("{file.") && page.contains("&#123;env."));
         // With a real Caddy available (CADDY_BIN), the generated file must adapt cleanly.
         if let Some(caddy) = std::env::var_os("CADDY_BIN") {
             let mut astro = project.clone();
@@ -284,10 +314,33 @@ mod tests {
             );
         }
         assert!(file.contains("php_fastcgi \"unix/"));
+        // Dotfiles answer 404 before PHP or the file server (R-03), except `/.well-known/`.
+        let hidden = file.find("respond @hidden 404").unwrap();
+        assert!(hidden < file.find("php_fastcgi").unwrap());
+        assert!(file.contains("path_regexp hidden (^|/)\\.") && file.contains("^/\\.well-known/"));
+        let mut files = project.clone();
+        files.id = "libro".into();
+        files.domains = vec!["libro.test".into()];
+        files.kind = crate::core::model::ProjectKind::Static;
+        files.runtime.clear();
+        files.docroot = ".".into();
+        let static_file = caddyfile(&store, &[files], &config, true).unwrap();
+        assert!(
+            static_file.find("respond @hidden 404").unwrap()
+                < static_file.find("file_server").unwrap()
+        );
         let evil = temp.path().join("x}\nimport");
         fs::create_dir_all(&evil).unwrap();
         project.path = evil;
         project.docroot = ".".into();
-        assert!(caddyfile(&store, &[project], &config, true).is_err());
+        // The site with that folder is left out; the others still get their file (R-59).
+        let mut healthy = project.clone();
+        healthy.path = site.clone();
+        healthy.id = "sano".into();
+        healthy.domains = vec!["sano.test".into()];
+        healthy.docroot = "public".into();
+        assert!(!serves_safely(&project) && serves_safely(&healthy));
+        let mixed = caddyfile(&store, &[project, healthy], &config, true).unwrap();
+        assert!(mixed.contains("sano.test") && !mixed.contains("demo.test"));
     }
 }

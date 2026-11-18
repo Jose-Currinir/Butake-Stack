@@ -1,0 +1,28 @@
+# cargo-deny: `cd engine && cargo deny check` (CI runs it with cargo-audit, see .github/workflows/native.yml).
+
+[graph]
+# The engine is only built for macOS.
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+
+[advisories]
+# Known vulnerabilities and unmaintained crates in Cargo.lock fail the check.
+yanked = "deny"
+
+[licenses]
+# Licenses of the dependencies in Cargo.lock today; a crate under another one fails until reviewed.
+allow = ["MIT", "Apache-2.0", "Unicode-3.0"]
+confidence-threshold = 0.9
+# Stack's own crate is not published and carries no license field.
+private = { ignore = true }
+# option-ext (through dirs) is MPL-2.0: file-level copyleft, used unmodified; allowed for it only.
+exceptions = [{ allow = ["MPL-2.0"], crate = "option-ext" }]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

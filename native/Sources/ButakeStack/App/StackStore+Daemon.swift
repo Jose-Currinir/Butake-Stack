@@ -11,8 +11,20 @@ extension StackStore {
         try? await Task.sleep(for: .milliseconds(800))
         await refreshStatus()
     }
-    func processAction(_ id: String, _ action: String) async {
-        await run(L("busy.\(action)")) { let _: Bool = try await self.call(["method": "processAction", "id": id, "action": action]) }
+    func processAction(_ id: String, _ action: String, from surface: StopSurface = .window) async {
+        var done = false
+        await run(L("busy.\(action)"), from: surface,
+                  failureTitle: String(format: L(action == "stop" ? "error.stopFailed" : "error.startFailed"), processTitle(id))) {
+            let _: Bool = try await self.call(["method": "processAction", "id": id, "action": action])
+            done = true
+        }
+        // Starting and stopping can be taken back; a restart leaves nothing to undo.
+        if done, action == "start" || action == "stop" {
+            let opposite = action == "start" ? "stop" : "start"
+            undoable(String(format: L(action == "start" ? "menu.undo.start" : "menu.undo.stop"), processTitle(id)),
+                     undo: { [weak self] in await self?.processAction(id, opposite, from: surface) },
+                     redo: { [weak self] in await self?.processAction(id, action, from: surface) })
+        }
         try? await Task.sleep(for: .milliseconds(600))
         await refreshStatus()
     }

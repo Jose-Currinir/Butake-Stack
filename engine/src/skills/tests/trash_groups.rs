@@ -15,13 +15,14 @@ fn delete_and_restore_bring_the_links_back() {
     assert!(!env.skills_dir().join("a").exists());
     assert!(fs::symlink_metadata(env.link_path(".claude/skills", "a")).is_err());
     assert_eq!(env.ok("skillsList", json!({}))["skills"], json!([]));
-    assert!(env
-        .store
-        .root()
-        .join("skills-trash")
-        .join(&trash)
-        .join("files/extra.md")
-        .exists());
+    assert!(
+        env.store
+            .root()
+            .join("skills-trash")
+            .join(&trash)
+            .join("files/extra.md")
+            .exists()
+    );
 
     let back = env.ok(
         "skillsRestore",
@@ -29,10 +30,11 @@ fn delete_and_restore_bring_the_links_back() {
     );
     assert_eq!(back["id"], "a");
     assert_eq!(back["agents"], json!(["claude"]));
-    assert!(env
-        .link_path(".claude/skills", "a")
-        .join("extra.md")
-        .exists());
+    assert!(
+        env.link_path(".claude/skills", "a")
+            .join("extra.md")
+            .exists()
+    );
     assert!(!env.store.root().join("skills-trash").join(&trash).exists());
     assert_eq!(
         env.code(

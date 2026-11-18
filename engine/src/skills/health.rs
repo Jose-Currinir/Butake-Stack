@@ -1,7 +1,7 @@
 //! Health: what is wrong with the skills and their links, without changing anything.
 use super::model::{Ctx, Index};
 use super::{agents, links, skill_file};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{collections::BTreeMap, fs};
 
 pub fn check(ctx: &Ctx, index: &Index) -> Vec<Value> {

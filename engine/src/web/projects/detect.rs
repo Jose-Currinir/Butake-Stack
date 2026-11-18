@@ -1,7 +1,7 @@
 //! Proposes a site configuration from a folder. Of `.env`
 //! only variable names and selected numeric port values are used.
 use crate::core::model::{Project, ProjectKind, ProjectProcess};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Serialize;
 use serde_json::Value;
 use std::{
@@ -45,10 +45,10 @@ pub fn env_summary(project: &Path) -> (BTreeMap<String, String>, Vec<String>) {
         }
         if ENV_PORTS.contains(&key.as_str()) {
             let value = value.trim().trim_matches('"').trim_matches('\'');
-            if let Ok(port) = value.parse::<u16>() {
-                if port != 0 {
-                    values.insert(key.clone(), port.to_string());
-                }
+            if let Ok(port) = value.parse::<u16>()
+                && port != 0
+            {
+                values.insert(key.clone(), port.to_string());
             }
         }
         keys.push(key);
@@ -257,6 +257,16 @@ fn root_index(path: &Path) -> bool {
 pub fn serves_repository(project: &Project) -> bool {
     project.kind == ProjectKind::Static
         && std::fs::symlink_metadata(project.path.join(&project.docroot).join(".git")).is_ok()
+}
+
+/// A PHP or static site whose served folder is the project's own root publishes every file in it
+/// (sources, `composer.json`, dumps): the page says it. Dotfiles are already refused by the server.
+pub fn serves_project_root(project: &Project) -> bool {
+    matches!(project.kind, ProjectKind::Php | ProjectKind::Static)
+        && project
+            .docroot
+            .components()
+            .all(|c| matches!(c, std::path::Component::CurDir))
 }
 
 pub fn detect(path: &Path) -> Result<Detection> {

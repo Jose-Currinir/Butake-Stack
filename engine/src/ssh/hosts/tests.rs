@@ -173,9 +173,11 @@ fn jump_hosts_are_one_hop_and_cannot_be_deleted_while_used() {
         ["-p", "22", "--", "deploy@10.0.0.5"]
     );
     let batch = connection_options(&store, &inner, true).unwrap();
-    assert!(batch
-        .iter()
-        .any(|a| a.starts_with("ProxyCommand=") && a.contains("'BatchMode=yes'")));
+    assert!(
+        batch
+            .iter()
+            .any(|a| a.starts_with("ProxyCommand=") && a.contains("'BatchMode=yes'"))
+    );
     delete(&store, &inner.id).unwrap();
     delete(&store, &bastion.id).unwrap();
 }

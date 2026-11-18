@@ -1,11 +1,11 @@
 //! Deleted skills wait 30 days in `skills-trash/<id>-<epoch>/` (`entry.json` + `files/`) so that
 //! «Deshacer» can bring them back with their links.
-use super::model::{fail, valid_id, Ctx, Entry, Index, TRASH_DAYS};
+use super::model::{Ctx, Entry, Index, TRASH_DAYS, fail, valid_id};
 use super::{links, skill_file};
 use crate::core::{json, time::now_secs};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 
 #[derive(Serialize, Deserialize)]
@@ -98,8 +98,23 @@ pub fn restore(ctx: &Ctx, index: &mut Index, trash_id: &str) -> Result<String> {
     if enabled {
         links::create_for(ctx, index, &id, &wanted);
     }
-    let _ = fs::remove_dir_all(&dir);
+    // The trash entry stays until the caller has saved the index (`discard`): a failed save
+    // can still be undone (`unrestore`) without losing the group and tags kept in the entry.
     Ok(id)
+}
+
+/// Removes a trash entry once its skill is back and recorded.
+pub fn discard(ctx: &Ctx, trash_id: &str) {
+    let _ = fs::remove_dir_all(ctx.trash.join(trash_id));
+}
+
+/// Puts a just restored skill back into its trash entry (the index could not be saved).
+pub fn unrestore(ctx: &Ctx, index: &mut Index, trash_id: &str, id: &str) {
+    super::links::remove_all(ctx, index, id);
+    index.skills.remove(id);
+    if let Ok(folder) = ctx.dir(id) {
+        let _ = fs::rename(folder, ctx.trash.join(trash_id).join("files"));
+    }
 }
 
 /// `skillsTrashList`: the deleted skills still in the trash, newest first, as

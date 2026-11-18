@@ -8,7 +8,11 @@ struct EngineFailure: Codable, LocalizedError {
     var errorDescription: String? {
         // GitHub limited this network: the detail is the minutes until it resets.
         if code == "source_rate_limited" { return String(format: L(messageKey), detail ?? "60") }
-        return detail.map { "\(L(messageKey)): \($0)" } ?? L(messageKey)
+        // A code this app has no text for still says its cause when the engine gave one.
+        guard let text = localized(messageKey) else {
+            return detail.map { String(format: L("error.withCause"), $0) } ?? L("engine.requestFailed")
+        }
+        return detail.map { "\(text): \($0)" } ?? text
     }
     /// The engine's code as it travels inside other answers ("source_rate_limited:12").
     init(code: String) {
@@ -34,7 +38,10 @@ actor StackEngine {
     let executableURL: URL
     init(executable: URL = StackEngine.executable) { self.executableURL = executable }
     static var executable: URL {
+        // Only debug builds (tests, QA) accept another engine: a published app runs the one inside its signature.
+        #if DEBUG
         if let override = ProcessInfo.processInfo.environment["BUTAKE_STACK_ENGINE"] { return URL(fileURLWithPath: override) }
+        #endif
         return (Bundle.main.resourceURL ?? URL(fileURLWithPath: "/nonexistent")).appendingPathComponent("butake-stack")
     }
     func call<T: Decodable>(_ parameters: [String: Any], as type: T.Type = T.self) async throws -> T {
@@ -88,6 +95,11 @@ actor StackEngine {
     }
     nonisolated func statusStream() -> AsyncThrowingStream<StackStatus, Error> {
         snapshots(["watch-status"])
+    }
+
+    /// A line each time the projects folder changes on the disk (the daemon looks at it).
+    nonisolated func diskStream() -> AsyncThrowingStream<DiskRevision, Error> {
+        snapshots(["watch-disk"])
     }
 
     nonisolated func logStream(_ id: String) -> AsyncThrowingStream<[String], Error> {

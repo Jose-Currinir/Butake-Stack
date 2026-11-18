@@ -15,10 +15,10 @@ use crate::core::fsutil::write_private;
 use crate::core::rand::random_u64;
 use crate::{
     core::store::Store,
-    db::client::{self, RunOutput, Target, MAX_ROWS},
+    db::client::{self, MAX_ROWS, RunOutput, Target},
     db::sql::{self, Dialect, ResultSet},
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -89,7 +89,8 @@ fn socket(target: &Target, database: &str, write: bool) -> Result<PathBuf> {
 }
 
 /// Runs read-only statements in the connection's persistent session, starting it if needed.
-/// Any failure of the session itself falls back to a one-shot client.
+/// A session that cannot be reached falls back to a one-shot client; one that was reached and
+/// failed is an error (`session_failed`), never a second run.
 pub fn read(
     target: &Target,
     database: &str,
@@ -102,20 +103,35 @@ pub fn read(
         return client::run_sql(target, database, statements, max_rows);
     }
     let path = socket(target, database, false)?;
-    if let Ok(output) = ask(&path, statements, max_rows) {
-        return Ok(output);
+    // Only a session that could not be reached is replaced by another way of running: once the
+    // request was sent, a slow or dropped answer is an error, because running the statements
+    // again would repeat them (twice the load, and twice the effect of one that writes).
+    match ask(&path, statements, max_rows) {
+        Err(error) if error.is::<NotReached>() => {}
+        other => return other,
     }
     // Not running yet (or gone): start it and ask once more, else run one-shot.
-    if UnixStream::connect(&path).is_err() && start(target, database, &path, false).is_ok() {
-        if let Ok(output) = ask(&path, statements, max_rows) {
-            return Ok(output);
+    if start(target, database, &path, false).is_ok() {
+        match ask(&path, statements, max_rows) {
+            Err(error) if error.is::<NotReached>() => {}
+            other => return other,
         }
     }
     client::run_sql(target, database, statements, max_rows)
 }
 
+/// The request never reached the session (nothing is listening, or the line could not be sent).
+#[derive(Debug)]
+struct NotReached;
+impl std::fmt::Display for NotReached {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("session_not_reached")
+    }
+}
+impl std::error::Error for NotReached {}
+
 fn ask(path: &PathBuf, statements: &[String], max_rows: usize) -> Result<RunOutput> {
-    let mut stream = UnixStream::connect(path)?;
+    let mut stream = UnixStream::connect(path).map_err(|_| NotReached)?;
     stream.set_read_timeout(Some(
         REQUEST_TIMEOUT * statements.len().max(1) as u32 + Duration::from_secs(5),
     ))?;
@@ -124,10 +140,14 @@ fn ask(path: &PathBuf, statements: &[String], max_rows: usize) -> Result<RunOutp
         max_rows,
     })?;
     line.push('\n');
-    stream.write_all(line.as_bytes())?;
+    stream.write_all(line.as_bytes()).map_err(|_| NotReached)?;
     let mut answer = String::new();
-    BufReader::new(stream).read_line(&mut answer)?;
-    let value: serde_json::Value = serde_json::from_str(&answer)?;
+    // From here on the session may have run the statements.
+    BufReader::new(stream)
+        .read_line(&mut answer)
+        .map_err(|_| anyhow::anyhow!("session_failed"))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&answer).map_err(|_| anyhow::anyhow!("session_failed"))?;
     ensure!(value["ok"] == true, "session_failed");
     Ok(serde_json::from_value(value["value"].clone())?)
 }
@@ -214,7 +234,9 @@ fn start(target: &Target, database: &str, path: &PathBuf, write: bool) -> Result
         .stdout(Stdio::null());
     // Diagnostics only on demand, to a private log next to the socket.
     if std::env::var_os("BUTAKE_STACK_DEBUG").is_some() {
-        command.stderr(std::fs::File::create(path.with_extension("log"))?);
+        command.stderr(crate::core::fsutil::private_log(
+            &path.with_extension("log"),
+        )?);
     } else {
         command.stderr(Stdio::null());
     }
@@ -660,5 +682,27 @@ mod tests {
             let longest = root.join("run/dbs-0123456789abcdef.sock");
             assert!(longest.as_os_str().len() < 104);
         }
+    }
+
+    /// Nothing listening is a session to start; one that took the request and then dropped it is an
+    /// error, because the statements may have run.
+    #[test]
+    fn only_an_unreachable_session_is_replaced_by_another_run() {
+        use std::io::Read;
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("s.sock");
+        let statements = vec!["SELECT 1".to_string()];
+        let error = super::ask(&path, &statements, 10).unwrap_err();
+        assert!(error.is::<super::NotReached>());
+        let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut byte = [0u8; 1];
+            let _ = stream.read(&mut byte);
+        });
+        let error = super::ask(&path, &statements, 10).unwrap_err();
+        assert!(!error.is::<super::NotReached>());
+        assert_eq!(error.to_string(), "session_failed");
+        server.join().unwrap();
     }
 }

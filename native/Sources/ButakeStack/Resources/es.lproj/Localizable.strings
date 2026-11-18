@@ -46,7 +46,8 @@
 "busy.reloading" = "Reiniciando Stack…";
 "busy.removing" = "Quitando…";
 "busy.saving" = "Guardando…";
-"busy.starting" = "Iniciando el supervisor…";
+"busy.moving" = "Moviendo…";
+"busy.starting" = "Iniciando Stack…";
 "busy.start" = "Iniciando…";
 "busy.stop" = "Deteniendo…";
 "busy.restart" = "Reiniciando…";
@@ -58,7 +59,7 @@
 "lifecycle.ended" = "Sin soporte";
 "lifecycle.until" = "hasta %@";
 
-"engine.requestFailed" = "No se pudo completar la solicitud. Revisa la configuración y vuelve a intentarlo.";
+"engine.requestFailed" = "Stack no pudo completar la acción y no sabe la causa. Abre Registros para ver el detalle o inténtalo otra vez.";
 "engine.sites" = "Proyectos que lo usan";
 "engine.noSites" = "Ningún proyecto lo usa todavía.";
 "engine.start" = "Iniciar";
@@ -80,9 +81,10 @@
 "engine.reinstallExtensionsList" = "citext, pgcrypto, uuid-ossp, pg_trgm, unaccent, hstore, btree_gin, btree_gist, pg_stat_statements y OpenSSL";
 "engine.reinstallDetail" = "Se compila desde el código oficial verificado (tarda unos minutos). La versión actual sigue en uso hasta que la nueva esté completa; después PostgreSQL se reinicia con ella. Los datos no se tocan.";
 "engine.responseTooLarge" = "La respuesta es demasiado grande. Reduce el tamaño de la consulta e inténtalo de nuevo.";
+"engine.copyAddress" = "Copiar dirección";
 
-"daemon.requestFailed" = "No se pudo completar la solicitud al supervisor. Revisa el proceso y su configuración.";
-"daemon.alreadyRunning" = "El supervisor ya está en ejecución.";
+"daemon.requestFailed" = "Stack no pudo completar la solicitud. Revisa que su servicio de fondo esté en marcha.";
+"daemon.alreadyRunning" = "Stack ya está en marcha.";
 
 "keychain.notice.title" = "Un último permiso del Llavero";
 "keychain.notice.detail" = "Desde esta versión, Stack se firma siempre con la misma identidad. La próxima vez que use algo guardado en el Llavero (secretos de Entornos, contraseñas de bases, frases de claves SSH, la clave de la Bóveda o las claves de AWS), macOS pedirá tu contraseña una última vez por cada dato. Elige «Permitir siempre»: las próximas actualizaciones de Stack ya no lo pedirán. Los secretos de cada entorno quedan juntos en un solo dato.";
@@ -99,6 +101,10 @@
 "sidebar.components" = "Componentes";
 "sidebar.closedCount" = "%d proyectos";
 "sidebar.tools" = "Herramientas";
+"sidebar.menu.toolSettings" = "Ajustes de la herramienta…";
+"sidebar.menu.turnOff" = "Apagar herramienta";
+"sidebar.menu.undoTurnOff" = "Apagar %@";
+"sidebar.menu.category" = "Abrir categoría";
 
 "menu.restartAll" = "Reiniciar todo";
 "menu.open" = "Abrir Stack";
@@ -128,6 +134,20 @@
 "menu.git" = "Git";
 "menu.renameProject" = "Renombrar…";
 "menu.changeFolder" = "Cambiar carpeta…";
+"menu.back" = "Atrás";
+"menu.forward" = "Adelante";
+"menu.backHelp" = "Volver a la página anterior (⌘[)";
+"menu.forwardHelp" = "Ir a la página siguiente (⌘])";
+"menu.goTool" = "Ir a herramienta";
+"menu.findProject" = "Buscar proyecto";
+"menu.cloneRepository" = "Clonar repositorio…";
+"menu.undoDone" = "Hecho: %@";
+"menu.undoAction" = "Deshacer";
+"menu.projectTabs" = "Ir a la pestaña";
+"menu.undo.start" = "Iniciar %@";
+"menu.undo.stop" = "Detener %@";
+"menu.undo.rename" = "Renombrar %@";
+"menu.undo.move" = "Cambiar carpeta de %@";
 
 "palette.prompt" = "Ir a un proyecto, iniciar un servicio, abrir una página…";
 "palette.openPage" = "Abrir página";
@@ -156,14 +176,16 @@
 "panel.quit" = "Salir";
 "panel.projects" = "Proyectos";
 "panel.dnsHelp" = "Estado de los dominios .test";
+"panel.dnsOn" = "Dominios .%@ activos";
+"panel.dnsOff" = "Dominios .%@ sin configurar";
 
 "stackState.setup" = "Falta preparar";
 "stackState.stopped" = "Detenido";
 "stackState.attention" = "Algo necesita atención";
 "stackState.running" = "Todo en marcha";
 "stackState.title" = "Estado";
-"stackState.help" = "Supervisor, servicios y puertos de Stack";
-"stackState.supervisor" = "Supervisor";
+"stackState.help" = "Estado de Stack, sus servicios y puertos";
+"stackState.supervisor" = "Stack";
 "stackState.start" = "Iniciar";
 "stackState.restart" = "Reiniciar";
 "stackState.on" = "Activado";
@@ -179,14 +201,19 @@
 "favorites.add" = "Agregar a favoritos";
 "favorites.remove" = "Quitar de favoritos";
 "favorites.openSite" = "Abrir en el navegador";
+"favorites.addFor" = "Agregar %@ a favoritos";
+"favorites.removeFor" = "Quitar %@ de favoritos";
+"favorites.openSiteFor" = "Abrir %@ en el navegador";
 
 /* Inicio */
+"home.filter" = "Filtrar proyectos";
 "home.more" = "Más acciones de Inicio";
 "home.empty" = "Aún no hay proyectos";
 "home.stopped" = "Stack está detenido";
 "home.stoppedDetail" = "Tus proyectos .test no se sirven hasta que lo inicies.";
 "home.setupDetail" = "Instala lo mínimo para servir tus proyectos .test.";
 "home.noSites" = "Crea un proyecto o agrega una carpeta existente.";
+"home.state.crashed" = "Falló: ver registros";
 
 /* Asistente de configuración y activación */
 "setup.title" = "Preparar Stack";
@@ -211,6 +238,7 @@
 "assistant.next" = "Siguiente";
 "assistant.back" = "Atrás";
 "assistant.step" = "Paso %d de %d";
+"assistant.prepare" = "Preparar lo marcado";
 "assistant.promise.0" = "Sumas verificadas";
 "assistant.promise.1" = "Contraseña de administrador solo para .test y el certificado";
 "assistant.promise.2" = "Nada sin tu confirmación";
@@ -258,6 +286,11 @@
 "profiles.question" = "¿Con qué trabajas?";
 "profiles.hint" = "Marca todo lo que usas. Abajo verás qué necesita y qué ya tienes; nada se instala sin preguntarte.";
 "profiles.needs" = "Lo que necesita";
+"profiles.detected" = "Según tus proyectos";
+"profiles.detectedReason" = "%1$@, por %2$@. Necesita %3$@.";
+"profiles.detectedMark" = "Marcar lo que piden tus proyectos";
+"profiles.usual" = "Marcar lo habitual";
+"profiles.usualDetail" = "Marca Laravel y JavaScript. Instala PHP, Composer, Node.js y las herramientas de Apple; nada se instala sin tu confirmación.";
 
 /* Actualizaciones */
 "updateAutomatic" = "Buscar actualizaciones automáticamente";
@@ -284,6 +317,7 @@
 "updateNoPermission" = "No hay permiso para reemplazar la app en su carpeta. Se abrió el instalador verificado: arrástralo a Aplicaciones.";
 "updatePendingQuit" = "La actualización está lista. Guarda o cierra lo que tengas abierto y sal de Stack para terminar de instalarla.";
 "updateSignatureInvalid" = "El instalador no tiene una firma válida de Butake SpA. No se instaló nada.";
+"updateVersionMismatch" = "La app descargada no es la versión anunciada o no es más nueva que la instalada. No se instaló nada.";
 
 /* Proyectos: lista, página y ajustes */
 "site.chooseFolder" = "Elegir carpeta";
@@ -322,6 +356,11 @@
 "project.credentials.locked" = "La Bóveda está bloqueada";
 "project.credentials.unlock" = "Desbloquear…";
 "project.credentials.open" = "Abrir en la Bóveda";
+"project.version.seeLanguages" = "Ver en Lenguajes";
+"project.version.help" = "Cambiar la versión de %@ de este proyecto";
+"project.version.label" = "Versión de %@";
+"project.version.changed" = "Este proyecto usa ahora %@ %@";
+"project.version.undo" = "Cambiar la versión de %@";
 
 "kind.laravel" = "Laravel";
 "kind.php" = "PHP";
@@ -364,15 +403,36 @@
 "groups.untitled" = "Carpeta sin nombre";
 "groups.loose" = "Sin carpeta";
 "groups.empty" = "Arrastra proyectos aquí";
+"groups.newInside" = "Nueva carpeta aquí…";
+"groups.newRepo" = "Nuevo";
+"groups.newRepoAdd" = "Agregar";
+"groups.newRepoHelp" = "Hay un repositorio nuevo en esta carpeta del disco. Stack no lo agrega solo.";
+"groups.suggest" = "¿Varias partes?";
+"groups.suggestConvert" = "Convertir";
+"groups.moveConfirm" = "¿Mover la carpeta en el disco?";
+"groups.moveAction" = "Mover";
+"groups.moveDetail" = "«%1$@» pasa a «%2$@»: se mueve la carpeta en el disco, de %3$@ a %4$@. Puedes deshacerlo con ⌘Z.";
+"groups.undoMove" = "Mover «%@»";
+"groups.followedOne" = "«%1$@» se movió a %2$@. Stack siguió su carpeta.";
+"groups.followedMany" = "%d proyectos se movieron en el disco. Stack siguió sus carpetas.";
 "groups.collapse" = "Cerrar carpeta";
 "groups.expand" = "Abrir carpeta";
 "groups.open" = "Abierta";
 "groups.closed" = "Cerrada";
 "groups.collapseAll" = "Plegar todas las carpetas";
 "groups.expandAll" = "Desplegar todas las carpetas";
+"groups.migrate.title" = "Ordenar según las carpetas del disco";
+"groups.migrate.detail" = "La barra lateral ahora sigue las carpetas de tu carpeta de proyectos. Estas carpetas de Stack no existen en el disco todavía.";
+"groups.migrate.matches" = "Carpetas que ya coinciden con el disco: %d. Se convierten solas.";
+"groups.migrate.folder" = "Se crea «%@» y se mueven:";
+"groups.migrate.conflict" = "Ya existe: no se mueve";
+"groups.migrate.accept" = "Mover y convertir";
+"groups.migrate.keep" = "Dejar como están";
+"groups.migrate.keepHelp" = "Los proyectos no se mueven. Las carpetas de antes siguen guardadas en groups.json.";
+"groups.migrate.later" = "Ahora no";
 
 "import.title" = "Abrir «%@»";
-"import.summary" = "%1$d proyectos encontrados · %2$d con sitio web";
+"import.summary" = "%1$d proyectos encontrados · %2$d con página web";
 "import.select" = "Seleccionar";
 "import.selectWeb" = "Sitios web";
 "import.selectAll" = "Todos";
@@ -381,7 +441,7 @@
 "import.already" = "Ya agregado";
 "import.renamed" = "Nombre en uso";
 "import.renamedHelp" = "Ya hay un proyecto «%1$@»: este se agrega como «%2$@».";
-"import.notWeb" = "Sin sitio web detectado";
+"import.notWeb" = "Sin página web detectada";
 "import.progress" = "Agregando %1$d de %2$d…";
 "import.failed" = "No se pudieron agregar: %@";
 "import.off" = "Se agregan detenidos; inicia cada uno cuando lo necesites.";
@@ -389,14 +449,16 @@
 "import.done" = "%d proyectos agregados";
 "import.choose" = "Abrir carpeta";
 "import.chooseMessage" = "Elige la carpeta donde guardas tus proyectos: Stack detecta cada uno.";
-"import.notSite" = "App, no sitio web";
+"import.notSite" = "App, no página web";
 "import.grouping.subfolders" = "Una por subcarpeta";
 "import.grouping.single" = "Todo en «%@»";
 "import.grouping.none" = "Sin carpeta";
 
 "missing.title" = "Carpeta no encontrada";
 "missing.detail" = "Se movió o se renombró fuera de Stack, o está en un disco desconectado. No se inicia hasta encontrarla.";
-"missing.find" = "Buscar carpeta…";
+"missing.find" = "Ubicar…";
+"missing.badge" = "No encontrado";
+"missing.remove" = "Quitar de Stack";
 "missing.findPrompt" = "Usar esta carpeta";
 "missing.findMessage" = "Elige dónde está ahora la carpeta de «%@».";
 "missing.found" = "Carpeta encontrada";
@@ -409,6 +471,8 @@
 "attention.service_missing" = "Este proyecto usa %@, que no está instalado.";
 "attention.port_conflict" = "El puerto %1$ld también lo declara «%2$@».";
 "attention.serves_repository" = "Este sitio estático sirve una carpeta con un repositorio Git: su historial quedaría a la vista en su dirección.";
+"attention.unsafe_web_path" = "La ruta de este proyecto tiene llaves, comillas o barras invertidas: no se puede servir con seguridad y quedó fuera del servidor web. Renombra la carpeta.";
+"attention.serves_project_root" = "Este sitio sirve la carpeta raíz del proyecto: todos sus archivos (código, composer.json, copias) quedarían a la vista en su dirección. Los que empiezan con punto, como .env y .git, no se entregan. Conviene servir una subcarpeta, por ejemplo public.";
 "attention.program_missing" = "El comando «%1$@» no puede ejecutarse: falta %2$@.";
 "attention.script_missing" = "El comando «%1$@» llama al guion «%2$@», que el proyecto no tiene.";
 "attention.script_forwards" = "El guion «%1$@» solo llama a «%2$@»: los argumentos de Stack (puerto, dirección) no llegan al servidor.";
@@ -456,6 +520,15 @@
 
 "process.autostart" = "Inicio automático";
 "process.logs" = "Ver registro";
+"process.autostartShort" = "Automático";
+"process.logsShort" = "Registros";
+"process.restart" = "Reiniciar";
+"process.copyCommand" = "Copiar comando";
+"process.commandCopied" = "Comando copiado";
+"process.all" = "Acciones para todos los procesos";
+"process.startAll" = "Iniciar todos";
+"process.stopAll" = "Detener todos";
+"process.restartAll" = "Reiniciar todos";
 
 "task.composer" = "composer install";
 "task.npm" = "npm install";
@@ -558,7 +631,7 @@
 "new.groupDetail" = "Dónde aparece el proyecto en la barra lateral y en Inicio.";
 "new.groupNone" = "Ninguna";
 "new.needsTool" = "Este tipo necesita %@.";
-"new.notASite" = "No es un sitio web: no se sirve en .test";
+"new.notASite" = "No es una página web: no se sirve en .test";
 "new.pythonDetail" = "Versión de Python del proyecto (queda en .python-version).";
 "new.doneApp" = "Proyecto creado";
 "new.needsPython" = "Este tipo necesita Python de Stack: instálalo en Lenguajes › Python.";
@@ -573,11 +646,20 @@
 "new.frameworkFits" = "%@ · %@";
 "new.frameworkNeeds" = "Necesita %@";
 "new.orNewer" = "%@ o más nueva";
+"new.modeClone" = "Clonar repositorio";
+"new.cloneTitle" = "Clonar un repositorio";
+"new.cloneDetail" = "Trae a este Mac un repositorio de GitHub, Bitbucket o de cualquier dirección y lo agrega a Stack.";
+"new.cloneChoose" = "Clonar repositorio…";
+"new.addressExample" = "Ejemplo: %@";
+"new.cloneGitOff" = "Git está desactivada";
+"new.cloneGitOffDetail" = "Clonar usa la herramienta Git. Actívala para clonar; puedes desactivarla de nuevo en Ajustes › Herramientas.";
+"new.cloneTurnOn" = "Activar Git";
 "new.place.detail" = "Dentro de la carpeta de proyectos";
 "new.place.help" = "Sugerida para este tipo de proyecto: %@. La carpeta se crea al crear el proyecto.";
 "new.place.manual" = "La que elegiste, sin ordenar";
 "new.place.reset" = "Restablecer";
 "new.place.resetHelp" = "Vuelve a crear el proyecto en la carpeta de proyectos de Stack.";
+"new.place.label" = "Subcarpeta";
 "new.step.composer" = "Descargar Laravel con Composer";
 "new.step.tests" = "Instalar Pest";
 "new.step.frontend" = "Instalar y compilar el front-end";
@@ -664,7 +746,7 @@
 "new.templateDetail.astro.portfolio" = "Proyectos, sobre mí y contacto.";
 "new.templateDetail.astro.starlight" = "Documentación con búsqueda.";
 "new.templateDetail.emdash.blog" = "Artículos, categorías y autores.";
-"new.templateDetail.emdash.starter" = "Lo mínimo para armar tu sitio web.";
+"new.templateDetail.emdash.starter" = "Lo mínimo para armar tu página web.";
 "new.templateDetail.emdash.marketing" = "Landing, secciones y formularios.";
 "new.templateDetail.emdash.portfolio" = "Proyectos con galerías.";
 "new.templateDetail.next.app" = "App Router, TypeScript, Tailwind y ESLint.";
@@ -955,6 +1037,7 @@
 "env.downloadMessage" = "El archivo de %@ incluye los valores secretos. Guárdalo en un lugar privado.";
 "env.downloadName" = "El nombre del archivo debe empezar con .env";
 "env.downloadNotIgnored" = "%@ quedaría dentro del repositorio sin estar en .gitignore: agrégalo a .gitignore o elige otra carpeta.";
+"env.downloadGitUnknown" = "No se pudo comprobar con Git si %@ quedaría en un repositorio sin .gitignore, así que no se descargó. Instala las herramientas de línea de comandos de Apple o elige una carpeta que no sea un repositorio.";
 "env.authDownload" = "descargar el entorno %@ con sus secretos";
 "env.downloaded" = "Descargado %@ (permisos 600)";
 "env.createDatabase" = "Crear base…";
@@ -976,6 +1059,12 @@
 "env.portRestarted" = "Los procesos de %@ se reiniciaron con el puerto nuevo de %@.";
 "env.view" = "Vista";
 "env.auditFailed" = "No se pudo registrar la acción en la bitácora de auditoría; no se continuó.";
+"env.hide" = "Ocultar";
+"env.actions" = "Acciones del entorno";
+"env.duplicate" = "Duplicar";
+"env.rename" = "Renombrar…";
+"env.renameStandard" = "Los entornos estándar conservan su nombre.";
+"env.copyName" = "%@ copia";
 "env.kind.local" = "Local";
 "env.kind.development" = "Desarrollo";
 "env.kind.testing" = "Pruebas";
@@ -1019,6 +1108,26 @@
 "env.text.label" = "Variables del entorno";
 "env.text.note" = "Los secretos se ven como %@ y siguen en el Llavero: deja la línea así para conservar el valor o escribe uno nuevo. Solo se guardan las líneas NOMBRE=valor (los comentarios no). ⌘F busca.";
 "env.template.header" = "# Plantilla del entorno «%@» (sin valores secretos)";
+"env.gitignore.addButton" = "Agregar a .gitignore…";
+"env.gitignore.confirmTitle" = "¿Agregar el .env a .gitignore?";
+"env.gitignore.confirmDetail" = "Se agrega la línea «%@» al final de «%@». Si el archivo no existe, se crea. Puedes deshacerlo con ⌘Z.";
+"env.gitignore.add" = "Agregar";
+"env.gitignore.added" = "Se agregó «%@» a .gitignore";
+"env.gitignore.undo" = "Agregar %@ a .gitignore";
+"env.gitignore.failed" = "No se pudo escribir el .gitignore del proyecto. Si es un enlace o no tienes permiso, agrega la línea .env a mano.";
+"env.drop.invalid" = "Suelta un archivo .env de hasta 1 MB (por ejemplo .env o .env.local).";
+"env.drop.empty" = "Ese archivo no tiene variables que importar.";
+"env.drop.title" = "Importar como entorno nuevo";
+"env.drop.detail" = "%@ tiene %d variables. Se crea un entorno nuevo; los que ya tienes no cambian.";
+"env.drop.note" = "No se muestran los valores. Los secretos van al Llavero.";
+"env.drop.import" = "Importar";
+"env.drop.renamed" = "Ese nombre ya existe: se llamará «%@».";
+"env.drop.variables" = "Variables";
+"env.drop.defaultName" = "Importado";
+"env.drop.imported" = "Entorno %@ importado";
+"env.undo.duplicate" = "Duplicar %@";
+"env.undo.activate" = "Activar %@";
+"env.undo.rename" = "Renombrar %@";
 
 /* Servicios */
 "category.database" = "Bases de datos";
@@ -1041,7 +1150,7 @@
 "broadcasting.none" = "Ningún proyecto usa Reverb todavía.";
 "broadcasting.help" = "Servidores WebSocket de cada proyecto (por ejemplo, Reverb en Laravel), en un solo lugar.";
 
-"unavailable.mariadb" = "MariaDB no publica binarios para Mac y compilarla requiere cmake (15–30 min). MySQL es compatible con la mayoría de las aplicaciones que la usan.";
+"unavailable.mariadb" = "No hay una versión de MariaDB lista para Mac. Usa MySQL, que es compatible con la mayoría de las apps que la usan.";
 
 /* Servicios: extensiones */
 "ext.title" = "Extensiones";
@@ -1132,7 +1241,7 @@
 "runtimes.invalid" = "No se pudo verificar";
 "runtimes.global" = "Global";
 "runtimes.installPackage" = "Instalar paquete…";
-"runtimes.packageHelp" = "Elige un paquete php-<versión>-macos-arm64.tar.gz; su catalog.json debe estar en la misma carpeta.";
+"runtimes.packageHelp" = "Elige el paquete php-<versión>-macos-arm64.tar.gz; su archivo de catálogo debe estar en la misma carpeta.";
 "runtimes.useGlobal" = "Usar como versión global";
 "runtimes.openBinary" = "Abrir carpeta del binario";
 "runtimes.openIni" = "Abrir carpeta de php.ini";
@@ -1161,7 +1270,7 @@
 "php.packageTitle" = "Instalar un paquete de PHP";
 "php.packageFile" = "Archivo";
 "php.packageCheck" = "Verificación";
-"php.packageCheckDetail" = "SHA-256 de su catalog.json";
+"php.packageCheckDetail" = "Suma de verificación de su catálogo";
 "php.removeDetail" = "Stack no la quita si es la versión global o si un proyecto la usa.";
 
 "xdebug.modeLabel" = "Modo de Xdebug";
@@ -1210,7 +1319,7 @@
 "utilities.empty" = "Ninguna utilidad instalada";
 "utilities.emptyDetail" = "Cada una se descarga de su fabricante y se verifica antes de instalarla.";
 "utilities.loadFailed" = "No se pudo leer el estado de las utilidades";
-"utilities.loadFailedDetail" = "El motor de Stack no respondió.";
+"utilities.loadFailedDetail" = "Stack no respondió. Reintenta en unos segundos.";
 "utilities.retry" = "Reintentar";
 "utilities.check" = "Buscar versiones nuevas";
 "utilities.checkHelp" = "Consulta otra vez la última versión de cada utilidad en su fuente oficial.";
@@ -1382,9 +1491,9 @@
 "plugin.database-client.title" = "Cliente de bases de datos";
 "plugin.database-client.summary" = "Conexiones, tablas, editor SQL, usuarios y respaldos, con túneles SSH verificados.";
 "plugin.database-client.deleteDataDetail" = "Se desactiva el cliente y se eliminan las conexiones guardadas y sus contraseñas del Llavero. Las bases de los servidores no se tocan. No se puede deshacer.";
-"plugin.ssh-terminal.row" = "Consolas de este Mac, hosts SSH, archivos SFTP y reenvío de puertos";
+"plugin.ssh-terminal.row" = "Terminal de este Mac, hosts SSH, archivos SFTP y reenvío de puertos";
 "plugin.ssh-terminal.title" = "Terminal";
-"plugin.ssh-terminal.summary" = "Consolas de este Mac y sus asistentes, y hosts SSH con pestañas, grupos, saltos, archivos SFTP, snippets y reenvíos de puertos.";
+"plugin.ssh-terminal.summary" = "Terminal de este Mac y sus asistentes, y hosts SSH con pestañas, grupos, saltos, archivos SFTP, snippets y reenvíos de puertos.";
 "plugin.ssh-terminal.deleteDataDetail" = "Se desactiva la terminal y se eliminan los hosts, reenvíos y comandos guardados. Las claves SSH y las huellas aceptadas se conservan.";
 "plugin.mail.row" = "Bandeja local para el correo de tus proyectos";
 "plugin.mail.title" = "Correo";
@@ -1544,10 +1653,8 @@
 "git.repo.changeHelp" = "Cambiar de repositorio";
 "git.repo.changeLabel" = "Repositorio %@. Cambiar de repositorio";
 "git.repo.recent" = "Recientes";
-"git.repo.listEmpty" = "Agrega, clona o crea un repositorio con «Agregar», abajo.";
+"git.repo.listEmpty" = "Agrega, clona o crea un repositorio con «+», arriba a la derecha.";
 "git.repo.addHelp" = "Agrega la carpeta de un repositorio que ya está en este Mac";
-"git.repo.addMenu" = "Agregar";
-"git.repo.addMenuHelp" = "Agregar un repositorio de este Mac, clonar uno o crear uno nuevo";
 "git.repo.other" = "Otros";
 "git.sync.publishRepository" = "Publicar repositorio…";
 "git.sync.publishRepositoryHelp" = "Este repositorio solo existe en tu Mac: créalo en GitHub o Bitbucket y sube sus ramas.";
@@ -2375,7 +2482,7 @@
 "git.dictionary.manual" = "Ayuda de este Mac";
 "git.dictionary.manualHelp" = "Muestra el manual del comando tal como lo trae el Git de este Mac (en inglés)";
 "git.dictionary.documentationHelp" = "Abre la documentación oficial de Git para este comando (en inglés)";
-"git.statusBoard.autoFetchShort" = "Cada 5 min";
+"git.statusBoard.autoFetchShort" = "Actualizar cada 5 min";
 "git.statusBoard.title" = "Git";
 "git.statusBoard.refreshHelp" = "Vuelve a leer el estado de los repositorios, sin usar la red";
 "git.statusBoard.allClear" = "Todo al día";
@@ -2474,8 +2581,8 @@
 "ssh.keys.newGroupEllipsis" = "Nuevo grupo de claves…";
 "ssh.keys.keychainFailed" = "No se pudo guardar la frase de paso en el Llavero. Tendrás que escribirla de nuevo.";
 "ssh.local.section" = "Este Mac";
-"ssh.local.shell" = "Consola";
-"ssh.local.shellDetail" = "El shell de inicio de sesión de este Mac";
+"ssh.local.shell" = "Terminal local";
+"ssh.local.shellDetail" = "La terminal de este Mac, con tu sesión de inicio";
 "ssh.local.tabTitle" = "%@ · %@";
 "ssh.local.open" = "Abrir";
 "ssh.local.openHelp" = "Abre este programa en una pestaña nueva, en tu carpeta personal (⌘T)";
@@ -2486,20 +2593,21 @@
 "ssh.local.folder" = "Carpeta inicial";
 "ssh.local.footer" = "Stack no guarda lo que escribes ni lo que muestra la sesión. Desde un proyecto, abre en su carpeta con sus versiones.";
 "ssh.local.new" = "Nuevo";
-"ssh.local.newHelp" = "Nueva consola, asistente o host";
-"ssh.local.newConsole" = "Nueva consola";
-"ssh.local.newConsoleHelp" = "Abre el shell de este Mac en tu carpeta personal";
-"ssh.local.newConsoleInFolderEllipsis" = "Nueva consola en carpeta…";
-"ssh.local.newConsoleInFolderHelp" = "Elige la carpeta donde empieza la consola";
+"ssh.local.newHelp" = "Nueva terminal local, asistente o host";
+"ssh.local.options" = "Opciones";
+"ssh.local.newConsole" = "Nueva terminal local";
+"ssh.local.newConsoleHelp" = "Abre la terminal de este Mac en tu carpeta personal";
+"ssh.local.newConsoleInFolderEllipsis" = "Nueva terminal local en carpeta…";
+"ssh.local.newConsoleInFolderHelp" = "Elige la carpeta donde empieza la terminal";
 "ssh.local.newAssistantHelp" = "Abre %@ en tu carpeta personal";
-"ssh.local.shellShort" = "Shell de este Mac";
+"ssh.local.shellShort" = "Este Mac";
 "ssh.local.homeFolder" = "Carpeta personal";
 "ssh.local.ended" = "El proceso terminó";
 "ssh.local.exitCode" = "Terminó con el código %d";
 "ssh.local.reopen" = "Volver a abrir";
 "ssh.local.openInTerminal" = "Abrir en la Terminal";
-"ssh.local.openHere" = "Abrir consola aquí";
-"ssh.hosts.section" = "Hosts";
+"ssh.local.openHere" = "Abrir terminal aquí";
+"ssh.hosts.section" = "Hosts SSH";
 "ssh.hosts.none" = "Aún no hay hosts.";
 "ssh.noGroup" = "Sin grupo";
 "ssh.opened" = "Sesión con %@ abierta en Terminal";
@@ -2538,6 +2646,8 @@
 "ssh.port" = "Puerto";
 "ssh.userPlaceholder" = "ubuntu, ec2-user, deploy…";
 "ssh.search" = "Buscar";
+"ssh.searchHosts" = "Buscar hosts";
+"ssh.addHostEllipsis" = "Agregar host SSH…";
 "ssh.authFooterAgent" = "Stack no guarda ninguna clave para este host: ssh usa tu agente y tus claves por defecto.";
 "ssh.authFooterFile" = "La clave se lee desde ~/.ssh en cada conexión; Stack no la copia.";
 "ssh.openExternal" = "Abrir en Terminal";
@@ -2935,6 +3045,14 @@
 "db.noIndexes" = "Sin índices";
 "db.noForeignKeys" = "Sin claves foráneas";
 "db.passwordStack" = "La guarda Stack (superusuario); la app no la ve";
+"db.passwordGenerateFailed" = "El sistema no pudo generar una contraseña aleatoria segura. No se cambió nada.";
+"db.userKeychainFailed" = "Usuario %@ creado, pero su contraseña no se pudo guardar en el Llavero. Quedó en el portapapeles unos segundos: guárdala ahora.";
+"db.keychainReadFailed" = "No se pudo leer el Llavero, así que no se cambió la contraseña guardada. Desbloquéalo o permite el acceso e inténtalo de nuevo.";
+"db.keychainSaveFailed" = "No se pudo guardar la contraseña en el Llavero.";
+"db.keychainRestoreFailed" = "El servidor no aceptó la contraseña y no se pudo restaurar la anterior en el Llavero: vuelve a escribirla.";
+"db.noConnection" = "Sin conexión";
+"db.copyName" = "Copiar nombre";
+"db.restoreFileEllipsis" = "Restaurar un archivo…";
 "db.section.stack" = "Servicios de Stack";
 "db.section.saved" = "Conexiones guardadas";
 "db.tab.overview" = "Resumen";
@@ -3052,12 +3170,16 @@
 "db.problem.syntax.help" = "Revisa la sentencia cerca de lo que indica el detalle técnico.";
 "db.problem.permission" = "Sin permiso";
 "db.problem.permission.help" = "El usuario de esta conexión no tiene permiso para hacer eso.";
+"db.problem.connect" = "No se pudo conectar a %@ en %@";
+"db.problem.connect.help" = "Revisa que el servicio esté en marcha y que el usuario y la contraseña sean correctos. Los servicios de Stack se inician en Servicios.";
+"db.problem.startService" = "Iniciar %@";
 "db.problem.query" = "La base de datos rechazó la operación";
 "db.problem.other" = "No se pudo completar";
 "db.problem.ssh" = "No se pudo abrir el túnel SSH";
 "db.problem.client" = "Falta el cliente de la base de datos";
 "db.problem.readOnly" = "Conexión de solo lectura";
 "db.problem.readOnly.help" = "El servidor o Stack rechazaron un cambio porque esta conexión solo permite leer. Para modificar datos, quita «Solo lectura» al editar la conexión.";
+"db.drop.rejected" = "Suelta un archivo .sql o .sql.gz sobre una base donde se pueda escribir.";
 "db.edit.general" = "Conexión";
 "db.edit.server" = "Servidor";
 "db.edit.namePlaceholder" = "Ej. Producción de Gestión";
@@ -3712,7 +3834,7 @@
 
 /* Herramienta Correo */
 "mail.title" = "Correo";
-"mail.envHelp" = "Pon estas líneas en el .env del proyecto. Stack no escribe tu .env; usuario y contraseña pueden quedar vacíos.";
+"mail.envHelp" = "Pégalas en el .env del proyecto. Stack no lo escribe por ti.";
 "mail.busy" = "Puerto %d ocupado por %@";
 "mail.clear" = "Vaciar bandeja…";
 "mail.clearConfirm" = "¿Vaciar la bandeja?";
@@ -3728,12 +3850,14 @@
 "mail.cc" = "Cc";
 "mail.view" = "Vista";
 "mail.search" = "Buscar mensajes";
+"mail.copySubject" = "Copiar asunto";
+"mail.copySender" = "Copiar remitente";
 "mail.clearAction" = "Vaciar bandeja";
 "mail.clearDetail" = "Se eliminan todos los mensajes capturados. No se puede deshacer.";
 "mail.clearHelp" = "Elimina todos los mensajes capturados";
 "mail.deleteHelp" = "Elimina el mensaje seleccionado";
 "mail.setupTitle" = "Recibe el correo de tus proyectos";
-"mail.setupDetail" = "Configura tu proyecto para enviar por SMTP a 127.0.0.1:%d y sus correos aparecerán aquí.";
+"mail.setupDetail" = "Configura tu proyecto para enviar por SMTP a 127.0.0.1:%d y sus correos aparecerán aquí. Usuario y contraseña pueden quedar vacíos.";
 "mail.mode.html" = "Código HTML";
 "mail.mode.text" = "Texto";
 "mail.mode.headers" = "Encabezados";
@@ -3741,20 +3865,23 @@
 
 /* Herramienta Dumps */
 "dumps.title" = "Dumps";
-"dumps.envHelp" = "Pon esta línea en el .env del proyecto (Laravel y Symfony VarDumper). Los dumps se guardan en memoria, hasta 300 entradas o 8 MiB.";
-"dumps.clear" = "Limpiar";
+"dumps.envHelp" = "Pégala en el .env del proyecto (Laravel y Symfony).";
+"dumps.clear" = "Vaciar";
 "dumps.empty" = "Sin dumps";
 "dumps.search" = "Buscar dumps";
+"dumps.openFile" = "Abrir archivo en el editor";
 "dumps.choose" = "Ningún dump seleccionado";
 "dumps.noSource" = "Sin origen";
 "dumps.file" = "Archivo";
 "dumps.origin" = "Origen";
 "dumps.time" = "Hora";
 "dumps.pause" = "Pausar";
+"dumps.resume" = "Reanudar";
 "dumps.pauseHelp" = "Detiene la lista para leerla; los dumps nuevos siguen llegando";
 "dumps.clearHelp" = "Elimina los dumps recibidos";
 "dumps.setupTitle" = "Recibe los dump() de tus proyectos";
-"dumps.setupDetail" = "Configura tu proyecto para enviar sus dump() a 127.0.0.1:%d y aparecerán aquí.";
+"dumps.setupDetail" = "Configura tu proyecto para enviar sus dump() a 127.0.0.1:%d y aparecerán aquí. Se guardan en memoria, hasta 300 o 8 MiB.";
+"dumps.delete" = "Eliminar";
 
 /* Herramienta Registros */
 "logs.filter" = "Filtrar líneas";
@@ -3774,8 +3901,10 @@
 "logs.levelTitle" = "Nivel";
 "logs.levelHelp" = "Muestra todas las líneas, o solo avisos y errores";
 "logs.pause" = "Pausar";
+"logs.resume" = "Reanudar";
+"logs.paused" = "En pausa";
 "logs.pauseHelp" = "Detiene el registro en pantalla para leerlo; el archivo sigue creciendo";
-"logs.clear" = "Limpiar";
+"logs.clear" = "Vaciar";
 "logs.clearHelp" = "Oculta las líneas en pantalla; el archivo no se toca (⌥⌘K)";
 "logs.copyHelp" = "Copia las líneas que se ven";
 "logs.public" = "Dirección fija de %@";
@@ -4412,7 +4541,7 @@
 "migration.state.conflict" = "Las dos carpetas tienen datos. Revisa cuál usar antes de mover nada.";
 "migration.error.migration_files_open" = "Hay programas con archivos abiertos en la carpeta.";
 "migration.error.migration_unclean_shutdown" = "Un servicio no se detuvo limpiamente; mover sus datos no sería seguro.";
-"migration.error.migration_daemon_running" = "El supervisor no se detuvo.";
+"migration.error.migration_daemon_running" = "El servicio de fondo de Stack no se detuvo.";
 "migration.error.migration_backup_failed" = "La copia de seguridad no se pudo hacer o no coincide.";
 "migration.error.migration_start_failed" = "Algún servicio no volvió a iniciarse en la carpeta nueva.";
 "migration.error.migration_rewrite_failed" = "Una ruta no se pudo actualizar.";
@@ -4468,6 +4597,7 @@
 
 /* Errores del motor y de la app */
 "error.title" = "No se pudo completar";
+"error.daemon_outdated" = "El servicio de Stack que está corriendo es de otra versión y no se pudo reiniciar. Sal de Stack y ábrelo otra vez.";
 "error.migration_isolated" = "Un almacén aislado no tiene datos que mover.";
 "error.migration_conflict" = "Las dos carpetas tienen datos: no se mueve nada.";
 "error.migration_cross_volume" = "La carpeta nueva quedaría en otro disco.";
@@ -4476,6 +4606,10 @@
 "error.folder_exists" = "Ya existe una carpeta con ese nombre en esa ubicación.";
 "error.folder_missing" = "No se encuentra la carpeta del proyecto. Búscala o quita el proyecto.";
 "error.folder_in_use" = "Esa carpeta ya es de otro proyecto de Stack.";
+"error.folder_not_empty" = "La carpeta no está vacía: solo se quitan carpetas vacías.";
+"error.folder_move_failed" = "No se pudo mover la carpeta. Nada cambió.";
+"error.move_into_itself" = "Una carpeta no se puede mover dentro de sí misma.";
+"error.invalid_folder" = "El nombre de la carpeta no es válido.";
 "error.not_a_project" = "Esa carpeta no parece un proyecto. Elige la carpeta del proyecto.";
 "error.site_exists" = "Ya hay un proyecto con ese nombre en Stack. Elige otro nombre.";
 "error.invalid_name" = "El nombre solo puede tener letras, números, guiones y guiones bajos (hasta 40).";
@@ -4603,6 +4737,8 @@
 "error.swiftly_not_installed" = "Falta swiftly: instálalo en Lenguajes › Swift.";
 "error.unknown_method" = "Stack no reconoce esa acción. Reinicia la app y, si sigue, busca actualizaciones.";
 "error.version_not_in_catalog" = "Esa versión ya no está en el catálogo oficial. Actualiza la lista y elige otra.";
+"error.catalog_unsigned" = "El catálogo de PHP no trae la firma de Stack y no se usó. Vuelve a intentarlo más tarde.";
+"error.catalog_signature_invalid" = "La firma del catálogo de PHP no es válida y no se instaló nada. Vuelve a intentarlo más tarde.";
 "error.installed_elsewhere" = "Ya está instalada por otra vía en este Mac. Stack la muestra pero no la reemplaza: actualízala con el método con que la instalaste.";
 "error.not_managed" = "Esta utilidad no la instaló Stack, así que Stack no la quita. Usa el método con que la instalaste.";
 "error.not_notarized" = "Apple no reconoce la descarga como software notarizado y no se instaló nada. Vuelve a intentarlo más tarde.";
@@ -4707,3 +4843,8 @@
 "error.skills_import_choice_invalid" = "La copia elegida ya no está entre las encontradas.";
 "error.skills_import_verify" = "La copia no coincide con el original; no se cambió nada.";
 "error.skills_import_failed" = "No se pudo importar la skill; se dejó todo como estaba.";
+"error.retry" = "Reintentar";
+"error.openLogs" = "Abrir Registros";
+"error.withCause" = "Causa: %@";
+"error.startFailed" = "No se pudo iniciar %@";
+"error.stopFailed" = "No se pudo detener %@";

@@ -48,9 +48,11 @@ fn the_data_moves_only_when_asked_and_only_once() {
         fs::read_to_string(new.join("config/mysql/my.cnf")).unwrap(),
         format!("datadir={}/data/mysql\n", new.display())
     );
-    assert!(Path::new(done["backup"].as_str().unwrap())
-        .join("stack.json")
-        .exists());
+    assert!(
+        Path::new(done["backup"].as_str().unwrap())
+            .join("stack.json")
+            .exists()
+    );
 
     let (ok, again) = migrate(&home, "--confirm");
     assert!(ok && again["already"] == true, "{again}");

@@ -1,6 +1,6 @@
 //! What a clone over SSH needs: addresses, known hosts and keys in a temporary home. No network:
 //! the keys "scanned" are the public host keys the providers publish, given as text.
-use crate::git::access::{ssh_access, ssh_endpoint, trust_scanned, SshAccess};
+use crate::git::access::{SshAccess, ssh_access, ssh_endpoint, trust_scanned};
 use crate::ssh::common::fingerprints_of;
 
 const BITBUCKET_KEY: &str =

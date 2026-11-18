@@ -2,7 +2,7 @@
 //! never removed. The guard of removing PHP, Python, Node.js and the JDK.
 
 use crate::core::{model::Project, store::Store};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 
 /// Whether `wanted` (a project's or the global setting: "8.2", "24", "24.22.3") names `version`.
 fn names(wanted: &str, version: &str) -> bool {

@@ -1,5 +1,5 @@
 //! Organizing unpublished commits, with a backup before each rewrite and «Deshacer».
-use crate::git::rewrite::{apply, candidates, undo, RewritePlan, RewriteStep};
+use crate::git::rewrite::{RewritePlan, RewriteStep, apply, candidates, undo};
 use crate::git::runner::git;
 use crate::git::status::snapshot;
 
@@ -75,21 +75,25 @@ async fn squash_reword_reorder_drop_and_undo() {
     assert!(!root.join("c").exists());
     assert!(root.join("b").exists());
     // Backups never show up in the history of the app.
-    assert!(!snapshot(root)
-        .await
-        .unwrap()
-        .commits
-        .iter()
-        .any(|c| c.refs.contains("butake")));
+    assert!(
+        !snapshot(root)
+            .await
+            .unwrap()
+            .commits
+            .iter()
+            .any(|c| c.refs.contains("butake"))
+    );
     undo(root, &result.backup).await.unwrap();
     assert_eq!(
         git(root, &["rev-parse", "HEAD"]).await.unwrap().trim(),
         found.head
     );
     assert!(undo(root, "refs/heads/develop").await.is_err());
-    assert!(undo(root, "refs/butake/backup/develop/../../heads/x")
-        .await
-        .is_err());
+    assert!(
+        undo(root, "refs/butake/backup/develop/../../heads/x")
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]

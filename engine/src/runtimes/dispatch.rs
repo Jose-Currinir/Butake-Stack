@@ -2,7 +2,7 @@
 
 use crate::{core::store::Store, daemon, runtimes, web};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Requests of this domain; `None` when `method` is not one of them.
 pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<Value>> {
@@ -74,11 +74,8 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<V
                 "invalid_name"
             );
             let path = store.directory("logs")?.join(format!("{name}.log"));
-            let text = std::fs::read(&path)
-                .map(|b| {
-                    String::from_utf8_lossy(&b[b.len().saturating_sub(32_000_000)..]).into_owned()
-                })
-                .unwrap_or_default();
+            // Only the tail is read: the log of a long install can be large.
+            let text = read_tail(&path, 32_000_000).unwrap_or_default();
             Ok(crate::core::progress::read(
                 &text,
                 runtimes::utilities::devtools::home().ok().as_deref(),
@@ -351,10 +348,12 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<V
                 .into_iter()
                 .map(|mut v| {
                     let spec = v["requirement"].as_str().unwrap_or("").to_string();
-                    v["compatible"] = json!(lines
-                        .iter()
-                        .filter(|l| runtimes::languages::python::satisfies(&spec, l))
-                        .collect::<Vec<_>>());
+                    v["compatible"] = json!(
+                        lines
+                            .iter()
+                            .filter(|l| runtimes::languages::python::satisfies(&spec, l))
+                            .collect::<Vec<_>>()
+                    );
                     v
                 })
                 .collect();
@@ -508,4 +507,30 @@ fn follow(store: &Store, name: &str) -> Result<()> {
     let _ = std::fs::remove_file(&log);
     crate::core::progress::begin(&log);
     Ok(())
+}
+
+/// The last `limit` bytes of a file as text (a cut inside a character is replaced, not an error).
+fn read_tail(path: &std::path::Path, limit: u64) -> std::io::Result<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut file = std::fs::File::open(path)?;
+    let length = file.metadata()?.len();
+    file.seek(SeekFrom::Start(length.saturating_sub(limit)))?;
+    let mut bytes = Vec::new();
+    file.take(limit).read_to_end(&mut bytes)?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+#[cfg(test)]
+mod tail_tests {
+    use super::read_tail;
+
+    #[test]
+    fn reads_only_the_end_of_a_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("a.log");
+        std::fs::write(&file, "0123456789").unwrap();
+        assert_eq!(read_tail(&file, 4).unwrap(), "6789");
+        assert_eq!(read_tail(&file, 100).unwrap(), "0123456789");
+        assert!(read_tail(&dir.path().join("falta.log"), 4).is_err());
+    }
 }

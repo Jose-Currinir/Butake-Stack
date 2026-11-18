@@ -8,24 +8,45 @@ import LocalAuthentication
 extension VaultSession {
     // MARK: Encrypted backup (.butakevault)
 
-    func archivePayload(_ containers: [UUID]?) throws -> VaultArchive.Payload {
+    /// Reads, decrypts and checks every file of the chosen containers. Pure work on a copy of the index: it runs off the main actor.
+    nonisolated static func archivePayload(_ containers: [UUID]?, index: VaultIndex, disk: VaultDisk, key: SymmetricKey) throws -> VaultArchive.Payload {
         let ids = containers ?? index.containers.map(\.id)
         let chosen = index.containers.filter { ids.contains($0.id) }
         let items = index.items.filter { ids.contains($0.container) }
+        // The file would not import back (`decode` refuses more than the maximum): say so before reading anything.
+        // Base64 and the JSON around it take about a third more than the files themselves.
+        let total = items.reduce(0) { $0 + $1.files.reduce(0) { $0 + $1.size } }
+        guard total / 3 * 4 <= VaultArchive.maximumSize else { throw VaultError.tooLarge }
         var blobs: [String: Data] = [:]
-        for item in items { for file in item.files { blobs[file.id.uuidString] = try fileData(file) } }
+        for item in items {
+            for file in item.files {
+                try Task.checkCancellation()
+                blobs[file.id.uuidString] = try fileData(file, disk: disk, key: key)
+            }
+        }
         return VaultArchive.Payload(containers: chosen, items: items, blobs: blobs)
+    }
+
+    func archivePayload(_ containers: [UUID]?) throws -> VaultArchive.Payload {
+        try Self.archivePayload(containers, index: index, disk: disk, key: try requireKey())
     }
 
     /// The caller has already confirmed presence (export asks every time).
     func exportArchive(_ container: UUID?, password: String) async throws -> Data {
         guard password.count >= VaultArchive.minimumPasswordLength else { throw VaultError.wrongPassword }
-        let payload = try archivePayload(container.map { [$0] })
+        let key = try requireKey()
+        let (snapshot, disk) = (index, disk)
         let scope = container.flatMap { index.container($0)?.folderName } ?? "all"
         let iterations = archiveIterations
+        let generation = sessionGeneration
+        // Reading, decrypting and sealing hundreds of MiB happen together off the main actor.
         let data = try await Task.detached(priority: .userInitiated) {
-            try VaultArchive.encode(payload, password: password, scope: scope, iterations: iterations)
+            let payload = try Self.archivePayload(container.map { [$0] }, index: snapshot, disk: disk, key: key)
+            let sealed = try VaultArchive.encode(payload, password: password, scope: scope, iterations: iterations)
+            guard sealed.count <= VaultArchive.maximumSize else { throw VaultError.tooLarge }
+            return sealed
         }.value
+        try checkSession(generation)
         disk.append(VaultAccessEntry(action: .exportArchive, target: container))
         return data
     }
@@ -88,7 +109,24 @@ extension VaultSession {
 
     /// Writes a new `3.CLAVES-APPS` folder (never over an existing one) inside `parent`.
     @discardableResult func downloadFolder(_ container: UUID?, into parent: URL, layout: VaultFolder.Layout = .stack) throws -> URL {
+        let target = try Self.writeFolder(container, index: index, disk: disk, key: try requireKey(), into: parent, layout: layout)
+        disk.append(VaultAccessEntry(action: .downloadFolder, target: container))
+        return target
+    }
+
+    /// The same, with the reading, decrypting and writing off the main actor.
+    @discardableResult func downloadFolderInBackground(_ container: UUID?, into parent: URL, layout: VaultFolder.Layout = .stack) async throws -> URL {
         let key = try requireKey()
+        let (snapshot, disk) = (index, disk)
+        let target = try await Task.detached(priority: .userInitiated) {
+            try Self.writeFolder(container, index: snapshot, disk: disk, key: key, into: parent, layout: layout)
+        }.value
+        disk.append(VaultAccessEntry(action: .downloadFolder, target: container))
+        return target
+    }
+
+    nonisolated private static func writeFolder(_ container: UUID?, index: VaultIndex, disk: VaultDisk, key: SymmetricKey,
+                                                into parent: URL, layout: VaultFolder.Layout) throws -> URL {
         let ids = container.map { [$0] } ?? index.containers.map(\.id)
         let plan = VaultFolder.plan(index, containers: ids, layout: layout)
         let fm = FileManager.default
@@ -106,6 +144,7 @@ extension VaultSession {
         }
         for directory in plan.directories { try VaultDisk.makePrivateDirectory(try resolve(directory)) }
         for entry in plan.files {
+            try Task.checkCancellation()
             let url = try resolve(entry.path)
             try VaultDisk.makePrivateDirectory(url.deletingLastPathComponent())
             let data: Data
@@ -116,7 +155,6 @@ extension VaultSession {
             guard !fm.fileExists(atPath: url.path),
                   fm.createFile(atPath: url.path, contents: data, attributes: [.posixPermissions: 0o600]) else { throw VaultError.io }
         }
-        disk.append(VaultAccessEntry(action: .downloadFolder, target: container))
         return target
     }
 }

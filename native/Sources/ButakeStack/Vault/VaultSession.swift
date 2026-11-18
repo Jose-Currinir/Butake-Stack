@@ -53,6 +53,8 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
     static let shared = VaultSession.make()
 
     private(set) var state: State = .unknown
+    /// True while the vault is being created (the prompt for presence is open): the button waits.
+    private(set) var creating = false
     private(set) var index = VaultIndex()
     var selection: Selection?
     /// The item shown in the inspector beside its app or service.
@@ -145,8 +147,12 @@ struct ApprovingVaultAuthenticator: VaultAuthenticator {
 
     /// Creates an empty vault and its key (asks for user presence first).
     @discardableResult func create() async -> Bool {
-        guard !disk.exists else { refreshState(); return false }
+        // One creation at a time, and the check repeated after the prompt: a second click, or another window, may have
+        // created the vault meanwhile, and a second creation would write a new key and index over the first.
+        guard !creating, !disk.exists else { refreshState(); return false }
+        creating = true; defer { creating = false }
         guard await auth.authenticate(L("vault.auth.create")) != nil else { message = L(VaultError.authentication.messageKey); return false }
+        guard !disk.exists else { refreshState(); return false }
         let keyId = UUID().uuidString
         do {
             try disk.prepare()

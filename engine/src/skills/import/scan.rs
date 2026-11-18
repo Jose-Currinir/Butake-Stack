@@ -1,9 +1,9 @@
 //! Read-only scan of the folders of the link-mode AIs for skills that are not Stack's yet.
 //! Nothing is written, no link is followed while reading a tree, and the work is bounded.
 use super::tree;
-use crate::skills::model::{valid_id, Ctx, Index};
+use crate::skills::model::{Ctx, Index, valid_id};
 use crate::skills::{agents, links, skill_file};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
     fs,

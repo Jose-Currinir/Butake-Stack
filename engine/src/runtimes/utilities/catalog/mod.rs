@@ -19,7 +19,7 @@ use crate::core::{
     download::{download, fetch},
     hash, progress,
 };
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -73,7 +73,9 @@ pub const POSTGRES_EXTENSIONS: &[&str] = &[
 ];
 
 fn openssl_url() -> String {
-    format!("https://github.com/openssl/openssl/releases/download/openssl-{OPENSSL_VERSION}/openssl-{OPENSSL_VERSION}.tar.gz")
+    format!(
+        "https://github.com/openssl/openssl/releases/download/openssl-{OPENSSL_VERSION}/openssl-{OPENSSL_VERSION}.tar.gz"
+    )
 }
 
 #[derive(Debug, Serialize)]
@@ -126,8 +128,9 @@ fn mysql_url(version: &str) -> String {
 }
 
 enum Verify {
-    /// The vendor publishes no checksum; only HTTPS protects the download (shown in the UI).
-    HttpsOnly,
+    /// The vendor publishes no checksum: the SHA-256 of a release is fixed here (see `TYPESENSE`).
+    /// `None` is a version Stack has not pinned: refused (`checksum_missing`).
+    Pinned(Option<&'static str>),
     /// SHA-256 taken from the GitHub release asset's `digest` (`api` = release endpoint).
     GithubDigest(String),
     Sha256,
@@ -169,14 +172,30 @@ enum Build {
     Postgres,
 }
 
+/// Typesense publishes no checksum or signature for its macOS builds (`dl.typesense.org` has no
+/// `.sha256` and its GitHub releases carry no assets), so the releases Stack installs are pinned
+/// with the SHA-256 of the archive downloaded from `https://dl.typesense.org/releases/<version>/
+/// typesense-server-<version>-darwin-arm64.tar.gz`. A new release is added here after checking it.
+pub(super) const TYPESENSE: &[(&str, &str)] = &[(
+    "30.2",
+    "7d8d6d0c33930ad20ea23dd184250547b16615944be891b2078e8a075152fa7e",
+)];
+
 fn source(tool: &str, version: &str) -> Source {
     match tool {
         "jdk" => {
             // 21.0.5.11 -> release jdk-21.0.5+11, file OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.5_11.tar.gz
             let parts: Vec<&str> = version.split('.').collect();
-            let (major, semver, build) = (parts[0], parts[..3].join("."), parts.get(3).copied().unwrap_or("0"));
-            let archive = format!("OpenJDK{major}U-jdk_aarch64_mac_hotspot_{semver}_{build}.tar.gz");
-            let url = format!("https://github.com/adoptium/temurin{major}-binaries/releases/download/jdk-{semver}%2B{build}/{archive}");
+            let (major, semver, build) = (
+                parts[0],
+                parts[..3].join("."),
+                parts.get(3).copied().unwrap_or("0"),
+            );
+            let archive =
+                format!("OpenJDK{major}U-jdk_aarch64_mac_hotspot_{semver}_{build}.tar.gz");
+            let url = format!(
+                "https://github.com/adoptium/temurin{major}-binaries/releases/download/jdk-{semver}%2B{build}/{archive}"
+            );
             Source {
                 checksum_url: format!("{url}.sha256.txt"),
                 url,
@@ -219,8 +238,12 @@ fn source(tool: &str, version: &str) -> Source {
         },
         "postgres" => Source {
             archive: format!("postgresql-{version}.tar.gz"),
-            url: format!("https://ftp.postgresql.org/pub/source/v{version}/postgresql-{version}.tar.gz"),
-            checksum_url: format!("https://ftp.postgresql.org/pub/source/v{version}/postgresql-{version}.tar.gz.sha256"),
+            url: format!(
+                "https://ftp.postgresql.org/pub/source/v{version}/postgresql-{version}.tar.gz"
+            ),
+            checksum_url: format!(
+                "https://ftp.postgresql.org/pub/source/v{version}/postgresql-{version}.tar.gz.sha256"
+            ),
             verify: Verify::Sha256,
             strip: true,
             build: Build::Postgres,
@@ -241,7 +264,8 @@ fn source(tool: &str, version: &str) -> Source {
         "valkey" => Source {
             archive: format!("valkey-{version}.tar.gz"),
             url: format!("https://github.com/valkey-io/valkey/archive/refs/tags/{version}.tar.gz"),
-            checksum_url: "https://raw.githubusercontent.com/valkey-io/valkey-hashes/main/README".into(),
+            checksum_url: "https://raw.githubusercontent.com/valkey-io/valkey-hashes/main/README"
+                .into(),
             verify: Verify::Sha256,
             strip: true,
             build: Build::Make(&["valkey-server", "valkey-cli"]),
@@ -249,26 +273,43 @@ fn source(tool: &str, version: &str) -> Source {
         },
         "meilisearch" => Source {
             archive: "meilisearch-macos-apple-silicon".into(),
-            url: format!("https://github.com/meilisearch/meilisearch/releases/download/v{version}/meilisearch-macos-apple-silicon"),
-            checksum_url: format!("https://api.github.com/repos/meilisearch/meilisearch/releases/tags/v{version}"),
-            verify: Verify::GithubDigest(format!("https://api.github.com/repos/meilisearch/meilisearch/releases/tags/v{version}")),
+            url: format!(
+                "https://github.com/meilisearch/meilisearch/releases/download/v{version}/meilisearch-macos-apple-silicon"
+            ),
+            checksum_url: format!(
+                "https://api.github.com/repos/meilisearch/meilisearch/releases/tags/v{version}"
+            ),
+            verify: Verify::GithubDigest(format!(
+                "https://api.github.com/repos/meilisearch/meilisearch/releases/tags/v{version}"
+            )),
             strip: false,
             build: Build::None,
             layout: Layout::Binary("meilisearch"),
         },
         "typesense" => Source {
             archive: format!("typesense-server-{version}-darwin-arm64.tar.gz"),
-            url: format!("https://dl.typesense.org/releases/{version}/typesense-server-{version}-darwin-arm64.tar.gz"),
-            checksum_url: "https".into(),
-            verify: Verify::HttpsOnly,
+            url: format!(
+                "https://dl.typesense.org/releases/{version}/typesense-server-{version}-darwin-arm64.tar.gz"
+            ),
+            checksum_url: String::new(),
+            verify: Verify::Pinned(
+                TYPESENSE
+                    .iter()
+                    .find(|(pinned, _)| *pinned == version)
+                    .map(|(_, sum)| *sum),
+            ),
             strip: false,
             build: Build::None,
             layout: Layout::TarIntoBin,
         },
         "rustfs" => Source {
             archive: format!("rustfs-macos-aarch64-v{version}.zip"),
-            url: format!("https://github.com/rustfs/rustfs/releases/download/{version}/rustfs-macos-aarch64-v{version}.zip"),
-            checksum_url: format!("https://github.com/rustfs/rustfs/releases/download/{version}/SHA256SUMS"),
+            url: format!(
+                "https://github.com/rustfs/rustfs/releases/download/{version}/rustfs-macos-aarch64-v{version}.zip"
+            ),
+            checksum_url: format!(
+                "https://github.com/rustfs/rustfs/releases/download/{version}/SHA256SUMS"
+            ),
             verify: Verify::Sha256,
             strip: false,
             build: Build::None,
@@ -335,7 +376,6 @@ pub fn plan(tool: &str) -> Vec<&'static str> {
     let src = source(tool, "1.0.0.0");
     let verify = match src.verify {
         Verify::Codesign(_) => "verifySignature",
-        Verify::HttpsOnly => "verifySource",
         _ => "verifySum",
     };
     match src.build {
@@ -354,19 +394,16 @@ pub fn installed(store: &Store, tool: &str) -> Result<Vec<ToolManifest>> {
             continue;
         }
         let path = item.path().join("butake-manifest.json");
-        if let Ok(data) = fs::read(&path) {
-            if let Ok(mut manifest) = serde_json::from_slice::<ToolManifest>(&data) {
-                if manifest.version == name
-                    && manifest.tool == tool
-                    && executables(tool)
-                        .iter()
-                        .all(|e| item.path().join(e).exists())
-                {
-                    manifest.extensions =
-                        (tool == "postgres").then(|| postgres_extensions(&item.path()));
-                    out.push(manifest);
-                }
-            }
+        if let Ok(data) = fs::read(&path)
+            && let Ok(mut manifest) = serde_json::from_slice::<ToolManifest>(&data)
+            && manifest.version == name
+            && manifest.tool == tool
+            && executables(tool)
+                .iter()
+                .all(|e| item.path().join(e).exists())
+        {
+            manifest.extensions = (tool == "postgres").then(|| postgres_extensions(&item.path()));
+            out.push(manifest);
         }
     }
     out.sort_by_key(|m| version_key(&m.version));

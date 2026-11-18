@@ -3,7 +3,7 @@
 //! connection. Text that carries a password (CREATE USER … PASSWORD, IDENTIFIED BY, SET PASSWORD,
 //! Redis AUTH…) is never written.
 use crate::{core::fsutil::write_private, core::store::Store, db::sql};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf};
 

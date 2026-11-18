@@ -22,8 +22,8 @@ mod tests;
 
 use crate::core::{store::Store, validate};
 use anyhow::Result;
-use model::{fail, valid_id, Ctx, Entry, Group, Index};
-use serde_json::{json, Value};
+use model::{Ctx, Entry, Group, Index, fail, valid_id};
+use serde_json::{Value, json};
 use std::{fs, path::Path};
 
 /// Requests of the skills tool (`skills*`). The caller checked that the tool is on.
@@ -44,11 +44,11 @@ pub fn delete_all(store: &Store) -> Result<()> {
 /// `delete_all` with the home whose AI folders hold the links: tests pass a temporary one, so they
 /// never read the owner's folders.
 pub fn delete_all_in(store: &Store, home: &Path) -> Result<()> {
-    if let Ok(ctx) = Ctx::new(store, home) {
-        if let Ok(index) = index::load(&ctx) {
-            for id in index.skills.keys() {
-                links::remove_all(&ctx, &index, id);
-            }
+    if let Ok(ctx) = Ctx::new(store, home)
+        && let Ok(index) = index::load(&ctx)
+    {
+        for id in index.skills.keys() {
+            links::remove_all(&ctx, &index, id);
         }
     }
     delete_all_folders(store)
@@ -160,8 +160,13 @@ pub(crate) fn dispatch_in(
         }
         "skillsRestore" => {
             require(confirmed)?;
-            let restored = trash::restore(&ctx, &mut index, &text("trashId"))?;
-            index::save(&ctx, &index)?;
+            let trash_id = text("trashId");
+            let restored = trash::restore(&ctx, &mut index, &trash_id)?;
+            if let Err(error) = index::save(&ctx, &index) {
+                trash::unrestore(&ctx, &mut index, &trash_id, &restored);
+                return Err(error);
+            }
+            trash::discard(&ctx, &trash_id);
             skill_json(&ctx, &index, &restored)
         }
         m if m.starts_with("skillsImport") => import::dispatch(&ctx, &mut index, m, request),
@@ -378,10 +383,10 @@ fn create(ctx: &Ctx, index: &mut Index, request: &Value) -> Result<Value> {
 fn update(ctx: &Ctx, index: &mut Index, request: &Value) -> Result<Value> {
     let id = request["id"].as_str().unwrap_or("");
     ensure_skill(index, id)?;
-    if let Some(group) = request["group"].as_str() {
-        if !index.has_group(group) {
-            return fail("skills_invalid_group");
-        }
+    if let Some(group) = request["group"].as_str()
+        && !index.has_group(group)
+    {
+        return fail("skills_invalid_group");
     }
     let tags = if request.get("tags").is_some_and(|t| !t.is_null()) {
         Some(clean_tags(request)?)
@@ -443,21 +448,43 @@ fn duplicate(ctx: &Ctx, index: &mut Index, id: &str, new_id: &str) -> Result<Val
 fn rename(ctx: &Ctx, index: &mut Index, id: &str, new_id: &str) -> Result<Value> {
     ensure_skill(index, id)?;
     free(ctx, index, new_id)?;
-    fs::rename(ctx.dir(id)?, ctx.dir(new_id)?)?;
+    let (from, to) = (ctx.dir(id)?, ctx.dir(new_id)?);
+    fs::rename(&from, &to)?;
     links::remove_all(ctx, index, id);
     let entry = index.skills.remove(id).expect("checked");
     index.skills.insert(new_id.to_string(), entry.clone());
-    let dir = ctx.dir(new_id)?;
-    if let Ok(text) = skill_file::read_text(&dir) {
-        let _ = skill_file::write_text(&dir, &skill_file::rename_in_text(&text, id, new_id));
-    }
-    // Names already taken in an AI folder are skipped by `create_for`; they are answered too.
-    let mut taken = vec![];
-    if entry.enabled {
-        taken = links::creatable(ctx, index, new_id, &entry.agents).1;
-        links::create_for(ctx, index, new_id, &entry.agents);
-    }
-    index::save(ctx, index)?;
+    let original_text = skill_file::read_text(&to).ok();
+    // Everything after the move can fail (the name inside SKILL.md, the index): then it all goes
+    // back as it was, links included.
+    let done = (|| -> Result<Vec<std::path::PathBuf>> {
+        if let Some(text) = &original_text {
+            skill_file::write_text(&to, &skill_file::rename_in_text(text, id, new_id))?;
+        }
+        // Names already taken in an AI folder are skipped by `create_for`; they are answered too.
+        let mut taken = vec![];
+        if entry.enabled {
+            taken = links::creatable(ctx, index, new_id, &entry.agents).1;
+            links::create_for(ctx, index, new_id, &entry.agents);
+        }
+        index::save(ctx, index)?;
+        Ok(taken)
+    })();
+    let taken = match done {
+        Ok(taken) => taken,
+        Err(error) => {
+            links::remove_all(ctx, index, new_id);
+            index.skills.remove(new_id);
+            index.skills.insert(id.to_string(), entry.clone());
+            if let Some(text) = &original_text {
+                let _ = skill_file::write_text(&to, text);
+            }
+            let _ = fs::rename(&to, &from);
+            if entry.enabled {
+                links::create_for(ctx, index, id, &entry.agents);
+            }
+            return Err(error);
+        }
+    };
     let conflicts: Vec<Value> = taken
         .iter()
         .map(|p| json!({"path": p.to_string_lossy(), "reason": "exists"}))
@@ -468,14 +495,25 @@ fn rename(ctx: &Ctx, index: &mut Index, id: &str, new_id: &str) -> Result<Value>
 fn delete(ctx: &Ctx, index: &mut Index, id: &str) -> Result<Value> {
     ensure_skill(index, id)?;
     let entry = index.skills[id].clone();
-    let trash_id = if skill_file::real_dir(&ctx.dir(id)?) {
-        trash::put(ctx, id, &entry)?
-    } else {
+    if !skill_file::real_dir(&ctx.dir(id)?) {
         return fail("skills_not_found");
+    }
+    // The index goes first: if it cannot be saved nothing has moved; if the trash then fails the
+    // entry (group, tags) comes back.
+    index.skills.remove(id);
+    if let Err(error) = index::save(ctx, index) {
+        index.skills.insert(id.to_string(), entry);
+        return Err(error);
+    }
+    let trash_id = match trash::put(ctx, id, &entry) {
+        Ok(trash_id) => trash_id,
+        Err(error) => {
+            index.skills.insert(id.to_string(), entry);
+            let _ = index::save(ctx, index);
+            return Err(error);
+        }
     };
     links::remove_all(ctx, index, id);
-    index.skills.remove(id);
-    index::save(ctx, index)?;
     Ok(json!({"trashId": trash_id}))
 }
 

@@ -29,6 +29,8 @@ private struct VaultItemSheet: View {
     @State private var item: VaultItem
     @State private var newFile: URL?
     @State private var saving = false
+    /// Secret fields of a saved item shown in plain text after the user passed the same presence check as «Mostrar».
+    @State private var revealedFields: Set<UUID> = []
     init(vault: VaultSession, original: VaultItem) {
         self.vault = vault
         self.original = original
@@ -36,6 +38,11 @@ private struct VaultItemSheet: View {
     }
     var isNew: Bool { vault.index.item(original.id) == nil }
     var isApp: Bool { vault.index.container(item.container)?.kind == .app }
+    /// A saved secret value stays masked, and its «Secreto» mark fixed, until it is revealed.
+    func isLocked(_ field: VaultField) -> Bool { !isNew && !revealedFields.contains(field.id) && original.hasSecretValue(field.id) }
+    func reveal(_ field: VaultField) async {
+        if await vault.revealForEditing(field, of: original) { revealedFields.insert(field.id) }
+    }
     var body: some View {
         SheetFrame(title: isNew ? L("vault.newItem") : L("vault.editItem"),
                    symbol: item.kind.symbol,
@@ -83,7 +90,8 @@ private struct VaultItemSheet: View {
                                     Text(field.title).font(.uiCallout.weight(.medium))
                                 }
                                 Spacer()
-                                Toggle(L("vault.secret"), isOn: $field.secret).toggleStyle(.checkbox).accessibilityIdentifier("vault.sheet.item.field.\(position).secret")
+                                Toggle(L("vault.secret"), isOn: $field.secret).toggleStyle(.checkbox).disabled(isLocked(field))
+                                    .accessibilityIdentifier("vault.sheet.item.field.\(position).secret")
                                 Button(role: .destructive) { item.fields.removeAll { $0.id == field.id } } label: {
                                     Label(L("vault.removeField"), systemImage: Symbols.remove).labelStyle(.iconOnly)
                                 }
@@ -91,11 +99,18 @@ private struct VaultItemSheet: View {
                             }
                             HStack {
                                 Group {
-                                    if field.secret { SecureField("", text: $field.value, prompt: Text(L("vault.value"))) }
+                                    if field.secret && !revealedFields.contains(field.id) { SecureField("", text: $field.value, prompt: Text(L("vault.value"))) }
                                     else { TextField("", text: $field.value, prompt: Text(L("vault.value"))) }
                                 }
                                 .labelsHidden().textFieldStyle(.roundedBorder)
                                 .accessibilityIdentifier("vault.sheet.item.field.\(position).value")
+                                if isLocked(field) {
+                                    Button { Task { await reveal(field) } } label: {
+                                        Label(L("vault.reveal"), systemImage: Symbols.reveal).labelStyle(.iconOnly)
+                                    }
+                                    .buttonStyle(.borderless).help(L("vault.reveal"))
+                                    .accessibilityIdentifier("vault.sheet.item.field.\(position).reveal")
+                                }
                                 TextField("", text: Binding(get: { field.envVar ?? "" }, set: { field.envVar = $0.isEmpty ? nil : $0 }), prompt: Text(L("vault.envVar")))
                                     .labelsHidden().textFieldStyle(.roundedBorder)
                                     .font(.uiCallout.monospaced()).frame(width: 240).accessibilityIdentifier("vault.sheet.item.field.\(position).env")
@@ -212,9 +227,8 @@ private struct VaultExportSheet: View {
         defer { working = false }
         do {
             let data = try await vault.exportArchive(container, password: password)
-            FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600])
-            try data.write(to: url)
-            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            // The backup is the last defence: the one it replaces stays until the new one is written whole.
+            try VaultDisk.writePrivate(data, to: url, durable: true)
             password = ""; confirm = ""
             vault.notice = L("vault.exported")
             dismiss()
@@ -254,11 +268,16 @@ private struct VaultImportArchiveSheet: View {
             }
             .formStyle(.grouped).themedScroll()
         }
-        .onAppear {
-            guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= VaultArchive.maximumSize,
-                  let bytes = try? Data(contentsOf: url) else { return }
-            data = bytes
-            header = try? VaultArchive.header(of: bytes).0
+        // Up to 512 MiB: read off the main actor, so the window does not freeze while the file loads.
+        .task {
+            let url = url
+            let loaded = await Task.detached(priority: .userInitiated) { () -> (Data, VaultArchive.Header?)? in
+                guard let bytes = try? VaultDisk.readRegularFile(url, limit: VaultArchive.maximumSize) else { return nil }
+                return (bytes, try? VaultArchive.header(of: bytes).0)
+            }.value
+            guard let loaded else { return }
+            data = loaded.0
+            header = loaded.1
         }
     }
     func run() async {
@@ -313,7 +332,7 @@ private struct VaultDownloadSheet: View {
         panel.message = L("vault.downloadPanel")
         guard panel.runModal() == .OK, let parent = panel.url else { return }
         do {
-            let folder = try vault.downloadFolder(container, into: parent, layout: layout)
+            let folder = try await vault.downloadFolderInBackground(container, into: parent, layout: layout)
             NSWorkspace.shared.activateFileViewerSelecting([folder])
             vault.notice = L("vault.downloaded")
             dismiss()

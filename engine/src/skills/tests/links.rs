@@ -138,11 +138,13 @@ fn kiro_is_export_only_and_never_touches_its_folder() {
     index["agents"] = json!({});
     std::fs::write(&path, index.to_string()).unwrap();
     let list = env.ok("skillsList", json!({}));
-    assert!(list["agents"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|a| a["id"] == "kiro" && a["mode"] == "export"));
+    assert!(
+        list["agents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a["id"] == "kiro" && a["mode"] == "export")
+    );
     assert!(!env.home.join(".kiro").exists());
 }
 
@@ -253,11 +255,13 @@ fn custom_agents_are_validated_and_removed_with_their_links() {
         "skillsAgentSave",
         json!({"id": "mia", "name": "Mía", "folder": "~/.mia/skills"}),
     );
-    assert!(agents
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|a| a["id"] == "mia" && a["builtin"] == false && a["mode"] == "link"));
+    assert!(
+        agents
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a["id"] == "mia" && a["builtin"] == false && a["mode"] == "link")
+    );
     env.link("a", "mia");
     assert!(env.link_path(".mia/skills", "a").exists());
     assert_eq!(

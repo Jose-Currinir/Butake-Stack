@@ -69,9 +69,12 @@ struct EnvironmentsView: View {
     @AppStorage("env.textMode") var textMode = false
     @State var text = ""
     @State var findRequests = 0
-    @State private var creating = false
-    @State private var confirmProduction = false
-    @State private var confirmDelete = false
+    @State var creating = false
+    @State var confirmProduction = false
+    @State var confirmDelete = false
+    @State var renaming = false
+    /// A `.env` dropped while environments exist: the preview that asks before creating a new one.
+    @State var dropPreview: EnvDropPreview?
     @State private var showAudit = false
     @State private var revealed: [String: String] = [:]
     /// The 30 s timer of each revealed value; hiding it or leaving the page cancels it.
@@ -84,6 +87,7 @@ struct EnvironmentsView: View {
     @State private var offerRestart: EnvEnvironment?
     @State private var creatingDatabase = false
     @State private var changingPassword = false
+    @State var dropTargeted = false
 
     struct Row: Identifiable, Hashable {
         let id = UUID()
@@ -116,7 +120,19 @@ struct EnvironmentsView: View {
         Group {
             if environments.isEmpty { emptyState } else if textMode { textContent } else { content }
         }
+        // A `.env` dropped here: «Local» when there are no environments (as «Importar»), else a new one.
+        .overlay {
+            if dropTargeted {
+                RoundedRectangle(cornerRadius: 12).strokeBorder(Brand.accent, lineWidth: 2).padding(8).allowsHitTesting(false)
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            dropEnv(url)
+            return true
+        } isTargeted: { dropTargeted = $0 }
         .onChange(of: draft) { _, _ in followDraft() }
+        .onChange(of: environments.map(\.id)) { _, _ in reconcileSelection() }
         .onChange(of: storedSecrets) { _, _ in if textMode, !dirty { renderText() } }
         .onChange(of: textMode) { _, _ in modeChanged() }
         .task(id: project.id) { await store.loadEnvs(project.id); load() }
@@ -126,6 +142,12 @@ struct EnvironmentsView: View {
             NewEnvironmentSheet(store: store, project: project, current: current) { id in selected = id; load() }.themedSheet()
         }
         .sheet(item: $editingSecret) { row in SecretEditor(key: row.key) { value in set(row.id) { $0.newSecret = value }; dirty = true }.themedSheet() }
+        .sheet(isPresented: $renaming) {
+            if let current { RenameEnvironmentSheet(store: store, project: project, env: current).themedSheet() }
+        }
+        .sheet(item: $dropPreview) { preview in
+            EnvDropSheet(store: store, project: project, preview: preview) { id in adopt(id) }.themedSheet()
+        }
         .sheet(isPresented: $confirmProduction) {
             if let current { ProductionConfirm(store: store, project: project, env: current).themedSheet() }
         }
@@ -177,10 +199,14 @@ struct EnvironmentsView: View {
         return guardState.tracked ? L("env.guard.tracked") : L("env.guard.notIgnored")
     }
 
+    @ViewBuilder var guardNotice: some View {
+        if let guardProblem { EnvGuardNotice(store: store, project: project, message: guardProblem, tracked: state?.gitGuard.tracked == true) }
+    }
+
     // MARK: Empty: import the current .env or start from .env.example
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            if let guardProblem { Notice(.error, guardProblem).padding(.horizontal, 20).padding(.top, 14) }
+        VStack(spacing: 0) {
+            if guardProblem != nil { guardNotice.padding(.horizontal, 20).padding(.top, 14) }
             ContentUnavailableView {
                 Label(L("env.title"), systemImage: Symbols.environments)
             } description: {
@@ -196,14 +222,15 @@ struct EnvironmentsView: View {
                     }
                 }
             }
+            .frame(maxHeight: .infinity)
             .help(L("env.securityNote"))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     /// What is wrong with this environment, one notice each; both modes show them.
     @ViewBuilder var notices: some View {
-        if let guardProblem { Notice(.error, guardProblem) }
+        guardNotice
         if !missingPorts.isEmpty {
             Notice(.error, String(format: L("env.portMissing"), missingPorts.joined(separator: ", ")), detail: L("env.portMissingDetail"))
         }
@@ -229,6 +256,13 @@ struct EnvironmentsView: View {
         }
     }
     var environmentPicker: some View {
+        HStack(spacing: 6) {
+            environmentSelector
+            environmentMenu
+        }
+        .contextMenu { environmentActions }
+    }
+    private var environmentSelector: some View {
         Picker(L("env.editing"), selection: Binding(get: { current?.id }, set: { id in if !dirty || confirmDiscard() { selected = id } })) {
             ForEach(environments) { env in
                 Label(env.title, systemImage: env.kind.symbol).tag(Optional(env.id))
@@ -330,13 +364,16 @@ struct EnvironmentsView: View {
 
     // MARK: Actions
     /// Saves, applies and, when processes are running, asks before restarting them.
-    private func activate(_ env: EnvEnvironment) async {
-        await save()
+    func activate(_ env: EnvEnvironment) async {
+        let previous = store.activeEnvironment(project.id)
+        // A save that did not happen keeps what was typed: nothing is reloaded or applied over it.
+        guard await save() else { return }
         await store.activateEnvironment(project, env, restart: false)
         load()
+        if store.activeEnvironment(project.id)?.id == env.id { undoActivation(from: previous, to: env) }
         if store.activeEnvironment(project.id)?.id == env.id, !store.liveProcessIDs(project).isEmpty { offerRestart = env }
     }
-    private func load() {
+    func load() {
         if selected == nil || !environments.contains(where: { $0.id == selected }) { selected = state?.site.active ?? environments.first?.id }
         draft = (current?.entries ?? []).map { Row(key: $0.key, value: $0.value, secret: $0.secret, original: $0.key) }
         hideTimers.values.forEach { $0.cancel() }; hideTimers = [:]
@@ -358,7 +395,7 @@ struct EnvironmentsView: View {
         let site = project.id, env = current.id
         storedSecrets = await Task.detached { EnvSecrets.keychain.storedKeys(site: site, env: env) }.value
     }
-    private func confirmDiscard() -> Bool {
+    func confirmDiscard() -> Bool {
         let alert = NSAlert()
         alert.messageText = L("env.discardTitle"); alert.informativeText = L("env.discardDetail")
         alert.addButton(withTitle: L("env.discard")); alert.addButton(withTitle: L("common.cancel"))
@@ -401,69 +438,42 @@ struct EnvironmentsView: View {
         draft.append(Row(key: key, value: "", secret: true))
         return draft[draft.count - 1].id
     }
-    /// The new database's connection goes into this environment; passwords as secrets that land in
-    /// the Keychain on save. An account that already existed keeps its password: its key is left
-    /// as it is, and the notice says how to change it.
-    private func fill(_ created: CreatedDatabase) {
-        func upsert(_ key: String, _ value: String?, secret: Bool = false) {
-            guard let value else { return }
-            if let i = draft.firstIndex(where: { $0.key == key }) {
-                if secret { draft[i].secret = true; draft[i].newSecret = value } else { draft[i].value = value }
-            } else {
-                draft.append(Row(key: key, value: secret ? "" : value, secret: secret, newSecret: secret ? value : nil))
-            }
-        }
-        let owner = created.migrationUser ?? created.user
-        let ownerPassword = created.migrationUser == nil ? created.password : created.migrationPassword
-        if created.engine == "mysql" || draft.contains(where: { $0.key == "DB_CONNECTION" || $0.key == "DB_DATABASE" }) {
-            // Laravel-style: one connection that also runs the migrations, so it gets the owner.
-            upsert("DB_CONNECTION", created.engine == "mysql" ? "mysql" : "pgsql")
-            upsert("DB_HOST", created.host)
-            upsert("DB_PORT", String(created.port))
-            upsert("DB_DATABASE", created.database)
-            upsert("DB_USERNAME", owner)
-            upsert("DB_PASSWORD", ownerPassword, secret: true)
-        } else {
-            // JDBC style (KMP backends): the app's login for runtime, the owner for migrations.
-            upsert("DATABASE_URL", created.jdbc)
-            upsert("DATABASE_USER", created.user)
-            upsert("DATABASE_PASSWORD", created.password, secret: true)
-            if created.migrationUser != nil || draft.contains(where: { $0.key == "DATABASE_MIGRATION_USER" }) {
-                upsert("DATABASE_MIGRATION_URL", created.jdbc)
-                upsert("DATABASE_MIGRATION_USER", owner)
-                upsert("DATABASE_MIGRATION_PASSWORD", ownerPassword, secret: true)
-            }
-        }
-        dirty = true
-        var kept: [String] = []
-        if created.password == nil { kept.append(created.user) }
-        if let owner = created.migrationUser, created.migrationPassword == nil { kept.append(owner) }
-        store.notify(kept.isEmpty ? String(format: L("env.databaseCreated"), created.database)
-                                  : String(format: L("env.databaseKept"), created.database, kept.joined(separator: ", ")))
-    }
     private func addMissing() async {
         let keys = missing
         let secret = await store.classify(keys)
         for (index, key) in keys.enumerated() { draft.append(Row(key: key, value: "", secret: secret[index])) }
         dirty = true
     }
-    /// Secrets to the Keychain first, then keys and plain values to the store.
-    private func save() async {
-        await classifyTyped()
-        guard dirty, let current, var site = state?.site, let index = site.environments.firstIndex(where: { $0.id == current.id }) else { return }
-        let keys = draft.map { $0.key.trimmingCharacters(in: .whitespaces) }
-        guard !keys.contains(where: \.isEmpty), Set(keys).count == keys.count else { store.errorMessage = L("env.invalidKeys"); return }
-        // A typed secret, or a plain value just marked secret, goes to the Keychain; one write in all.
+    /// The Keychain changes of a save: typed secrets, or values just marked secret, to write, and
+    /// the stored ones no longer secret to delete. Keys are trimmed once, as the entries keep them.
+    static func secretChanges(_ rows: [Row], current: [EnvEntry], stored: Set<String>) -> (set: [String: String], remove: Set<String>) {
         var set: [String: String] = [:]
-        for row in draft where row.secret {
-            if let value = row.newSecret { set[row.key] = value } else if !row.value.isEmpty { set[row.key] = row.value }
+        for row in rows where row.secret {
+            let key = row.key.trimmingCharacters(in: .whitespaces)
+            if let value = row.newSecret { set[key] = value } else if !row.value.isEmpty { set[key] = row.value }
         }
-        let kept = Set(draft.filter(\.secret).map(\.key))
-        let remove = Set(current.entries.filter { $0.secret && !kept.contains($0.key) }.map(\.key)).intersection(storedSecrets)
-        if !set.isEmpty || !remove.isEmpty {
-            guard await store.updateSecrets(project.id, current.id, set: set, remove: remove) else { return }
+        let kept = Set(rows.filter(\.secret).map { $0.key.trimmingCharacters(in: .whitespaces) })
+        let remove = Set(current.filter { $0.secret && !kept.contains($0.key) }.map(\.key)).intersection(stored)
+        return (set, remove)
+    }
+
+    /// Secrets to the Keychain first, then keys and plain values to the store. Whether it was
+    /// saved (nothing to save counts); a failure leaves the edits on screen.
+    @discardableResult
+    private func save() async -> Bool {
+        await classifyTyped()
+        guard dirty else { return true }
+        guard let current, var site = state?.site, let index = site.environments.firstIndex(where: { $0.id == current.id }) else { return false }
+        let keys = draft.map { $0.key.trimmingCharacters(in: .whitespaces) }
+        guard !keys.contains(where: \.isEmpty), Set(keys).count == keys.count else { store.errorMessage = L("env.invalidKeys"); return false }
+        // One write in all.
+        let changes = Self.secretChanges(draft, current: current.entries, stored: storedSecrets)
+        if !changes.set.isEmpty || !changes.remove.isEmpty {
+            guard await store.updateSecrets(project.id, current.id, set: changes.set, remove: changes.remove) else { return false }
         }
         site.environments[index].entries = draft.map { EnvEntry(key: $0.key.trimmingCharacters(in: .whitespaces), value: $0.secret ? "" : $0.value, secret: $0.secret) }
-        if await store.saveEnvs(project.id, site) { load() }
+        guard await store.saveEnvs(project.id, site) else { return false }
+        load()
+        return true
     }
 }

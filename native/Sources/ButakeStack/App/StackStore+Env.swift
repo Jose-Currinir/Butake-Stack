@@ -179,29 +179,25 @@ extension StackStore {
         let folder = url.deletingLastPathComponent().path, name = url.lastPathComponent
         guard name.hasPrefix(".env") else { errorMessage = L("env.downloadName"); return }
         // Git runs off the main thread: a slow or network disk must not freeze the window.
-        let exposed = await Task.detached { Self.insideRepository(folder) && !Self.ignored(folder, name) }.value
-        if exposed {
-            errorMessage = String(format: L("env.downloadNotIgnored"), name); return
-        }
+        guard await checkDownloadTarget(folder, name) else { return }
         guard await EnvVault.authenticate(String(format: L("env.authDownload"), env.title), fresh: env.kind == .production) else { return }
+        // Asked again after the authentication: it can take a while and the folder may have changed meanwhile.
+        guard await checkDownloadTarget(folder, name) else { return }
         guard let secrets = await secretsFor(project, env) else { return }
         await run(L("busy.saving")) {
             let _: Bool = try await self.call(["method": "envExport", "id": project.id, "env": env.id, "secrets": secrets, "path": url.path, "actor": self.actor])
             self.notify(String(format: L("env.downloaded"), name))
         }
     }
-    nonisolated static func git(_ folder: String, _ arguments: [String]) -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", folder] + arguments
-        process.environment = ["PATH": "/usr/bin:/bin", "GIT_OPTIONAL_LOCKS": "0"]
-        process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return false }
-        process.waitUntilExit()
-        return process.terminationStatus == 0
+    /// True when the file may be written there; otherwise it says why (tracked by Git, or Git could not tell).
+    private func checkDownloadTarget(_ folder: String, _ name: String) async -> Bool {
+        switch await Task.detached(operation: { EnvDownloadGuard.verdict(folder: folder, name: name) }).value {
+        case .allowed: return true
+        case .notIgnored: errorMessage = String(format: L("env.downloadNotIgnored"), name)
+        case .unverifiable: errorMessage = String(format: L("env.downloadGitUnknown"), name)
+        }
+        return false
     }
-    nonisolated static func insideRepository(_ folder: String) -> Bool { git(folder, ["rev-parse", "--is-inside-work-tree"]) }
-    nonisolated static func ignored(_ folder: String, _ name: String) -> Bool { git(folder, ["check-ignore", "-q", "--", name]) }
 
     /// A template without secret values, next to the project (R9).
     func exportTemplate(_ project: Project, _ env: EnvEnvironment) async {

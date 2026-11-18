@@ -7,6 +7,9 @@ struct GitFilesBrowser: View {
     @State private var paths: [String]?
     @State private var filter = ""
     @State private var selection: String?
+    /// Why the files could not be read: not the same as «no files».
+    @State private var failure: GitFailure?
+    @State private var retries = 0
 
     private var shown: [String] {
         let all = paths ?? []
@@ -26,7 +29,15 @@ struct GitFilesBrowser: View {
                 .themedScroll()
                 .accessibilityIdentifier("git.files.list")
                 .overlay {
-                    if paths == nil {
+                    if let failure {
+                        ContentUnavailableView {
+                            Label(failure.title, systemImage: Symbols.warning)
+                        } description: {
+                            Text(failure.detail)
+                        } actions: {
+                            Button(L("common.retry")) { retries += 1 }.accessibilityIdentifier("git.files.retry")
+                        }
+                    } else if paths == nil {
                         ProgressView()
                     } else if shown.isEmpty {
                         if filter.isEmpty {
@@ -47,9 +58,16 @@ struct GitFilesBrowser: View {
             }
             .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
         }
-        .task {
-            let output = (try? await repository.query(["ls-files", "--cached", "--others", "--exclude-standard", "-z"])) ?? ""
-            paths = output.split(separator: "\0").map(String.init)
+        .task(id: retries) {
+            do {
+                let output = try await repository.query(["ls-files", "--cached", "--others", "--exclude-standard", "-z"])
+                guard !Task.isCancelled else { return }
+                paths = output.split(separator: "\0").map(String.init)
+                failure = nil
+            } catch {
+                let problem = GitFailure(error)
+                if !problem.cancelled && !Task.isCancelled { failure = problem }
+            }
         }
     }
 }

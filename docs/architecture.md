@@ -22,8 +22,13 @@ DNS corre dentro del daemon. Así Stack corre sin root; solo `/etc/resolver/<tld
 los dominios locales a `127.0.0.1:53`) necesita una vez la autorización de administrador.
 
 Socket: `run/daemon.sock` de la carpeta de datos (permisos 0600),
-protocolo JSON por líneas: `{"id", "method", "params"}` → `{"id", "ok", "value"|"error"}`, y
-eventos `process.state`, `stack.changed` y `stream.lagged`. El puente envía un estado inicial, vuelve a consultar ante eventos y se reconecta si el daemon sale. El estado de servicios auxiliares se actualiza también cada 15 s desde la misma sesión.
+protocolo JSON por líneas: `{"id", "method", "params"}` → `{"id", "ok", "value"|"error",
+"protocol"}`, y eventos `process.state`, `stack.changed` y `stream.lagged`. `protocol`
+(`daemon::PROTOCOL`, hoy 1) sube cuando cambia la forma de una petición o una respuesta: el daemon
+es un LaunchAgent que sobrevive a la app, y si contesta con otro número (o sin él, como 0.1.3 y
+anteriores) el CLI le pide `shutdown` y arranca el actual, con `launchctl kickstart` si el agente
+de sesión sirve esa misma carpeta de datos o como hijo si no; si aun así no calza, responde
+`daemon_outdated`. El puente envía un estado inicial, vuelve a consultar ante eventos y se reconecta si el daemon sale. El estado de servicios auxiliares se actualiza también cada 15 s desde la misma sesión.
 
 Las consultas de estado y registros acceden a un índice publicado al aplicar la configuración.
 Pueden leer el estado de un proceso durante su apagado. Las órdenes de control se ejecutan en
@@ -67,7 +72,9 @@ opaco.
 ~/Library/Application Support/Stack/
   stack.json              configuración global (versiones, puertos, TLD, Correo, Dumps, Xdebug)
   projects/<id>.json      un archivo por proyecto
-  groups.json             carpetas y proyectos de varias partes
+  groups.json             proyectos de varias partes (por ruta relativa) y las carpetas de antes
+  groups.pre-disk.json    copia de groups.json antes de la primera comparación con el disco
+  disk.json               carpeta de proyectos elegida, identidades de las carpetas de los proyectos, movimientos seguidos
   watched.json            carpetas vigiladas
   envs/<id>.json          entornos de un proyecto, sin valores secretos
   data/<servicio>/        datadir de cada servicio; data/caddy/ guarda la CA local
@@ -410,7 +417,7 @@ conserva si lo usa otro llamador (anotado junto al método) o se quita con sus p
 | `gitRun`, `gitPrepare` | Conservado | Línea de comandos: un comando de consola revisado con la misma política que `git-console` |
 | `gitRebaseCandidates`, `gitValidateRebase` | Conservado | El plan del rebase interactivo que usan `git-console` y `git-write-plan` |
 | `gitSetMainProtection` | Conservado | Única forma de cambiar la protección de la rama principal (la app solo la lee); las pruebas preparan estados con él |
-| `clearDumps`, `sharePublic`, `cloudflareLogin` | Conservado | Del daemon: solo los pide el propio motor (`request_sync`) |
+| `clearDumps`, `deleteDump`, `sharePublic`, `cloudflareLogin` | Conservado | Del daemon: solo los pide el propio motor (`request_sync`) |
 | `gitCloneName`, `gitPullRequestUrl`, `gitFiles`, `gitBranchDiff`, `gitPreviewFile`, `gitSaveFile` | Quitado | Sin llamador; la app arma el nombre del clon y las páginas del proveedor, y el visor de archivos es de solo lectura |
 | `portDependents` | Quitado | Sin llamador; los proyectos afectados siguen llegando en las respuestas de guardar y eliminar |
 | `installSwiftly` | Quitado (R-2) | Sin llamador; swiftly se instala como utilidad de desarrollo (`devtools`) |
@@ -448,7 +455,14 @@ conserva si lo usa otro llamador (anotado junto al método) o se quita con sus p
 
 - **Asistente de configuración.** Al iniciar, si falta PHP, Caddy o el agente de sesión, se abre
   la hoja de requisitos. PHP se descarga del release `runtimes` de este repositorio (`catalog.json`
-  con la SHA-256 de cada compilación; `phpCatalog` / `downloadPhp`), Caddy y Node.js de sus
+  con la SHA-256 de cada compilación; `phpCatalog` / `downloadPhp`). El catálogo viene firmado: el
+  motor baja también `catalog.json.sig` (ECDSA P-256 sobre SHA-256, en DER) y lo verifica con
+  Security.framework contra la clave pública que lleva dentro (`CATALOG_PUBLIC_KEY` en
+  `engine/src/runtimes/languages/php.rs`); sin firma válida (`catalog_unsigned`,
+  `catalog_signature_invalid`) no se usa el catálogo ni se instala nada. Después se verifica la
+  SHA-256 del paquete y, ya extraído en una carpeta de preparación, la de cada archivo del
+  manifiesto, y solo entonces se mueve a `runtimes/php/<versión>/`. Un paquete local elegido por el
+  usuario sigue verificándose contra el `catalog.json` de su carpeta, sin firma. Caddy y Node.js de sus
   catálogos oficiales, y las herramientas de Apple con `xcode-select --install`. Todo pide
   confirmación.
 - **Actualizaciones.** El actualizador consulta `releases/latest`, descarga `Butake-Stack.zip`

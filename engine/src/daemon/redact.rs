@@ -7,7 +7,8 @@
 //!   `"name": "value"`, `'name' => 'value'`, `--name=value` and `--name value`, cookie and
 //!   `Authorization`/`X-…-Key` headers included (the value runs to the end of the line unless
 //!   another `name=` or `name:` follows);
-//! - the password of a URL with credentials (`scheme://user:password@host`);
+//! - the password of a URL with credentials (`scheme://user:password@host`), and the whole user
+//!   part of an `http(s)` one (`https://TOKEN@host`);
 //! - JSON Web Tokens and keys with a known prefix (`sk_live_`, `ghp_`, `AKIA`…), anywhere;
 //! - a random-looking word right after a sensitive name (`token 9f8e…`);
 //! - every line of a PEM private key block (with [`Redactor`]).
@@ -200,6 +201,14 @@ pub fn redact(line: &str) -> String {
         let c = chars[i];
         // scheme://user:password@host
         if c == ':' && chars.get(i + 1) == Some(&'/') && chars.get(i + 2) == Some(&'/') {
+            // The scheme just written: for the web ones, the user part is a token as often as
+            // a name (`https://TOKEN@host`), so all of it goes.
+            let web = out
+                .rsplit(|c: char| !c.is_ascii_alphabetic())
+                .next()
+                .is_some_and(|scheme| {
+                    scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https")
+                });
             out.push_str("://");
             i += 3;
             let mut j = i;
@@ -207,7 +216,10 @@ pub fn redact(line: &str) -> String {
                 j += 1;
             }
             if chars.get(j) == Some(&'@') {
-                if let Some(colon) = (i..j).find(|k| chars[*k] == ':') {
+                if web && j > i {
+                    out.push_str(MASK);
+                    i = j;
+                } else if let Some(colon) = (i..j).find(|k| chars[*k] == ':') {
                     out.extend(&chars[i..=colon]);
                     out.push_str(MASK);
                     i = j;
@@ -349,6 +361,24 @@ mod tests {
             (
                 format!("connecting to postgres://app:{two}@127.0.0.1:5432/app"),
                 "connecting to postgres://app:[oculto]@127.0.0.1:5432/app".into(),
+            ),
+            // A token used as the user of a web address (no prefix to recognise, or Bitbucket's).
+            (
+                "fatal: unable to access 'https://ATATT3xFfGF0abcDEF123456789@bitbucket.org/ws/r.git/': 403".into(),
+                "fatal: unable to access 'https://[oculto]@bitbucket.org/ws/r.git/': 403".into(),
+            ),
+            (
+                "origin\thttps://abcdef0123456789abcdef@github.com/a/b.git (fetch)".into(),
+                "origin\thttps://[oculto]@github.com/a/b.git (fetch)".into(),
+            ),
+            (
+                "origin\thttps://abcdef:x-oauth-basic@github.com/a/b.git (push)".into(),
+                "origin\thttps://[oculto]@github.com/a/b.git (push)".into(),
+            ),
+            // Not a web address: the user of an SSH one is a name.
+            (
+                "ssh://git@github.com/a/b.git".into(),
+                "ssh://git@github.com/a/b.git".into(),
             ),
             (
                 format!("GET /cb?code=1&access_token={one}&state=ok"),

@@ -2,7 +2,7 @@
 //! branch, confirmations, explicit push destination and validated references.
 use super::protection::{main_protected, primary_branch};
 use super::remotes::access_failure;
-use super::runner::{error, git, git_console, git_env, GitError, Result};
+use super::runner::{GitError, Result, error, git, git_console, git_env};
 use super::status::{has_conflicts, operation, status, validate_path};
 use serde::Deserialize;
 use std::path::Path;
@@ -260,14 +260,20 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
             git(root, &["reset", "--soft", "HEAD~1"]).await
         }
         Fetch | Pull | PullMerge | PullRebase | PullAutostash | Push | DeleteRemoteBranch
-            if git(root, &["remote"]).await.unwrap_or_default().trim().is_empty() =>
+            if git(root, &["remote"])
+                .await
+                .unwrap_or_default()
+                .trim()
+                .is_empty() =>
         {
             Err(error(
                 "no_remote",
                 "Este repositorio sólo existe en tu Mac: no tiene remoto. Agrega uno en Remotos (por ejemplo origin) para buscar, bajar o subir cambios.",
             ))
         }
-        Fetch => git(root, &["fetch", "--prune"]).await.map_err(access_failure),
+        Fetch => git(root, &["fetch", "--prune"])
+            .await
+            .map_err(access_failure),
         Pull => pull(root, &["pull", "--ff-only"]).await,
         PullMerge => pull(root, &["pull", "--no-rebase", "--no-edit"]).await,
         PullRebase => pull(root, &["pull", "--rebase"]).await,
@@ -339,10 +345,12 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
             // Only a remote of this repository: any other value would become the push destination.
             let remotes = git(root, &["remote"]).await?;
             if remote.starts_with('-') || !remotes.lines().any(|name| name == remote) {
-                return Err(error("invalid_ref", "Elige una rama de un remoto de este repositorio."));
+                return Err(error(
+                    "invalid_ref",
+                    "Elige una rama de un remoto de este repositorio.",
+                ));
             }
-            if short == primary_branch(root).await || short == "develop"
-            {
+            if short == primary_branch(root).await || short == "develop" {
                 return Err(error(
                     "protected_branch",
                     "La rama principal y develop no se eliminan desde aquí.",
@@ -472,15 +480,8 @@ pub async fn execute(root: &Path, action: Action, value: &str, confirmed: bool) 
                 .ok_or_else(|| error("invalid_arguments", "Escribe el nombre y la dirección."))?;
             let (name, url) = (name.trim(), url.trim());
             validate_remote(root, name).await?;
-            if url.is_empty() || url.starts_with('-') || url.contains(char::is_whitespace) {
-                return Err(error("invalid_url", "La dirección del remoto no es válida."));
-            }
-            if super::remotes::embeds_credentials(url) {
-                return Err(error(
-                    "invalid_url",
-                    "Quita el usuario y la clave de la dirección: Stack usa tu cuenta conectada.",
-                ));
-            }
+            // The same rules as clone and publish (https, ssh, git@), plus a local folder.
+            super::remotes::validate_remote_url(url)?;
             git(
                 root,
                 &["remote", "add", name, &super::remotes::stored_address(url)],
@@ -714,7 +715,10 @@ async fn pull(root: &Path, args: &[&str]) -> Result<String> {
 pub fn classify_pull_failure(detail: &str, conflicted: bool) -> GitError {
     let text = detail.to_lowercase();
     let (code, message) = if conflicted || text.contains("conflict") {
-        ("pull_conflicts", "Los cambios del remoto chocan con los tuyos en algunos archivos. Resuélvelos uno por uno y luego continúa.")
+        (
+            "pull_conflicts",
+            "Los cambios del remoto chocan con los tuyos en algunos archivos. Resuélvelos uno por uno y luego continúa.",
+        )
     } else if text.contains("not possible to fast-forward")
         || text.contains("diverg")
         || text.contains("need to specify how to reconcile")
@@ -728,9 +732,15 @@ pub fn classify_pull_failure(detail: &str, conflicted: bool) -> GitError {
         || text.contains("unstaged changes")
         || text.contains("uncommitted changes")
     {
-        ("pull_local_changes", "Tienes cambios sin guardar en commit que se pisarían al bajar. Puedes guardarlos temporalmente y recuperarlos después.")
+        (
+            "pull_local_changes",
+            "Tienes cambios sin guardar en commit que se pisarían al bajar. Puedes guardarlos temporalmente y recuperarlos después.",
+        )
     } else if text.contains("no tracking information") || text.contains("no such ref was fetched") {
-        ("pull_no_upstream", "Esta rama todavía no está conectada con una rama del remoto. Súbela primero o configura su upstream.")
+        (
+            "pull_no_upstream",
+            "Esta rama todavía no está conectada con una rama del remoto. Súbela primero o configura su upstream.",
+        )
     } else if text.contains("could not read from remote")
         || text.contains("authentication")
         || text.contains("permission denied")

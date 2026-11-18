@@ -1,7 +1,7 @@
 //! Other working folders («Más…» › Carpetas de trabajo): added on a new or an existing branch,
 //! refused where they would overwrite or nest, and taken out only when asked and clean.
 use super::sandbox;
-use crate::git::actions::{execute, Action};
+use crate::git::actions::{Action, execute};
 use crate::git::runner::git;
 
 #[tokio::test]

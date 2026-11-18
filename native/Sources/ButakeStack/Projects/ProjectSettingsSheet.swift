@@ -24,7 +24,7 @@ struct ProjectSettingsSheet: View {
         _domain = State(initialValue: project.domain)
         _original = State(initialValue: project.runtime)
         _commands = State(initialValue: Dictionary(uniqueKeysWithValues: Self.commandNames.map { name in
-            (name, project.processes.first { $0.name == name }?.commandLine ?? "")
+            (name, project.processes.first { $0.name == name }?.editableLine ?? "")
         }))
     }
 
@@ -184,10 +184,13 @@ struct ProjectSettingsSheet: View {
     }
 
     /// «Comprobar» and «Compilar» into the project's processes: the program and its arguments as
-    /// words (no shell), never started on their own; an empty line removes the command.
+    /// words (no shell; quotes and backslashes group a word), never started on their own; an empty
+    /// line removes the command. A command whose text was not edited is left as it is.
     func applyCommands() {
         for name in Self.commandNames {
-            let words = (commands[name] ?? "").split(whereSeparator: \.isWhitespace).map(String.init)
+            let text = commands[name] ?? ""
+            if text == project.processes.first(where: { $0.name == name })?.editableLine ?? "" { continue }
+            let words = ProjectProcess.words(of: text)
             project.processes.removeAll { $0.name == name }
             if let program = words.first {
                 project.processes.append(ProjectProcess(name: name, program: program, args: Array(words.dropFirst()), autostart: false))

@@ -11,9 +11,9 @@ mod accounts;
 mod cli;
 
 use crate::core::{model::GcpLink, store::Store, watch as core_watch};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use cli::Cli;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::Path;
 
 /// Requests of the Google Cloud tool (`gcp*`); the caller checked that the tool is on.
@@ -223,10 +223,12 @@ mod tests {
             "gcp_unknown_account"
         );
         accounts::revoke(&fake.cli, &records, "otra@ejemplo.test").unwrap();
-        assert!(!accounts::list(&fake.cli, &records)
-            .unwrap()
-            .iter()
-            .any(|a| a.account == "otra@ejemplo.test"));
+        assert!(
+            !accounts::list(&fake.cli, &records)
+                .unwrap()
+                .iter()
+                .any(|a| a.account == "otra@ejemplo.test")
+        );
         assert_eq!(active_configuration(&fake.config), before);
 
         let calls = calls(&fake.config);
@@ -387,9 +389,11 @@ mod tests {
         link(&store, "tienda", None).unwrap();
         link(&store, "agenda", None).unwrap();
         let environment = spec(&store, "tienda");
-        assert!(GcpLink::VARIABLES
-            .iter()
-            .all(|name| !environment.contains_key(*name)));
+        assert!(
+            GcpLink::VARIABLES
+                .iter()
+                .all(|name| !environment.contains_key(*name))
+        );
         assert_eq!(
             spec(&store, "agenda")["GOOGLE_CLOUD_PROJECT"],
             "escrito-a-mano"

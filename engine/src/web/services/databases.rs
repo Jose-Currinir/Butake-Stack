@@ -8,8 +8,8 @@
 use crate::core::rand::random_hex;
 use crate::web::services::engines::{engine_dir, port};
 use crate::{core::model::StackConfig, core::store::Store};
-use anyhow::{anyhow, ensure, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, anyhow, ensure};
+use serde_json::{Value, json};
 use std::process::{Command, Stdio};
 
 /// How a new PostgreSQL database is reached.

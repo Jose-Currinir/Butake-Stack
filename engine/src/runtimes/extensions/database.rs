@@ -1,8 +1,8 @@
 //! Second level: an extension *active in a database* (`CREATE EXTENSION`) of Stack's PostgreSQL,
 //! which must be running. Names are checked against what the server offers and against a strict
 //! pattern before they reach SQL; databases are Stack's identifiers (`validate_database`).
-use crate::web::services::databases::{validate_database, Postgres};
-use anyhow::{anyhow, bail, ensure, Result};
+use crate::web::services::databases::{Postgres, validate_database};
+use anyhow::{Result, anyhow, bail, ensure};
 use serde::{Deserialize, Serialize};
 
 /// A name `CREATE EXTENSION` may receive (see `core::project_database::extension_name`).

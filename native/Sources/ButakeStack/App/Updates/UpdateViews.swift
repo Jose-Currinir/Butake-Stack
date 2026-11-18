@@ -79,7 +79,14 @@ struct UpdateSheet: View {
         }
         let text = lines.joined(separator: "\n").replacingOccurrences(of: "\n\n\n", with: "\n\n").trimmingCharacters(in: .whitespacesAndNewlines)
         let body = text.isEmpty ? L("updateNoNotes") : text
-        return (try? AttributedString(markdown: body, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(body)
+        return Self.withoutLinks(body)
+    }
+    /// Inline Markdown (bold, italics) without live links: the notes are written by whoever publishes the release, and a
+    /// link with misleading text must not look trustworthy inside this window.
+    nonisolated static func withoutLinks(_ markdown: String) -> AttributedString {
+        guard var text = try? AttributedString(markdown: markdown, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) else { return AttributedString(markdown) }
+        for run in text.runs where run.link != nil { text[run.range].link = nil }
+        return text
     }
 }
 

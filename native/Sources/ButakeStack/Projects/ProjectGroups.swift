@@ -19,10 +19,15 @@ struct ProjectGroup: Codable, Identifiable, Hashable, Sendable {
     /// Its parts start one after another, in the order of `sites`.
     var ordered = false
     var gcp: GCPLink?
+    /// The folder of the disk it is, relative to the projects folder (`Apps/Salud`), and the folder
+    /// it is in. Only while the sidebar follows the disk: the engine draws the tree from the disk.
+    var path: String?
+    var parent: String?
 
     var isProject: Bool { kind == .project }
 
-    init(id: String, name: String, sites: [String], kind: Kind = .folder, repositories: [String] = [], ordered: Bool = false, gcp: GCPLink? = nil) {
+    init(id: String, name: String, sites: [String], kind: Kind = .folder, repositories: [String] = [], ordered: Bool = false, gcp: GCPLink? = nil,
+         path: String? = nil, parent: String? = nil) {
         self.id = id
         self.name = name
         self.sites = sites
@@ -30,9 +35,11 @@ struct ProjectGroup: Codable, Identifiable, Hashable, Sendable {
         self.repositories = repositories
         self.ordered = ordered
         self.gcp = gcp
+        self.path = path
+        self.parent = parent
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, sites, kind, repositories, ordered, gcp }
+    private enum CodingKeys: String, CodingKey { case id, name, sites, kind, repositories, ordered, gcp, path, parent }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -44,6 +51,8 @@ struct ProjectGroup: Codable, Identifiable, Hashable, Sendable {
         repositories = try values.decodeIfPresent([String].self, forKey: .repositories) ?? []
         ordered = try values.decodeIfPresent(Bool.self, forKey: .ordered) ?? false
         gcp = try values.decodeIfPresent(GCPLink.self, forKey: .gcp)
+        path = try values.decodeIfPresent(String.self, forKey: .path)
+        parent = try values.decodeIfPresent(String.self, forKey: .parent)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -55,6 +64,8 @@ struct ProjectGroup: Codable, Identifiable, Hashable, Sendable {
         if !repositories.isEmpty { try values.encode(repositories, forKey: .repositories) }
         if ordered { try values.encode(ordered, forKey: .ordered) }
         try values.encodeIfPresent(gcp, forKey: .gcp)
+        try values.encodeIfPresent(path, forKey: .path)
+        try values.encodeIfPresent(parent, forKey: .parent)
     }
 }
 
@@ -75,6 +86,21 @@ extension StackStore {
     }
     func projects(in group: ProjectGroup) -> [Project] {
         group.sites.compactMap { id in projects.first { $0.id == id } }
+    }
+    /// The projects of a folder and of every folder inside it, each once: what its count says.
+    func projects(inside group: ProjectGroup) -> [Project] {
+        var ids = Set([group.id])
+        var grew = true
+        // Parents come before their folders, but the loop does not depend on the order.
+        while grew {
+            grew = false
+            for other in groups where !ids.contains(other.id) && other.parent.map(ids.contains) == true {
+                ids.insert(other.id)
+                grew = true
+            }
+        }
+        var seen = Set<String>()
+        return groups.filter { ids.contains($0.id) }.flatMap(projects(in:)).filter { seen.insert($0.id).inserted }
     }
 
     /// Applies the change right away (so the sidebar animates with it) and saves it. Saves are queued:
@@ -105,6 +131,7 @@ extension StackStore {
     /// A new folder, optionally with sites in it; returns its id.
     @discardableResult
     func createGroup(named name: String, with sites: [String] = []) -> String {
+        if followsDisk { createFolderOnDisk(named: name, with: sites); return "" }
         let base = name.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" }.reduce(into: "") { $0.append($1) }
             .split(separator: "-").joined(separator: "-")
         var id = base.isEmpty ? "carpeta" : String(base.prefix(30))
@@ -120,16 +147,21 @@ extension StackStore {
     func renameGroup(_ id: String, to name: String) {
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
+        if followsDisk { renameFolderOnDisk(id, to: clean); return }
         updateGroups { groups in
             if let index = groups.firstIndex(where: { $0.id == id }) { groups[index].name = String(clean.prefix(60)) }
         }
     }
     /// Removes the folder; its sites go back to the plain list.
     func deleteGroup(_ id: String) {
+        if followsDisk { removeFolderOnDisk(id); return }
         updateGroups { $0.removeAll { $0.id == id } }
     }
     /// Moves a site into a folder (nil: out of any folder), at the end or right before another of its sites.
     func move(_ site: String, to group: String?, before other: String? = nil) {
+        // On the disk a move is a move of the folder: confirmed, and it can be undone.
+        if followsDisk { requestDiskMove(site, into: group); return }
+        guard !site.hasPrefix(Self.folderDragPrefix) else { return }
         updateGroups { groups in
             for index in groups.indices { groups[index].sites.removeAll { $0 == site } }
             guard let group, let index = groups.firstIndex(where: { $0.id == group }) else { return }

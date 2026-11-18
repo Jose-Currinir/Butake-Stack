@@ -120,6 +120,29 @@ borrar la app anterior.
 Cadena de validación, pruebas, QA visual con un almacén temporal y dobles de programas externos:
 [pruebas-y-qa.md](pruebas-y-qa.md). La app compilada localmente se firma como se explica en «Firma».
 
+## Publicar los runtimes de PHP
+
+Las compilaciones de PHP y su catálogo viven en el release `runtimes` del repositorio. El motor
+solo usa el catálogo si `catalog.json.sig` (la firma de `catalog.json`) está en ese mismo release
+y es válida contra la clave pública que lleva dentro (ver «Instalación» en `architecture.md`).
+
+1. `./scripts/php/package-php.sh <runtime> <carpeta>` arma el paquete y `catalog.json`, y firma
+   el catálogo con `scripts/php/sign_catalog.py`: lee la llave privada de la variable
+   `STACK_CATALOG_SIGNING_KEY` (por omisión `~/.credenciales/firma-catalogo-php/catalog-signing.pem`),
+   deja `catalog.json.sig` junto a `catalog.json` y verifica la firma con la clave pública del motor
+   antes de terminar. La llave privada nunca va al repositorio ni se copia a otro lugar.
+2. Sube al release el paquete nuevo y, siempre juntos, `catalog.json` y `catalog.json.sig`:
+   `gh release upload runtimes <carpeta>/catalog.json <carpeta>/catalog.json.sig --clobber --repo Jose-Currinir/Butake-Stack`.
+   Cada vez que cambia `catalog.json` hay que volver a firmarlo; una firma vieja no sirve.
+3. **Orden de la primera vez.** Una versión de Stack con esta verificación no se publica antes de
+   que `catalog.json.sig` esté en el release `runtimes`: sin él nadie puede instalar PHP. Primero se
+   sube la firma del catálogo vigente (`gh release upload runtimes <carpeta>/catalog.json.sig --repo Jose-Currinir/Butake-Stack`)
+   y después se publica la versión. Las versiones anteriores ignoran el archivo `.sig`.
+
+Cambiar la llave de firma exige una versión nueva de Stack con la clave pública nueva y
+un catálogo firmado con la llave nueva no lo aceptan las versiones anteriores (hay una sola
+clave de confianza); planifica la rotación.
+
 ## Firma
 
 macOS reconoce una app por su **requisito designado**. El Llavero guarda, para cada dato, qué

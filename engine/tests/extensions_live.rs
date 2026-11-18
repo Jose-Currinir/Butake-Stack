@@ -9,7 +9,7 @@
 //! ```
 //! `BUTAKE_P43_DIR` keeps the run's folder (a re-run skips the PostgreSQL build); `BUTAKE_P43_REPORT`
 //! is where the summary is written.
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     io::Write,
     path::{Path, PathBuf},
@@ -96,6 +96,8 @@ struct Server(Child);
 impl Drop for Server {
     /// Stopped by its own PID (fast shutdown), never by name.
     fn drop(&mut self) {
+        // SAFETY: `kill` takes two integers and touches no memory; the PID is this test's own child,
+        // not yet reaped (it is waited for right after), so it cannot be another process.
         unsafe {
             libc::kill(self.0.id() as i32, libc::SIGINT);
         }
@@ -253,10 +255,12 @@ fn postgis_and_pgvector_from_their_official_origins() {
         "geo_p43",
         "SELECT ST_AsText(ST_GeomFromGeoJSON('{\"type\":\"Point\",\"coordinates\":[1,2]}'))"
     ));
-    assert!(report["postgisVersion"]
-        .as_str()
-        .unwrap()
-        .contains("POSTGIS=\"3.7.0"));
+    assert!(
+        report["postgisVersion"]
+            .as_str()
+            .unwrap()
+            .contains("POSTGIS=\"3.7.0")
+    );
 
     // pgvector: installed in the engine, activated in the database, and used.
     let t = Instant::now();
@@ -317,11 +321,11 @@ fn postgis_and_pgvector_from_their_official_origins() {
     // And installed again, so the state below shows both.
     run.ok(json!({"method": "installExtension", "component": "postgres", "id": "pgvector", "confirmed": true}));
     report["state"] = run.ok(json!({"method": "extensionState"}));
-    report["installed"] = json!(std::fs::read_to_string(
-        run.engine(&version).join("butake-extensions.json")
-    )
-    .unwrap()
-    .len());
+    report["installed"] = json!(
+        std::fs::read_to_string(run.engine(&version).join("butake-extensions.json"))
+            .unwrap()
+            .len()
+    );
     report["totalSeconds"] = json!(started.elapsed().as_secs());
     drop(server);
     let _ = std::fs::remove_dir_all(&socket);

@@ -116,11 +116,15 @@ extension VaultSession {
     }
 
     /// Text and bytes of a file of the folder, read off the main actor.
+    /// Read again with the scan's checks (not a link, a regular file, a size limit) because the folder may have changed
+    /// since the preview; a field or README file is small, so it has a small limit.
     nonisolated static func readText(_ url: URL) async -> String? {
-        await Task.detached(priority: .userInitiated) { try? String(contentsOf: url, encoding: .utf8) }.value
+        await Task.detached(priority: .userInitiated) {
+            (try? VaultDisk.readRegularFile(url, limit: 1_048_576)).flatMap { String(data: $0, encoding: .utf8) }
+        }.value
     }
     nonisolated static func readData(_ url: URL) async -> Data? {
-        await Task.detached(priority: .userInitiated) { try? Data(contentsOf: url) }.value
+        await Task.detached(priority: .userInitiated) { try? VaultDisk.readRegularFile(url, limit: VaultFolder.maximumFileSize) }.value
     }
 
     func matchContainer(_ group: VaultFolder.Group) -> UUID? { Self.matchContainer(group, in: index) }

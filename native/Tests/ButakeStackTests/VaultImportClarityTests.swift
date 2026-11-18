@@ -58,7 +58,7 @@ private enum Invented {
         try write("p12-falso-p40", "_SERVICIOS/apple-signing/developer-id/dev.p12")
         try write(p12Password + "\n", "_SERVICIOS/apple-signing/developer-id/dev.p12.pass")
         // The app: what goes in, and what is left out by design.
-        try write("-----BEGIN PRIVATE KEY-----\nNO-ES-REAL-P40\n-----END PRIVATE KEY-----\n", "\(app)/03-IOS/PROD/AuthKey_ABC123DEF4.p8")
+        try write(PEM.block("NO-ES-REAL-P40"), "\(app)/03-IOS/PROD/AuthKey_ABC123DEF4.p8")
         try write("png-falso", "\(app)/03-IOS/PROD/icono.png")
         try write("APP_KEY=\(env)\n", "\(app)/01-API/PROD/.env")
         try write(dumped, "\(app)/01-API/PROD/base.dump.gz")

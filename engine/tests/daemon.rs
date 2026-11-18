@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
@@ -12,6 +12,7 @@ use std::{
 struct Daemon(Child);
 impl Drop for Daemon {
     fn drop(&mut self) {
+        // SAFETY: `kill` takes two integers and touches no memory; the pid is our own child's.
         unsafe {
             libc::kill(self.0.id() as i32, libc::SIGTERM);
         }
@@ -57,6 +58,7 @@ fn status(socket: &Path, id: &str) -> Value {
         .clone()
 }
 fn alive(pid: u32) -> bool {
+    // SAFETY: signal 0 sends nothing; `kill` only reports whether the process exists.
     unsafe { libc::kill(pid as i32, 0) == 0 }
 }
 
@@ -113,13 +115,15 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     // The rustc of the toolchain running the tests (RUSTC, else the one in PATH), never a fixed
     // path: CI runners keep it elsewhere than ~/.cargo/bin.
     let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
-    assert!(Command::new(rustc)
-        .arg(&source)
-        .args(["--edition=2021", "-o"])
-        .arg(runtime.join("php"))
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new(rustc)
+            .arg(&source)
+            .args(["--edition=2021", "-o"])
+            .arg(runtime.join("php"))
+            .status()
+            .unwrap()
+            .success()
+    );
     let processes: Vec<_> = ["sleep", "fail", "tree", "flood", "slow-stop"]
         .iter()
         .map(|name| json!({"name":name,"program":"php","args":[name],"autostart":false}))
@@ -204,14 +208,19 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     line.clear();
     snapshots.read_line(&mut line).unwrap();
     let snapshot: Value = serde_json::from_str(&line).unwrap();
-    assert!(snapshot["processes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|entry| entry["spec"]["id"] == "demo.sleep" && entry["status"]["state"] == "running"));
-    assert!(snapshot["processes"][0]["spec"]
-        .get("environment")
-        .is_none());
+    assert!(
+        snapshot["processes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["spec"]["id"] == "demo.sleep"
+                && entry["status"]["state"] == "running")
+    );
+    assert!(
+        snapshot["processes"][0]["spec"]
+            .get("environment")
+            .is_none()
+    );
     watch.kill().unwrap();
     watch.wait().unwrap();
 
@@ -234,10 +243,12 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     .unwrap();
     let captured = dumps.next();
     assert_eq!(captured.as_array().unwrap().len(), 1);
-    assert!(captured[0]["lines"].as_array().unwrap()[0]
-        .as_str()
-        .unwrap()
-        .starts_with("array:7"));
+    assert!(
+        captured[0]["lines"].as_array().unwrap()[0]
+            .as_str()
+            .unwrap()
+            .starts_with("array:7")
+    );
     assert_eq!(call(&socket, "clearDumps", "")["ok"], true);
     assert_eq!(dumps.next(), json!([]));
     drop(dumps);
@@ -249,6 +260,8 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     assert!(!alive(original));
     let restarted = status(&socket, "demo.sleep")["pid"].as_u64().unwrap() as u32;
     assert_ne!(original, restarted);
+    // SAFETY: `kill` takes two integers and touches no memory; the pid is the one the daemon
+    // reported for its own child process.
     unsafe {
         libc::kill(restarted as i32, libc::SIGKILL);
     }
@@ -293,17 +306,21 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     }
     let started = Instant::now();
     let stack = call(&socket, "stackStatus", "");
-    assert!(stack["value"]["processes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|entry| entry["spec"]["id"] == "demo.slow-stop"
-            && entry["status"]["state"] == "stopping"));
-    assert!(call(&socket, "logs", "demo.slow-stop")["value"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|line| line == "shutdown in progress"));
+    assert!(
+        stack["value"]["processes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["spec"]["id"] == "demo.slow-stop"
+                && entry["status"]["state"] == "stopping")
+    );
+    assert!(
+        call(&socket, "logs", "demo.slow-stop")["value"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|line| line == "shutdown in progress")
+    );
     assert!(started.elapsed() < Duration::from_secs(2));
     assert_eq!(
         slow_logs.next(),
@@ -334,9 +351,11 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
     let tail = call(&socket, "logs", "demo.flood");
     assert!(tail["value"].as_array().unwrap().len() <= 2000);
     for entry in fs::read_dir(home.join("logs")).unwrap() {
-        assert!(!fs::read_to_string(entry.unwrap().path())
-            .unwrap()
-            .contains("synthetic-test-value"));
+        assert!(
+            !fs::read_to_string(entry.unwrap().path())
+                .unwrap()
+                .contains("synthetic-test-value")
+        );
     }
     let flood_pid = status(&socket, "demo.flood")["pid"].as_u64().unwrap() as u32;
     assert_eq!(call(&socket, "start", "demo.tree")["ok"], true);
@@ -358,6 +377,7 @@ fn daemon_lifecycle_backoff_events_and_rotation() {
         .find_map(|line| line.as_str()?.strip_prefix("child:")?.parse().ok())
         .unwrap();
     // SIGTERM verifies signal handling and cleanup in reverse start order.
+    // SAFETY: `kill` takes two integers and touches no memory; the pid is our own child's.
     unsafe {
         libc::kill(daemon.0.id() as i32, libc::SIGTERM);
     }
@@ -409,14 +429,161 @@ fn isolated_agent_preview_cannot_apply() {
             );
             let path = temp.path().join("preview.plist");
             fs::write(&path, plist).unwrap();
-            assert!(Command::new("/usr/bin/plutil")
-                .arg("-lint")
-                .arg(path)
-                .status()
-                .unwrap()
-                .success());
+            assert!(
+                Command::new("/usr/bin/plutil")
+                    .arg("-lint")
+                    .arg(path)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
         } else {
             assert_eq!(response["ok"], false);
         }
     }
+}
+
+/// A daemon left running by an older version (its answers carry no `protocol`) is asked to shut
+/// down and replaced by the current one, and the request is answered by the new daemon (R-76).
+/// The store is temporary, so the user's session agent is never touched.
+#[test]
+fn an_old_daemon_is_replaced_by_the_current_one() {
+    use std::os::unix::net::UnixListener;
+    let temp = tempfile::tempdir_in("/tmp").unwrap();
+    let home = temp.path().join("stack");
+    fs::create_dir_all(home.join("projects")).unwrap();
+    fs::create_dir_all(home.join("run")).unwrap();
+    fs::set_permissions(home.join("run"), fs::Permissions::from_mode(0o700)).unwrap();
+    let socket = home.join("run/daemon.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let old = thread::spawn({
+        let socket = socket.clone();
+        move || {
+            let mut asked = Vec::new();
+            for stream in listener.incoming() {
+                let stream = stream.unwrap();
+                let mut line = String::new();
+                BufReader::new(&stream).read_line(&mut line).unwrap();
+                let request: Value = serde_json::from_str(&line).unwrap();
+                let method = request["method"].as_str().unwrap_or("").to_string();
+                // 0.1.3 and earlier: no `protocol` in the answer.
+                writeln!(
+                    &stream,
+                    "{}",
+                    json!({"id":1,"ok":true,"value":{"old":true}})
+                )
+                .unwrap();
+                asked.push(method.clone());
+                if method == "shutdown" {
+                    fs::remove_file(&socket).unwrap();
+                    return asked;
+                }
+            }
+            asked
+        }
+    });
+    let mut cli = Command::new(env!("CARGO_BIN_EXE_butake-stack"))
+        .env("BUTAKE_STACK_HOME", &home)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    cli.stdin
+        .take()
+        .unwrap()
+        .write_all(br#"{"method":"stackStatus"}"#)
+        .unwrap();
+    let output = cli.wait_with_output().unwrap();
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(old.join().unwrap(), ["stackStatus", "shutdown"]);
+    assert_eq!(response["ok"], true, "{response}");
+    assert!(response["value"].get("old").is_none(), "{response}");
+    assert!(response["value"]["processes"].is_array(), "{response}");
+    // The new daemon speaks the current protocol; it is stopped here, by its own request.
+    let answer = call(&socket, "shutdown", "");
+    assert_eq!(answer["ok"], true);
+    assert!(answer["protocol"].as_u64().is_some_and(|p| p >= 1));
+    wait_for(|| UnixStream::connect(&socket).is_err(), 15);
+}
+
+/// The daemon looks at the projects folder: a folder created in it reaches a subscriber in under
+/// a second (the sidebar follows the disk), and one that is not the user's choice is never read.
+#[test]
+fn the_daemon_tells_when_the_projects_folder_changes() {
+    let temp = tempfile::tempdir_in("/tmp").unwrap();
+    let home = temp.path().join("stack");
+    let projects = temp.path().join("Proyectos");
+    fs::create_dir_all(home.join("projects")).unwrap();
+    fs::create_dir_all(projects.join("Apps")).unwrap();
+    let projects = projects.canonicalize().unwrap();
+    fs::write(
+        home.join("disk.json"),
+        json!({"enabled": true, "root": projects}).to_string(),
+    )
+    .unwrap();
+    let dump_listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let dump_port = dump_listener.local_addr().unwrap().port();
+    let mut ports = Vec::new();
+    for _ in 0..3 {
+        ports.push(std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap());
+    }
+    drop(dump_listener);
+    fs::write(home.join("stack.json"), json!({
+        "tld":["test"], "versions":{},
+        "ports":{"http":ports[0].local_addr().unwrap().port(), "https":ports[1].local_addr().unwrap().port(),
+                 "dns":ports[2].local_addr().unwrap().port(), "mysql":3306, "redis":6379},
+        "dumps":{"enabled":false,"port":dump_port}
+    }).to_string()).unwrap();
+    drop(ports);
+    let _daemon = Daemon(
+        Command::new(env!("CARGO_BIN_EXE_butake-stack"))
+            .arg("daemon")
+            .env("BUTAKE_STACK_HOME", &home)
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    let socket = home.join("run/daemon.sock");
+    wait_for(|| socket.exists(), 10);
+    let mut subscription = UnixStream::connect(&socket).unwrap();
+    writeln!(
+        subscription,
+        "{}",
+        json!({"id":1,"method":"subscribe","params":{"topic":"disk"}})
+    )
+    .unwrap();
+    let mut events = BufReader::new(subscription);
+    let mut line = String::new();
+    events.read_line(&mut line).unwrap();
+    assert_eq!(serde_json::from_str::<Value>(&line).unwrap()["ok"], true);
+    // The first look at the folder is not a change: let it pass, then change something.
+    thread::sleep(Duration::from_millis(1200));
+    events
+        .get_ref()
+        .set_read_timeout(Some(Duration::from_millis(150)))
+        .unwrap();
+    while events.read_line(&mut line).is_ok() {
+        line.clear();
+    }
+    events
+        .get_ref()
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    line.clear();
+    let started = Instant::now();
+    fs::create_dir_all(projects.join("Apps/Nueva")).unwrap();
+    assert!(events.read_line(&mut line).unwrap() > 0);
+    let event: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(event["event"], "disk.changed");
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(
+        call(&socket, "diskRevision", "")["value"]["revision"]
+            .as_u64()
+            .unwrap()
+            >= 1
+    );
 }

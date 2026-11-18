@@ -23,7 +23,7 @@ use crate::core::{
     time::now_secs,
 };
 use crate::runtimes::utilities::catalog as tools;
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{Result, anyhow, bail, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},

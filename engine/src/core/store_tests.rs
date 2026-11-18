@@ -38,9 +38,11 @@ fn a_retired_service_in_stack_json_is_dropped_on_read() {
     let config = store.config().unwrap();
     assert!(!config.engines.contains_key("aws-emulator"));
     assert!(config.engines.contains_key("redis"));
-    assert!(!serde_json::to_string(&config)
-        .unwrap()
-        .contains("telemetry"));
+    assert!(
+        !serde_json::to_string(&config)
+            .unwrap()
+            .contains("telemetry")
+    );
 }
 #[test]
 fn groups_are_validated_and_each_site_is_in_one() {
@@ -66,30 +68,36 @@ fn groups_are_validated_and_each_site_is_in_one() {
     assert_eq!(saved[0].name, "Clientes");
     assert_eq!(saved[1].sites, vec!["gestion".to_string()]);
     assert_eq!(store.groups().unwrap(), saved);
-    assert!(store
-        .save_groups(vec![SiteGroup {
-            id: "x".into(),
-            name: "".into(),
-            sites: vec![],
-            ..Default::default()
-        }])
-        .is_err());
-    assert!(store
-        .save_groups(vec![SiteGroup {
-            id: "../x".into(),
-            name: "X".into(),
-            sites: vec![],
-            ..Default::default()
-        }])
-        .is_err());
-    assert!(store
-        .save_groups(vec![SiteGroup {
-            id: "x".into(),
-            name: "X".into(),
-            sites: vec!["a b".into()],
-            ..Default::default()
-        }])
-        .is_err());
+    assert!(
+        store
+            .save_groups(vec![SiteGroup {
+                id: "x".into(),
+                name: "".into(),
+                sites: vec![],
+                ..Default::default()
+            }])
+            .is_err()
+    );
+    assert!(
+        store
+            .save_groups(vec![SiteGroup {
+                id: "../x".into(),
+                name: "X".into(),
+                sites: vec![],
+                ..Default::default()
+            }])
+            .is_err()
+    );
+    assert!(
+        store
+            .save_groups(vec![SiteGroup {
+                id: "x".into(),
+                name: "X".into(),
+                sites: vec!["a b".into()],
+                ..Default::default()
+            }])
+            .is_err()
+    );
 }
 /// A `groups.json` written before projects of several parts reads and saves the same: no
 /// field is added to a folder.
@@ -128,6 +136,8 @@ fn a_project_of_several_parts_round_trips() {
         repositories: vec!["/tmp/qa/infra/".into(), "/tmp/qa/infra".into()],
         ordered: true,
         gcp: Some(link.clone()),
+        path: None,
+        parent: None,
     };
     let saved = store.save_groups(vec![salud.clone()]).unwrap();
     assert_eq!(saved[0].repositories, vec!["/tmp/qa/infra".to_string()]);
@@ -205,15 +215,17 @@ fn parts_inherit_the_google_cloud_link_of_their_project() {
     let environment = store.gcp_environment(&web);
     assert_eq!(environment["GOOGLE_CLOUD_PROJECT"], "a-mano");
     assert_eq!(environment["CLOUDSDK_CORE_ACCOUNT"], "qa@ejemplo.test");
-    assert!(store
-        .set_group_gcp(
-            "salud",
-            Some(crate::core::model::GcpLink {
-                account: "qa@ejemplo.test".into(),
-                project: "--quiet".into(),
-            })
-        )
-        .is_err());
+    assert!(
+        store
+            .set_group_gcp(
+                "salud",
+                Some(crate::core::model::GcpLink {
+                    account: "qa@ejemplo.test".into(),
+                    project: "--quiet".into(),
+                })
+            )
+            .is_err()
+    );
 }
 #[test]
 fn a_missing_folder_never_breaks_the_list() {

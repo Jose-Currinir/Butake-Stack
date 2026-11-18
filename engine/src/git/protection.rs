@@ -2,7 +2,7 @@
 //! repository: the user's explicit choice (`butake.protectMain`), else the hosting provider's rule
 //! as the app last read it (`butake.remoteProtectMain`), else not blocked (pushing to it still asks
 //! for a confirmation in the app).
-use super::runner::{error, git, Result};
+use super::runner::{Result, error, git};
 use super::status::{Branch, RemoteBranch};
 use std::path::Path;
 
@@ -57,10 +57,10 @@ pub fn parse_repository_config(raw: &str) -> RepositoryConfig {
                 if let Some(name) = key
                     .strip_prefix("remote.")
                     .and_then(|rest| rest.strip_suffix(".url"))
+                    && !name.is_empty()
+                    && !config.remotes.iter().any(|r| r == name)
                 {
-                    if !name.is_empty() && !config.remotes.iter().any(|r| r == name) {
-                        config.remotes.push(name.into());
-                    }
+                    config.remotes.push(name.into());
                 }
             }
         }

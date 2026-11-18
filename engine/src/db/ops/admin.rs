@@ -80,9 +80,13 @@ pub fn users(target: &Target) -> Result<Value> {
             })).collect::<Vec<_>>()))
         }
         Dialect::Postgres => {
-            let set = query(target, "", "SELECT r.rolname, '', r.rolcanlogin, r.rolsuper, r.rolcreatedb, r.rolcreaterole, r.rolbypassrls, \
+            let set = query(
+                target,
+                "",
+                "SELECT r.rolname, '', r.rolcanlogin, r.rolsuper, r.rolcreatedb, r.rolcreaterole, r.rolbypassrls, \
                 COALESCE((SELECT string_agg(d.datname, ', ') FROM pg_database d WHERE has_database_privilege(r.rolname, d.datname, 'CREATE') AND NOT d.datistemplate), '') \
-                FROM pg_roles r WHERE r.rolname !~ '^pg_' ORDER BY 1")?;
+                FROM pg_roles r WHERE r.rolname !~ '^pg_' ORDER BY 1",
+            )?;
             Ok(json!(set.rows.iter().map(|r| {
                 let flag = |i: usize, name: &str| (r[i].as_deref() == Some("t")).then(|| name.to_string());
                 let attributes: Vec<String> = [flag(2, "LOGIN"), flag(3, "SUPERUSER"), flag(4, "CREATEDB"), flag(5, "CREATEROLE"), flag(6, "BYPASSRLS")].into_iter().flatten().collect();
@@ -189,7 +193,9 @@ pub fn create_user(target: &Target, request: &Value) -> Result<Value> {
                 for sql in [
                     format!("GRANT USAGE ON SCHEMA public TO {role}"),
                     format!("GRANT {tables} ON ALL TABLES IN SCHEMA public TO {role}"),
-                    format!("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT {tables} ON TABLES TO {role}"),
+                    format!(
+                        "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT {tables} ON TABLES TO {role}"
+                    ),
                 ] {
                     statements.push((database.into(), sql));
                 }
@@ -249,8 +255,12 @@ pub fn processes(target: &Target) -> Result<Value> {
     }
     let d = dialect(target)?;
     let sql = match d {
-        Dialect::MySql => "SELECT ID, USER, HOST, DB, COMMAND, TIME, COALESCE(STATE, ''), LEFT(COALESCE(INFO, ''), 400) FROM information_schema.PROCESSLIST WHERE ID <> CONNECTION_ID() ORDER BY TIME DESC",
-        Dialect::Postgres => "SELECT pid, usename, COALESCE(client_addr::text, 'local'), datname, COALESCE(state, backend_type), EXTRACT(EPOCH FROM now() - COALESCE(query_start, backend_start))::bigint, wait_event, left(query, 400) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND backend_type = 'client backend' ORDER BY 6 DESC NULLS LAST",
+        Dialect::MySql => {
+            "SELECT ID, USER, HOST, DB, COMMAND, TIME, COALESCE(STATE, ''), LEFT(COALESCE(INFO, ''), 400) FROM information_schema.PROCESSLIST WHERE ID <> CONNECTION_ID() ORDER BY TIME DESC"
+        }
+        Dialect::Postgres => {
+            "SELECT pid, usename, COALESCE(client_addr::text, 'local'), datname, COALESCE(state, backend_type), EXTRACT(EPOCH FROM now() - COALESCE(query_start, backend_start))::bigint, wait_event, left(query, 400) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND backend_type = 'client backend' ORDER BY 6 DESC NULLS LAST"
+        }
         Dialect::Sqlite => return Ok(json!([])),
     };
     let set = query(target, "", sql)?;

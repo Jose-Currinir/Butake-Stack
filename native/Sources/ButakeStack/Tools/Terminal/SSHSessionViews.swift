@@ -31,6 +31,10 @@ struct WorkspaceTabBar: View {
                         workspace.selected = tab.id
                         tab.focusedSession?.focus()
                     }
+                    .contextMenu {
+                        Button(role: .destructive) { workspace.requestClose(tab) } label: { Label(L("ssh.terminal.closeTab"), systemImage: Symbols.close) }
+                            .accessibilityIdentifier("ssh.tabs.menu.close")
+                    }
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
@@ -150,7 +154,7 @@ private struct TerminalPaneView: View {
                             .font(.uiHeadline)
                             .help(local && code != 0 ? String(format: L("ssh.local.exitCode"), code) : "")
                         HStack {
-                            Button { SSHWorkspace.shared.closePane(tab, session) } label: { Label(L("ssh.terminal.closePane"), systemImage: Symbols.close) }
+                            Button { SSHWorkspace.shared.requestClosePane(tab, session) } label: { Label(L("ssh.terminal.closePane"), systemImage: Symbols.close) }
                                 .buttonStyle(.bordered).accessibilityIdentifier("ssh.terminal.closeEnded")
                             Button { Task { await session.reconnect() } } label: {
                                 Label(L(local ? "ssh.local.reopen" : "ssh.terminal.reconnect"), systemImage: Symbols.reload)

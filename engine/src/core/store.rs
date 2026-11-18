@@ -1,7 +1,7 @@
 use crate::core::json;
-use crate::core::model::{validate_id, Project, StackConfig};
-use anyhow::{ensure, Result};
-use serde::{de::DeserializeOwned, Serialize};
+use crate::core::model::{Project, StackConfig, validate_id};
+use anyhow::{Result, ensure};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{
     fs::{self, OpenOptions},
     os::fd::AsRawFd,
@@ -112,6 +112,8 @@ impl Store {
             .custom_flags(libc::O_NOFOLLOW)
             .open(self.root.join("settings.lock"))?;
         loop {
+            // SAFETY: `flock` takes a descriptor and a flag and touches no memory; the descriptor
+            // belongs to `lock`, which is open for the whole call.
             if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX) } == 0 {
                 return Ok(lock);
             }
@@ -214,10 +216,10 @@ impl Store {
         let mut out = vec![];
         let config = self.config()?;
         for id in self.ids()? {
-            if self.get_with(&config, &id).is_err() {
-                if let Ok(project) = self.read::<Project>(&self.project_path(&id)?) {
-                    out.push(project);
-                }
+            if self.get_with(&config, &id).is_err()
+                && let Ok(project) = self.read::<Project>(&self.project_path(&id)?)
+            {
+                out.push(project);
             }
         }
         out.sort_by(|a, b| a.id.cmp(&b.id));
@@ -254,10 +256,10 @@ impl Store {
         let mut ids = vec![];
         for entry in fs::read_dir(self.directory("projects")?)? {
             let path = entry?.path();
-            if path.extension().is_some_and(|ext| ext == "json") {
-                if let Some(id) = path.file_stem().and_then(|s| s.to_str()) {
-                    ids.push(id.to_string());
-                }
+            if path.extension().is_some_and(|ext| ext == "json")
+                && let Some(id) = path.file_stem().and_then(|s| s.to_str())
+            {
+                ids.push(id.to_string());
             }
         }
         Ok(ids)
@@ -378,6 +380,14 @@ pub struct SiteGroup {
     pub ordered: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gcp: Option<crate::core::model::GcpLink>,
+    /// A folder of the disk: its path inside the projects folder, relative (`Apps/Salud`). Only
+    /// present once the sidebar follows the disk (see `web/projects/disk.rs`); then a project of
+    /// several parts is the folder at this path, and a plain folder is not saved here at all.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// The folder this one is in (its id), as the disk says; never saved.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
 }
 
 fn is_folder_kind(kind: &str) -> bool {
@@ -391,6 +401,17 @@ impl SiteGroup {
 
     pub fn is_project(&self) -> bool {
         self.kind == Self::PROJECT
+    }
+
+    /// A path inside the projects folder: relative, printable, no `..`, no hidden part.
+    pub fn valid_relative(path: &str) -> bool {
+        !path.is_empty()
+            && path.len() <= 1024
+            && !path.starts_with('/')
+            && !path.chars().any(char::is_control)
+            && path
+                .split('/')
+                .all(|part| !part.is_empty() && !part.starts_with('.'))
     }
 
     /// Absolute folders, printable, each once.
@@ -471,6 +492,10 @@ impl Store {
                 group.kind = String::new();
             }
             group.repositories = SiteGroup::clean_repositories(group.repositories)?;
+            group.parent = None;
+            if let Some(path) = &group.path {
+                ensure!(SiteGroup::valid_relative(path), "invalid_path");
+            }
             if let Some(link) = &group.gcp {
                 link.validate()?;
             }
@@ -482,10 +507,13 @@ impl Store {
 
     /// The project of several parts a site belongs to, if any (a plain folder is not one).
     pub fn composite_of(&self, site: &str) -> Option<SiteGroup> {
-        self.groups()
-            .ok()?
-            .into_iter()
-            .find(|group| group.is_project() && group.sites.iter().any(|s| s == site))
+        self.groups().ok()?.into_iter().find(|group| {
+            group.is_project()
+                && match &group.path {
+                    Some(path) => crate::web::projects::disk::holds(self, path, site),
+                    None => group.sites.iter().any(|s| s == site),
+                }
+        })
     }
 
     /// What a site's processes and consoles get of Google Cloud: its own link, or the one of the

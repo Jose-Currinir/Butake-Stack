@@ -1,8 +1,8 @@
 //! Requests about the stack's services: their switch, port and version, the databases and accounts of a project, and how PostgreSQL lets people in.
 
 use crate::{core::store::Store, daemon, web};
-use anyhow::{bail, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, bail};
+use serde_json::{Value, json};
 
 /// Requests of this domain; `None` when `method` is not one of them.
 pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<Value>> {

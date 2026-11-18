@@ -11,15 +11,15 @@
 use crate::{
     core::{
         journal::Journal,
-        model::{rename_references, validate_id, Project},
+        model::{Project, rename_references, validate_id},
         store::Store,
         time::now_secs,
     },
     daemon, web,
 };
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -113,7 +113,7 @@ fn check(store: &Store, project: &mut Project, others: &[Project]) -> Result<()>
 
 /// Turns a project off (or on) as `setSiteEnabled` does and asks the daemon to apply it right
 /// away: its processes stop (or start) before this returns.
-fn set_enabled(store: &Store, id: &str, enabled: bool) -> Result<()> {
+pub(crate) fn set_enabled(store: &Store, id: &str, enabled: bool) -> Result<()> {
     let mut project = store.get(id)?;
     if project.enabled != enabled {
         project.enabled = enabled;

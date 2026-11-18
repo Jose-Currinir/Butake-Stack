@@ -1,6 +1,6 @@
 //! Shared types of the skills tool: the context of one request, the index and the limits.
 use crate::core::{store::Store, validate};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,

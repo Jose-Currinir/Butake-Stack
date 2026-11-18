@@ -18,6 +18,7 @@ extension StackStore {
         var checkbox: NSButton?
         if !(await backupConnections()).isEmpty {
             let box = NSButton(checkboxWithTitle: L("backup.includeDatabases"), target: nil, action: nil)
+            box.setAccessibilityIdentifier("backup.includeDatabases")
             box.state = .on
             let stack = NSStackView(views: [box])
             stack.edgeInsets = NSEdgeInsets(top: 10, left: 16, bottom: 10, right: 16)
@@ -158,6 +159,7 @@ struct RestoreSheet: View {
                 Spacer()
                 if finished {
                     Button(L("common.done")) { dismiss() }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("backup.done")
                 } else {
                     Button(L("common.cancel")) {
                         guard running else { dismiss(); return }
@@ -183,13 +185,13 @@ struct RestoreSheet: View {
     @ViewBuilder private var options: some View {
         let downloadsList = plan.php.map { "PHP \($0)" } + plan.tools.map { "\(Tech.of($0.tool).title) \($0.version)" }
         PlanPart(isOn: $downloads, symbol: "arrow.down.circle", title: L("backup.part.downloads"),
-                 detail: downloadsList.isEmpty ? L("backup.nothing") : downloadsList.joined(separator: " · "), enabled: !downloadsList.isEmpty)
+                 detail: downloadsList.isEmpty ? L("backup.nothing") : downloadsList.joined(separator: " · "), enabled: !downloadsList.isEmpty, part: "downloads")
         let devList = plan.devtools.map { L("tool.\($0)") } + plan.python.map { "Python \($0)" }
         PlanPart(isOn: $devtools, symbol: "hammer", title: L("backup.part.devtools"),
-                 detail: devList.isEmpty ? L("backup.nothing") : devList.joined(separator: " · "), enabled: !devList.isEmpty)
+                 detail: devList.isEmpty ? L("backup.nothing") : devList.joined(separator: " · "), enabled: !devList.isEmpty, part: "devtools")
         let extensionList = (plan.extensions ?? []).map { String(format: L("backup.extensionItem"), $0.id, $0.version) }
         PlanPart(isOn: $extensions, symbol: Symbols.package, title: L("backup.part.extensions"),
-                 detail: extensionList.isEmpty ? L("backup.nothing") : extensionList.joined(separator: " · "), enabled: !extensionList.isEmpty)
+                 detail: extensionList.isEmpty ? L("backup.nothing") : extensionList.joined(separator: " · "), enabled: !extensionList.isEmpty, part: "extensions")
         VStack(alignment: .leading, spacing: 8) {
             Label(L("backup.part.sites"), systemImage: Symbols.project).font(.uiHeadline)
             VStack(spacing: 0) {
@@ -197,8 +199,10 @@ struct RestoreSheet: View {
                     if index > 0 { Divider().padding(.leading, 40) }
                     HStack(spacing: 10) {
                         if site.state == "clone" {
-                            Toggle("", isOn: Binding(get: { clones.contains(site.id) }, set: { if $0 { clones.insert(site.id) } else { clones.remove(site.id) } }))
+                            Toggle(site.name ?? site.id, isOn: Binding(get: { clones.contains(site.id) }, set: { if $0 { clones.insert(site.id) } else { clones.remove(site.id) } }))
                                 .toggleStyle(.checkbox).labelsHidden()
+                                .accessibilityLabel(String(format: L("backup.cloning"), site.name ?? site.id))
+                                .accessibilityIdentifier("backup.clone.\(site.id)")
                         } else {
                             Image(systemName: site.state == "unavailable" ? Symbols.remove : Symbols.success).foregroundStyle(site.state == "unavailable" ? Color.secondary : Brand.success).frame(width: 16)
                         }
@@ -216,8 +220,8 @@ struct RestoreSheet: View {
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
         }
         PlanPart(isOn: $organize, symbol: Symbols.folder, title: L("backup.part.organize"),
-                 detail: String(format: L("backup.organizeDetail"), plan.groups, plan.environments), enabled: plan.groups + plan.environments > 0)
-        PlanPart(isOn: $settings, symbol: Symbols.settings, title: L("backup.part.settings"), detail: L("backup.settingsDetail"), enabled: true)
+                 detail: String(format: L("backup.organizeDetail"), plan.groups, plan.environments), enabled: plan.groups + plan.environments > 0, part: "organize")
+        PlanPart(isOn: $settings, symbol: Symbols.settings, title: L("backup.part.settings"), detail: L("backup.settingsDetail"), enabled: true, part: "settings")
         if !request.databases.isEmpty {
             let list = request.databases.map { String(format: L("backup.databaseItem"), $0.database, Tech.of($0.engine).title) }
             let total = request.databases.compactMap(\.size).reduce(0, +)
@@ -225,7 +229,7 @@ struct RestoreSheet: View {
             let detail = list.joined(separator: " · ") + " (\(Format.fileSizeText(total)))"
                 + (missing > 0 ? "\n" + String(format: L("backup.databasesMissing"), missing) : "")
             PlanPart(isOn: $restoreDatabases, symbol: Symbols.database, title: L("backup.part.databases"), detail: detail,
-                     enabled: missing < request.databases.count)
+                     enabled: missing < request.databases.count, part: "databases")
         }
     }
 
@@ -345,9 +349,12 @@ private struct PlanPart: View {
     let title: String
     let detail: String
     let enabled: Bool
+    /// Stable id of the part (`backup.part.<name>`), for the checkbox.
+    let part: String
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Toggle(title, isOn: $isOn).toggleStyle(.checkbox).labelsHidden().disabled(!enabled)
+                .accessibilityLabel(title).accessibilityIdentifier("backup.part.\(part)")
             IconTile(symbol: symbol, size: 22)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.uiHeadline)

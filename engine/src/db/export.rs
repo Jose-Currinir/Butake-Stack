@@ -6,7 +6,7 @@ use crate::{
     db::client::{self, Target},
     db::sql::{self, Dialect},
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use std::{
     io::{BufRead, BufReader, BufWriter, Read, Write},
     path::Path,
@@ -209,12 +209,13 @@ fn csv_field(value: &Option<String>) -> String {
     }
 }
 
-/// A portable SQL string literal (MySQL also reads backslashes as escapes).
+/// A portable SQL string literal. A MySQL value with a backslash is written in hex: restored on a
+/// server with `NO_BACKSLASH_ESCAPES` a doubled backslash would come back as two.
 fn sql_field(dialect: Dialect, value: &Option<String>) -> String {
     match value {
         None => "NULL".into(),
-        Some(v) if dialect == Dialect::MySql => {
-            format!("'{}'", v.replace('\\', "\\\\").replace('\'', "''"))
+        Some(v) if dialect == Dialect::MySql && v.contains('\\') => {
+            crate::db::sql::literal(dialect, v)
         }
         Some(v) => format!("'{}'", v.replace('\'', "''")),
     }
@@ -404,7 +405,12 @@ pub fn export(
         }
         Dialect::Sqlite => {
             let c = target.command("sqlite3", database, None)?;
-            (c, format!(".headers on\n.mode csv\n.nullvalue {NULL_MARK}\nPRAGMA query_only = ON;\n{select}\n;\n"))
+            (
+                c,
+                format!(
+                    ".headers on\n.mode csv\n.nullvalue {NULL_MARK}\nPRAGMA query_only = ON;\n{select}\n;\n"
+                ),
+            )
         }
     };
     let (partial, file) = Partial::create(path)?;

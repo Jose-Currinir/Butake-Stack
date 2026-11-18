@@ -75,26 +75,34 @@ fn resolves_lines_and_global() {
         .unwrap();
     }
     assert_eq!(installed(&store).len(), 2);
-    assert!(resolve(&store, "")
-        .unwrap()
-        .to_string_lossy()
-        .contains("/3.13/"));
-    assert!(resolve(&store, "3.12")
-        .unwrap()
-        .to_string_lossy()
-        .contains("/3.12/"));
-    assert!(resolve(&store, "3.12.4")
-        .unwrap()
-        .to_string_lossy()
-        .contains("/3.12/"));
+    assert!(
+        resolve(&store, "")
+            .unwrap()
+            .to_string_lossy()
+            .contains("/3.13/")
+    );
+    assert!(
+        resolve(&store, "3.12")
+            .unwrap()
+            .to_string_lossy()
+            .contains("/3.12/")
+    );
+    assert!(
+        resolve(&store, "3.12.4")
+            .unwrap()
+            .to_string_lossy()
+            .contains("/3.12/")
+    );
     assert!(resolve(&store, "3.11").is_none());
     let mut config = store.config().unwrap();
     config.versions.insert("python".into(), "3.12".into());
     store.save_config(&config).unwrap();
-    assert!(resolve(&store, "")
-        .unwrap()
-        .to_string_lossy()
-        .contains("/3.12/"));
+    assert!(
+        resolve(&store, "")
+            .unwrap()
+            .to_string_lossy()
+            .contains("/3.12/")
+    );
     remove(&store, "3.12").unwrap();
     assert!(remove(&store, "../x").is_err());
     assert_eq!(installed(&store).len(), 1);

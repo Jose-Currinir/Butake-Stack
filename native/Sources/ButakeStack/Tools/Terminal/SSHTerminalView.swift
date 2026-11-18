@@ -51,6 +51,9 @@ struct SSHTerminalView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .toolbar { toolbar }
         .background { shortcuts }
+        .focusedSceneValue(\.textFinder, TextFinderRequest {
+            if let session = terminalTab?.focusedSession { session.searchVisible = true } else { workspace.searchRequests += 1 }
+        })
         .task {
             // What «Este Mac» offers is what the Utilidades page found.
             if StackStore.shared.devTools.isEmpty { Task { await StackStore.shared.refreshDevTools() } }
@@ -94,6 +97,14 @@ struct SSHTerminalView: View {
             Button(L("common.cancel"), role: .cancel) {}
         } message: { tab in
             Text(L(tab.browser == nil ? "ssh.tabs.closeDetail" : "ssh.tabs.closeTransfersDetail"))
+        }
+        .confirmationDialog(String(format: L("ssh.tabs.closeConfirm"), workspace.closingPane?.session.title ?? ""),
+                            isPresented: Binding(get: { workspace.closingPane != nil }, set: { if !$0 { workspace.closingPane = nil } }),
+                            presenting: workspace.closingPane) { pane in
+            Button(L("ssh.tabs.close"), role: .destructive) { workspace.closePane(pane.tab, pane.session) }.accessibilityIdentifier("ssh.panes.confirmClose")
+            Button(L("common.cancel"), role: .cancel) {}
+        } message: { _ in
+            Text(L("ssh.tabs.closeDetail"))
         }
     }
 
@@ -177,7 +188,7 @@ struct SSHTerminalView: View {
             Button { workspace.split(tab, axis: .vertical) } label: { Label(L("ssh.terminal.splitDown"), systemImage: Symbols.splitDown) }
                 .accessibilityIdentifier("ssh.toolbar.terminal.splitDown")
             if let session = tab.focusedSession, tab.sessions.count > 1 {
-                Button { workspace.closePane(tab, session) } label: { Label(L("ssh.terminal.closePane"), systemImage: Symbols.close) }
+                Button { workspace.requestClosePane(tab, session) } label: { Label(L("ssh.terminal.closePane"), systemImage: Symbols.close) }
                     .accessibilityIdentifier("ssh.toolbar.terminal.closePane")
             }
             Divider()
@@ -216,7 +227,8 @@ struct SSHTerminalView: View {
 
     /// ⌘T a new session (of the tab's host, the selected host or a local shell), ⌘W closes the tab
     /// shown (the window's ⌘W while none is), ⌃Tab and ⌃⇧Tab move between tabs, ⌘D and ⇧⌘D split,
-    /// ⌘F searches the terminal's scrollback, or the hosts while no terminal is shown.
+    /// ⌘F (Edición › Buscar) searches the terminal's scrollback, or the hosts while no terminal is
+    /// shown; ⌥⌘F always searches the hosts.
     @ViewBuilder private var shortcuts: some View {
         Group {
             Button(L("ssh.tabs.new")) { newSession() }.keyboardShortcut("t")
@@ -228,12 +240,10 @@ struct SSHTerminalView: View {
                 Button(L("ssh.tabs.previous")) { workspace.cycle(-1) }.keyboardShortcut(.tab, modifiers: [.control, .shift])
             }
             if let tab = terminalTab {
-                Button(L("ssh.terminal.search")) { tab.focusedSession?.searchVisible = true }.keyboardShortcut("f")
                 Button(L("ssh.terminal.splitRight")) { workspace.split(tab, axis: .horizontal) }.keyboardShortcut("d")
                 Button(L("ssh.terminal.splitDown")) { workspace.split(tab, axis: .vertical) }.keyboardShortcut("d", modifiers: [.command, .shift])
-            } else {
-                Button(L("ssh.search")) { workspace.searchRequests += 1 }.keyboardShortcut("f")
             }
+            Button(L("ssh.searchHosts")) { workspace.searchRequests += 1 }.keyboardShortcut("f", modifiers: [.command, .option])
         }
         .hidden()
     }

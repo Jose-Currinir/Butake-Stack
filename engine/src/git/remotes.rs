@@ -2,7 +2,7 @@
 //! failures and build the link to a new pull request. URLs leave the engine without credentials.
 use super::actions::validate_branch;
 use super::protection::{main_protected, primary_branch};
-use super::runner::{error, git, GitError, Result};
+use super::runner::{GitError, Result, error, git};
 use std::path::Path;
 
 /// `url` without the user and password of an `http(s)://user:token@host` address (a token pasted
@@ -105,6 +105,25 @@ pub fn validate_clone_url(url: &str) -> Result<()> {
             "Usa una dirección https://, ssh:// o git@servidor:ruta del repositorio.",
         ))
     }
+}
+
+/// The address of a remote added by hand: what `validate_clone_url` accepts, or the absolute path
+/// of an existing folder on this Mac (a backup remote). `file://`, `http://`, `ext::` and the
+/// other transports are not remotes Stack adds.
+pub fn validate_remote_url(url: &str) -> Result<()> {
+    if url.starts_with('/') {
+        let plain = url.len() < 2_048
+            && !url.contains("::")
+            && !url.chars().any(|c| c.is_whitespace() || c.is_control());
+        if plain && std::path::Path::new(url).is_dir() {
+            return Ok(());
+        }
+        return Err(error(
+            "invalid_url",
+            "La carpeta del remoto no existe o no se puede usar.",
+        ));
+    }
+    validate_clone_url(url)
 }
 
 fn validate_folder_name(name: &str) -> Result<()> {
@@ -254,7 +273,9 @@ pub async fn publish(
         if protected && *branch == primary {
             return Err(error(
                 "protected_branch",
-                format!("{primary} está protegida en este repo: súbela mediante un PR o desactiva la protección."),
+                format!(
+                    "{primary} está protegida en este repo: súbela mediante un PR o desactiva la protección."
+                ),
             ));
         }
         if git(

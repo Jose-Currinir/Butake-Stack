@@ -20,10 +20,12 @@ pub fn close_tunnel(store: &Store, id: &str) {
     if let Ok(state) = std::fs::read(&path)
         .map_err(anyhow::Error::from)
         .and_then(|d| Ok(serde_json::from_slice::<TunnelState>(&d)?))
+        && alive(state.pid)
+        && is_ssh(state.pid)
     {
-        if alive(state.pid) && is_ssh(state.pid) {
-            unsafe { libc::kill(state.pid, libc::SIGTERM) };
-        }
+        // SAFETY: `kill` takes two integers and touches no memory; `alive` above only accepts
+        // a pid above 0 and `is_ssh` confirms it is still an ssh, so only that process is hit.
+        unsafe { libc::kill(state.pid, libc::SIGTERM) };
     }
     let _ = std::fs::remove_file(path);
 }

@@ -7,7 +7,7 @@ use crate::core::json;
 use crate::core::time::now_secs;
 use crate::core::validate;
 use crate::{core::fsutil::write_private, core::store::Store};
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
     os::unix::fs::PermissionsExt,
@@ -218,7 +218,12 @@ fn store_key(
     };
     keys.push(key.clone());
     sort(&mut keys);
-    save_list(store, &keys)?;
+    if let Err(error) = save_list(store, &keys) {
+        // No entry in `keys.json`, no way to delete the files from the app: they go now.
+        let _ = std::fs::remove_file(dir.join(&key.id));
+        let _ = std::fs::remove_file(dir.join(format!("{}.pub", key.id)));
+        return Err(error);
+    }
     Ok(key)
 }
 
@@ -379,10 +384,10 @@ pub fn generate(
 pub fn public_key(store: &Store, id: &str) -> Result<String> {
     let private = path(store, id)?;
     let file = folder(store)?.join(format!("{id}.pub"));
-    if let Ok(text) = std::fs::read_to_string(&file) {
-        if !std::fs::symlink_metadata(&file)?.file_type().is_symlink() {
-            return Ok(text.trim().to_string());
-        }
+    if let Ok(text) = std::fs::read_to_string(&file)
+        && !std::fs::symlink_metadata(&file)?.file_type().is_symlink()
+    {
+        return Ok(text.trim().to_string());
     }
     let (_, _, public) = inspect_with(&private, None)?;
     write_private(&file, &format!("{public}\n"))?;
@@ -529,15 +534,14 @@ pub fn users(store: &Store, id: &str) -> Result<Vec<String>> {
         .collect())
 }
 
-/// Removes a key nothing uses; the copy is overwritten before it is deleted. Whoever asks, a key
+/// Removes a key nothing uses. Whoever asks, a key
 /// a host or a connection depends on is refused with `ssh_key_in_use:<where it is used>`.
 pub fn delete(store: &Store, id: &str) -> Result<()> {
     let used_by = users(store, id)?;
     ensure!(used_by.is_empty(), "ssh_key_in_use:{}", used_by.join(", "));
     let path = path(store, id)?;
-    if let Ok(meta) = std::fs::metadata(&path) {
-        let _ = std::fs::write(&path, vec![0u8; meta.len() as usize]);
-    }
+    // Not overwritten first: on APFS (copy on write, SSD) that does not erase the old blocks, and
+    // an unchecked overwrite would only look like a secure delete.
     std::fs::remove_file(&path)?;
     let _ = std::fs::remove_file(folder(store)?.join(format!("{id}.pub")));
     let mut keys = list(store)?;
@@ -627,9 +631,11 @@ mod tests {
             std::fs::metadata(&stored).unwrap().permissions().mode() & 0o777,
             0o600
         );
-        assert!(!serde_json::to_string(&list(&store).unwrap())
-            .unwrap()
-            .contains("PRIVATE KEY"));
+        assert!(
+            !serde_json::to_string(&list(&store).unwrap())
+                .unwrap()
+                .contains("PRIVATE KEY")
+        );
         // Same key twice is refused; a passphrase-protected key too.
         assert!(
             import(&store, &source, "otra", "", "")

@@ -4,7 +4,7 @@
 use crate::core::{json, store::Store, time::now_secs};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},

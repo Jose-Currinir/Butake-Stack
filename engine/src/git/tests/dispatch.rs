@@ -4,7 +4,7 @@
 use super::sandbox;
 use crate::core::store::Store;
 use crate::git::{GitError, METHODS};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn store() -> (tempfile::TempDir, Store) {
     let temp = tempfile::tempdir().unwrap();
@@ -41,11 +41,13 @@ fn every_method_answers_plugin_disabled_while_the_tool_is_off() {
         json!({})
     );
     let catalog = call(&store, json!({"method": "pluginCatalog"})).unwrap();
-    assert!(catalog
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|p| p["id"] == "git" && p["enabled"] == false));
+    assert!(
+        catalog
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["id"] == "git" && p["enabled"] == false)
+    );
 }
 
 #[test]
@@ -176,11 +178,13 @@ fn repositories_are_remembered_under_the_store_without_credentials() {
     assert!(!remotes.as_str().unwrap().contains("hunter2"));
     // A folder outside any repository is refused; forgetting never touches the folder.
     let outside = tempfile::tempdir().unwrap();
-    assert!(call(
-        &store,
-        json!({"method": "gitRepositoryAdd", "path": outside.path()})
-    )
-    .is_err());
+    assert!(
+        call(
+            &store,
+            json!({"method": "gitRepositoryAdd", "path": outside.path()})
+        )
+        .is_err()
+    );
     let listed = call(
         &store,
         json!({"method": "gitRepositoryForget", "path": root}),

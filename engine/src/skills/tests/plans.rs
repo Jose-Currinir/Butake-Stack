@@ -59,10 +59,11 @@ fn rename_plan_lists_links_and_conflicts_and_apply_does_the_same() {
     );
     assert!(fs::symlink_metadata(env.link_path(".claude/skills", "a")).is_err());
     assert!(fs::symlink_metadata(env.link_path(".agents/skills", "a")).is_err());
-    assert!(env
-        .link_path(".claude/skills", "b")
-        .join("SKILL.md")
-        .exists());
+    assert!(
+        env.link_path(".claude/skills", "b")
+            .join("SKILL.md")
+            .exists()
+    );
     assert!(fs::symlink_metadata(&taken).unwrap().is_dir());
 }
 
@@ -185,10 +186,11 @@ fn restore_plan_lists_the_links_it_recreates_and_the_taken_names() {
         "skillsRestore",
         json!({"trashId": trash, "confirmed": true}),
     );
-    assert!(env
-        .link_path(".claude/skills", "a")
-        .join("SKILL.md")
-        .exists());
+    assert!(
+        env.link_path(".claude/skills", "a")
+            .join("SKILL.md")
+            .exists()
+    );
     assert!(fs::symlink_metadata(&taken).unwrap().is_dir());
     assert_eq!(
         env.code("skillsRestore", json!({"trashId": trash, "plan": true})),

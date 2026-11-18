@@ -2,11 +2,11 @@
 //! the real folders an import replaced with links. Nothing here is purged by age: it stays until
 //! the user empties it.
 use crate::core::{json, time::now_secs};
-use crate::skills::model::{fail, valid_id, Ctx};
+use crate::skills::model::{Ctx, fail, valid_id};
 use crate::skills::skill_file;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     path::{Path, PathBuf},

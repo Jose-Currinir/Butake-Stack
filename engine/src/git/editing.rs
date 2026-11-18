@@ -1,7 +1,7 @@
 //! Staging one block of a file and resolving conflicts, both checked against what the app showed.
-use super::actions::{execute, Action};
+use super::actions::{Action, execute};
 use super::diff::diff_bytes;
-use super::runner::{error, git, git_input, git_lossy, GitError, Result};
+use super::runner::{GitError, Result, error, git, git_input, git_lossy};
 use super::status::validate_path;
 use serde::Serialize;
 use std::path::Path;

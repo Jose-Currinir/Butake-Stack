@@ -204,10 +204,28 @@ private struct InstalledVersionRow: View {
             }
         }
         .accessibilityIdentifier("\(scope).version.\(item.id)")
+        // The same actions as the row's «⋯» menu, with the update first when there is one.
+        .contextMenu {
+            if let update {
+                Button { install(update) } label: { Label(String(format: L("versions.update"), update.version), systemImage: Symbols.update) }
+                    .disabled(busy)
+                    .accessibilityIdentifier("\(scope).version.\(item.id).update.context")
+                Divider()
+            }
+            menuItems
+        }
     }
 
     private var menu: some View {
-        Menu {
+        Menu { menuItems } label: {
+            Label(L("runtimes.actions"), systemImage: Symbols.more).labelStyle(.iconOnly)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .help(L("runtimes.actions"))
+        .accessibilityIdentifier("\(scope).version.\(item.id).menu")
+    }
+
+    @ViewBuilder private var menuItems: some View {
             if let setGlobal = provider.setGlobal, item.canBeGlobal {
                 Button { Task { await setGlobal(item) } } label: { Label(L("runtimes.useGlobal"), systemImage: Symbols.global) }
                     .disabled(item.global || busy)
@@ -223,12 +241,6 @@ private struct InstalledVersionRow: View {
                 Button(role: .destructive, action: remove) { Label(L("runtimes.removeVersion"), systemImage: Symbols.delete) }
                     .disabled(busy)
             }
-        } label: {
-            Label(L("runtimes.actions"), systemImage: Symbols.more).labelStyle(.iconOnly)
-        }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-        .help(L("runtimes.actions"))
-        .accessibilityIdentifier("\(scope).version.\(item.id).menu")
     }
 }
 

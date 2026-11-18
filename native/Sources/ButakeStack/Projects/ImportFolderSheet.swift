@@ -60,8 +60,9 @@ struct ImportFolderSheet: View {
             if importing { progress } else { list }
         } status: {
             if !failures.isEmpty {
-                Label(String(format: L("import.failed"), failures.joined(separator: ", ")), systemImage: Symbols.warning)
-                    .font(.uiCaption).foregroundStyle(Brand.warning).lineLimit(2)
+                Label(String(format: L("import.failed"), failures.joined(separator: "; ")), systemImage: Symbols.warning)
+                    .font(.uiCaption).foregroundStyle(Brand.warning).lineLimit(3)
+                    .help(failures.joined(separator: "\n")).accessibilityIdentifier("import.failures")
             } else {
                 Toggle(L("watch.toggle"), isOn: $watch)
                     .toggleStyle(.checkbox).help(L("watch.toggleHelp")).disabled(importing)
@@ -129,7 +130,7 @@ struct ImportFolderSheet: View {
     private func row(_ item: ScannedProject) -> some View {
         let project = item.detection.project
         let already = isRegistered(item)
-        let taken = !already && store.projects.contains { $0.id == project.id }
+        let taken = !already && uniqueID(project.id, tld: Self.tld(of: project)) != project.id
         return HStack(spacing: 10) {
             Toggle(URL(fileURLWithPath: project.path).lastPathComponent, isOn: Binding(get: { already || selected.contains(item.id) }, set: { on in
                 if on { selected.insert(item.id) } else { selected.remove(item.id) }
@@ -139,12 +140,12 @@ struct ImportFolderSheet: View {
             TechLogo(tech: !item.web && item.tech != nil ? .of(item.tech!) : project.tech, size: 24).opacity(item.web || already ? 1 : 0.6)
             VStack(alignment: .leading, spacing: 1) {
                 Text(URL(fileURLWithPath: project.path).lastPathComponent).foregroundStyle(already ? .secondary : .primary)
-                Text(!item.web && item.tech != nil ? L("tech.\(item.tech!)") : "\(project.tech.title) · \(taken ? uniqueID(project.id) : project.id).test")
+                Text(!item.web && item.tech != nil ? L("tech.\(item.tech!)") : "\(project.tech.title) · \(taken ? uniqueID(project.id, tld: Self.tld(of: project)) : project.id).\(Self.tld(of: project))")
                     .font(.uiCaption).foregroundStyle(.secondary)
             }
             Spacer()
             if already { Chip(text: L("import.already"), symbol: Symbols.success, tint: Brand.success) }
-            else if taken { Chip(text: L("import.renamed"), symbol: Symbols.renamed, tint: Brand.warning).help(String(format: L("import.renamedHelp"), project.id, uniqueID(project.id))) }
+            else if taken { Chip(text: L("import.renamed"), symbol: Symbols.renamed, tint: Brand.warning).help(String(format: L("import.renamedHelp"), project.id, uniqueID(project.id, tld: Self.tld(of: project)))) }
             else if !item.web { Chip(text: L(item.tech == nil ? "import.notWeb" : "import.notSite"), symbol: item.tech == nil ? "questionmark.circle" : "hammer") }
         }
         .padding(.vertical, 2)
@@ -159,12 +160,21 @@ struct ImportFolderSheet: View {
         .frame(maxWidth: .infinity, minHeight: 260)
     }
 
-    /// The folder's id, or the first free one with a number (gestion → gestion-2).
-    func uniqueID(_ id: String, reserved: Set<String> = []) -> String {
-        let used = Set(store.projects.map(\.id)).union(reserved)
-        guard used.contains(id) else { return id }
+    /// The domain suffix a project is detected with (`test` when it has none).
+    static func tld(of project: Project) -> String { project.domain.split(separator: ".").last.map(String.init) ?? "test" }
+
+    /// The folder's id, or the first free one with a number (gestion → gestion-2). An id is taken
+    /// by another project's id or by a domain another project already serves (`<id>.<tld>`).
+    func uniqueID(_ id: String, tld: String = "test", reserved: Set<String> = []) -> String {
+        Self.uniqueID(id, tld: tld, ids: Set(store.projects.map(\.id)).union(reserved),
+                      domains: Set(store.projects.flatMap(\.domains).map { $0.lowercased() }))
+    }
+
+    static func uniqueID(_ id: String, tld: String, ids: Set<String>, domains: Set<String>) -> String {
+        func used(_ id: String) -> Bool { ids.contains(id) || domains.contains("\(id).\(tld)".lowercased()) }
+        guard used(id) else { return id }
         var n = 2
-        while used.contains("\(id)-\(n)") { n += 1 }
+        while used("\(id)-\(n)") { n += 1 }
         return "\(id)-\(n)"
     }
 
@@ -178,9 +188,9 @@ struct ImportFolderSheet: View {
         var placed: [String: [String]] = [:]
         for item in items {
             var project = item.detection.project
-            let id = uniqueID(project.id, reserved: reserved)
+            let tld = Self.tld(of: project)
+            let id = uniqueID(project.id, tld: tld, reserved: reserved)
             if id != project.id {
-                let tld = project.domain.split(separator: ".").last.map(String.init) ?? "test"
                 project.id = id; project.domains = ["\(id).\(tld)"]
             }
             reserved.insert(id)
@@ -190,7 +200,7 @@ struct ImportFolderSheet: View {
                 let group = switch grouping { case .subfolders: item.group.isEmpty ? scan.name : item.group; case .single: scan.name; case .none: "" }
                 if !group.isEmpty { placed[group, default: []].append(saved.id) }
             } catch {
-                failures.append(URL(fileURLWithPath: project.path).lastPathComponent)
+                failures.append("\(URL(fileURLWithPath: project.path).lastPathComponent) (\(EngineFailure.message(error)))")
             }
             withAnimation(.snappy) { done += 1 }
         }

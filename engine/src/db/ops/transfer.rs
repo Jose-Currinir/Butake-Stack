@@ -41,15 +41,15 @@ impl Progress {
         self
     }
     pub(super) fn report(&mut self, done: u64, step: &str, force: bool) {
-        if let Some(path) = &self.path {
-            if force || self.last.elapsed() > Duration::from_millis(300) {
-                self.last = Instant::now();
-                let _ = write_private(
-                    path,
-                    &json!({"done": done, "total": self.total, "step": step, "unit": self.unit})
-                        .to_string(),
-                );
-            }
+        if let Some(path) = &self.path
+            && (force || self.last.elapsed() > Duration::from_millis(300))
+        {
+            self.last = Instant::now();
+            let _ = write_private(
+                path,
+                &json!({"done": done, "total": self.total, "step": step, "unit": self.unit})
+                    .to_string(),
+            );
         }
     }
 }

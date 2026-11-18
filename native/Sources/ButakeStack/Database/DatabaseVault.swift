@@ -10,87 +10,98 @@ enum DatabaseVault {
     /// The stack's MySQL root password (set from Servicios › Bases de datos).
     static let mysqlRoot = "stack-mysql"
 
-    private static func base(_ id: String) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: service,
-         kSecAttrAccount as String: id,
-         kSecAttrSynchronizable as String: false]
-    }
+    static let shared = DatabasePasswords(KeychainPasswords(service: service, labelPrefix: "Stack · "))
 
-    /// Passwords already read this run, by id (a missing password is cached too). Written under
-    /// `lock`; invalidated by every set/delete and by `forget`.
-    private nonisolated(unsafe) static var cache: [String: String?] = [:]
-    private static let lock = NSLock()
+    static func forget(_ id: String) { shared.forget(id) }
+    static func password(_ id: String) async -> String? { await shared.password(id) }
+    @discardableResult static func set(_ value: String, for id: String, label: String) -> Bool { shared.set(value, for: id, label: label) }
+    static func read(_ id: String) -> KeychainRead { shared.read(id) }
+    static func get(_ id: String) -> String? { shared.get(id) }
+    static func has(_ id: String) -> Bool { shared.has(id) }
+    @discardableResult static func delete(_ id: String) -> Bool { shared.delete(id) }
+    static func deleteAll(connection id: String) { shared.deleteAll(connection: id) }
+
+    /// A random password the database accepts (letters, digits and safe symbols); nil when the system
+    /// cannot give random bytes (never a predictable password).
+    static func generate(length: Int = 24) -> String? { DatabasePasswords.generate(length: length) }
+}
+
+/// The passwords of one Keychain service with an in-memory cache of what was read.
+final class DatabasePasswords: @unchecked Sendable {
+    private let store: KeychainPasswords
+    /// Passwords already read this run, by id (a password that is not there is cached too). Written under
+    /// `lock`; invalidated by every set/delete and by `forget`. A failed read is never cached.
+    private var cache: [String: String?] = [:]
+    private let lock = NSLock()
     /// Bumped by every invalidation: a Keychain read that started before one is not cached.
-    private nonisolated(unsafe) static var epoch = 0
+    private var epoch = 0
+
+    init(_ store: KeychainPasswords) { self.store = store }
 
     /// Forgets the cached password of a connection (disconnect, or after an outside change).
-    static func forget(_ id: String) {
+    func forget(_ id: String) {
         lock.withLock { cache[id] = nil; epoch += 1 }
     }
 
     /// The password without blocking the caller: a cache hit answers at once; otherwise the
-    /// Keychain is read off the main actor and the answer is kept in memory.
-    static func password(_ id: String) async -> String? {
+    /// Keychain is read off the main actor and a found or missing answer is kept in memory. A refused or failed
+    /// read answers nil but is asked again next time, so a «Deny» does not turn into «no password» for the session.
+    func password(_ id: String) async -> String? {
         let (hit, start) = lock.withLock { (cache[id], epoch) }
         if let hit { return hit }
-        let value = await Task.detached { get(id) }.value
+        let result = await Task.detached { [store] in store.read(id) }.value
+        let value: String?
+        switch result {
+        case .found(let data): value = String(decoding: data, as: UTF8.self)
+        case .missing: value = nil
+        case .failed: return nil
+        }
         lock.withLock { if epoch == start { cache[id] = .some(value) } }
         return value
     }
 
-    @discardableResult static func set(_ value: String, for id: String, label: String) -> Bool {
+    @discardableResult func set(_ value: String, for id: String, label: String) -> Bool {
         forget(id)
-        let query = base(id)
-        let data = Data(value.utf8)
-        if SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary) == errSecSuccess { return true }
-        var add = query
-        add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        add[kSecAttrLabel as String] = "Stack · \(label)"
-        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
-    }
-
-    static func get(_ id: String) -> String? {
-        var query = base(id)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
-        return String(decoding: data, as: UTF8.self)
-    }
-
-    static func has(_ id: String) -> Bool {
-        var query = base(id)
-        query[kSecReturnAttributes as String] = true
-        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
-    }
-
-    static func delete(_ id: String) {
+        let saved = store.set(value, for: id, label: label)
         forget(id)
-        SecItemDelete(base(id) as CFDictionary)
+        return saved
+    }
+
+    func read(_ id: String) -> KeychainRead { store.read(id) }
+    func get(_ id: String) -> String? { store.get(id) }
+    func has(_ id: String) -> Bool { store.has(id) }
+
+    @discardableResult func delete(_ id: String) -> Bool {
+        forget(id)
+        let removed = store.delete(id)
+        forget(id)
+        return removed
     }
 
     /// Deletes the connection's password and every `user:<id>/<name>` item of its server users.
-    static func deleteAll(connection id: String) {
+    func deleteAll(connection id: String) {
         delete(id)
-        var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
-                                    kSecAttrService as String: service,
-                                    kSecReturnAttributes as String: true,
-                                    kSecMatchLimit as String: kSecMatchLimitAll]
-        query[kSecAttrSynchronizable as String] = false
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let items = result as? [[String: Any]] else { return }
-        for item in items {
-            if let account = item[kSecAttrAccount as String] as? String, account.hasPrefix("user:\(id)/") { delete(account) }
-        }
+        for account in store.accounts(prefix: "user:\(id)/") { delete(account) }
     }
 
-    /// A random password the database accepts (letters, digits and safe symbols).
-    static func generate(length: Int = 24) -> String {
-        let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_.!@#%+=")
-        var bytes = [UInt8](repeating: 0, count: length)
-        _ = SecRandomCopyBytes(kSecRandomDefault, length, &bytes)
-        return String(bytes.map { alphabet[Int($0) % alphabet.count] })
+    private static let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_.!@#%+=")
+
+    /// Draws each symbol by rejection (bytes at or above the largest multiple of the alphabet size are dropped), so
+    /// every symbol is equally likely. `random` gives that many random bytes, or nil when it cannot.
+    static func generate(length: Int, random: (Int) -> [UInt8]? = systemRandom) -> String? {
+        let limit = 256 - 256 % alphabet.count
+        var symbols: [Character] = []
+        var attempts = 0
+        while symbols.count < length {
+            attempts += 1
+            guard attempts <= 64, let bytes = random(max(length - symbols.count, 1) * 2) else { return nil }
+            for byte in bytes where Int(byte) < limit && symbols.count < length { symbols.append(alphabet[Int(byte) % alphabet.count]) }
+        }
+        return String(symbols)
+    }
+
+    static func systemRandom(_ count: Int) -> [UInt8]? {
+        var bytes = [UInt8](repeating: 0, count: count)
+        return SecRandomCopyBytes(kSecRandomDefault, count, &bytes) == errSecSuccess ? bytes : nil
     }
 }

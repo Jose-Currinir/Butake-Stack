@@ -59,6 +59,19 @@ extension NewProjectSheet {
         } isTargeted: { dropping = $0 }
     }
 
+    /// Cloning a repository: the Git tool's sheet, reached from here too.
+    var clonePane: some View {
+        ContentUnavailableView {
+            Label(L("new.cloneTitle"), systemImage: Symbols.gitClone)
+        } description: {
+            Text(L("new.cloneDetail"))
+        } actions: {
+            Button { clone() } label: { Label(L("new.cloneChoose"), systemImage: Symbols.gitClone) }
+                .buttonStyle(.borderedProminent).controlSize(.large).accessibilityIdentifier("new.cloneChoose")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     // MARK: Creating, done, failed
 
     /// The steps this project goes through, in order, with the log line that starts each one.

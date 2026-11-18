@@ -1,12 +1,37 @@
 import AppKit
 import SwiftUI
 
+/// ⌘F in Inicio: which projects the text keeps. A pure rule, so it can be tested without a window.
+enum HomeFilter {
+    /// A project matches by its name, address, kind or folder on disk.
+    static func admits(_ project: Project, query: String) -> Bool {
+        let text = query.trimmingCharacters(in: .whitespaces)
+        return text.isEmpty || [project.title, project.domain, project.tech.title, project.path].contains { $0.localizedCaseInsensitiveContains(text) }
+    }
+    /// The projects of a folder to show: all of them when the folder's own name matches, else the ones that match.
+    static func shown(_ projects: [Project], folder: String?, query: String) -> [Project] {
+        let text = query.trimmingCharacters(in: .whitespaces)
+        if text.isEmpty || folder?.localizedCaseInsensitiveContains(text) == true { return projects }
+        return projects.filter { admits($0, query: text) }
+    }
+}
+
 /// Inicio: what needs doing (only when something does), the projects and the services installed.
 /// Stack's state itself is said by the status bar.
 struct HomePage: View {
     @Bindable var store: StackStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var services: [String] { Route.allEngines.filter { store.engineVersion($0) != nil } }
+    /// How far a folder inside another is moved in, as in the sidebar.
+    static let indent: CGFloat = 20
+    /// What ⌘F types into: filters the projects and folders on this page as you write.
+    #if DEBUG
+    @State private var filter = QAHooks.homeFilter ?? ""
+    #else
+    @State private var filter = ""
+    #endif
+    @State private var filterRequests = 0
+    var query: String { filter.trimmingCharacters(in: .whitespaces) }
     var online: Int { store.projects.filter { store.sitePhase($0) == .running }.count }
 
     var body: some View {
@@ -23,6 +48,7 @@ struct HomePage: View {
             .frame(maxWidth: .infinity)
         }
         .background(Brand.background)
+        .focusedSceneValue(\.textFinder, store.projects.isEmpty ? nil : TextFinderRequest { filterRequests += 1 })
         .toolbar {
             if store.shownFolders.count > 1 {
                 if #available(macOS 26, *) {
@@ -52,17 +78,26 @@ struct HomePage: View {
 
     private var projects: some View {
         VStack(alignment: .leading, spacing: 18) {
-            SectionHeading(title: L("route.sites"), detail: String(format: L("sites.online"), online))
-            // Each folder as its own group of cards, closed or open as in the sidebar (one state for
-            // both); projects without a folder after them.
-            ForEach(store.groups) { group in
-                let members = store.projects(in: group)
-                if !members.isEmpty {
+            HStack(alignment: .firstTextBaseline, spacing: 16) {
+                SectionHeading(title: L("route.sites"), detail: String(format: L("sites.online"), online))
+                Spacer(minLength: 0)
+                FilterField(text: $filter, identifier: "home.filter", prompt: L("home.filter"), focusRequests: filterRequests)
+                    .frame(maxWidth: 260)
+            }
+            let filtering = !query.isEmpty
+            // The folders as the sidebar draws them: each inside the one it is in, a folder closed hides
+            // everything under it, and a folder counts every project inside it. Cards are the folder's
+            // own projects; the ones of a folder inside it are under that folder's title.
+            ForEach(store.folderTree) { entry in
+                let group = entry.group
+                let inside = HomeFilter.shown(store.projects(inside: group), folder: group.name, query: query)
+                if !inside.isEmpty && (filtering || store.ancestors(of: group).allSatisfy({ store.folderOpen($0.id) })) {
+                    let members = HomeFilter.shown(store.projects(in: group), folder: group.name, query: query)
                     VStack(alignment: .leading, spacing: 10) {
                         // A project of several parts says so and leads to its page.
                         HStack(spacing: 4) {
                             HomeFolderHeader(store: store, id: group.id, title: group.name,
-                                             symbol: group.isProject ? Symbols.compositeProject : Symbols.folder, members: members)
+                                             symbol: group.isProject ? Symbols.compositeProject : Symbols.folder, members: inside)
                             if group.isProject {
                                 Button { store.openComposite(group.id) } label: {
                                     Label(L("composite.open"), systemImage: Symbols.compositeProject).labelStyle(.iconOnly)
@@ -72,12 +107,16 @@ struct HomePage: View {
                                 .accessibilityIdentifier("home.folder.\(group.id).open")
                             }
                         }
-                        if store.folderOpen(group.id) { grid(members) { HomeProjectCard(store: store, project: $0).draggable($0.id) } }
+                        if (filtering || store.folderOpen(group.id)) && !members.isEmpty { grid(members) { HomeProjectCard(store: store, project: $0).draggable($0.id) } }
                     }
+                    .padding(.leading, CGFloat(entry.depth) * HomePage.indent)
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            let loose = store.ungroupedProjects
+            let loose = HomeFilter.shown(store.ungroupedProjects, folder: nil, query: query)
+            if filtering && loose.isEmpty && !store.folderTree.contains(where: { !HomeFilter.shown(store.projects(inside: $0.group), folder: $0.group.name, query: query).isEmpty }) {
+                ContentUnavailableView.search(text: query)
+            }
             if !loose.isEmpty {
                 // Named, and so closable, only next to folders that show cards.
                 let named = store.groups.contains(where: { !store.projects(in: $0).isEmpty })
@@ -85,7 +124,7 @@ struct HomePage: View {
                     if named {
                         HomeFolderHeader(store: store, id: StackStore.looseFolder, title: L("groups.loose"), symbol: Symbols.project, members: loose)
                     }
-                    if !named || store.folderOpen(StackStore.looseFolder) {
+                    if !named || filtering || store.folderOpen(StackStore.looseFolder) {
                         grid(loose) { HomeProjectCard(store: store, project: $0).draggable($0.id) }
                     }
                 }
@@ -108,6 +147,9 @@ struct HomePage: View {
                 Button { store.chooseFolder() } label: { Label(L("menu.addExisting"), systemImage: Symbols.newFolder) }
                     .buttonStyle(.bordered)
                     .accessibilityIdentifier("home.addExisting")
+                Button { store.showClone = true } label: { Label(L("menu.cloneRepository"), systemImage: Symbols.gitClone) }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("home.clone")
             }
             .fixedSize()
         }
@@ -117,7 +159,8 @@ struct HomePage: View {
 
     private var servicesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeading(title: L("sidebar.services"), detail: String(format: L("status.engines"), store.runningEngines, store.engineCount))
+            // No count of what runs here: the status bar says it once for the whole window.
+            SectionHeading(title: L("sidebar.services"))
             grid(services.map(ServiceID.init)) { HomeServiceCard(store: store, name: $0.id) }
         }
     }
@@ -268,9 +311,17 @@ private struct HomeProjectCard: View {
     var detail: String { detail(kind: project.tech.title) }
     func detail(kind: String) -> String {
         if project.isMissing { return L("missing.title") }
+        let state = stateText
         let branch = store.git[project.id].map { $0.branch.isEmpty ? L("git.detached") : $0.branch }
         let unserved = project.isServed || project.technology == nil ? nil : L("kind.unserved")
-        return ([kind] + [unserved, project.php.map { "PHP \($0)" }, branch].compactMap { $0 }).joined(separator: " · ")
+        return ([state, kind] + [unserved, project.php.map { "PHP \($0)" }, branch]).compactMap { $0 }.joined(separator: " · ")
+    }
+    /// What is not running says so in words, first in the line: the ring and the switch say it only by color.
+    private var stateText: String? {
+        guard project.isServed else { return nil }
+        guard project.enabled else { return L("site.off") }
+        let phase = store.sitePhase(project)
+        return phase == .running ? nil : phase == .crashed ? L("home.state.crashed") : L("state.\(phase.rawValue)")
     }
     var body: some View {
         let phase = store.sitePhase(project)
@@ -309,9 +360,11 @@ private struct HomeServiceCard: View {
     var body: some View {
         let tech = Tech.of(name)
         let enabled = store.engineEnabled(name)
-        HomeCard(tech: tech, title: tech.title, detail: [store.engineVersion(name), store.enginePort(name).map(String.init)].compactMap { $0 }.joined(separator: " · "),
+        let phase = store.phase("stack.\(name)")
+        let state = !enabled ? L("site.off") : phase == .running ? nil : phase == .crashed ? L("home.state.crashed") : L("state.\(phase.rawValue)")
+        HomeCard(tech: tech, title: tech.title, detail: [state, store.engineVersion(name), store.enginePort(name).map(String.init)].compactMap { $0 }.joined(separator: " · "),
                  identifier: "home.service.\(name)", open: open) {
-            if enabled { StatusRing(phase: store.phase("stack.\(name)")) }
+            if enabled { StatusRing(phase: phase) }
             Toggle(tech.title, isOn: Binding(get: { enabled }, set: { on in Task { await store.setEngine(name, enabled: on) } }))
                 .toggleStyle(.switch).controlSize(.small).labelsHidden()
                 .accessibilityIdentifier("home.service.toggle.\(name)")

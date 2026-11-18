@@ -110,8 +110,14 @@ private struct SessionLaunch: Codable, Sendable { var executable: String; var ar
         for name in ["HOME", "USER", "LOGNAME", "SSH_AUTH_SOCK"] { if let value = env[name] { out.append("\(name)=\(value)") } }
         return out
     }
+    /// The tab or pane was closed: a start still waiting for the engine must not launch anything.
+    @ObservationIgnored private(set) var closed = false
+    @ObservationIgnored private var starting = false
+
     func start() async {
-        guard !running else { return }
+        guard !running, !starting, !closed else { return }
+        starting = true
+        defer { starting = false }
         exitCode = nil
         switch kind {
         case .local(let launch):
@@ -123,6 +129,8 @@ private struct SessionLaunch: Codable, Sendable { var executable: String; var ar
         case .ssh(let id):
             do {
                 let launch: SessionLaunch = try await StackStore.shared.call(["method": "sshSession", "id": id])
+                // Closed while the engine answered: the process is never started (nothing could end it).
+                guard !closed else { return }
                 guard launch.executable == "/usr/bin/ssh" else {
                     // Never run what the engine did not say is ssh; the tab says it ended instead of staying empty.
                     exitCode = -1
@@ -184,6 +192,7 @@ private struct SessionLaunch: Codable, Sendable { var executable: String; var ar
     /// Ends the process and everything it started (`SessionReaper`): nothing is left running
     /// after its tab or pane closes. `ending` is the reaping, for whoever must wait for it.
     func terminate() {
+        closed = true
         guard running else { return }
         let leader = view.process.shellPid
         let members = SessionReaper.members(of: leader)

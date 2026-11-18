@@ -99,7 +99,7 @@ struct GitCloneSheet: View {
             refused = nil
             await readAccess()
         }
-        .onChange(of: provider) { Task { await loadRepositories() } }
+        .onChange(of: provider) { repositories = []; chosen = nil; Task { await loadRepositories() } }
         .onChange(of: chosen) { if let repository { name = Self.folderName(repository.fullName) } }
         .onChange(of: address) { if source == .address { name = Self.folderName(address) } }
     }
@@ -164,14 +164,19 @@ struct GitCloneSheet: View {
     }
 
     private func loadRepositories() async {
-        guard hosting.account(for: provider) != nil else { repositories = []; return }
+        let asked = provider
+        guard hosting.account(for: asked) != nil else { repositories = []; return }
         loading = true
-        defer { loading = false }
+        // Only the answer for the provider still chosen counts: a slower one for the previous provider is dropped.
+        defer { if asked == provider { loading = false } }
         do {
-            let credentials = try await hosting.credentials(for: provider)
-            repositories = try await hosting.client.repositories(provider, credentials: credentials)
+            let credentials = try await hosting.credentials(for: asked)
+            let found = try await hosting.client.repositories(asked, credentials: credentials)
+            guard asked == provider else { return }
+            repositories = found
             failure = nil
         } catch {
+            guard asked == provider else { return }
             repositories = []
             failure = (error as? GitHostingFailure)?.errorDescription ?? EngineFailure.message(error)
         }

@@ -1,13 +1,13 @@
 //! `skillsImportApply`: per skill, copy and verify, then replace each source with a link to Stack's
 //! copy. A real folder is moved to the import trash (a rename, never copy + delete); anything that
 //! fails rolls the skill back completely and leaves the other skills alone.
-use super::plan::{conflicts_json, Item, Plan};
+use super::plan::{Item, Plan, conflicts_json};
 use super::record::{self, Saved, Stored};
 use super::tree;
-use crate::skills::model::{fail, Ctx, Entry, Index};
+use crate::skills::model::{Ctx, Entry, Index, fail};
 use crate::skills::{index as store_index, links, skill_file};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     fs,
     os::unix::fs::symlink,

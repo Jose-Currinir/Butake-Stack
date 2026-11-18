@@ -1,9 +1,9 @@
 //! `skillsImportPlan`: what the import would do, without doing it. The apply re-reads the folders
 //! and makes exactly this.
 use super::scan::{self, Source};
-use crate::skills::model::{fail, Ctx, Index};
+use crate::skills::model::{Ctx, Index, fail};
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{collections::BTreeMap, fs, os::unix::fs::MetadataExt, path::PathBuf};
 
 pub struct Request {

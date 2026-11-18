@@ -35,15 +35,20 @@ struct Sidebar: View {
                     // Folders are rows of the list, not an outline: an outline reserves a column for its
                     // disclosure triangles in every row, search field included, which then no longer lines up
                     // with the selection.
-                    ForEach(store.groups) { group in
+                    // Folders follow the disk: each one nested in the one it is in, as deep as the disk goes.
+                    // A folder closed hides everything under it.
+                    let shown = shownFolders
+                    ForEach(store.folderTree) { entry in
+                        let group = entry.group
                         let members = store.projects(in: group).filter { matches($0.title) || matches($0.domain) || matches(group.name) }
-                        if search.isEmpty || !members.isEmpty {
+                        if shown.contains(group.id) && store.ancestors(of: group).allSatisfy({ expanded($0.id) }) {
                             let open = expanded(group.id)
                             if group.isProject {
                                 // A project of several parts is a row of the list: it opens its page, and
                                 // its chevron (a button at the end of the row) shows or hides its parts.
                                 GroupRow(store: store, group: group, members: store.projects(in: group), open: open,
                                          toggle: { setExpanded(group.id, !open) }) { setExpanded(group.id, true) }
+                                    .padding(.leading, CGFloat(entry.depth) * Self.indent)
                                     .tag(SidebarRow.composite(group.id))
                                     .accessibilityIdentifier("sidebar.group.\(group.id)")
                             } else {
@@ -52,20 +57,27 @@ struct Sidebar: View {
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(HighlightButtonStyle())
+                                .padding(.leading, CGFloat(entry.depth) * Self.indent)
                                 .accessibilityHint(open ? L("groups.collapse") : L("groups.expand"))
                                 .accessibilityIdentifier("sidebar.group.\(group.id)")
                                 .selectionDisabled()
                             }
                             if open {
-                                ForEach(members) { siteRow($0, in: group.id).padding(.leading, Self.indent) }
-                                if members.isEmpty && search.isEmpty {
-                                    Text(L("groups.empty")).font(.caption).foregroundStyle(.tertiary)
-                                        .padding(.leading, Self.indent).selectionDisabled()
+                                let inset = CGFloat(entry.depth + 1) * Self.indent
+                                ForEach(members) { siteRow($0, in: group.id).padding(.leading, inset) }
+                                if search.isEmpty {
+                                    ForEach(store.newRepositories(in: group.id)) { newRepositoryRow($0).padding(.leading, inset) }
+                                    if let suggestion = store.suggestion(for: group) { suggestionRow(suggestion, group: group).padding(.leading, inset) }
+                                    if members.isEmpty && !store.groups.contains(where: { $0.parent == group.id }) && store.newRepositories(in: group.id).isEmpty {
+                                        Text(L("groups.empty")).font(.caption).foregroundStyle(.tertiary)
+                                            .padding(.leading, inset).selectionDisabled()
+                                    }
                                 }
                             }
                         }
                     }
                     ForEach(store.ungroupedProjects.filter { matches($0.title) || matches($0.domain) }) { siteRow($0, in: nil) }
+                    if search.isEmpty { ForEach(store.newRepositories(in: nil)) { newRepositoryRow($0) } }
                 } header: {
                     // Closed, the title says how many projects it holds: never an empty section.
                     SitesHeader(store: store, closed: !sectionOpen("sites").wrappedValue)
@@ -94,6 +106,7 @@ struct Sidebar: View {
                         Label { Text(component.title) } icon: { TechLogo(tech: component.tech, size: 18) }
                             .tag(SidebarRow.component(component))
                             .accessibilityIdentifier("route.components.\(component.rawValue)")
+                            .contextMenu { ComponentMenuItems(store: store, component: component) }
                     }
                     ForEach(found, id: \.self) { categoryRow($0) }
                 } header: { Text(L("sidebar.components")) }
@@ -107,6 +120,15 @@ struct Sidebar: View {
         .searchFocused($searchFocused)
         // The window opens on the list, not typing in the search field.
         .defaultFocus($searchFocused, false)
+        // Retorno renames the selected project or folder, as in Finder; in the search field it does nothing here.
+        .onKeyPress(.return) {
+            guard !searchFocused, let target = SidebarRename.target(for: store.route, projects: store.projects, groups: store.groups) else { return .ignored }
+            switch target {
+            case .project(let project): store.renaming = RenameRequest(project: project)
+            case .folder(let id): store.groupNaming = .rename(id)
+            }
+            return .handled
+        }
         // Edición › Buscar (⌘F).
         .onChange(of: store.findRequests) { searchFocused = true }
         #if DEBUG
@@ -117,6 +139,19 @@ struct Sidebar: View {
             }
         }
         #endif
+    }
+}
+
+/// What Retorno renames in the sidebar: the project or the folder (a project of several parts) selected.
+enum SidebarRename {
+    enum Target: Equatable { case project(Project), folder(String) }
+
+    static func target(for route: Route, projects: [Project], groups: [ProjectGroup]) -> Target? {
+        switch route {
+        case .site(let id): projects.first { $0.id == id }.map(Target.project)
+        case .composite(let id): groups.contains { $0.id == id } ? .folder(id) : nil
+        default: nil
+        }
     }
 }
 
@@ -154,6 +189,7 @@ extension Sidebar {
         } icon: { TechLogo(tech: .of(id), size: 18) }
             .tag(SidebarRow.tool(id))
             .accessibilityIdentifier("route.tool.\(id)")
+            .contextMenu { ToolMenuItems(store: store, id: id) }
     }
     /// A category found by the search, with the component that holds it.
     func categoryRow(_ route: Route) -> some View {
@@ -167,6 +203,10 @@ extension Sidebar {
         } icon: { TechLogo(tech: component.tech(of: category), size: 18) }
             .tag(SidebarRow.category(route))
             .accessibilityIdentifier("route.\(route.storageValue.replacingOccurrences(of: ":", with: "."))")
+            .contextMenu {
+                Button { store.route = route } label: { Label(L("common.open"), systemImage: Symbols.forward) }
+                    .accessibilityIdentifier("sidebar.menu.open.\(category)")
+            }
     }
     var selectedProject: Project? {
         if case .site(let id) = store.route { return store.projects.first { $0.id == id } }
@@ -180,8 +220,9 @@ extension Sidebar {
                 Text(project.title).lineLimit(1).foregroundStyle(project.isMissing ? .secondary : .primary)
                 Spacer()
                 if project.isMissing {
-                    Image(systemName: Symbols.missingFolder).foregroundStyle(Brand.warning).help(L("missing.title"))
-                        .accessibilityLabel(L("missing.title")).accessibilityIdentifier("route.site.missing.\(project.id)")
+                    // Said in words: a project whose folder is not there is never lost in silence.
+                    Text(L("missing.badge")).font(.caption).foregroundStyle(Brand.warning).lineLimit(1)
+                        .help(L("missing.title")).accessibilityIdentifier("route.site.missing.\(project.id)")
                 } else {
                     // Open to anyone on the internet while shared (temporary or fixed address).
                     if store.isPublic(project) {
@@ -199,11 +240,52 @@ extension Sidebar {
                 Label(project.title, systemImage: Symbols.project).padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
             }
             .dropDestination(for: String.self) { ids, _ in
-                for id in ids where id != project.id && store.projects.contains(where: { $0.id == id }) {
+                for id in ids where id != project.id && (store.projects.contains(where: { $0.id == id }) || id.hasPrefix(StackStore.folderDragPrefix)) {
                     store.move(id, to: group, before: group == nil ? nil : project.id)
                 }
                 return true
             }
+    }
+    /// A repository of the disk that is not a project yet: offered, never added by itself.
+    func newRepositoryRow(_ repository: NewRepository) -> some View {
+        Label {
+            HStack(spacing: 6) {
+                Text(repository.title).lineLimit(1).foregroundStyle(.secondary)
+                Spacer()
+                Text(L("groups.newRepo")).font(.caption.weight(.semibold)).foregroundStyle(Brand.info)
+                    .accessibilityIdentifier("sidebar.new.badge.\(repository.title)")
+                Button(L("groups.newRepoAdd")) { Task { await store.openFolder(repository.path) } }
+                    .buttonStyle(.borderless).font(.caption).foregroundStyle(Brand.accent)
+                    .help(L("groups.newRepoHelp")).accessibilityIdentifier("sidebar.new.add.\(repository.title)")
+            }
+        } icon: { IconTile(symbol: Symbols.newFolder, size: 18) }
+            .selectionDisabled().accessibilityIdentifier("sidebar.new.\(repository.title)")
+            .contextMenu {
+                Button { Task { await store.openFolder(repository.path) } } label: { Label(L("groups.newRepoAdd"), systemImage: Symbols.add) }
+                Button { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: repository.path) } label: { Label(L("menu.showInFinder"), systemImage: Symbols.folder) }
+            }
+    }
+    /// A folder whose repositories share a prefix: it may be a project of several parts.
+    func suggestionRow(_ suggestion: MultipartSuggestion, group: ProjectGroup) -> some View {
+        HStack(spacing: 6) {
+            Text(L("groups.suggest")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                .help(suggestion.parts.joined(separator: ", "))
+            Spacer()
+            Button(L("groups.suggestConvert")) { store.setKind(group.id, .project) }
+                .buttonStyle(.borderless).font(.caption).foregroundStyle(Brand.accent)
+                .accessibilityIdentifier("sidebar.suggest.convert.\(group.id)")
+        }
+        .selectionDisabled().accessibilityIdentifier("sidebar.suggest.\(group.id)")
+    }
+    /// The folders the sidebar draws: all, or while searching those with a match and the ones they are in.
+    var shownFolders: Set<String> {
+        guard !search.isEmpty else { return Set(store.groups.map(\.id)) }
+        var ids = Set<String>()
+        for group in store.groups where store.projects(in: group).contains(where: { matches($0.title) || matches($0.domain) || matches(group.name) }) {
+            ids.insert(group.id)
+            ids.formUnion(store.ancestors(of: group).map(\.id))
+        }
+        return ids
     }
     /// Folders open unless the user closed them (here or in Inicio); all open while searching.
     func expanded(_ id: String) -> Bool { !search.isEmpty || store.folderOpen(id) }
@@ -215,6 +297,17 @@ extension Sidebar {
             if open { closedSections.remove(id) } else { closedSections.insert(id) }
             closedSectionsRaw = closedSections.sorted().joined(separator: ",")
         })
+    }
+}
+
+private extension View {
+    /// Makes a folder draggable (on the disk only); `nil` leaves the row as it is.
+    @ViewBuilder func draggableFolder(_ payload: String?, title: String) -> some View {
+        if let payload {
+            draggable(payload) {
+                Label(title, systemImage: Symbols.folder).padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+            }
+        } else { self }
     }
 }
 
@@ -259,7 +352,9 @@ private struct GroupRow: View {
     /// After a drop: the folder opens to show where the project went.
     let dropped: () -> Void
     @State private var targeted = false
-    var running: Int { members.filter { store.sitePhase($0) == .running }.count }
+    /// Its count and its running ones take every project inside it, folders within folders too.
+    var inside: [Project] { store.projects(inside: group) }
+    var running: Int { inside.filter { store.sitePhase($0) == .running }.count }
     var body: some View {
         Label {
             HStack(spacing: 6) {
@@ -272,7 +367,7 @@ private struct GroupRow: View {
                         .padding(.horizontal, 5).padding(.vertical, 1).background(Brand.success, in: Capsule())
                         .help(String(format: L("groups.running"), running))
                 }
-                Text("\(members.count)").font(.subheadline.weight(.medium)).foregroundStyle(.secondary).monospacedDigit()
+                Text("\(inside.count)").font(.subheadline.weight(.medium)).foregroundStyle(.secondary).monospacedDigit()
                 if let toggle {
                     // A project's row opens its page: its chevron is a button of its own, at the end of the row.
                     Button(action: toggle) {
@@ -305,5 +400,7 @@ private struct GroupRow: View {
         } isTargeted: { targeted = $0 }
         .accessibilityValue(open ? L("groups.open") : L("groups.closed"))
         .contextMenu { GroupMenuItems(store: store, group: group) }
+        // A folder moves on the disk when it is dragged into another.
+        .draggableFolder(store.followsDisk ? StackStore.folderDragPrefix + group.id : nil, title: group.name)
     }
 }

@@ -61,6 +61,20 @@ Nube                 solo las cuentas activas: AWS · Google Cloud (sin ninguna,
 Componentes          Servicios · Lenguajes · Utilidades
 ```
 
+**Proyectos sigue las carpetas del disco.** La carpeta de proyectos (`~/Stack/Projects` o la elegida en
+Ajustes › Avanzado) es el árbol: cada subcarpeta es una carpeta de la barra lateral, anidada a cualquier
+profundidad (sangría de un nivel por carpeta; cerrar una carpeta oculta lo que tiene dentro). Un proyecto de
+varias partes es una carpeta del disco marcada como tal (clic derecho › Convertir en proyecto, o «Convertir»
+en la sugerencia que aparece cuando una carpeta tiene dos o más repositorios con el mismo prefijo).
+
+- Estados, siempre dichos con palabras: **No encontrado** (proyecto sin carpeta; clic derecho › Ubicar…, Quitar de
+  Stack) y **Nuevo** (repositorio del disco que no es proyecto; botón Agregar). Nada se agrega ni se quita solo.
+- Lo que se mueve en Finder se sigue solo; Stack avisa en una línea (««X» se movió a …»).
+- Arrastrar un proyecto o una carpeta sobre otra carpeta (o sobre el título Proyectos, para sacarla) mueve la
+  carpeta en el disco, siempre tras una confirmación que dice de dónde a dónde, y se deshace con ⌘Z.
+- Clic derecho en una carpeta: Nueva carpeta aquí…, Mostrar en Finder, Cambiar nombre… (renombra en el disco) y
+  Eliminar carpeta (solo vacías).
+
 Herramientas, Nube y Componentes no se pliegan. Cada fila de Componentes abre su página con sus
 categorías en la columna de contenido y la categoría en el detalle; la fila recuerda la última
 categoría vista:
@@ -141,6 +155,8 @@ menús) y vuelve a ser solo de barra de menús al cerrarla.
 | Eliminar | Borrar, Olvidar | Cuando se pierden datos |
 | Quitar | — | Cuando solo sale de la lista |
 | Tiempo real | Broadcasting | Servicios de WebSocket |
+| Stack, servicio de fondo de Stack | Supervisor, motor, daemon | Lo que corre detrás de la app |
+| Página web | Sitio web | Lo que un proyecto sirve en .test |
 
 Mayúscula solo en la primera palabra. Los puntos suspensivos indican que la acción pide más
 datos. Sin textos explicativos de más de una línea: lo que sobra va a `.help`. El código puede
@@ -205,23 +221,35 @@ seguir diciendo `engine` o `site` en identificadores internos; el glosario rige 
 20. Navegación y pestaña activa persistidas con `@SceneStorage`.
 21. Sin `.id(tema)` para forzar la recreación de vistas.
 22. Todo se lee bien con el texto a 1,5× y en modo oscuro.
+23. Lo que se puede revertir se registra con `store.undoable(nombre, undo:, redo:)`
+    (`App/StackStore+Undo.swift`) cuando la acción salió bien, sobre el `UndoManager` de la ventana
+    (⌘Z, ⇧⌘Z). `nombre` es lo que dice Edición («Iniciar Tienda»), con clave `menu.undo.*`.
+    `undo` y `redo` repiten acciones del store: no registran de nuevo mientras corren. Se pide
+    confirmación solo para lo irreversible (borrar una base, quitar un proyecto con sus secretos).
+24. Un error se dice donde se pidió la acción: `store.run(…, from: .panel)` o `report(_, from:)`
+    lo muestran en el panel de la barra de menús (`panelFailure`, nunca abre la ventana) o en la
+    alerta de la ventana. Lleva título con el contexto (`failureTitle`), la causa si el motor la
+    da, «Reintentar» (salvo `canRetry: false` si repetir deja restos) y «Abrir Registros» cuando
+    la causa no se conoce.
+25. Atrás y Adelante (⌘[, ⌘], botones de la barra y deslizar con dos dedos) siguen `store.history`
+    (`App/RouteHistory.swift`): una página que se abre desde un enlace o la barra lateral entra sola.
 
 ### Contenido
 
-23. Todo texto visible pasa por `L()` y usa solo términos del glosario.
-24. Un dato o estado aparece una vez por pantalla. Un título no se repite en el contenido.
-25. Una función tiene una sola entrada principal; las demás son atajos que llevan a ella.
-26. Nada decorativo que no se pueda accionar: sin listas de «incluido», sin versiones «1.0.0».
-27. Ningún nombre de aplicaciones o gestores de terceros que Stack reemplaza o evita.
+26. Todo texto visible pasa por `L()` y usa solo términos del glosario.
+27. Un dato o estado aparece una vez por pantalla. Un título no se repite en el contenido.
+28. Una función tiene una sola entrada principal; las demás son atajos que llevan a ella.
+29. Nada decorativo que no se pueda accionar: sin listas de «incluido», sin versiones «1.0.0».
+30. Ningún nombre de aplicaciones o gestores de terceros que Stack reemplaza o evita.
 
 ### Código
 
-28. Un archivo por responsabilidad, con un tope orientativo de 400 líneas. Carpeta por función.
-29. Sufijos: `*Page` (destino de la barra lateral), `*Sheet` (hoja), `*Panel` (zona de una
+31. Un archivo por responsabilidad, con un tope orientativo de 400 líneas. Carpeta por función.
+32. Sufijos: `*Page` (destino de la barra lateral), `*Sheet` (hoja), `*Panel` (zona de una
     página), `*Row`, `*Section`. Lo compartido vive en `Shared/`.
-30. Antes de crear un helper, buscar uno en `Shared/` (Swift) o `core/` (Rust).
-31. Código de QA solo tras `#if DEBUG` y en `QA/`.
-32. Identificadores de accesibilidad `<área>.<elemento>[.<id>]`, únicos, en todo control.
-33. Sin código muerto, comentado ni alias «por si acaso». Lo que no tiene llamador se borra.
-34. Motor: procesos con ejecutable y argumentos separados; validación, escritura privada,
+33. Antes de crear un helper, buscar uno en `Shared/` (Swift) o `core/` (Rust).
+34. Código de QA solo tras `#if DEBUG` y en `QA/`.
+35. Identificadores de accesibilidad `<área>.<elemento>[.<id>]`, únicos, en todo control.
+36. Sin código muerto, comentado ni alias «por si acaso». Lo que no tiene llamador se borra.
+37. Motor: procesos con ejecutable y argumentos separados; validación, escritura privada,
     descarga verificada y extracción solo desde `core/`.

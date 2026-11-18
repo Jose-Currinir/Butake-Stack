@@ -19,6 +19,7 @@ pub mod credentials;
 mod diff;
 mod editing;
 mod files;
+mod peer;
 mod protection;
 mod remotes;
 pub mod repositories;
@@ -32,11 +33,11 @@ mod worktrees;
 
 pub use console::{run_console, write_plan};
 pub use remotes::{stored_address, validate_clone_url};
-pub use runner::{public_detail, GitError};
+pub use runner::{GitError, public_detail};
 
 use crate::core::store::Store;
-use runner::{error, git, Result};
-use serde_json::{json, Value};
+use runner::{Result, error, git};
+use serde_json::{Value, json};
 use std::{future::Future, path::Path};
 
 /// Every method of the tool. `gitStatus` is not here: that name belongs to the base (the branch and

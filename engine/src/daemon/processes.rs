@@ -204,13 +204,13 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
         let fingerprint = fingerprint(&content);
         let mut inherit = vec![http];
         // Caddy only needs the HTTPS socket when a site asks for HTTPS.
-        if all.iter().any(|p| p.https) {
-            if let Some(https) = fds.https {
-                inherit.push(https);
-                // HTTP/3 (QUIC) needs the UDP side of 443 as a third descriptor.
-                if let Some(quic) = fds.https_udp {
-                    inherit.push(quic);
-                }
+        if all.iter().any(|p| p.https)
+            && let Some(https) = fds.https
+        {
+            inherit.push(https);
+            // HTTP/3 (QUIC) needs the UDP side of 443 as a third descriptor.
+            if let Some(quic) = fds.https_udp {
+                inherit.push(quic);
             }
         }
         specs.push(ProcessSpec {
@@ -307,13 +307,15 @@ pub fn specs(store: &Store, fds: WebFds) -> Result<Vec<ProcessSpec>> {
                 "php" => (Some(php_bin.join("php")), vec![]),
                 "composer" => (
                     Some(php_bin.join("php")),
-                    vec![store
-                        .root()
-                        .join("runtimes/php")
-                        .join(&php_series)
-                        .join("composer.phar")
-                        .to_string_lossy()
-                        .into_owned()],
+                    vec![
+                        store
+                            .root()
+                            .join("runtimes/php")
+                            .join(&php_series)
+                            .join("composer.phar")
+                            .to_string_lossy()
+                            .into_owned(),
+                    ],
                 ),
                 "gradlew" => (Some(project.path.join("gradlew")), vec![]),
                 "uv" | "cargo" => (

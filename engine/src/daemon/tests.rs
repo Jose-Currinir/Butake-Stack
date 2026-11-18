@@ -153,8 +153,10 @@ fn public_addresses_reach_processes_and_run_only_while_shared() {
     let config = std::fs::read_to_string(&run.args[3]).unwrap();
     assert!(config.contains("httpHostHeader: \"pub.test\""));
     public::retain(&Default::default());
-    assert!(!specs(&store, fds)
-        .unwrap()
-        .iter()
-        .any(|s| s.id == "public.pub"));
+    assert!(
+        !specs(&store, fds)
+            .unwrap()
+            .iter()
+            .any(|s| s.id == "public.pub")
+    );
 }

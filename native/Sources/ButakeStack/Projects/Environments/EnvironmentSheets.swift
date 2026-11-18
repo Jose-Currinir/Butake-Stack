@@ -129,3 +129,65 @@ struct EnvAuditSheet: View {
         }
     }
 }
+
+/// A new name for a custom environment.
+struct RenameEnvironmentSheet: View {
+    let store: StackStore
+    let project: Project
+    let env: EnvEnvironment
+    @State private var name: String
+    init(store: StackStore, project: Project, env: EnvEnvironment) {
+        self.store = store; self.project = project; self.env = env
+        _name = State(initialValue: env.name)
+    }
+    var body: some View {
+        SheetFrame(title: L("env.rename"), symbol: Symbols.environments, width: 420,
+                   actionTitle: L("common.save"), actionID: "env.rename.save",
+                   canAct: !name.trimmingCharacters(in: .whitespaces).isEmpty, cancelID: "env.rename.cancel") {
+            await store.renameEnvironment(project, env.id, to: name)
+        } content: {
+            TextField(L("common.name"), text: $name).textFieldStyle(.roundedBorder).accessibilityIdentifier("env.rename.name")
+        }
+    }
+}
+
+/// A `.env` dropped on a project that has environments: it becomes a new one, after this preview.
+/// Only the variables' names are shown; the values go to the Keychain or the store as «Importar» does.
+struct EnvDropSheet: View {
+    let store: StackStore
+    let project: Project
+    let preview: EnvDropPreview
+    let created: (String) -> Void
+    @State private var name: String
+    init(store: StackStore, project: Project, preview: EnvDropPreview, created: @escaping (String) -> Void) {
+        self.store = store; self.project = project; self.preview = preview; self.created = created
+        _name = State(initialValue: preview.proposedName)
+    }
+    private var final: String {
+        EnvDrop.target(name, taken: Set(store.envs[project.id]?.site.environments.map(\.id) ?? []), fallback: L("env.drop.defaultName")).name
+    }
+    var body: some View {
+        SheetFrame(title: L("env.drop.title"), symbol: Symbols.importing,
+                   detail: String(format: L("env.drop.detail"), preview.url.lastPathComponent, preview.keys.count),
+                   note: L("env.drop.note"), width: 480, height: 440,
+                   actionTitle: L("env.drop.import"), actionID: "env.drop.confirm", cancelID: "env.drop.cancel") {
+            guard let id = await store.importEnvAsNew(project, from: preview.url, name: name) else { return false }
+            created(id)
+            return true
+        } content: {
+            Form {
+                Section {
+                    TextField(L("common.name"), text: $name).accessibilityIdentifier("env.drop.name")
+                    if final != name.trimmingCharacters(in: .whitespaces) {
+                        Text(String(format: L("env.drop.renamed"), final)).font(.uiCaption).foregroundStyle(.secondary)
+                    }
+                }
+                Section(L("env.drop.variables")) {
+                    List(Array(preview.keys.enumerated()), id: \.offset) { Text(verbatim: $0.element).font(.uiCallout.monospaced()) }
+                        .frame(minHeight: 140).accessibilityIdentifier("env.drop.keys")
+                }
+            }
+            .formStyle(.grouped).themedScroll()
+        }
+    }
+}

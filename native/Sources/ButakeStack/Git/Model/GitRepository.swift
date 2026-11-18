@@ -33,7 +33,7 @@ import SwiftUI
     var selectedBranch: String?
 
     /// The operation running (title for the primary button, «Cancelar» for network transfers).
-    var operation: GitOperation?
+    var operation: GitOperation? { didSet { if operation == nil { releaseIdleWaiters() } } }
     /// When the remote was last asked (fetch or pull) in this session.
     var lastFetch: Date?
     /// An error to show now (an alert of the Git page).
@@ -42,6 +42,8 @@ import SwiftUI
     var pullProblem: GitFailure?
     /// The last failed pull or push, kept for «Problemas» (G-3) until the next success.
     var lastSyncFailure: GitFailure?
+    /// «¿Subir directo a la rama principal?» is waiting for the user's answer.
+    var confirmingPushMain = false
     /// Files waiting for «Descartar cambios» to be confirmed.
     var discarding: [GitFile]?
     /// How many commits of history the snapshot reads (Historial pages it, G-3).
@@ -55,6 +57,7 @@ import SwiftUI
     /// Stops the network transfer in progress («Cancelar»).
     @ObservationIgnored var stopRunning: (() -> Void)?
     @ObservationIgnored var chain: Task<Void, Never>?
+    @ObservationIgnored private var idleWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored private var refreshing = false
     @ObservationIgnored private var queued: Bool?
     @ObservationIgnored private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -99,6 +102,18 @@ import SwiftUI
             GitChange(path: file.path, kind: file.kind, originalPath: file.originalPath, stats: stats(file), inclusion: file.inclusion)
         }
         if next != changes { changes = next }
+    }
+
+    /// Returns once no operation is running: a checkbox applied during a pull or a commit would
+    /// run a second Git process on the same index.
+    func whenIdle() async {
+        while operation != nil { await withCheckedContinuation { idleWaiters.append($0) } }
+    }
+
+    private func releaseIdleWaiters() {
+        let waiting = idleWaiters
+        idleWaiters = []
+        for waiter in waiting { waiter.resume() }
     }
 
     // MARK: Refreshing

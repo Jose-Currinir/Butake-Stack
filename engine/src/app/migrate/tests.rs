@@ -6,7 +6,7 @@ use super::*;
 use std::{
     cell::RefCell,
     collections::BTreeMap,
-    os::unix::fs::{symlink, PermissionsExt},
+    os::unix::fs::{PermissionsExt, symlink},
 };
 
 #[derive(Default)]
@@ -48,9 +48,11 @@ impl Control for Fake {
             .push(format!("start {}", name(root)));
         // The agent always comes back on the folder its plist names.
         if agent {
-            assert!(fs::read_to_string(plist)
-                .unwrap()
-                .contains(&format!("{}<", root.display())));
+            assert!(
+                fs::read_to_string(plist)
+                    .unwrap()
+                    .contains(&format!("{}<", root.display()))
+            );
         }
         if self.fail_start_in.as_deref() == Some(root) {
             bail!("migration_start_failed:[{{\"id\":\"stack.mysql\",\"running\":false}}]");
@@ -110,8 +112,18 @@ fn home() -> Home {
         &layout.launch_agent(),
         &format!("<plist><key>BUTAKE_STACK_HOME</key><string>{o}</string></plist>\n"),
     );
-    w(&home.join(".zprofile"), &format!("export A=1\n# >>> Butake Stack >>>\nexport PHPRC=\"{o}/config/php/current\"\n# <<< Butake Stack <<<\n"));
-    w(&home.join(".aws/config"), &format!("[profile dentro]\ncredential_process = \"{o}/bin/ayuda\" aws-credential dentro\n# {o}\n[profile fuera]\ncredential_process = \"/Applications/Stack.app/Contents/Resources/butake-stack\" aws-credential fuera\n"));
+    w(
+        &home.join(".zprofile"),
+        &format!(
+            "export A=1\n# >>> Butake Stack >>>\nexport PHPRC=\"{o}/config/php/current\"\n# <<< Butake Stack <<<\n"
+        ),
+    );
+    w(
+        &home.join(".aws/config"),
+        &format!(
+            "[profile dentro]\ncredential_process = \"{o}/bin/ayuda\" aws-credential dentro\n# {o}\n[profile fuera]\ncredential_process = \"/Applications/Stack.app/Contents/Resources/butake-stack\" aws-credential fuera\n"
+        ),
+    );
     fs::create_dir_all(home.join(".local/bin")).unwrap();
     symlink(
         old.join("runtimes/node/22/bin/node"),
@@ -244,10 +256,12 @@ fn the_plan_changes_nothing_and_lists_every_path() {
         8 + 3,
         "{places:?}: never data/, logs/ or foreign links"
     );
-    assert!(plan["backup"]
-        .as_str()
-        .unwrap()
-        .contains("Butake Stack (copia "));
+    assert!(
+        plan["backup"]
+            .as_str()
+            .unwrap()
+            .contains("Butake Stack (copia ")
+    );
 }
 
 #[test]
@@ -290,8 +304,10 @@ fn a_migration_moves_the_folder_and_rewrites_every_path() {
         format!("arranca en {o}\n")
     );
     assert!(read(h.layout.launch_agent()).contains(&format!("<string>{n}</string>")));
-    assert!(read(h.layout.home.join(".zprofile"))
-        .contains(&format!("PHPRC=\"{n}/config/php/current\"")));
+    assert!(
+        read(h.layout.home.join(".zprofile"))
+            .contains(&format!("PHPRC=\"{n}/config/php/current\""))
+    );
     let aws = read(h.layout.home.join(".aws/config"));
     assert!(
         aws.contains(&format!("credential_process = \"{n}/bin/ayuda\""))
@@ -422,9 +438,11 @@ fn a_run_cut_short_resumes_and_a_finished_one_does_nothing() {
     assert_eq!(plan(&h.layout, &fake).unwrap()["state"], "resume");
     let resumed = run(&h.layout, &fake, Cut::None).unwrap();
     assert_eq!(resumed["ok"], true, "{resumed}");
-    assert!(fs::read_to_string(h.layout.launch_agent())
-        .unwrap()
-        .contains(&format!("{}<", h.layout.new.display())));
+    assert!(
+        fs::read_to_string(h.layout.launch_agent())
+            .unwrap()
+            .contains(&format!("{}<", h.layout.new.display()))
+    );
     let after = snapshot(&h.layout.home, &everything);
     let again = run(&h.layout, &fake, Cut::None).unwrap();
     assert_eq!(
@@ -458,4 +476,71 @@ fn open_files_are_found_by_lsof() {
             .any(|p| p.ends_with(&format!("({})", std::process::id()))),
         "{found:?}"
     );
+}
+
+#[test]
+fn a_run_that_died_before_the_rename_does_not_block_the_daemon() {
+    let h = home();
+    for phase in ["stopping", "backup", "moved"] {
+        save(
+            &h.layout.old,
+            &Journal {
+                phase: phase.into(),
+                from: h.layout.old.clone(),
+                to: h.layout.new.clone(),
+                ..Journal::default()
+            },
+        )
+        .unwrap();
+        // The run is gone (a power cut, a kill): nobody holds the lock.
+        assert!(!blocks_daemon(&h.layout.old), "{phase}");
+        // A live run holds it: no daemon meanwhile.
+        let held = lock(&h.layout.old).unwrap();
+        assert!(blocks_daemon(&h.layout.old), "{phase} while running");
+        assert!(lock(&h.layout.old).is_err(), "two runs at once");
+        drop(held);
+        assert!(!blocks_daemon(&h.layout.old), "{phase} after");
+    }
+    // The next run goes through and leaves no lock behind.
+    assert_eq!(
+        run(&h.layout, &Fake::default(), Cut::None).unwrap()["ok"],
+        true
+    );
+    assert!(!h.layout.new.join(LOCK).exists() && !h.layout.old.join(LOCK).exists());
+}
+
+#[test]
+fn backup_space_depends_on_clones_and_the_probe_leaves_nothing() {
+    assert_eq!(needed_space(1 << 30, true), 256 << 20);
+    assert_eq!(needed_space(1 << 30, false), (1 << 30) + (256 << 20));
+    let temp = tempfile::tempdir().unwrap();
+    let _ = tree::can_clone(temp.path());
+    assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn links_that_name_the_old_folder_are_listed_not_rewritten() {
+    let h = home();
+    let real = h.layout.home.join("dotfiles-zprofile");
+    fs::write(
+        &real,
+        format!("export PATH={}/bin:$PATH\n", h.layout.old.display()),
+    )
+    .unwrap();
+    let zprofile = h.layout.home.join(".zprofile");
+    let _ = fs::remove_file(&zprofile);
+    symlink(&real, &zprofile).unwrap();
+    assert_eq!(rewrite::skipped_links(&h.layout), vec![zprofile.clone()]);
+    assert_eq!(
+        plan(&h.layout, &Fake::default()).unwrap()["skippedLinks"][0],
+        json!(zprofile)
+    );
+}
+
+#[test]
+fn the_migration_lock_is_not_a_file_kept_open() {
+    let lock = Path::new("/d/migration.lock");
+    let report = "p10\ncmysqld\nf5\nn/d/data/ibdata1\np20\ncbutake-stack\nf3\nn/d/migration.lock\n";
+    assert_eq!(control::holders(report, lock), ["mysqld (10)"]);
+    assert!(control::holders("p20\ncbutake-stack\nf3\nn/d/migration.lock\n", lock).is_empty());
 }

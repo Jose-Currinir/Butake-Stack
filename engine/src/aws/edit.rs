@@ -3,14 +3,13 @@
 //! (`ini.rs`) and saves what changed with a backup first (`super::save`).
 
 use super::{
-    helper,
+    Files, helper,
     ini::Document,
     keychain::Secrets,
     profiles::{self, Kind},
-    Files,
 };
 use crate::core::store::Store;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Deserialize;
 use serde_json::Value;
 use std::path::Path;
@@ -113,6 +112,8 @@ struct Edit {
     credentials_before: String,
     config: Document,
     credentials: Document,
+    /// Keychain items to move when the files are saved, in order (`from`, `to`).
+    moves: Vec<(String, String)>,
 }
 
 pub struct Changes<'a> {
@@ -131,24 +132,72 @@ impl Changes<'_> {
             credentials: Document::parse(&credentials_before),
             config_before,
             credentials_before,
+            moves: vec![],
         })
     }
 
+    /// Writes both files and moves the Keychain items the edit renamed. The items are copied to
+    /// their new names first and the old ones removed only once both files are written, so a
+    /// failed save leaves every item where the files still say it is.
     fn save(&self, edit: Edit) -> Result<()> {
-        super::save(
+        let undo = self.copy_secrets(&edit.moves)?;
+        let saved = super::save(
             self.store,
             &self.files.credentials,
             &edit.credentials_before,
             &edit.credentials.text(),
             "credentials",
-        )?;
-        super::save(
-            self.store,
-            &self.files.config,
-            &edit.config_before,
-            &edit.config.text(),
-            "config",
         )
+        .and_then(|()| {
+            super::save(
+                self.store,
+                &self.files.config,
+                &edit.config_before,
+                &edit.config.text(),
+                "config",
+            )
+        });
+        if let Err(error) = saved {
+            self.restore_secrets(undo);
+            return Err(error);
+        }
+        // An item that is the destination of a later move is the new one: it stays.
+        for (from, _) in &edit.moves {
+            if !edit.moves.iter().any(|(_, to)| to == from) {
+                let _ = self.secrets.delete(from);
+            }
+        }
+        Ok(())
+    }
+
+    /// Copies each moved item to its new name; returns what was there before, to put back.
+    fn copy_secrets(&self, moves: &[(String, String)]) -> Result<Vec<(String, Option<Vec<u8>>)>> {
+        let mut undo = vec![];
+        for (from, to) in moves {
+            let step = (|| -> Result<()> {
+                let Some(value) = self.secrets.get(from)? else {
+                    return Ok(());
+                };
+                let before = self.secrets.get(to)?;
+                self.secrets.set(to, &value)?;
+                undo.push((to.clone(), before));
+                Ok(())
+            })();
+            if let Err(error) = step {
+                self.restore_secrets(undo);
+                return Err(error);
+            }
+        }
+        Ok(undo)
+    }
+
+    fn restore_secrets(&self, undo: Vec<(String, Option<Vec<u8>>)>) {
+        for (account, before) in undo.into_iter().rev() {
+            let _ = match before {
+                Some(value) => self.secrets.set(&account, &value),
+                None => self.secrets.delete(&account),
+            };
+        }
     }
 
     fn profile(&self, edit: &Edit, name: &str) -> Result<profiles::Profile> {
@@ -308,7 +357,7 @@ impl Changes<'_> {
                 "credential_process",
                 Some(&helper::line(Path::new(&program), to)?),
             )?;
-            self.secrets.rename(from, to)?;
+            edit.moves.push((from.to_string(), to.to_string()));
         }
         Ok(())
     }
@@ -527,12 +576,14 @@ mod tests {
             .unwrap()
             .path();
         assert_eq!(fs::read_to_string(&backup).unwrap(), CONFIG);
-        assert!(backup
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .starts_with("config-20"));
+        assert!(
+            backup
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("config-20")
+        );
         for path in [&backup, &f.files.config] {
             assert_eq!(
                 fs::metadata(path).unwrap().permissions().mode() & 0o777,
@@ -569,7 +620,9 @@ mod tests {
             .unwrap();
         assert_eq!(
             f.credentials(),
-            format!("{CREDENTIALS}\n[texto]\naws_access_key_id = AKIAEJEMPLO00001\naws_secret_access_key = secreto/de+ejemplo/0001\n")
+            format!(
+                "{CREDENTIALS}\n[texto]\naws_access_key_id = AKIAEJEMPLO00001\naws_secret_access_key = secreto/de+ejemplo/0001\n"
+            )
         );
         assert_eq!(f.config(), CONFIG);
         // Keychain: the keys go there, the config file points at the engine.
@@ -588,9 +641,11 @@ mod tests {
             f.program.display()
         )));
         assert!(!f.config().contains("secreto") && !f.credentials().contains("seguro"));
-        assert!(String::from_utf8(f.secrets.get("seguro").unwrap().unwrap())
-            .unwrap()
-            .contains("secreto/de+ejemplo/0001"));
+        assert!(
+            String::from_utf8(f.secrets.get("seguro").unwrap().unwrap())
+                .unwrap()
+                .contains("secreto/de+ejemplo/0001")
+        );
         // Single sign-on with a new session, and a role from an existing profile.
         f.changes()
             .create(
@@ -677,9 +732,10 @@ mod tests {
                 },
             )
             .unwrap();
-        assert!(f
-            .config()
-            .contains("[profile acme-desarrollo]\nsso_session = acme"));
+        assert!(
+            f.config()
+                .contains("[profile acme-desarrollo]\nsso_session = acme")
+        );
         assert!(f.config().contains("source_profile = acme-desarrollo\n"));
         // A Keychain profile moves its item and its line.
         f.changes()
@@ -725,15 +781,33 @@ mod tests {
         f.changes()
             .set_default("acme-prod", Some("anterior"))
             .unwrap();
-        assert!(f
-            .config()
-            .contains("[profile anterior]\nregion = us-east-1\noutput = json\n"));
-        assert!(f
-            .config()
-            .contains("[default]\nrole_arn = arn:aws:iam::444455556666:role/Despliegue\n"));
-        assert!(f
-            .credentials()
-            .starts_with("[anterior]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\n"));
+        assert!(
+            f.config()
+                .contains("[profile anterior]\nregion = us-east-1\noutput = json\n")
+        );
+        assert!(
+            f.config()
+                .contains("[default]\nrole_arn = arn:aws:iam::444455556666:role/Despliegue\n")
+        );
+        assert!(
+            f.credentials()
+                .starts_with("[anterior]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\n")
+        );
+    }
+
+    #[test]
+    fn a_rename_whose_save_fails_leaves_the_keychain_item_where_the_files_say() {
+        let f = fixture();
+        f.changes().create(draft("seguro", "static"), Keys::from_request(&serde_json::json!({"accessKeyId": "AKIAEJEMPLO00001", "secretAccessKey": "secreto/de+ejemplo/0001"})), true).unwrap();
+        let folder = f.files.home.join(".aws");
+        // Nothing can be written in the folder of the files: the save fails after the rename.
+        fs::set_permissions(&folder, fs::Permissions::from_mode(0o500)).unwrap();
+        let failed = f.changes().update("seguro", draft("seguro-2", "static"));
+        fs::set_permissions(&folder, fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(failed.is_err());
+        assert!(f.secrets.get("seguro").unwrap().is_some());
+        assert!(f.secrets.get("seguro-2").unwrap().is_none());
+        assert!(f.config().contains("aws-credential seguro\n"));
     }
 
     #[test]

@@ -125,10 +125,12 @@ async fn new_file_staged_then_edited_is_shown_whole() {
     // No commits yet: compared against the empty tree.
     std::fs::write(root.join("first.txt"), "one\n").unwrap();
     git(root, &["add", "first.txt"]).await.unwrap();
-    assert!(diff_whole(root, "first.txt")
-        .await
-        .unwrap()
-        .contains("+one"));
+    assert!(
+        diff_whole(root, "first.txt")
+            .await
+            .unwrap()
+            .contains("+one")
+    );
     git(root, &["commit", "-m", "base"]).await.unwrap();
     // Staged as a copy, edited afterwards (status AM).
     std::fs::write(root.join("copy.txt"), "old a\nold b\nsame\n").unwrap();

@@ -1,5 +1,5 @@
 use super::*;
-use crate::runtimes::utilities::tests::{sandbox, HOME};
+use crate::runtimes::utilities::tests::{HOME, sandbox};
 use std::{os::unix::fs::PermissionsExt, time::Duration};
 
 fn script(path: &Path, body: &str) {
@@ -17,6 +17,8 @@ fn stop_when(file: PathBuf, words: usize) -> std::thread::JoinHandle<()> {
             }
             std::thread::sleep(Duration::from_millis(50));
         }
+        // SAFETY: `raise` takes an integer and touches no memory; the test process handles SIGTERM
+        // (the stop it is testing), so this only asks the code under test to stop.
         unsafe { libc::raise(libc::SIGTERM) };
     })
 }
@@ -30,7 +32,11 @@ fn plans_follow_what_this_mac_already_has() {
     let _guard = HOME.lock().unwrap_or_else(|e| e.into_inner());
     let (dir, _store) = sandbox();
     let home = dir.path().join("home");
-    std::env::set_var("ANDROID_HOME", home.join("sdk"));
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::set_var("ANDROID_HOME", home.join("sdk")) };
     assert_eq!(plan("rustup"), ["download", "verifySum", "runInstaller"]);
     assert_eq!(
         plan("android-sdk")[..3],
@@ -48,8 +54,16 @@ fn plans_follow_what_this_mac_already_has() {
         assert!(known(tool) && !plan(tool).is_empty(), "{tool}");
     }
     assert!(!known("brew"));
-    std::env::remove_var("ANDROID_HOME");
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("ANDROID_HOME") };
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }
 
 /// rustup's own update and a toolchain install run to the end although the app asked to stop
@@ -90,10 +104,16 @@ fn an_official_installer_is_followed_but_not_cut() {
     progress::end();
     assert_eq!(answer.unwrap()[0]["default"], true);
     assert_eq!(steps(&log)["steps"], json!(["toolchain"]));
-    assert!(fs::read_to_string(home.join("rustup-args"))
-        .unwrap()
-        .contains("toolchain install beta"));
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    assert!(
+        fs::read_to_string(home.join("rustup-args"))
+            .unwrap()
+            .contains("toolchain install beta")
+    );
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }
 
 /// Wrangler goes to a folder beside the one in use: a finished install takes its place, and
@@ -108,7 +128,7 @@ fn wrangler_replaces_its_folder_only_when_npm_finished() {
     let node = dir.path().join("node/bin");
     script(
         &node.join("npm"),
-        "p=\"$6\"\nmkdir -p \"$p/lib/node_modules/wrangler/bin\" \"$p/bin\"\necho 1 > \"$p/lib/node_modules/wrangler/version\"\nprintf '#!/bin/sh\\n' > \"$p/lib/node_modules/wrangler/bin/wrangler.js\"\nln -s ../lib/node_modules/wrangler/bin/wrangler.js \"$p/bin/wrangler\"",
+        "p=\"$7\"\nprintf '%s\\n' \"$@\" > \"$HOME/npm-args\"\nmkdir -p \"$p/lib/node_modules/wrangler/bin\" \"$p/bin\"\necho 1 > \"$p/lib/node_modules/wrangler/version\"\nprintf '#!/bin/sh\\n' > \"$p/lib/node_modules/wrangler/bin/wrangler.js\"\nln -s ../lib/node_modules/wrangler/bin/wrangler.js \"$p/bin/wrangler\"",
     );
     let log = store
         .directory("logs")
@@ -117,6 +137,13 @@ fn wrangler_replaces_its_folder_only_when_npm_finished() {
     progress::begin(&log);
     install_wrangler(&store, &node).unwrap();
     assert_eq!(steps(&log)["steps"], json!(["npmPackage", "link"]));
+    // A fixed release, and no install scripts of the package or its dependencies.
+    let args = fs::read_to_string(home.join("npm-args")).unwrap();
+    assert!(args.lines().any(|a| a == "--ignore-scripts"));
+    assert!(
+        args.lines()
+            .any(|a| a == format!("wrangler@{}", install::WRANGLER_VERSION))
+    );
     let share = home.join(".local/share/butake-stack");
     let target = fs::canonicalize(home.join(".local/bin/wrangler")).unwrap();
     assert_eq!(
@@ -128,7 +155,7 @@ fn wrangler_replaces_its_folder_only_when_npm_finished() {
     fs::remove_file(&log).unwrap();
     script(
         &node.join("npm"),
-        "mkdir -p \"$6/lib/node_modules/wrangler\"\n/bin/sleep 60 & echo $$ $! > \"$HOME/npm-pids\"; wait",
+        "mkdir -p \"$7/lib/node_modules/wrangler\"\n/bin/sleep 60 & echo $$ $! > \"$HOME/npm-pids\"; wait",
     );
     let stopper = stop_when(home.join("npm-pids"), 2);
     let error = install_wrangler(&store, &node).unwrap_err();
@@ -156,7 +183,11 @@ fn wrangler_replaces_its_folder_only_when_npm_finished() {
         fs::read_to_string(share.join("npm/lib/node_modules/wrangler/version")).unwrap(),
         "1\n"
     );
-    std::env::remove_var("BUTAKE_DEVTOOLS_HOME");
+    // SAFETY: only tests change these variables, and each one does it holding `HOME` (the shared
+    // test turn), so two tests never change them at once. They are Stack's own variables, read by
+    // no library; a test on another thread reading the environment at that moment is the remaining
+    // risk, and it is limited to the test run.
+    unsafe { std::env::remove_var("BUTAKE_DEVTOOLS_HOME") };
 }
 
 #[test]
@@ -185,4 +216,29 @@ fn finds_listed_checksums_in_both_formats() {
         "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
     );
     assert!(listed_hash(body, "missing.tgz").is_err());
+}
+
+/// A link inside an extracted archive is never taken for the program, nor walked into.
+#[test]
+fn find_file_ignores_links() {
+    let temp = tempfile::tempdir().unwrap();
+    let outside = temp.path().join("fuera");
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(outside.join("uv"), "x").unwrap();
+    let tree = temp.path().join("tree");
+    fs::create_dir_all(&tree).unwrap();
+    std::os::unix::fs::symlink(outside.join("uv"), tree.join("uv")).unwrap();
+    std::os::unix::fs::symlink(&outside, tree.join("carpeta")).unwrap();
+    assert!(find_file(&tree, "uv").is_none());
+    fs::create_dir_all(tree.join("real")).unwrap();
+    fs::write(tree.join("real/uv"), "x").unwrap();
+    assert_eq!(find_file(&tree, "uv"), Some(tree.join("real/uv")));
+}
+
+/// Wrangler is installed from a fixed release, never `latest`.
+#[test]
+fn wrangler_version_is_fixed() {
+    assert!(
+        install::WRANGLER_VERSION.split('.').count() == 3 && install::WRANGLER_VERSION != "latest"
+    );
 }

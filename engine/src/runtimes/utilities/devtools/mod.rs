@@ -13,8 +13,8 @@ use crate::{
     core::{archive, download, github, hash, process, progress},
     runtimes::{utilities, utilities::catalog},
 };
-use anyhow::{bail, ensure, Context, Result};
-use serde_json::{json, Value};
+use anyhow::{Context, Result, bail, ensure};
+use serde_json::{Value, json};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -52,14 +52,13 @@ pub(super) fn work_dir(store: &Store, tool: &str) -> Result<PathBuf> {
 }
 pub(super) fn log(store: &Store, tool: &str, line: &str) {
     use std::io::Write;
-    if let Ok(dir) = store.directory("logs") {
-        if let Ok(mut file) = fs::OpenOptions::new()
+    if let Ok(dir) = store.directory("logs")
+        && let Ok(mut file) = fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(dir.join(format!("devtool-{tool}.log")))
-        {
-            let _ = writeln!(file, "{line}");
-        }
+    {
+        let _ = writeln!(file, "{line}");
     }
 }
 /// How a program of an install runs while the app follows it (see `progress`).
@@ -204,13 +203,12 @@ pub(super) fn listed_hash(text: &str, name: &str) -> Result<String> {
             .split(|c: char| c.is_whitespace() || c == ':' || c == '*')
             .filter(|w| !w.is_empty())
             .collect();
-        if words.contains(&name) {
-            if let Some(hash) = words
+        if words.contains(&name)
+            && let Some(hash) = words
                 .iter()
                 .find(|w| w.len() == 64 && w.chars().all(|c| c.is_ascii_hexdigit()))
-            {
-                return Ok(hash.to_lowercase());
-            }
+        {
+            return Ok(hash.to_lowercase());
         }
     }
     bail!("checksum_not_found")
@@ -247,13 +245,15 @@ fn place(source: &Path, name: &str) -> Result<PathBuf> {
 fn find_file(root: &Path, name: &str) -> Option<PathBuf> {
     for entry in fs::read_dir(root).ok()?.flatten() {
         let path = entry.path();
-        if path.file_name().is_some_and(|n| n == name) && path.is_file() {
+        // A link is neither the file nor a folder to walk into (`is_file` would follow it).
+        let kind = fs::symlink_metadata(&path).ok()?.file_type();
+        if path.file_name().is_some_and(|n| n == name) && kind.is_file() {
             return Some(path);
         }
-        if path.is_dir() {
-            if let Some(found) = find_file(&path, name) {
-                return Some(found);
-            }
+        if kind.is_dir()
+            && let Some(found) = find_file(&path, name)
+        {
+            return Some(found);
         }
     }
     None
@@ -276,7 +276,9 @@ pub fn shell_path(store: &Store) -> Result<()> {
         .replace('"', "\\\"")
         .replace('$', "\\$")
         .replace('`', "\\`");
-    let block = format!("{START}\n# Herramientas y lenguajes de Stack (enlaces a los binarios reales).\nexport PATH=\"$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.swiftly/bin:$PATH\"\n[ -f \"{phprc}/php.ini\" ] && export PHPRC=\"{phprc}\"\n{END}\n");
+    let block = format!(
+        "{START}\n# Herramientas y lenguajes de Stack (enlaces a los binarios reales).\nexport PATH=\"$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.swiftly/bin:$PATH\"\n[ -f \"{phprc}/php.ini\" ] && export PHPRC=\"{phprc}\"\n{END}\n"
+    );
     let updated = match (text.find(START), text.find(END)) {
         (Some(start), Some(end)) if end > start => {
             let end = end + END.len();
@@ -306,10 +308,10 @@ pub fn install(store: &Store, options: &Options) -> Result<Value> {
     }
     let result = install_tool(store, options);
     // A failed or cancelled install leaves nothing of its download behind.
-    if result.is_err() {
-        if let Ok(cache) = store.directory("cache") {
-            let _ = fs::remove_dir_all(cache.join(format!("devtool-{tool}")));
-        }
+    if result.is_err()
+        && let Ok(cache) = store.directory("cache")
+    {
+        let _ = fs::remove_dir_all(cache.join(format!("devtool-{tool}")));
     }
     result
 }

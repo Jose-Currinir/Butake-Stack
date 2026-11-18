@@ -4,6 +4,7 @@ import SwiftUI
 /// the items (names, kinds, files, fields, notes); an app or service without matches is dimmed.
 struct VaultList: View {
     @Bindable var vault = VaultSession.shared
+    @State private var confirmingDelete: VaultContainer?
 
     private var apps: [VaultContainer] { sorted(.app) }
     private var services: [VaultContainer] { sorted(.service) }
@@ -38,6 +39,14 @@ struct VaultList: View {
             if vault.selection == nil, let first = apps.first ?? services.first { vault.selection = .container(first.id) }
         }
         .simultaneousGesture(TapGesture().onEnded { vault.touch() })
+        .confirmationDialog(String(format: L("vault.deleteContainerTitle"), confirmingDelete?.title ?? ""),
+                            isPresented: Binding(get: { confirmingDelete != nil }, set: { if !$0 { confirmingDelete = nil } }),
+                            presenting: confirmingDelete) { container in
+            Button(L("common.delete"), role: .destructive) {
+                do { try vault.deleteContainer(container.id) } catch { vault.message = L((error as? VaultError)?.messageKey ?? "vault.error.io") }
+            }
+            Button(L("common.cancel"), role: .cancel) {}
+        } message: { _ in Text(L("vault.deleteContainerDetail")) }
     }
 
     private func sorted(_ kind: VaultContainer.Kind) -> [VaultContainer] {
@@ -73,13 +82,56 @@ struct VaultList: View {
         .tag(VaultSession.Selection.container(container.id))
         .opacity(visible == 0 && filtering ? 0.45 : 1)
         .accessibilityIdentifier("vault.container.\(container.folderName)")
-        .dropDestination(for: URL.self) { urls, _ in
-            Task { await vault.add(files: urls, to: container.id, section: nil) }
-            return true
+        .vaultFileDrop(vault, container: container.id)
+        .contextMenu { containerMenu(container) }
+    }
+
+    /// The same actions as the toolbar's menu for the app or service, with Eliminar last.
+    @ViewBuilder private func containerMenu(_ container: VaultContainer) -> some View {
+        Button { VaultActions.chooseFiles(vault, container: container.id, section: nil) } label: { Label(L("vault.addFiles"), systemImage: Symbols.addFiles) }
+            .accessibilityIdentifier("vault.menu.addFiles")
+        Button { vault.sheet = .editContainer(container.id) } label: { Label(L("vault.editContainer"), systemImage: Symbols.edit) }
+            .accessibilityIdentifier("vault.menu.edit")
+        if let bundle = container.bundleId {
+            Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(bundle, forType: .string) } label: {
+                Label(L("vault.copyBundle"), systemImage: Symbols.copy)
+            }
+            .accessibilityIdentifier("vault.menu.copyBundle")
         }
+        Divider()
+        Button { vault.sheet = .exportArchive(container.id) } label: { Label(L("vault.backupOne"), systemImage: Symbols.backup) }
+            .accessibilityIdentifier("vault.menu.backup")
+        Button { vault.sheet = .download(container.id) } label: { Label(L("vault.downloadOne"), systemImage: Symbols.dump) }
+            .accessibilityIdentifier("vault.menu.download")
+        Divider()
+        Button(role: .destructive) { confirmingDelete = container } label: { Label(L("vault.deleteContainer"), systemImage: Symbols.delete) }
+            .accessibilityIdentifier("vault.menu.delete")
     }
 
     private func count(_ value: Int, tint: Color) -> some View {
         Text("\(value)").font(.uiSubheadline.weight(.medium)).foregroundStyle(tint).monospacedDigit()
+    }
+}
+
+extension View {
+    /// Files dropped from Finder are encrypted into the app or service, with the same notice as «Agregar archivos…».
+    /// The destination takes the accent border while a drag is over it.
+    func vaultFileDrop(_ vault: VaultSession, container: UUID) -> some View { modifier(VaultFileDrop(vault: vault, container: container)) }
+}
+
+private struct VaultFileDrop: ViewModifier {
+    let vault: VaultSession
+    let container: UUID
+    @State private var targeted = false
+    func body(content: Content) -> some View {
+        content
+            .dropDestination(for: URL.self) { urls, _ in
+                Task {
+                    let added = await vault.add(files: urls, to: container, section: nil)
+                    if added > 0 { vault.notice = String(format: L("vault.added"), added) }
+                }
+                return true
+            } isTargeted: { targeted = $0 }
+            .overlay { if targeted { RoundedRectangle(cornerRadius: 6).stroke(Brand.accent, lineWidth: 2).allowsHitTesting(false) } }
     }
 }
