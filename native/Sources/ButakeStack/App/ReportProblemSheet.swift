@@ -27,7 +27,7 @@ struct ReportProblemSheet: View {
                     Text(text).font(.uiMonospaced).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(10)
                 }
-                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: Radius.row))
                 .accessibilityIdentifier("report.text")
             }
         }, status: {

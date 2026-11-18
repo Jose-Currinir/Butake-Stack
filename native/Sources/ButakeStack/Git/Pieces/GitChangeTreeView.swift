@@ -203,6 +203,7 @@ private struct GitChangeTreeRow: View {
                             .rotationEffect(.degrees(collapsed ? 0 : 90))
                     }
                     .buttonStyle(.borderless)
+                    .help(L(collapsed ? "git.tree.expand" : "git.tree.collapse"))
                     .accessibilityIdentifier("git.tree.disclosure.\(id)")
                 } else {
                     Color.clear

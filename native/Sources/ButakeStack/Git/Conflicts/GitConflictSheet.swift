@@ -43,7 +43,7 @@ struct GitConflictSheet: View {
             Divider()
             footer(remaining: conflicts.count)
         }
-        .frame(minWidth: 900, idealWidth: 1100, minHeight: 620, idealHeight: 760)
+        .frame(minWidth: 900, idealWidth: 1100, minHeight: 520, idealHeight: 760)
         .onAppear { if selection == nil { selection = conflicts.first?.path } }
         .accessibilityIdentifier("git.conflict.sheet")
     }
