@@ -78,6 +78,30 @@ extension Notice {
     }
 }
 
+/// A `.partial` failure on its page (E-02): what could not be read, the cause when there is one, and
+/// «Reintentar». No modal: the page keeps what it had. Nothing shows while `store.pageFailures[area]` is nil.
+struct PartialFailureNotice: View {
+    @Bindable var store: StackStore
+    let area: ReadArea
+
+    var body: some View {
+        if let failure = store.pageFailures[area] {
+            Notice(.warning, failure.title, detail: failure.message) {
+                if let retry = failure.retry {
+                    Button(L("error.retry")) { Task { await retry() } }
+                        .accessibilityIdentifier("error.read.\(area.rawValue).retry")
+                }
+                if failure.offersLogs {
+                    Button(L("error.openLogs")) { store.route = .tool("logs") }
+                        .accessibilityIdentifier("error.read.\(area.rawValue).openLogs")
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("error.read.\(area.rawValue)")
+        }
+    }
+}
+
 /// The text of a notice and its actions: side by side while the text keeps `minText` points, with
 /// each button's whole title; when they don't fit (a narrow window, larger text), the actions go
 /// under the text instead of being cut.

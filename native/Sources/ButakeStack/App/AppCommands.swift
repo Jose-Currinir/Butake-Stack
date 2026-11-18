@@ -154,6 +154,7 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .help) {
             Button(L("menu.setup")) { inWindow { store.showSetup = true } }
             Button(L("menu.website")) { NSWorkspace.shared.open(Self.website) }
+            Button(L("menu.reportProblem")) { inWindow { store.showReport = true } }
             if gitEnabled {
                 Divider()
                 Button(L("git.dictionary.titleEllipsis")) { GitDictionaryLink.open(openWindow) }

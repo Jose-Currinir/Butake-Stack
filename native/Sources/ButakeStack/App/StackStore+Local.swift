@@ -40,8 +40,14 @@ extension StackStore {
             let messages: [MailSummary]
         }
         let known = mailMessages
-        guard let changes: Changes = try? await call(["method": "mailChanges", "known": known.map(\.id)]),
-              !Task.isCancelled, mailMessages == known else { return }
+        let changes: Changes
+        do { changes = try await call(["method": "mailChanges", "known": known.map(\.id)]) } catch {
+            // Polled every few seconds: said only after two failures in a row, and cleared by the next good read.
+            if !Task.isCancelled { readDone(.mail, error, streak: Self.readFailureStreak, retry: { [weak self] in await self?.loadMail() }) }
+            return
+        }
+        guard !Task.isCancelled, mailMessages == known else { return }
+        readDone(.mail, nil, retry: nil)
         let summaries = Dictionary((known + changes.messages).map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
         let list = changes.ids.compactMap { summaries[$0] }
         if list != mailMessages { mailMessages = list }

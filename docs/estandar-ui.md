@@ -253,3 +253,11 @@ seguir diciendo `engine` o `site` en identificadores internos; el glosario rige 
 36. Sin código muerto, comentado ni alias «por si acaso». Lo que no tiene llamador se borra.
 37. Motor: procesos con ejecutable y argumentos separados; validación, escritura privada,
     descarga verificada y extracción solo desde `core/`.
+38. Un error pesa según lo que cuesta (`FailureImpact`). **Bloquea**: la acción que el usuario pidió no se
+    hizo y debe decidir: alerta con título de contexto, «Reintentar», «Abrir Registros» y «Copiar detalles»
+    (es el valor por omisión). **Parcial**: la página funciona y falló una lectura o una parte: una línea
+    `Notice(.warning)` en esa página con «Reintentar» (`PartialFailureNotice`, `store.readDone`), nunca un
+    modal, con los datos anteriores debajo. Una lectura que falla no se escribe `try? … ?? []`: un vacío
+    es «no hay», un fallo es «no se pudo leer». Las lecturas que se repiten solas (sondeos) avisan solo
+    tras dos fallos seguidos; las de fondo de Inicio, estado y Git siguen en silencio hasta que tengan su
+    página. «Informar de un problema…» (Ayuda) arma un texto local, sin secretos, y no envía nada.

@@ -43,8 +43,11 @@ struct MailList: View {
         .listStyle(.sidebar)
         .themedScroll()
         .overlay {
-            if store.mailMessages.isEmpty { Text(L("mail.empty")).font(.uiCallout).foregroundStyle(.secondary) }
+            if store.mailMessages.isEmpty, store.pageFailures[.mail] == nil { Text(L("mail.empty")).font(.uiCallout).foregroundStyle(.secondary) }
             else if messages.isEmpty { ContentUnavailableView.search(text: browser.search) }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            PartialFailureNotice(store: store, area: .mail).padding(8)
         }
         .searchable(text: $browser.search, placement: .sidebar, prompt: L("mail.search"))
         .searchFocused($searchFocused)

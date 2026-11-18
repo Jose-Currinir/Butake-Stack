@@ -165,6 +165,7 @@ struct RootView: View {
         .sheet(isPresented: $store.showPalette) { CommandPalette(store: store).themedSheet() }
         .sheet(isPresented: $updates.showingSheet) { UpdateSheet(updates: updates).themedSheet() }
         .sheet(isPresented: $store.showSetup) { SetupAssistantSheet(store: store).themedSheet() }
+        .sheet(isPresented: $store.showReport) { ReportProblemSheet(store: store).themedSheet() }
         .sheet(item: $store.restoreRequest) { request in RestoreSheet(store: store, request: request).themedSheet() }
         .sheet(item: $store.renaming) { request in ProjectRenameSheet(store: store, request: request).themedSheet() }
         .confirmationDialog(L("site.deleteConfirm"), isPresented: Binding(get: { store.removing != nil }, set: { if !$0 { store.removing = nil } }), presenting: store.removing) { project in
