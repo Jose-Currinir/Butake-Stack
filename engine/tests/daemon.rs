@@ -505,3 +505,85 @@ fn an_old_daemon_is_replaced_by_the_current_one() {
     assert!(answer["protocol"].as_u64().is_some_and(|p| p >= 1));
     wait_for(|| UnixStream::connect(&socket).is_err(), 15);
 }
+
+/// The daemon looks at the projects folder: a folder created in it reaches a subscriber in under
+/// a second (the sidebar follows the disk), and one that is not the user's choice is never read.
+#[test]
+fn the_daemon_tells_when_the_projects_folder_changes() {
+    let temp = tempfile::tempdir_in("/tmp").unwrap();
+    let home = temp.path().join("stack");
+    let projects = temp.path().join("Proyectos");
+    fs::create_dir_all(home.join("projects")).unwrap();
+    fs::create_dir_all(projects.join("Apps")).unwrap();
+    let projects = projects.canonicalize().unwrap();
+    fs::write(
+        home.join("disk.json"),
+        json!({"enabled": true, "root": projects}).to_string(),
+    )
+    .unwrap();
+    let dump_listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let dump_port = dump_listener.local_addr().unwrap().port();
+    let mut ports = Vec::new();
+    for _ in 0..3 {
+        ports.push(std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap());
+    }
+    drop(dump_listener);
+    fs::write(home.join("stack.json"), json!({
+        "tld":["test"], "versions":{},
+        "ports":{"http":ports[0].local_addr().unwrap().port(), "https":ports[1].local_addr().unwrap().port(),
+                 "dns":ports[2].local_addr().unwrap().port(), "mysql":3306, "redis":6379},
+        "dumps":{"enabled":false,"port":dump_port}
+    }).to_string()).unwrap();
+    drop(ports);
+    let _daemon = Daemon(
+        Command::new(env!("CARGO_BIN_EXE_butake-stack"))
+            .arg("daemon")
+            .env("BUTAKE_STACK_HOME", &home)
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    let socket = home.join("run/daemon.sock");
+    wait_for(|| socket.exists(), 10);
+    let mut subscription = UnixStream::connect(&socket).unwrap();
+    writeln!(
+        subscription,
+        "{}",
+        json!({"id":1,"method":"subscribe","params":{"topic":"disk"}})
+    )
+    .unwrap();
+    let mut events = BufReader::new(subscription);
+    let mut line = String::new();
+    events.read_line(&mut line).unwrap();
+    assert_eq!(serde_json::from_str::<Value>(&line).unwrap()["ok"], true);
+    // The first look at the folder is not a change: let it pass, then change something.
+    thread::sleep(Duration::from_millis(1200));
+    events
+        .get_ref()
+        .set_read_timeout(Some(Duration::from_millis(150)))
+        .unwrap();
+    while events.read_line(&mut line).is_ok() {
+        line.clear();
+    }
+    events
+        .get_ref()
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    line.clear();
+    let started = Instant::now();
+    fs::create_dir_all(projects.join("Apps/Nueva")).unwrap();
+    assert!(events.read_line(&mut line).unwrap() > 0);
+    let event: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(event["event"], "disk.changed");
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(
+        call(&socket, "diskRevision", "")["value"]["revision"]
+            .as_u64()
+            .unwrap()
+            >= 1
+    );
+}
