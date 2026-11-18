@@ -34,6 +34,10 @@ struct VaultList: View {
         .font(.uiBody)
         .themedScroll()
         .searchable(text: $vault.search, placement: .sidebar, prompt: L("vault.search"))
+        // ⌫ on the selected app or service, like the menu's «Eliminar» (which confirms).
+        .onDeleteCommand {
+            if case .container(let id) = vault.selection, let container = (apps + services).first(where: { $0.id == id }) { confirmingDelete = container }
+        }
         .accessibilityIdentifier("vault.list")
         .onAppear {
             if vault.selection == nil, let first = apps.first ?? services.first { vault.selection = .container(first.id) }

@@ -26,6 +26,11 @@ struct DatabaseConnectionList: View {
             }
             .listStyle(.sidebar)
             .themedScroll()
+            // ⌫ on a saved connection chosen on its own row, like the menu's «Eliminar» (which confirms).
+            .onDeleteCommand {
+                if let chosen = client.selection, chosen.database == nil, chosen.table == nil,
+                   let connection = saved.first(where: { $0.id == chosen.connection }) { Task { await client.delete(connection) } }
+            }
             .accessibilityIdentifier("db.list")
             // The height and the line of the window's status bar beside it, so both run as one.
             HStack {

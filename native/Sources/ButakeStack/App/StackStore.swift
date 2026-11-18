@@ -101,6 +101,12 @@ import SwiftUI
     @ObservationIgnored var replayingUndo = false
     /// The last undo or redo that ran, for tests to wait on.
     @ObservationIgnored var undoTask: Task<Void, Never>?
+    /// The undo notice's clock: seconds left, whether the pointer or focus holds it, and its task.
+    @ObservationIgnored var undoRemaining: Double = 0
+    @ObservationIgnored var undoHeld = false
+    @ObservationIgnored var undoTimer: Task<Void, Never>?
+    /// What says a notice to VoiceOver (replaced in tests).
+    @ObservationIgnored var announcer: @MainActor (String) -> Void = StackStore.postAnnouncement
     var newSite: Detection?
     /// A folder holding several projects, ready to import.
     var importScan: FolderScan?
@@ -368,6 +374,7 @@ import SwiftUI
     func dismissFailure() { failure = nil; errorMessage = nil }
     func notify(_ text: String) {
         Motion.run(.snappy) { toast = text }
+        announce(text)
         Task { try? await Task.sleep(for: .seconds(2.5)); Motion.run(.snappy) { if toast == text { toast = nil } } }
     }
 

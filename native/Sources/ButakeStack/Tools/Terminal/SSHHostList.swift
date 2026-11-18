@@ -83,6 +83,10 @@ struct SSHHostList: View {
                 if let id = ids.first, let program = Self.local(tag: id).flatMap(LocalConsoles.program) { workspace.openLocal(program) }
                 else if let id = ids.first, let host = terminal.host(id) { Task { await terminal.open(host) } }
             }
+            // ⌫ on the selected host, like the menu's «Eliminar host…» (which confirms).
+            .onDeleteCommand {
+                if let id = terminal.selection, Self.local(tag: id) == nil, workspace.localSelection == nil, let host = terminal.host(id) { terminal.deleting = host }
+            }
             .overlay { empty }
             .searchable(text: $search, tokens: $tokens, placement: .sidebar, prompt: L("ssh.search")) { token in
                 Label(token.tag, systemImage: Symbols.tags)

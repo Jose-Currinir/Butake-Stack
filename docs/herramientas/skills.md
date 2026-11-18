@@ -56,7 +56,7 @@ Tres columnas, como las demás herramientas:
   sección «IA» con un interruptor por IA (ChatGPT y Kiro ofrecen «Copiar texto»; las IA propias, Editar y
   Quitar) y el editor de `SKILL.md` (⌘S guarda).
 - **Barra de herramientas:** «Nueva skill…» (con plantilla), Duplicar, Exportar… (copiar o guardar un
-  `.md`) y «⋯» (Mover a grupo…, Renombrar…, Desactivar o Activar, Eliminar…).
+  `.md`) y «⋯» (Mover a grupo…, Renombrar…, Desactivar o Activar, Eliminar…). La fila de la lista tiene un menú contextual con las mismas acciones (Duplicar, Exportar, Mover, Renombrar, Activar, Eliminar…) y ⌫ abre la confirmación de Eliminar.
 - **Hoja de confirmación de enlaces:** antes de aplicar cualquier cambio a una carpeta de IA (enlazar,
   activar o desactivar, renombrar, eliminar, restaurar o quitar una IA propia) muestra las rutas
   exactas que se crean, las que se quitan y los conflictos.

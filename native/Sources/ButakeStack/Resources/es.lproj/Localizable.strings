@@ -150,9 +150,15 @@
 "menu.shortcuts" = "Atajos de teclado…";
 "menu.hideList" = "Ocultar lista";
 "menu.showList" = "Mostrar lista";
+"menu.undoAnnounce" = "%@. Puedes deshacerlo.";
+"menu.undone" = "Deshecho: %@";
+"menu.redone" = "Rehecho: %@";
 "menu.undo.start" = "Iniciar %@";
 "menu.undo.stop" = "Detener %@";
 "menu.undo.rename" = "Renombrar %@";
+"menu.undo.moveToFolder" = "Mover %@ de carpeta";
+"menu.undo.deleteFolder" = "Quitar la carpeta %@";
+"menu.undo.moveHost" = "Mover el host %@ de grupo";
 "menu.undo.move" = "Cambiar carpeta de %@";
 
 "palette.prompt" = "Ir a un proyecto, iniciar un servicio, abrir una página…";
