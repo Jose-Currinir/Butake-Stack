@@ -69,14 +69,34 @@ fn the_tree_comes_from_the_folder() {
     assert!(apps.parent.is_none() && !apps.is_project());
     assert!(salud.is_project());
     assert_eq!(salud.sites, ["salud", "salud-web"]);
+    // Back to a plain folder and again a project: the link it had is still there.
+    let mut with_link = groups.clone();
+    with_link
+        .iter_mut()
+        .find(|g| g.path.as_deref() == Some("Apps/Salud"))
+        .unwrap()
+        .ordered = true;
+    save_groups(&case.store, with_link).unwrap();
+    let off = set_multipart(&case.store, "Apps/Salud", false).unwrap();
+    assert!(!group(&off, "Apps/Salud").is_project());
+    let on = set_multipart(&case.store, "Apps/Salud", true).unwrap();
+    assert!(group(&on, "Apps/Salud").ordered);
+    assert_eq!(case.store.groups().unwrap().len(), 1);
     assert_eq!(salud.parent.as_deref(), Some(apps.id.as_str()));
     assert_eq!(
         group(&groups, "Sitios/Vacia").parent,
         Some(group(&groups, "Sitios").id.clone())
     );
     // Ids of plain folders are the same every time and are valid ids.
-    assert_eq!(groups, groups_view(&case.store).unwrap());
     assert!(groups.iter().all(|g| crate::core::validate::id(&g.id, 40)));
+    assert_eq!(
+        groups.iter().map(|g| &g.id).collect::<Vec<_>>(),
+        groups_view(&case.store)
+            .unwrap()
+            .iter()
+            .map(|g| &g.id)
+            .collect::<Vec<_>>()
+    );
 }
 
 #[test]

@@ -353,12 +353,14 @@ pub fn save_groups(store: &Store, incoming: Vec<SiteGroup>) -> Result<Vec<SiteGr
         .filter(|g| g.is_project() && g.path.is_some())
         .collect();
     let mut all = mine.clone();
-    for group in store.groups()? {
-        // A group that had a place and is no longer in the answer was turned back into a folder.
-        if group.path.is_none() && !mine.iter().any(|m| m.id == group.id) {
-            all.push(group);
-        }
-    }
+    // Everything else stays as it was: groups that never got a place, and folders that stopped
+    // being a project of several parts (their link and order wait for when they are one again).
+    all.extend(
+        store
+            .groups()?
+            .into_iter()
+            .filter(|g| !mine.iter().any(|m| m.id == g.id)),
+    );
     store.save_groups(all)?;
     groups_view(store)
 }
@@ -369,10 +371,9 @@ pub fn set_multipart(store: &Store, rel: &str, on: bool) -> Result<Vec<SiteGroup
     let root = root(store)?.ok_or_else(|| anyhow::anyhow!("invalid_path"))?;
     ensure!(root.join(rel).is_dir(), "invalid_path");
     let mut groups = store.groups()?;
-    let existing = groups
-        .iter()
-        .position(|g| g.is_project() && g.path.as_deref() == Some(rel));
+    let existing = groups.iter().position(|g| g.path.as_deref() == Some(rel));
     match (on, existing) {
+        (true, Some(index)) => groups[index].kind = SiteGroup::PROJECT.into(),
         (true, None) => {
             let name = rel.rsplit('/').next().unwrap_or(rel);
             let mut id = folder_id(rel);
@@ -387,11 +388,8 @@ pub fn set_multipart(store: &Store, rel: &str, on: bool) -> Result<Vec<SiteGroup
                 ..Default::default()
             });
         }
-        (false, Some(index)) => {
-            // Its Google Cloud link and order stay in the file, unused, for when it is one again.
-            groups[index].kind = String::new();
-            groups[index].path = Some(rel.into());
-        }
+        // Its Google Cloud link and order stay in the file, unused, for when it is one again.
+        (false, Some(index)) => groups[index].kind = String::new(),
         _ => {}
     }
     store.save_groups(groups)?;
