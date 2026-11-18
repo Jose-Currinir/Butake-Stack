@@ -120,6 +120,15 @@ struct Sidebar: View {
         .searchFocused($searchFocused)
         // The window opens on the list, not typing in the search field.
         .defaultFocus($searchFocused, false)
+        // Retorno renames the selected project or folder, as in Finder; in the search field it does nothing here.
+        .onKeyPress(.return) {
+            guard !searchFocused, let target = SidebarRename.target(for: store.route, projects: store.projects, groups: store.groups) else { return .ignored }
+            switch target {
+            case .project(let project): store.renaming = RenameRequest(project: project)
+            case .folder(let id): store.groupNaming = .rename(id)
+            }
+            return .handled
+        }
         // Edición › Buscar (⌘F).
         .onChange(of: store.findRequests) { searchFocused = true }
         #if DEBUG
@@ -130,6 +139,19 @@ struct Sidebar: View {
             }
         }
         #endif
+    }
+}
+
+/// What Retorno renames in the sidebar: the project or the folder (a project of several parts) selected.
+enum SidebarRename {
+    enum Target: Equatable { case project(Project), folder(String) }
+
+    static func target(for route: Route, projects: [Project], groups: [ProjectGroup]) -> Target? {
+        switch route {
+        case .site(let id): projects.first { $0.id == id }.map(Target.project)
+        case .composite(let id): groups.contains { $0.id == id } ? .folder(id) : nil
+        default: nil
+        }
     }
 }
 
