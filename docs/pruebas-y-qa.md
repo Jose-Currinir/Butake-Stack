@@ -85,7 +85,9 @@ para cuando se toque cada área.
 ```bash
 xcrun swift build --disable-sandbox --package-path native
 QA_HOME="$(mktemp -d)"
+mkdir -p "$QA_HOME/home"
 BUTAKE_QA_WINDOW=1 \
+CFFIXED_USER_HOME="$QA_HOME/home" \
 BUTAKE_STACK_HOME="$QA_HOME/store" \
 BUTAKE_STACK_ENGINE="$PWD/engine/target/debug/butake-stack" \
 BUTAKE_QA_ROUTE="tool:git" \
@@ -95,6 +97,9 @@ BUTAKE_QA_SNAPSHOT="$QA_HOME/git.png" \
 
 - `BUTAKE_QA_WINDOW=1` abre la ventana al iniciar y activa los ganchos; sin ella, ninguna variable
   `BUTAKE_QA_*` hace nada.
+- `CFFIXED_USER_HOME` da a la ventana de QA una carpeta personal temporal (sus preferencias y su
+  `~/Stack/Projects`). Sin ella, la carpeta de proyectos pasa a `<BUTAKE_STACK_HOME>/qa-projects`,
+  vacía (`Folder.qaProjects`): una captura nunca muestra las carpetas reales del dueño.
 - `BUTAKE_QA_ROUTE`: `home`, `site:<id>`, `composite:<id>`, `service:<categoría>`,
   `language:<id>`, `tool:<id>`, `utilities[:<sección>]`; varios unidos con `>` cambian de página
   uno tras otro.

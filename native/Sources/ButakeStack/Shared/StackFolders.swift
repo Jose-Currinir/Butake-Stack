@@ -39,10 +39,24 @@ enum Folder {
     static func defaultProjects(home: String = NSHomeDirectory()) -> String { home + "/Stack/Projects" }
     /// `~/Stack/Projects` unless the user chose another folder in Ajustes › Avanzado.
     static func projects(home: String = NSHomeDirectory(), defaults: UserDefaults = .standard) -> String {
+        #if DEBUG
+        if let folder = qaProjects() { return folder }
+        #endif
         let chosen = defaults.string(forKey: projectsKey) ?? ""
         return chosen.hasPrefix("/") ? chosen : defaultProjects(home: home)
     }
     static var projects: String { projects() }
+    #if DEBUG
+    /// A QA window started without CFFIXED_USER_HOME would list the owner's real ~/Stack/Projects in
+    /// its sidebar (and in its screenshots): it gets an empty folder inside its temporary store
+    /// instead. QA never reads real data (AGENTS.md); `site/scripts/capturas.py` sets
+    /// CFFIXED_USER_HOME and keeps its demonstration folder.
+    static func qaProjects(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        guard environment["BUTAKE_QA_WINDOW"] != nil, environment["CFFIXED_USER_HOME"] == nil else { return nil }
+        let base = environment["BUTAKE_STACK_HOME"] ?? NSTemporaryDirectory()
+        return (base as NSString).appendingPathComponent("qa-projects")
+    }
+    #endif
     /// Keeps the user's choice; choosing the default again forgets it.
     static func setProjects(_ path: String, home: String = NSHomeDirectory(), defaults: UserDefaults = .standard) {
         let path = URL(fileURLWithPath: path).standardizedFileURL.path

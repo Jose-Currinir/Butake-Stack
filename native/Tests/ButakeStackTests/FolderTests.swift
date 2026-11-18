@@ -37,3 +37,11 @@ import Testing
     try FileManager.default.createDirectory(atPath: support + "Stack/projects", withIntermediateDirectories: true)
     #expect(Folder.resolveData(home: home, environment: [:]) == (support + "Stack", false))
 }
+
+/// A QA window without its own HOME never lists the owner's projects folder.
+@Test func aQAWindowWithoutItsOwnHomeGetsAnEmptyProjectsFolder() {
+    #expect(Folder.qaProjects(environment: [:]) == nil)
+    #expect(Folder.qaProjects(environment: ["BUTAKE_QA_WINDOW": "1", "BUTAKE_STACK_HOME": "/tmp/qa/store"]) == "/tmp/qa/store/qa-projects")
+    // The demonstration of the captures brings its own home and keeps its folder.
+    #expect(Folder.qaProjects(environment: ["BUTAKE_QA_WINDOW": "1", "CFFIXED_USER_HOME": "/tmp/qa/home"]) == nil)
+}
