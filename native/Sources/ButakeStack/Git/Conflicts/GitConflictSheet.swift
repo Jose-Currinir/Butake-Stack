@@ -149,7 +149,7 @@ private struct GitConflictResolver: View {
                 }
                 CodeEditor(text: $result, path: path, editable: !saving)
                     .frame(minHeight: 160)
-                    .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)) }
+                    .overlay { RoundedRectangle(cornerRadius: Radius.small).strokeBorder(Color(nsColor: .separatorColor)) }
                     .accessibilityIdentifier("git.conflict.result")
                 if let failure { Text(failure).font(.uiCaption).foregroundStyle(Brand.dangerText).textSelection(.enabled) }
                 HStack {
@@ -178,7 +178,7 @@ private struct GitConflictResolver: View {
                     .accessibilityIdentifier("git.conflict.use.\(id)")
             }
             CodeEditor(text: .constant(text), path: path, editable: false)
-                .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)) }
+                .overlay { RoundedRectangle(cornerRadius: Radius.small).strokeBorder(Color(nsColor: .separatorColor)) }
         }
     }
 

@@ -55,7 +55,7 @@ struct GitRepositoryPicker: View {
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.quaternary.opacity(0.6)))
+            .background(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).fill(.quaternary.opacity(0.6)))
             .contentShape(Rectangle())
         }
         .buttonStyle(HighlightButtonStyle())

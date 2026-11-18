@@ -58,8 +58,8 @@ struct SSHKeysSection: View {
         .formStyle(.grouped).themedScroll()
         .overlay {
             if dropping {
-                RoundedRectangle(cornerRadius: 12).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6]))
-                    .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6]))
+                    .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: Radius.card))
                     .overlay(Label(L("ssh.keys.dropHere"), systemImage: Symbols.dump).font(.uiHeadline).foregroundStyle(Color.accentColor))
                     .padding(10)
             }

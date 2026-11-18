@@ -141,8 +141,8 @@ private struct GitImageDiff: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(10)
-            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(nsColor: .separatorColor)))
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))  // radius 10: outside the Radius scale, kept as it was
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(nsColor: .separatorColor)))  // radius 10: outside the Radius scale, kept as it was
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("git.diff.image.\(id)")

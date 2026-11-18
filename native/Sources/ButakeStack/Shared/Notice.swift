@@ -60,7 +60,7 @@ struct Notice<Actions: View>: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tintedFill(tint, fill: 0.1, edge: 0.3, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .tintedFill(tint, fill: 0.1, edge: 0.3, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     }
 }
 

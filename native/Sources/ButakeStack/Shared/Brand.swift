@@ -105,7 +105,7 @@ private struct ChromeGlass: ViewModifier {
     }
 }
 extension View {
-    func workSurface(radius: CGFloat = 16) -> some View {
+    func workSurface(radius: CGFloat = Radius.panel) -> some View {
         background(Brand.surface, in: RoundedRectangle(cornerRadius: radius))
             .separatorEdge(opacity: 0.65, in: RoundedRectangle(cornerRadius: radius))
     }

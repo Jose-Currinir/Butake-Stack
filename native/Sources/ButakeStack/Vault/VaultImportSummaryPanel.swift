@@ -30,7 +30,7 @@ struct VaultImportSummaryPanel: View {
             }
         }
         .padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))  // radius 10: outside the Radius scale, kept as it was
         .accessibilityIdentifier("vault.importSummary")
     }
 

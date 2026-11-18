@@ -95,7 +95,7 @@ struct LogConsole: View {
                 .padding(10)
                 .textSelection(.enabled)
             }
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05)))
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05)))  // radius 10: outside the Radius scale, kept as it was
             .onChange(of: lines.count) { _, count in proxy.scrollTo(count - 1, anchor: .bottom) }
             .onAppear { proxy.scrollTo(lines.count - 1, anchor: .bottom) }
         }

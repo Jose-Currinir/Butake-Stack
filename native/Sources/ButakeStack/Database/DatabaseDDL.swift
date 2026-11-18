@@ -173,7 +173,7 @@ private struct ColumnPicker: View {
             }
             .frame(maxHeight: 160)
             .padding(8)
-            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: Radius.row))
         }
     }
 }

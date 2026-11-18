@@ -3,7 +3,7 @@ import SwiftUI
 /// Clickable row or card: a soft highlight on hover and when pressed, no movement and no shadow,
 /// and a ring in the accent while the keyboard has it. Rows use the default radius; cards pass theirs.
 struct HighlightButtonStyle: ButtonStyle {
-    var radius: CGFloat = 8
+    var radius: CGFloat = Radius.row
 
     func makeBody(configuration: Configuration) -> some View {
         HighlightBody(configuration: configuration, radius: radius)
@@ -25,7 +25,7 @@ struct HighlightButtonStyle: ButtonStyle {
                 .contentShape(shape)
                 .overlay {
                     if hovering || configuration.isPressed {
-                        shape.fill(Color.primary.opacity(configuration.isPressed ? (more ? 0.16 : 0.08) : (more ? 0.1 : 0.04)))
+                        shape.fill(Color.primary.opacity(configuration.isPressed ? (more ? 0.16 : Fill.pressed) : (more ? 0.1 : Fill.hover)))
                             .allowsHitTesting(false)
                     }
                 }
@@ -85,4 +85,24 @@ extension View {
     func separatorEdge<S: InsettableShape>(opacity: Double = 1, in shape: S) -> some View {
         modifier(SeparatorEdge(opacity: opacity, shape: shape))
     }
+}
+
+/// The corner radii of the app. A radius that isn't one of these says why where it is written.
+enum Radius {
+    /// Small controls, chips of a row, code boxes.
+    static let small: CGFloat = 6
+    /// Rows and the highlight of a list item.
+    static let row: CGFloat = 8
+    /// Cards and notices.
+    static let card: CGFloat = 12
+    /// Work surfaces and large panels.
+    static let panel: CGFloat = 16
+}
+
+/// Opacities of a fill that says a state of a row or of a tint.
+enum Fill {
+    static let hover = 0.04
+    static let pressed = 0.08
+    /// A state color's tint behind its text (chips); Increase Contrast uses `Contrast.strongFill`.
+    static let tint = 0.12
 }

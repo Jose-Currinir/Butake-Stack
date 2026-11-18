@@ -226,9 +226,9 @@ private struct TableBox: View {
             }
             Spacer(minLength: 0)
         }
-        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 8))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(focused ? Brand.accent : Color.primary.opacity(0.15), lineWidth: focused ? 2 : 1))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: Radius.row))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.row))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row).strokeBorder(focused ? Brand.accent : Color.primary.opacity(0.15), lineWidth: focused ? 2 : 1))
         .opacity(dimmed ? 0.4 : 1)
         .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
     }

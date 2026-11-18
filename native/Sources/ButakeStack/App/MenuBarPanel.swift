@@ -96,7 +96,7 @@ struct MenuPanel: View {
                 Button { NSApp.terminate(nil) } label: { PanelMenuRow(title: L("panel.quit"), shortcut: "⌘Q") }
                     .keyboardShortcut("q").help(L("menu.quitHelp")).accessibilityIdentifier("panel.quit")
             }
-            .buttonStyle(HighlightButtonStyle(radius: 6))
+            .buttonStyle(HighlightButtonStyle(radius: Radius.small))
             .padding(.horizontal, 6).padding(.bottom, 6)
         }
         .frame(width: 320)
@@ -184,7 +184,7 @@ private struct ServiceTileView: View {
                 .accessibilityLabel(title)
         }
         .padding(.horizontal, 6).padding(.vertical, 4)
-        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 7, style: .continuous))  // radius 7: outside the Radius scale, kept as it was
         .help(detail.isEmpty ? title : "\(title) · \(detail)")
     }
 }
@@ -262,7 +262,7 @@ private struct ProjectMenuRow: View {
         }
         .padding(.horizontal, 8).frame(height: Self.height)
         .help("\(project.title) · \(detail)")
-        .background(hover ? Color.primary.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(hover ? Color.primary.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
         .padding(.horizontal, 4)
         .onHover { hover = $0 }
         .contextMenu { ProjectMenuItems(store: store, project: project) }
@@ -305,8 +305,8 @@ private struct PanelFailureBanner: View {
             .controlSize(.small)
         }
         .padding(10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Brand.danger.opacity(0.5)))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Brand.danger.opacity(0.5)))
         .accessibilityElement(children: .contain).accessibilityIdentifier("panel.error")
     }
 }

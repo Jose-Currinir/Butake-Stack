@@ -52,9 +52,9 @@ private struct ThemePreview: View {
                 .padding(.horizontal, 10).padding(.vertical, 4).background(Brand.accent, in: Capsule())
         }
         .padding(12)
-        .background(Brand.surface(for: theme), in: RoundedRectangle(cornerRadius: 10))
+        .background(Brand.surface(for: theme), in: RoundedRectangle(cornerRadius: 10))  // radius 10: outside the Radius scale, kept as it was
         .padding(6)
-        .background(Brand.background(for: theme), in: RoundedRectangle(cornerRadius: 14))
+        .background(Brand.background(for: theme), in: RoundedRectangle(cornerRadius: 14))  // radius 14: outside the Radius scale, kept as it was
         .environment(\.colorScheme, theme.isDark ? .dark : .light)
     }
     private func chip(_ text: String, _ color: HexColor) -> some View {

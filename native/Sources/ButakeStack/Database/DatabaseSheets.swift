@@ -16,7 +16,7 @@ struct ConfirmChangeSheet: View {
                 Label(L("db.mode.productionBanner"), systemImage: Symbols.error)
                     .font(.uiCallout.weight(.bold)).foregroundStyle(.white)
                     .padding(.horizontal, 10).padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Brand.danger, in: RoundedRectangle(cornerRadius: 8))
+                    .background(Brand.danger, in: RoundedRectangle(cornerRadius: Radius.row))
                     .accessibilityIdentifier("db.confirm.productionBanner")
             }
             HStack(spacing: 12) {
@@ -32,7 +32,7 @@ struct ConfirmChangeSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding(10)
                 }
                 .frame(minHeight: 60, maxHeight: 260)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: Radius.row))
                 .accessibilityIdentifier("db.confirm.statements")
             }
             if let name = pending.typedName {
@@ -80,7 +80,7 @@ struct HostCheckSheet: View {
                 ForEach(check.fingerprints, id: \.self) { Text($0).font(.uiMonospaced).textSelection(.enabled) }
             }
             .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: Radius.row))
             .accessibilityIdentifier("db.hostCheck.fingerprints")
         }
         .onDisappear { client.hostCheck = nil }

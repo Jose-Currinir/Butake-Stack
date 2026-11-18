@@ -245,7 +245,7 @@ private struct HomeHeader: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .workSurface(radius: 18)
+        .workSurface(radius: 18)  // radius 18: outside the Radius scale, kept as it was
         .accessibilityIdentifier("home.header")
     }
 }
@@ -293,7 +293,7 @@ private struct HomeCard<Trailing: View>: View {
             .padding(12)
             .workSurface()
         }
-        .buttonStyle(HighlightButtonStyle(radius: 16))
+        .buttonStyle(HighlightButtonStyle(radius: Radius.panel))
         .overlay(alignment: .trailing) {
             HStack(spacing: 10) { trailing }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { trailingWidth = $0 }

@@ -75,11 +75,14 @@ dialog_without_cancel() { blocks dialogs | count; }
 toolbar_item_without_label() { blocks toolbar | count; }
 # Animation written outside Shared/Motion.swift: it is the one place that respects Reduce motion.
 raw_animation() { swift_lines 'withAnimation\(|\.animation\(|\.transition\(' | grep -v '/Shared/Motion.swift:' | count; }
+# A corner radius written as a number: the scale is Radius (Shared/Styles.swift); one that isn't on
+# it keeps its number with a comment that says so, and counts here until it is decided.
+radius_literal() { swift_lines '(cornerRadius|\(radius): *[0-9]' | count; }
 exemptions() { grep -rn --include='*.swift' '// lint-ui: ' "$SOURCES" | count; }
 # Localizable.strings ordered by area (scripts/order-strings.py): keys out of their place.
 strings_order() { /usr/bin/python3 -I "$ROOT/scripts/order-strings.py" --count; }
 
-NAMES="fixed-font on-tap-gesture uppercased text-literal symbol-literal symbol-concept tinted-icon third-party old-product-name deprecated-containers fixed-size-vertical dialog-without-cancel plain-action-button toolbar-item-without-label file-too-long strings-order raw-animation exemptions"
+NAMES="fixed-font on-tap-gesture uppercased text-literal symbol-literal symbol-concept tinted-icon third-party old-product-name deprecated-containers fixed-size-vertical dialog-without-cancel plain-action-button toolbar-item-without-label file-too-long strings-order raw-animation radius-literal exemptions"
 current() {
     case "$1" in
         fixed-font) fixed_font ;;
@@ -99,6 +102,7 @@ current() {
         file-too-long) file_too_long ;;
         strings-order) strings_order ;;
         raw-animation) raw_animation ;;
+        radius-literal) radius_literal ;;
         exemptions) exemptions ;;
     esac
 }

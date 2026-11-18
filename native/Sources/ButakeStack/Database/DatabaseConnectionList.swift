@@ -102,7 +102,7 @@ private struct ConnectionNode: View {
                     if connection.production {
                         Text(L("db.mode.productionShort")).font(.uiCaption2.weight(.bold)).foregroundStyle(.white)
                             .padding(.horizontal, 4).padding(.vertical, 1)
-                            .background(Brand.danger, in: RoundedRectangle(cornerRadius: 3))
+                            .background(Brand.danger, in: RoundedRectangle(cornerRadius: 3))  // radius 3: outside the Radius scale, kept as it was
                             .help(L("db.mode.production"))
                     }
                     if connection.readOnly {
@@ -152,7 +152,7 @@ private struct DatabaseNode: View {
                 Task { await client.restore(file, into: database.name, of: connection) }
                 return true
             } isTargeted: { dropTargeted = $0 }
-            .background(RoundedRectangle(cornerRadius: 6).fill(dropTargeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
+            .background(RoundedRectangle(cornerRadius: Radius.small).fill(dropTargeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
             .accessibilityIdentifier("db.list.database.\(database.name)")
         } else {
             label.tag(selection).accessibilityIdentifier("db.list.database.\(database.name)")

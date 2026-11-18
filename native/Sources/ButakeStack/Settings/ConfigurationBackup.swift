@@ -217,7 +217,7 @@ struct RestoreSheet: View {
                     .padding(.horizontal, 12).padding(.vertical, 7)
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))  // radius 10: outside the Radius scale, kept as it was
         }
         PlanPart(isOn: $organize, symbol: Symbols.folder, title: L("backup.part.organize"),
                  detail: String(format: L("backup.organizeDetail"), plan.groups, plan.environments), enabled: plan.groups + plan.environments > 0, part: "organize")
@@ -363,7 +363,7 @@ private struct PlanPart: View {
             Spacer()
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.035)))  // radius 10: outside the Radius scale, kept as it was
         .opacity(enabled ? 1 : 0.6)
     }
 }

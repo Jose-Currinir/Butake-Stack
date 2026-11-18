@@ -16,7 +16,7 @@ import SwiftUI
     @ViewBuilder static func usagePanel(_ workspace: SSHWorkspace) -> some View {
         if showsUsage, let session = workspace.current?.focusedSession, let source = AssistantUsageSource.of(session.kind.launch?.program) {
             AssistantUsagePanel(session: session, source: source)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous)).padding(10)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous)).padding(10)  // radius 10: outside the Radius scale, kept as it was
         }
     }
 

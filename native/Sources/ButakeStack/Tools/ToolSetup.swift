@@ -19,7 +19,7 @@ struct ToolSetup: View {
             .font(.uiCallout.monospaced()).textSelection(.enabled)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+                .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: Radius.row))
                 .accessibilityIdentifier("\(identifier).lines")
             Text(footer).font(.uiCaption).foregroundStyle(.secondary)
                 .lineLimit(4).frame(maxWidth: .infinity, alignment: .leading).help(footer)

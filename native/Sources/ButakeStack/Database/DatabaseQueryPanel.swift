@@ -393,7 +393,7 @@ private struct QueryTabButton: View {
                 .padding(.trailing, 4)
             }
         }
-        .background(current ? AnyShapeStyle(Brand.accent.opacity(0.16)) : AnyShapeStyle(.quaternary.opacity(0.5)), in: RoundedRectangle(cornerRadius: 7))
+        .background(current ? AnyShapeStyle(Brand.accent.opacity(0.16)) : AnyShapeStyle(.quaternary.opacity(0.5)), in: RoundedRectangle(cornerRadius: 7))  // radius 7: outside the Radius scale, kept as it was
     }
 }
 

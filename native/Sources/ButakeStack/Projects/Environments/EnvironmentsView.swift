@@ -123,7 +123,7 @@ struct EnvironmentsView: View {
         // A `.env` dropped here: «Local» when there are no environments (as «Importar»), else a new one.
         .overlay {
             if dropTargeted {
-                RoundedRectangle(cornerRadius: 12).strokeBorder(Brand.accent, lineWidth: 2).padding(8).allowsHitTesting(false)
+                RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Brand.accent, lineWidth: 2).padding(8).allowsHitTesting(false)
             }
         }
         .dropDestination(for: URL.self) { urls, _ in

@@ -8,7 +8,7 @@ enum Contrast {
     static let text = 4.5
     static let nonText = 3.0
     /// Fill opacity of a tinted chip, and the one Increase Contrast uses.
-    static let chipFill = 0.12
+    static let chipFill = Fill.tint
     static let strongFill = 0.22
     /// Margin over the minimum, so rounding never lands under it.
     private static let margin = 0.05

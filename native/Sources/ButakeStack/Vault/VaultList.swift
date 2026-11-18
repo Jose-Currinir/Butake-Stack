@@ -132,6 +132,6 @@ private struct VaultFileDrop: ViewModifier {
                 }
                 return true
             } isTargeted: { targeted = $0 }
-            .overlay { if targeted { RoundedRectangle(cornerRadius: 6).stroke(Brand.accent, lineWidth: 2).allowsHitTesting(false) } }
+            .overlay { if targeted { RoundedRectangle(cornerRadius: Radius.small).stroke(Brand.accent, lineWidth: 2).allowsHitTesting(false) } }
     }
 }

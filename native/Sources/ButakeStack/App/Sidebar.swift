@@ -237,7 +237,7 @@ extension Sidebar {
             .tag(SidebarRow.site(project.id)).accessibilityIdentifier("route.site.\(project.id)")
             .contextMenu { ProjectMenuItems(store: store, project: project) }
             .draggable(project.id) {
-                Label(project.title, systemImage: Symbols.project).padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                Label(project.title, systemImage: Symbols.project).padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.small))
             }
             .dropDestination(for: String.self) { ids, _ in
                 for id in ids where id != project.id && (store.projects.contains(where: { $0.id == id }) || id.hasPrefix(StackStore.folderDragPrefix)) {
@@ -305,7 +305,7 @@ private extension View {
     @ViewBuilder func draggableFolder(_ payload: String?, title: String) -> some View {
         if let payload {
             draggable(payload) {
-                Label(title, systemImage: Symbols.folder).padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                Label(title, systemImage: Symbols.folder).padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.small))
             }
         } else { self }
     }
@@ -327,7 +327,7 @@ private struct SitesHeader: View {
             }
         }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
+            .background(RoundedRectangle(cornerRadius: Radius.small).fill(targeted ? Brand.accent.opacity(0.15) : .clear).padding(.horizontal, -4))
             .contextMenu {
                 Button { store.groupNaming = .new(sites: []) } label: { Label(L("menu.newFolder"), systemImage: Symbols.newFolder) }
                     .accessibilityIdentifier("sidebar.newFolder")
@@ -391,7 +391,7 @@ private struct GroupRow: View {
             IconTile(symbol: group.isProject ? Symbols.compositeProject : Symbols.folder, size: 18)
         }
         .padding(.vertical, 1)
-        .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.18) : .clear).padding(.horizontal, -6))
+        .background(RoundedRectangle(cornerRadius: Radius.small).fill(targeted ? Brand.accent.opacity(0.18) : .clear).padding(.horizontal, -6))
         .animated(.easeOut(duration: 0.15), value: targeted)
         .dropDestination(for: String.self) { ids, _ in
             for id in ids { store.move(id, to: group.id) }

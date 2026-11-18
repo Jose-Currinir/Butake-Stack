@@ -35,8 +35,8 @@ struct SSHFilesView: View {
                 }
                 if browser.loading { ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(10) }
                 if dropping {
-                    RoundedRectangle(cornerRadius: 12).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6]))
-                        .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6]))
+                        .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: Radius.card))
                         .overlay(Label(String(format: L("ssh.sftp.dropHere"), browser.path), systemImage: Symbols.share).font(.uiHeadline).foregroundStyle(Color.accentColor))
                         .padding(8).allowsHitTesting(false)
                 }
