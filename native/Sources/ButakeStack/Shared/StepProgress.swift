@@ -50,7 +50,7 @@ struct StepListSection: View {
                 Text(L("progress.steps"))
                 Spacer()
                 ProgressView(value: Double(min(current, steps.count)), total: Double(max(steps.count, 1))).frame(width: 140)
-                    .animation(.smooth(duration: 0.5), value: current)
+                    .animated(.smooth(duration: 0.5), value: current)
             }
         }
     }

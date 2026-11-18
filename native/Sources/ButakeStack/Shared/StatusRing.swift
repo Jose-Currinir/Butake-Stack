@@ -12,11 +12,11 @@ struct StatusRing: View {
                 .stroke(phase.color, style: StrokeStyle(lineWidth: size * 0.18, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             if phase == .running {
-                Circle().fill(phase.color).frame(width: size * 0.4, height: size * 0.4).transition(.scale.combined(with: .opacity))
+                Circle().fill(phase.color).frame(width: size * 0.4, height: size * 0.4).transitioned(.scale.combined(with: .opacity))
             }
         }
         .frame(width: size, height: size)
-        .animation(.snappy, value: phase)
+        .animated(.snappy, value: phase)
         .accessibilityLabel(L("state.\(phase.rawValue)"))
     }
 }

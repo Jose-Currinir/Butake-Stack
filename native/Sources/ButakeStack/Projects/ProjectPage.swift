@@ -266,11 +266,11 @@ private struct BranchNotice: View {
                 if changes.composer { task("composer", "shippingbox") }
                 if changes.npm { task("npm", "cube") }
                 if changes.migrations > 0 { task("migrate", Symbols.database) }
-                Button { withAnimation(.snappy) { store.branchNotices[project.id] = nil } } label: { Label(L("common.close"), systemImage: Symbols.close).labelStyle(.iconOnly) }
+                Button { Motion.run(.snappy) { store.branchNotices[project.id] = nil } } label: { Label(L("common.close"), systemImage: Symbols.close).labelStyle(.iconOnly) }
                     .buttonStyle(.borderless).help(L("common.close")).accessibilityIdentifier("branch.dismiss")
             }
         }
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transitioned(.move(edge: .top).combined(with: .opacity))
     }
     private func task(_ name: String, _ symbol: String) -> some View {
         Button {

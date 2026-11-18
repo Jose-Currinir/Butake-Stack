@@ -336,7 +336,7 @@ private struct SitesHeader: View {
                 for id in ids { store.move(id, to: nil) }
                 return true
             } isTargeted: { targeted = $0 }
-            .animation(.easeOut(duration: 0.15), value: targeted)
+            .animated(.easeOut(duration: 0.15), value: targeted)
     }
 }
 
@@ -392,7 +392,7 @@ private struct GroupRow: View {
         }
         .padding(.vertical, 1)
         .background(RoundedRectangle(cornerRadius: 6).fill(targeted ? Brand.accent.opacity(0.18) : .clear).padding(.horizontal, -6))
-        .animation(.easeOut(duration: 0.15), value: targeted)
+        .animated(.easeOut(duration: 0.15), value: targeted)
         .dropDestination(for: String.self) { ids, _ in
             for id in ids { store.move(id, to: group.id) }
             dropped()

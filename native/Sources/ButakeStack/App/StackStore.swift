@@ -313,8 +313,8 @@ import SwiftUI
     }
     func dismissFailure() { failure = nil; errorMessage = nil }
     func notify(_ text: String) {
-        withAnimation(.snappy) { toast = text }
-        Task { try? await Task.sleep(for: .seconds(2.5)); withAnimation(.snappy) { if toast == text { toast = nil } } }
+        Motion.run(.snappy) { toast = text }
+        Task { try? await Task.sleep(for: .seconds(2.5)); Motion.run(.snappy) { if toast == text { toast = nil } } }
     }
 
     @ObservationIgnored private var startup: Task<Void, Never>?

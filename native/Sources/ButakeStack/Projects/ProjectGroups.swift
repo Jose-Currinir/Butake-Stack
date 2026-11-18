@@ -109,7 +109,7 @@ extension StackStore {
         var next = groups
         change(&next)
         guard next != groups else { return }
-        withAnimation(.snappy(duration: 0.28)) { groups = next }
+        Motion.run(.snappy(duration: 0.28)) { groups = next }
         groupsDirty = true
         guard !groupsSaving else { return }
         groupsSaving = true

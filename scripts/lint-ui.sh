@@ -73,11 +73,13 @@ file_too_long() {
 blocks() { /usr/bin/python3 -I "$ROOT/scripts/lint-ui-blocks.py" "$SOURCES" "$1"; }
 dialog_without_cancel() { blocks dialogs | count; }
 toolbar_item_without_label() { blocks toolbar | count; }
+# Animation written outside Shared/Motion.swift: it is the one place that respects Reduce motion.
+raw_animation() { swift_lines 'withAnimation\(|\.animation\(|\.transition\(' | grep -v '/Shared/Motion.swift:' | count; }
 exemptions() { grep -rn --include='*.swift' '// lint-ui: ' "$SOURCES" | count; }
 # Localizable.strings ordered by area (scripts/order-strings.py): keys out of their place.
 strings_order() { /usr/bin/python3 -I "$ROOT/scripts/order-strings.py" --count; }
 
-NAMES="fixed-font on-tap-gesture uppercased text-literal symbol-literal symbol-concept tinted-icon third-party old-product-name deprecated-containers fixed-size-vertical dialog-without-cancel plain-action-button toolbar-item-without-label file-too-long strings-order exemptions"
+NAMES="fixed-font on-tap-gesture uppercased text-literal symbol-literal symbol-concept tinted-icon third-party old-product-name deprecated-containers fixed-size-vertical dialog-without-cancel plain-action-button toolbar-item-without-label file-too-long strings-order raw-animation exemptions"
 current() {
     case "$1" in
         fixed-font) fixed_font ;;
@@ -96,6 +98,7 @@ current() {
         toolbar-item-without-label) toolbar_item_without_label ;;
         file-too-long) file_too_long ;;
         strings-order) strings_order ;;
+        raw-animation) raw_animation ;;
         exemptions) exemptions ;;
     esac
 }
