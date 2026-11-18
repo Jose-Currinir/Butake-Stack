@@ -50,7 +50,7 @@ extension StackStore {
             return false
         }
         var renamed: RenamedProject?
-        await run(L("busy.renaming")) {
+        await run(L("busy.renaming"), canRetry: false) {
             renamed = try await self.call(["method": "renameProject", "id": from, "newId": newId, "name": name,
                                            "domain": domain, "keychainMoved": true, "actor": self.actor])
         }
@@ -63,7 +63,17 @@ extension StackStore {
         await refresh()
         openSite(renamed.project.id)
         notify(renamed.restarted ? L("rename.doneRestarted") : L("rename.done"))
+        let (oldName, newId) = (project.name, renamed.project.id)
+        undoable(String(format: L("menu.undo.rename"), oldName),
+                 undo: { [weak self] in await self?.rename(newId, to: from, name: oldName, domain: domain) },
+                 redo: { [weak self] in await self?.rename(from, to: newId, name: name, domain: domain) })
         return true
+    }
+
+    /// Renames the project that has id `current` now (an undo or a redo: the project is looked up again).
+    private func rename(_ current: String, to newId: String, name: String, domain: Bool) async {
+        guard let project = projects.first(where: { $0.id == current }) else { return }
+        await renameProject(project, to: newId, name: name, domain: domain)
     }
 
     /// Finishes what renames left to the app: the Keychain items, the vault's links (once it is
@@ -145,6 +155,12 @@ extension StackStore {
             moved = try await self.call(["method": "moveProject", "id": project.id, "path": path])
         }
         guard let moved else { return }
+        let (oldPath, newId) = (project.path, moved.project.id)
+        let move: @MainActor (String) async -> Void = { [weak self] path in
+            guard let self, let current = self.projects.first(where: { $0.id == newId }) else { return }
+            await self.moveProject(current, to: path)
+        }
+        undoable(String(format: L("menu.undo.move"), project.title), undo: { await move(oldPath) }, redo: { await move(path) })
         openSite(moved.project.id)
         if moved.envReapply, let env = activeEnvironment(project.id) {
             notify(String(format: L("move.envReapply"), env.title))
