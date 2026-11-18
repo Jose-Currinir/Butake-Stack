@@ -88,7 +88,9 @@ extension NewProjectSheet {
             }
             LabeledContent(L("common.address")) {
                 if serves {
-                    Text(slug.isEmpty ? "—" : address).font(.uiSubheadline.monospaced())
+                    // Before a name is typed, an example in grey shows what the address will look like.
+                    Text(slug.isEmpty ? String(format: L("new.addressExample"), Self.slug(L("new.namePrompt")) + "." + (store.config?.tld.first ?? "test")) : address)
+                        .font(.uiSubheadline.monospaced()).foregroundStyle(slug.isEmpty ? .tertiary : .primary)
                         .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                 } else {
                     Text(L("new.notASite")).lineLimit(2)
@@ -129,7 +131,7 @@ extension NewProjectSheet {
             Picker(selection: Binding(get: { place }, set: { placeChoice = $0 })) {
                 ForEach(ProjectPlace.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
             } label: {
-                Text(L("common.folder"))
+                Text(L("new.place.label"))
                 Text(L("new.place.detail"))
             }
             .pickerStyle(.segmented)
