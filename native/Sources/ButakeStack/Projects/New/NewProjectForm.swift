@@ -83,7 +83,7 @@ extension NewProjectSheet {
                 .formField(L("common.name"))
                 .accessibilityIdentifier("new.name")
             if let nameProblem {
-                Label(nameProblem, systemImage: Symbols.error).foregroundStyle(Brand.danger)
+                Label(nameProblem, systemImage: Symbols.error).foregroundStyle(Brand.dangerText)
                     .accessibilityIdentifier("new.nameProblem")
             }
             LabeledContent(L("common.address")) {
@@ -176,7 +176,7 @@ extension NewProjectSheet {
                         if let value = row.value {
                             Text(value.isEmpty ? L("new.ready") : value).monospacedDigit()
                         } else {
-                            Label(L("new.missing"), systemImage: Symbols.warning).foregroundStyle(Brand.warning)
+                            Label(L("new.missing"), systemImage: Symbols.warning).foregroundStyle(Brand.warningText)
                         }
                     }
                 }

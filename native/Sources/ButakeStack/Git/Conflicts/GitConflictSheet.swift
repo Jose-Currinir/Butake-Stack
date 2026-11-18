@@ -140,7 +140,7 @@ private struct GitConflictResolver: View {
                     Text(L("git.conflict.result")).font(.uiHeadline)
                     Spacer()
                     if unresolved {
-                        Label(L("git.conflict.markersLeft"), systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warning)
+                        Label(L("git.conflict.markersLeft"), systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warningText)
                     }
                     Button { result = Self.both(mine, incoming) } label: { Label(L("git.conflict.useBoth"), systemImage: Symbols.gitCombine) }
                         .buttonStyle(.bordered).controlSize(.small)
@@ -151,7 +151,7 @@ private struct GitConflictResolver: View {
                     .frame(minHeight: 160)
                     .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)) }
                     .accessibilityIdentifier("git.conflict.result")
-                if let failure { Text(failure).font(.uiCaption).foregroundStyle(Brand.danger).textSelection(.enabled) }
+                if let failure { Text(failure).font(.uiCaption).foregroundStyle(Brand.dangerText).textSelection(.enabled) }
                 HStack {
                     Text(L("git.conflict.saveNote")).font(.uiCaption).foregroundStyle(.secondary)
                     Spacer()

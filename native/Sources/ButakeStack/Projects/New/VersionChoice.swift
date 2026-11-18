@@ -53,7 +53,7 @@ struct VersionChoice: View {
             Button(action: install) { Label(L("new.install"), systemImage: Symbols.install) }
                 .buttonStyle(.bordered).accessibilityIdentifier("new.installVersion.\(language.lowercased())")
         } label: {
-            Label(text, systemImage: Symbols.warning).foregroundStyle(Brand.warning)
+            Label(text, systemImage: Symbols.warning).foregroundStyle(Brand.warningText)
         }
     }
 }

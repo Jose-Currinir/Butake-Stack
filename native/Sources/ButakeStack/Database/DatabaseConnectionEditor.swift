@@ -64,7 +64,7 @@ struct ConnectionEditor: View {
                 }
                 Section(L("db.edit.mode")) {
                     Toggle(isOn: $draft.production) {
-                        Label(L("db.mode.production"), systemImage: Symbols.error).foregroundStyle(draft.production ? Brand.danger : .primary)
+                        Label(L("db.mode.production"), systemImage: Symbols.error).foregroundStyle(draft.production ? Brand.dangerText : .primary)
                         Text(L("db.mode.productionHelp")).font(.uiCaption).foregroundStyle(.secondary)
                     }
                     .accessibilityIdentifier("db.editor.production")

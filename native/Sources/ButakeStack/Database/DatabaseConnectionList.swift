@@ -54,7 +54,7 @@ private struct ConnectionNode: View {
         DisclosureGroup(isExpanded: expansion(client, key) { await client.loadDatabases(connection) }) {
             if let error = client.errors[key] {
                 Label(error.kind == .offline ? L("db.noConnection") : error.title, systemImage: error.symbol)
-                    .font(.uiCaption).foregroundStyle(Brand.danger).lineLimit(2)
+                    .font(.uiCaption).foregroundStyle(Brand.dangerText).lineLimit(2)
                     .help(error.message).selectionDisabled()
                     .accessibilityIdentifier("db.list.error.\(key)")
             }
@@ -135,7 +135,7 @@ private struct DatabaseNode: View {
         if connection.isSQL {
             DisclosureGroup(isExpanded: expansion(client, key) { await client.loadObjects(connection, database.name) }) {
                 if let error = client.errors[key] {
-                    Label(error.title, systemImage: error.symbol).font(.uiCaption).foregroundStyle(Brand.danger).lineLimit(2)
+                    Label(error.title, systemImage: error.symbol).font(.uiCaption).foregroundStyle(Brand.dangerText).lineLimit(2)
                         .help(error.message).selectionDisabled()
                         .accessibilityIdentifier("db.list.error.\(key)")
                 }

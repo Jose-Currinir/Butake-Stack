@@ -63,7 +63,7 @@ struct PassphraseSheet: View {
                     .accessibilityIdentifier("ssh.keys.passphraseField")
                 Toggle(L("ssh.keys.rememberPassphrase"), isOn: $remember).accessibilityIdentifier("ssh.keys.rememberPassphrase")
                 if request.wrong {
-                    Label(L("ssh.keys.passphraseWrong"), systemImage: Symbols.error).foregroundStyle(Brand.danger)
+                    Label(L("ssh.keys.passphraseWrong"), systemImage: Symbols.error).foregroundStyle(Brand.dangerText)
                 }
             }
             .formStyle(.grouped).themedScroll()

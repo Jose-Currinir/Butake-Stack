@@ -110,7 +110,7 @@ struct ImportSkillsSheet: View {
             .disabled(!item.valid)
             .accessibilityIdentifier("skills.sheet.import.row.\(item.id)")
             if let reason = item.reason {
-                Text(reasonText(reason)).font(.uiCaption).foregroundStyle(Brand.danger)
+                Text(reasonText(reason)).font(.uiCaption).foregroundStyle(Brand.dangerText)
                     .accessibilityIdentifier("skills.sheet.import.reason.\(item.id)")
             }
             if !item.identical && item.valid {
@@ -195,7 +195,7 @@ struct ImportPlanView: View {
             if !plan.replace.isEmpty {
                 Section {
                     Label(L("skills.sheet.import.plan.warning"), systemImage: Symbols.warning)
-                        .font(.uiCaption).foregroundStyle(Brand.warning)
+                        .font(.uiCaption).foregroundStyle(Brand.warningText)
                         .accessibilityIdentifier("skills.sheet.import.plan.warning")
                 } footer: {
                     SettingsFooter(L("skills.sheet.import.plan.trashDetail"))

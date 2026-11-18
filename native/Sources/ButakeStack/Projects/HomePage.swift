@@ -329,7 +329,7 @@ private struct HomeProjectCard: View {
                  open: { Motion.run(.smooth(duration: 0.3)) { store.openSite(project.id) } }) {
             // Something it needs (P-42): the first cause on hover, the rest on its page.
             if !project.isMissing, let first = store.attention[project.id]?.first {
-                Image(systemName: Symbols.warning).foregroundStyle(Brand.warning).help(store.attentionText(first))
+                Image(systemName: Symbols.warning).foregroundStyle(Brand.warningText).help(store.attentionText(first))
                     .accessibilityLabel(L("attention.title"))
                     .accessibilityIdentifier("home.site.attention.\(project.id)")
             }

@@ -158,7 +158,7 @@ private struct KeyRow: View {
                         HStack(spacing: 8) {
                             Label(L("ssh.keys.protected"), systemImage: Symbols.locked).font(.uiCaption).foregroundStyle(.secondary)
                             if keyring.loaded(key.id) {
-                                Label(L("ssh.keys.inAgent"), systemImage: Symbols.success).font(.uiCaption).foregroundStyle(Brand.success)
+                                Label(L("ssh.keys.inAgent"), systemImage: Symbols.success).font(.uiCaption).foregroundStyle(Brand.successText)
                             }
                             if SSHKeyVault.has(key.id) {
                                 Label(L("ssh.keys.inKeychain"), systemImage: Symbols.keychain).font(.uiCaption).foregroundStyle(.secondary)
@@ -269,7 +269,7 @@ private struct GenerateKeyForm: View {
                     KeyGroupPicker(group: $group, groups: groups)
                     TextField(L("ssh.keys.comment"), text: $comment).formField(L("ssh.keys.comment")).accessibilityIdentifier("ssh.keys.generate.comment")
                 } footer: {
-                    if !commentValid { Text(L("ssh.keys.commentInvalid")).font(.uiCaption).foregroundStyle(Brand.danger) }
+                    if !commentValid { Text(L("ssh.keys.commentInvalid")).font(.uiCaption).foregroundStyle(Brand.dangerText) }
                 }
                 Section {
                     SecureField(L("ssh.keys.passphraseOptional"), text: $passphrase).formField(L("ssh.keys.passphrase"))
@@ -281,7 +281,7 @@ private struct GenerateKeyForm: View {
                     }
                 } footer: {
                     if passphrase != confirmation && !confirmation.isEmpty {
-                        Text(L("ssh.keys.passphraseMismatch")).font(.uiCaption).foregroundStyle(Brand.danger)
+                        Text(L("ssh.keys.passphraseMismatch")).font(.uiCaption).foregroundStyle(Brand.dangerText)
                     }
                 }
             }

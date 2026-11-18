@@ -82,7 +82,7 @@ struct SchemaDiagramPanel: View {
                 if let schema {
                     Text(String(format: L("db.diagram.summary"), schema.tables.count, schema.foreignKeys.count)).font(.uiCaption).foregroundStyle(.secondary)
                     if schema.tables.count > Self.limit {
-                        Text(String(format: L("db.diagram.limited"), Self.limit)).font(.uiCaption).foregroundStyle(Brand.warning)
+                        Text(String(format: L("db.diagram.limited"), Self.limit)).font(.uiCaption).foregroundStyle(Brand.warningText)
                     }
                 }
                 if let focused { Label(String(format: L("db.diagram.focused"), focused.split(separator: ".").last.map(String.init) ?? focused), systemImage: Symbols.focus).font(.uiCaption).accessibilityIdentifier("db.diagram.focused") }

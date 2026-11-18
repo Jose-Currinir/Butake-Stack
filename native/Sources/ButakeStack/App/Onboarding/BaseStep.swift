@@ -110,7 +110,7 @@ struct BaseStep: View {
         LabeledContent {
             HStack(spacing: 8) {
                 if done {
-                    Label(L("setup.ready"), systemImage: Symbols.success).foregroundStyle(Brand.success)
+                    Label(L("setup.ready"), systemImage: Symbols.success).foregroundStyle(Brand.successText)
                 } else {
                     action()
                 }

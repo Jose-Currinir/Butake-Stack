@@ -231,7 +231,7 @@ private struct TransferRow: View {
                 ProgressView(value: transfer.progress).progressViewStyle(.linear)
                     .tint(transfer.state == .failed ? Brand.danger : nil)
                 if transfer.state == .failed, !transfer.detail.isEmpty {
-                    Text(transfer.detail).font(.uiCaption).foregroundStyle(Brand.danger).lineLimit(2)
+                    Text(transfer.detail).font(.uiCaption).foregroundStyle(Brand.dangerText).lineLimit(2)
                 }
             }
             if transfer.state == .running {

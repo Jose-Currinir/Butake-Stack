@@ -139,7 +139,7 @@ struct ProjectSettingsSheet: View {
                     }.accessibilityIdentifier("editor.rust")
                 }
                 if let node = project.node, !(store.installedTools["node"] ?? []).contains(where: { $0.version.hasPrefix(node + ".") }) {
-                    Label(String(format: L("editor.nodeMissing"), node), systemImage: Symbols.warning).foregroundStyle(Brand.warning)
+                    Label(String(format: L("editor.nodeMissing"), node), systemImage: Symbols.warning).foregroundStyle(Brand.warningText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 if pythonSite && !isNew {

@@ -49,7 +49,7 @@ struct SnippetPicker: View {
                 .frame(minHeight: 160, maxHeight: 320)
             }
             if refused {
-                Text(L("ssh.snippets.multilineRefused")).font(.uiCaption).foregroundStyle(Brand.warning)
+                Text(L("ssh.snippets.multilineRefused")).font(.uiCaption).foregroundStyle(Brand.warningText)
             }
         }
         }

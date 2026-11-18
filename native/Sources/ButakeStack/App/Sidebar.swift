@@ -221,7 +221,7 @@ extension Sidebar {
                 Spacer()
                 if project.isMissing {
                     // Said in words: a project whose folder is not there is never lost in silence.
-                    Text(L("missing.badge")).font(.caption).foregroundStyle(Brand.warning).lineLimit(1)
+                    Text(L("missing.badge")).font(.caption).foregroundStyle(Brand.warningText).lineLimit(1)
                         .help(L("missing.title")).accessibilityIdentifier("route.site.missing.\(project.id)")
                 } else {
                     // Open to anyone on the internet while shared (temporary or fixed address).
@@ -252,7 +252,7 @@ extension Sidebar {
             HStack(spacing: 6) {
                 Text(repository.title).lineLimit(1).foregroundStyle(.secondary)
                 Spacer()
-                Text(L("groups.newRepo")).font(.caption.weight(.semibold)).foregroundStyle(Brand.info)
+                Text(L("groups.newRepo")).font(.caption.weight(.semibold)).foregroundStyle(Brand.infoText)
                     .accessibilityIdentifier("sidebar.new.badge.\(repository.title)")
                 Button(L("groups.newRepoAdd")) { Task { await store.openFolder(repository.path) } }
                     .buttonStyle(.borderless).font(.caption).foregroundStyle(Brand.accent)

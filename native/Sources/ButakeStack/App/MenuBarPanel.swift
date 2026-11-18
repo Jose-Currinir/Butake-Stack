@@ -82,7 +82,7 @@ struct MenuPanel: View {
                 let unavailable = dns.mode == "unavailable"
                 Label(String(format: L(unavailable ? "panel.dnsOff" : "panel.dnsOn"), store.config?.tld.first ?? "test"),
                       systemImage: unavailable ? Symbols.warning : Symbols.success)
-                    .font(.caption2).foregroundStyle(unavailable ? Brand.warning : .secondary)
+                    .font(.caption2).foregroundStyle(unavailable ? Brand.warningText : .secondary)
                     .help(L("panel.dnsHelp")).padding(.horizontal, 14).padding(.bottom, 2)
                     .accessibilityIdentifier("panel.dns")
             }
@@ -290,7 +290,7 @@ private struct PanelFailureBanner: View {
     let dismiss: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(failure.title, systemImage: Symbols.warning).font(.callout.weight(.semibold)).foregroundStyle(Brand.danger)
+            Label(failure.title, systemImage: Symbols.warning).font(.callout.weight(.semibold)).foregroundStyle(Brand.dangerText)
             Text(failure.message).font(.caption).foregroundStyle(.secondary)
             HStack(spacing: 6) {
                 if let retry = failure.retry {

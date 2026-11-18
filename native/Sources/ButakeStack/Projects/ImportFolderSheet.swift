@@ -61,7 +61,7 @@ struct ImportFolderSheet: View {
         } status: {
             if !failures.isEmpty {
                 Label(String(format: L("import.failed"), failures.joined(separator: "; ")), systemImage: Symbols.warning)
-                    .font(.uiCaption).foregroundStyle(Brand.warning).lineLimit(3)
+                    .font(.uiCaption).foregroundStyle(Brand.warningText).lineLimit(3)
                     .help(failures.joined(separator: "\n")).accessibilityIdentifier("import.failures")
             } else {
                 Toggle(L("watch.toggle"), isOn: $watch)

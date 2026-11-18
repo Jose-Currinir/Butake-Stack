@@ -346,7 +346,7 @@ struct EnvironmentsView: View {
             }
             .fixedSize().accessibilityIdentifier("env.more")
             Spacer()
-            if dirty { Text(L("env.unsaved")).font(.uiCaption).foregroundStyle(Brand.warning) }
+            if dirty { Text(L("env.unsaved")).font(.uiCaption).foregroundStyle(Brand.warningText) }
             Button { Task { await save() } } label: { Label(L("common.save"), systemImage: Symbols.save) }
                 .buttonStyle(.bordered).disabled(!dirty || store.busy != nil).accessibilityIdentifier("env.save")
             if let current {

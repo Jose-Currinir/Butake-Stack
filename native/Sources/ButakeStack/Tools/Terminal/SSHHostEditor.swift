@@ -220,7 +220,7 @@ private struct SSHForwardEditor: View {
             }
         } footer: {
             if forward.listenPort != 0 && !(1024...65535).contains(forward.listenPort) {
-                Text(L("ssh.forward.lowPort")).font(.uiCaption).foregroundStyle(Brand.danger)
+                Text(L("ssh.forward.lowPort")).font(.uiCaption).foregroundStyle(Brand.dangerText)
             } else {
                 SettingsFooter(L("ssh.forward.help.\(forward.kind)"))
             }

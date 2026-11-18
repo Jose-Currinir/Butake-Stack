@@ -216,7 +216,7 @@ struct SQLPanel: View {
 
     @ViewBuilder var transactionControls: some View {
         if inTransaction {
-            Label(L("db.tx.open"), systemImage: Symbols.transaction).font(.uiCaption.weight(.semibold)).lineLimit(1).fixedSize().foregroundStyle(Brand.warning)
+            Label(L("db.tx.open"), systemImage: Symbols.transaction).font(.uiCaption.weight(.semibold)).lineLimit(1).fixedSize().foregroundStyle(Brand.warningText)
                 .help(L("db.tx.openHelp")).accessibilityIdentifier("db.sql.tx.state")
             Button { Task { await client.endTransaction(connection, database, commit: true) } } label: { Label(L("db.tx.commit"), systemImage: Symbols.success).fixedSize() }
                 .buttonStyle(.borderedProminent).controlSize(.small).accessibilityIdentifier("db.sql.tx.commit")

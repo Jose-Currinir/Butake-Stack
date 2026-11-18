@@ -23,7 +23,7 @@ struct UpdateSheet: View {
                 Label(L("updateVerification"), systemImage: Symbols.verified).font(.uiCaption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
             }
             if case .failed(let message) = updates.phase {
-                Label(message, systemImage: Symbols.warning).font(.uiCallout).foregroundStyle(Brand.warning).frame(maxWidth: .infinity, alignment: .leading)
+                Label(message, systemImage: Symbols.warning).font(.uiCallout).foregroundStyle(Brand.warningText).frame(maxWidth: .infinity, alignment: .leading)
             }
             if busy {
                 HStack(spacing: 10) { ProgressView().controlSize(.small); Text(progressText).font(.uiCallout).foregroundStyle(.secondary) }

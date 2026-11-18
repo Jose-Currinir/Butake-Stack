@@ -40,7 +40,7 @@ struct ConfirmChangeSheet: View {
                 TextField(name, text: $typed).textFieldStyle(.roundedBorder).accessibilityIdentifier("db.confirm.typed")
             }
             if let connection = pending.typedConnection {
-                Text(String(format: L("db.confirm.typeConnection"), connection)).foregroundStyle(Brand.danger)
+                Text(String(format: L("db.confirm.typeConnection"), connection)).foregroundStyle(Brand.dangerText)
                 TextField(connection, text: $typedConnection).textFieldStyle(.roundedBorder).accessibilityIdentifier("db.confirm.typedConnection")
             }
             HStack {

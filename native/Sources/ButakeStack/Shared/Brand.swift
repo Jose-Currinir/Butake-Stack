@@ -21,6 +21,18 @@ import SwiftUI
     static var warning: Color { theme.warning.color }
     static var info: Color { theme.modified.color }
     static var special: Color { theme.renamed.color }
+    // A state's color as text. `success`, `warning`, `danger` and `info` stay for icons, dots and edges
+    // (3:1 is enough); a state that is written in words uses these, shaded just enough to read at
+    // 4.5:1 on the state's own tint (Contrast.readable). Dark themes mostly read already: they come out equal or a little lighter.
+    static var successText: Color { statusText(theme.addition) }
+    static var warningText: Color { statusText(theme.warning) }
+    static var dangerText: Color { statusText(theme.deletion) }
+    static var infoText: Color { statusText(theme.modified) }
+    /// The backgrounds a text of the theme sits on.
+    static func grounds(for theme: Theme) -> [HexColor] { [backgroundColor(for: theme), surfaceColor(for: theme)] }
+    static func statusText(_ color: HexColor, in theme: Theme = Brand.theme, fill: Double = Contrast.chipFill) -> Color {
+        Contrast.readable(color, isDark: theme.isDark, over: grounds(for: theme), fill: fill).color
+    }
     static var surface: Color { surface(for: theme) }
     /// The pages' background: nothing with a theme that uses the system's (the window's own shows),
     /// the theme's color with one that paints its own.
@@ -36,11 +48,11 @@ import SwiftUI
     static func surface(for theme: Theme) -> Color { surfaceColor(for: theme).color }
     static func background(for theme: Theme) -> Color { backgroundColor(for: theme).color }
 
-    private static func surfaceColor(for theme: Theme) -> HexColor {
+    static func surfaceColor(for theme: Theme) -> HexColor {
         theme.surface ?? (theme.isDark ? darkSurface : lightSurface)
     }
 
-    private static func backgroundColor(for theme: Theme) -> HexColor {
+    static func backgroundColor(for theme: Theme) -> HexColor {
         theme.background ?? (theme.isDark ? darkBackground : lightBackground)
     }
 
@@ -84,7 +96,7 @@ private struct ChromeGlass: ViewModifier {
         } else if reduceTransparency {
             content
                 .background(Brand.surface, in: shape)
-                .overlay(shape.strokeBorder(Color(nsColor: .separatorColor)).allowsHitTesting(false))
+                .separatorEdge(in: shape)
         } else if #available(macOS 26.0, *) {
             content.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
         } else {
@@ -95,7 +107,7 @@ private struct ChromeGlass: ViewModifier {
 extension View {
     func workSurface(radius: CGFloat = 16) -> some View {
         background(Brand.surface, in: RoundedRectangle(cornerRadius: radius))
-            .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(Color(nsColor: .separatorColor).opacity(0.65)).allowsHitTesting(false))
+            .separatorEdge(opacity: 0.65, in: RoundedRectangle(cornerRadius: radius))
     }
 
     func chromeGlass(interactive: Bool = false, enabled: Bool = true) -> some View {
