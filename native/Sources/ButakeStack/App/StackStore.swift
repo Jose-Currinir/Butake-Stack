@@ -83,6 +83,13 @@ import SwiftUI
     /// panel: each surface shows its own, and an error never opens the window (StackStore+Attention).
     var failure: ActionFailure?
     var panelFailure: ActionFailure?
+    /// Reads that failed and are said on their own page, by what was read (StackStore+Failures).
+    var pageFailures: [ReadArea: ActionFailure] = [:]
+    @ObservationIgnored var readFailureCounts: [ReadArea: Int] = [:]
+    /// The last failures of this session, for the problem report (StackStore+Failures).
+    var recentFailures: [FailureRecord] = []
+    /// Ayuda › «Informar de un problema…»: the sheet that builds the report.
+    var showReport = false
     var toast: String?
     /// The last action that can be undone, offered in the window's notice with «Deshacer» (StackStore+Undo).
     var undoOffer: UndoOffer?
@@ -286,13 +293,19 @@ import SwiftUI
         }
     }
     func refreshRuntimes() async {
-        phpRuntimes = (try? await call(["method": "listPhpRuntimes"])) ?? []
-        pythonRuntimes = (try? await call(["method": "listPythonRuntimes"])) ?? []
-        terminalLinks = (try? await call(["method": "terminalStatus"])) ?? [:]
-        recipes = (try? await call(["method": "engineRecipes"])) ?? recipes
-        for tool in ["node", "jdk", "caddy"] + Route.allEngines {
-            installedTools[tool] = (try? await call(["method": "installedTools", "tool": tool])) ?? []
+        // A read that fails keeps the last list and is said on the page, instead of reading as «nothing installed».
+        var failed: Error?
+        func read<T: Decodable & Sendable>(_ parameters: [String: Any]) async -> T? {
+            do { return try await call(parameters) } catch { failed = failed ?? error; return nil }
         }
+        if let value: [PhpRuntimeSummary] = await read(["method": "listPhpRuntimes"]) { phpRuntimes = value }
+        if let value: [PythonRuntime] = await read(["method": "listPythonRuntimes"]) { pythonRuntimes = value }
+        if let value: [String: TerminalLink] = await read(["method": "terminalStatus"]) { terminalLinks = value }
+        if let value: [EngineRecipe] = await read(["method": "engineRecipes"]) { recipes = value }
+        for tool in ["node", "jdk", "caddy"] + Route.allEngines {
+            if let value: [ToolManifest] = await read(["method": "installedTools", "tool": tool]) { installedTools[tool] = value }
+        }
+        readDone(.runtimes, failed, retry: { [weak self] in await self?.refreshRuntimes() })
     }
     /// A catalog that cannot be read is said in its picker (with «Reintentar»), never as an alert.
     func loadAvailable(_ tool: String, refresh: Bool = false) async {
@@ -345,6 +358,7 @@ import SwiftUI
     /// Says what went wrong where the action was asked: the window's alert, or the panel's banner.
     func report(_ error: Error, title: String? = nil, from surface: StopSurface = .window, retry: (@MainActor () async -> Void)? = nil) {
         let failure = ActionFailure(error: error, title: title, retry: retry)
+        record(failure)
         if surface == .panel { panelFailure = failure } else { self.failure = failure }
     }
     /// What the alert of the window shows: a failure with its buttons, or a plain message.

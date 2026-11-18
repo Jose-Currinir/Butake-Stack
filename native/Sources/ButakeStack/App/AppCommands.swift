@@ -162,6 +162,7 @@ struct AppCommands: Commands {
             Button(L("menu.setup")) { inWindow { store.showSetup = true } }
             Button(L("menu.website")) { NSWorkspace.shared.open(Self.website) }
             Button(L("menu.shortcuts")) { inWindow { store.showShortcuts = true } }.shortcut(Shortcuts.shortcutsSheet)
+            Button(L("menu.reportProblem")) { inWindow { store.showReport = true } }
             if gitEnabled {
                 Divider()
                 Button(L("git.dictionary.titleEllipsis")) { GitDictionaryLink.open(openWindow) }

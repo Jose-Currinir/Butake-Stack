@@ -14,9 +14,17 @@ struct ServiceStopRequest: Identifiable, Hashable {
 /// menu bar panel.
 enum StopSurface: Hashable, Sendable { case window, panel }
 
+/// How much a failure costs, which decides where it is said (E-02). The rule, in one line: if the action
+/// the user asked for did not happen and they must decide, it is `.blocking` (an alert, like always);
+/// if something smaller failed or only part of it happened and the page still works, it is `.partial` (a
+/// line on that page with «Reintentar», never a modal). Reads of a list are `.partial`; a button pressed
+/// is `.blocking`. The default is the strong one, so forgetting the parameter never hides a failure.
+enum FailureImpact: Hashable, Sendable { case blocking, partial }
+
 /// An error ready to show on the surface that asked: what happened, the cause when the engine
 /// says it, and the button that helps («Reintentar» when the action can run again, «Abrir Registros»
-/// when the cause is not known). The window shows it as an alert and the panel as a banner.
+/// when the cause is not known). The window shows it as an alert and the panel as a banner; a
+/// `.partial` one is a line on its page (`PartialFailureNotice`).
 struct ActionFailure: Identifiable {
     let id = UUID()
     var title: String
@@ -25,16 +33,22 @@ struct ActionFailure: Identifiable {
     var retry: (@MainActor () async -> Void)?
     /// The engine gave no cause of its own: the logs may have it.
     var offersLogs = false
+    var impact: FailureImpact = .blocking
+    /// The engine's code and its own detail, for «Copiar detalles» (never shown in the alert itself).
+    var code: String?
+    var technical: String?
 
-    init(title: String, message: String, retry: (@MainActor () async -> Void)? = nil, offersLogs: Bool = false) {
-        self.title = title; self.message = message; self.retry = retry; self.offersLogs = offersLogs
+    init(title: String, message: String, retry: (@MainActor () async -> Void)? = nil, offersLogs: Bool = false,
+         impact: FailureImpact = .blocking) {
+        self.title = title; self.message = message; self.retry = retry; self.offersLogs = offersLogs; self.impact = impact
     }
 
-    init(error: Error, title: String? = nil, retry: (@MainActor () async -> Void)? = nil) {
+    init(error: Error, title: String? = nil, impact: FailureImpact = .blocking, retry: (@MainActor () async -> Void)? = nil) {
         let known = (error as? EngineFailure).map {
             $0.messageKey != "engine.requestFailed" && (localized($0.messageKey) != nil || $0.detail != nil)
         } ?? false
-        self.init(title: title ?? L("error.title"), message: EngineFailure.message(error), retry: retry, offersLogs: !known)
+        self.init(title: title ?? L("error.title"), message: EngineFailure.message(error), retry: retry, offersLogs: !known, impact: impact)
+        if let failure = error as? EngineFailure { code = failure.code; technical = failure.detail } else { technical = String(describing: error) }
     }
 }
 
@@ -152,6 +166,8 @@ private struct FailureAlert: ViewModifier {
             if failure.offersLogs {
                 Button(L("error.openLogs")) { store.route = .tool("logs") }.accessibilityIdentifier("error.openLogs")
             }
+            Button(L("error.copyDetails")) { ProblemReport.copy(ProblemReport.details(of: failure)) }
+                .accessibilityIdentifier("error.copyDetails")
             Button(L("common.cancel"), role: .cancel) {}
         } message: { Text($0.message) }
     }

@@ -10,6 +10,7 @@ struct LanguagePage: View {
 
     var body: some View {
         Form {
+            PartialFailureNotice(store: store, area: .runtimes).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
             VersionsSection(store: store, provider: .language(name, store: store), scope: scope,
                             footer: L("language.\(name).versionsFooter"))
             LanguageOptionsSection(store: store, language: name)

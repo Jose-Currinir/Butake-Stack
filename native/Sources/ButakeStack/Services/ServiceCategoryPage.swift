@@ -26,6 +26,7 @@ struct CategoryPage: View {
 
     var body: some View {
         Form {
+            PartialFailureNotice(store: store, area: .runtimes).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
             if category == "broadcasting" { ReverbSection(store: store) { logProcess = $0 } }
             if installed.contains("postgres"), store.postgresWithoutExtensions, let version = store.engineVersion("postgres") {
                 Section {

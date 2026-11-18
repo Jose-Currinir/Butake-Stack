@@ -26,6 +26,17 @@ import SwiftUI
                 NSApp.activate(ignoringOtherApps: true)
             }
         }
+        // BUTAKE_QA_REPORT: Ayuda › «Informar de un problema…» with two invented failures in the session.
+        if env["BUTAKE_QA_REPORT"] != nil {
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                let store = StackStore.shared
+                store.report(EngineFailure(code: "port_in_use", messageKey: "error.port_in_use", detail: "puerto 5432 ocupado; token=ghp_InventadoParaLaCapturaDeEjemplo0123456789"))
+                store.report(EngineFailure(code: "folder_missing", messageKey: "error.folder_missing", detail: "\(NSHomeDirectory())/Stack/Projects/demo"))
+                store.dismissFailure()
+                store.showReport = true
+            }
+        }
         if let setup = env["BUTAKE_QA_SETUP"] {
             Task {
                 try? await Task.sleep(for: .seconds(2))

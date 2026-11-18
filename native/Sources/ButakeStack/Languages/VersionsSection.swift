@@ -102,7 +102,7 @@ struct VersionsSection: View {
         Section {
             if let requirement = provider.requirement {
                 ToolRow(store: store, tool: requirement, padded: false)
-            } else if provider.installed.isEmpty {
+            } else if provider.installed.isEmpty, store.pageFailures[.runtimes] == nil {
                 ContentUnavailableView {
                     Label(String(format: L("runtimes.noneTitle"), provider.title), systemImage: Symbols.versions)
                 } description: {
