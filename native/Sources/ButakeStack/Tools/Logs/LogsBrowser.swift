@@ -59,8 +59,14 @@ struct LogGroup: Identifiable, Equatable {
     var search = ""
     /// Edición › Buscar (⌘F): the list of sources takes the keyboard in its search field.
     var searchRequests = 0
+    /// ⌘F with a log on screen: the filter of its lines takes the keyboard.
+    var filterRequests = 0
     /// Filter of the lines on screen.
+    #if DEBUG
+    var filter = QAHooks.logFilter ?? ""
+    #else
     var filter = ""
+    #endif
     var level: LogLevel = .all
     /// The lines of a source frozen while it is paused.
     var paused: [String: [String]] = [:]

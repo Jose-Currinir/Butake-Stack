@@ -238,6 +238,10 @@ import SwiftUI
     /// Text the sidebar's search starts with (BUTAKE_QA_SEARCH).
     static var sidebarSearch: String? { value("BUTAKE_QA_SEARCH") }
 
+    /// Text Inicio's filter and Registros' line filter start with (BUTAKE_QA_HOME_FILTER, BUTAKE_QA_LOG_FILTER).
+    static var homeFilter: String? { value("BUTAKE_QA_HOME_FILTER") }
+    static var logFilter: String? { value("BUTAKE_QA_LOG_FILTER") }
+
     // MARK: Utilities
 
     /// The confirmation to install this utility, open on the Utilidades page (BUTAKE_QA_UTILITY_SHEET).

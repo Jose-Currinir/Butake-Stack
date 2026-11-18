@@ -24,7 +24,10 @@ struct LogsPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar { toolbar }
-        .focusedSceneValue(\.textFinder, TextFinderRequest { browser.searchRequests += 1 })
+        .focusedSceneValue(\.textFinder, TextFinderRequest {
+            // The lines of the log on screen; with none, the list of sources.
+            if let source = browser.selection, source != LogsBrowser.vaultSource { browser.filterRequests += 1 } else { browser.searchRequests += 1 }
+        })
         .onChange(of: groups, initial: true) { _, groups in
             // Keep what was asked for; otherwise the web server, or the first source on screen.
             let sources = groups.flatMap(\.sources)
