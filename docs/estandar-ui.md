@@ -155,6 +155,8 @@ menús) y vuelve a ser solo de barra de menús al cerrarla.
 | Eliminar | Borrar, Olvidar | Cuando se pierden datos |
 | Quitar | — | Cuando solo sale de la lista |
 | Tiempo real | Broadcasting | Servicios de WebSocket |
+| Stack, servicio de fondo de Stack | Supervisor, motor, daemon | Lo que corre detrás de la app |
+| Página web | Sitio web | Lo que un proyecto sirve en .test |
 
 Mayúscula solo en la primera palabra. Los puntos suspensivos indican que la acción pide más
 datos. Sin textos explicativos de más de una línea: lo que sobra va a `.help`. El código puede
