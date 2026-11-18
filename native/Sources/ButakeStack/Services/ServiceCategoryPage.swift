@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// A service type (databases, cache and queues…): one row per installed service with its state,
@@ -53,6 +54,11 @@ struct CategoryPage: View {
                                 .accessibilityIdentifier("\(scope).\(name).install")
                         } label: {
                             EngineLabel(name: name, detail: DownloadInfo.of(name).source)
+                        }
+                        .contextMenu {
+                            Button { picking = name } label: { Label(L("category.install"), systemImage: Symbols.install) }
+                                .disabled(store.busy != nil)
+                                .accessibilityIdentifier("\(scope).\(name).install.context")
                         }
                     }
                 }
@@ -139,6 +145,23 @@ private struct EngineRow: View {
             LogoRow { controls(titled: false) } label: { EngineLabel(name: name, detail: detail) }
         }
         .accessibilityIdentifier(scope)
+        // The same actions as the row's buttons and its «⋯» menu.
+        .contextMenu {
+            Button { Task { await store.setEngine(name, enabled: !enabled) } } label: {
+                Label(enabled ? L("engine.stop") : L("engine.start"), systemImage: enabled ? Symbols.stop : Symbols.start)
+            }
+            .disabled(store.busy != nil)
+            .accessibilityIdentifier("\(scope).\(enabled ? "stop" : "start").context")
+            if let port = store.enginePort(name) {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString("127.0.0.1:\(port)", forType: .string)
+                } label: { Label(L("engine.copyAddress"), systemImage: Symbols.copy) }
+                    .accessibilityIdentifier("\(scope).copyAddress")
+            }
+            Divider()
+            menuItems
+        }
     }
 
     private func controls(titled: Bool) -> some View {
@@ -161,7 +184,15 @@ private struct EngineRow: View {
     }
 
     private var menu: some View {
-        Menu {
+        Menu { menuItems } label: {
+            Label(L("runtimes.actions"), systemImage: Symbols.more).labelStyle(.iconOnly)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .help(L("runtimes.actions"))
+        .accessibilityIdentifier("\(scope).menu")
+    }
+
+    @ViewBuilder private var menuItems: some View {
             Button(action: logs) { Label(L("engine.logs"), systemImage: Symbols.logs) }
                 .disabled(!enabled)
             Button { Folder.open("data/\(name)") } label: { Label(L("engine.showData"), systemImage: Symbols.folder) }
@@ -173,12 +204,6 @@ private struct EngineRow: View {
             Button(role: .destructive, action: remove) { Label(L("engine.remove"), systemImage: Symbols.delete) }
                 .disabled(enabled || store.busy != nil)
                 .help(enabled ? L("engine.removeRunning") : "")
-        } label: {
-            Label(L("runtimes.actions"), systemImage: Symbols.more).labelStyle(.iconOnly)
-        }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-        .help(L("runtimes.actions"))
-        .accessibilityIdentifier("\(scope).menu")
     }
 }
 
