@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Resumen of a project: where it answers and lives, what it runs on and uses, sharing and Git.
-/// Read-only; what can be changed is in «Ajustes del proyecto…».
+/// Resumen of a project: what it runs on and uses, its folder, sharing and Git (its state and address
+/// are in the page's head). Two columns from `wideWidth` on, one below. Read-only; what can be changed is in «Ajustes del proyecto…».
 struct ProjectSummary: View {
     @Bindable var store: StackStore
     let project: Project
@@ -13,71 +13,94 @@ struct ProjectSummary: View {
         ["php", "node", "jdk", "python"].compactMap { key in project.runtime[key].map { (key, $0) } }
     }
 
+    /// From this page width on, the sections go in two columns.
+    static let wideWidth: CGFloat = 1100
+    @State private var wide = false
+
     var body: some View {
-        Form {
-            Section {
-                if project.isServed {
-                    LabeledContent(L("project.state")) {
-                        let phase = store.sitePhase(project)
-                        HStack(spacing: 6) {
-                            StatusRing(phase: phase, size: 10).accessibilityHidden(true)
-                            Text(project.enabled ? L("state.\(phase.rawValue)") : L("site.off"))
-                        }
-                    }
-                } else {
-                    // What it is: built with what, and that Stack does not serve it.
-                    LabeledContent(L("common.type")) {
-                        Text(project.technology.map { "\(Tech.of($0).title) · \(L("kind.unserved"))" } ?? L("kind.unserved"))
-                    }
-                    Text(L("unserved.detail")).font(.uiCaption).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+        Group {
+            if wide {
+                HStack(alignment: .top, spacing: 0) {
+                    Form { primary }.formStyle(.grouped).themedScroll().accessibilityIdentifier("project.summary.left")
+                    Form { secondary }.formStyle(.grouped).themedScroll().accessibilityIdentifier("project.summary.right")
                 }
-                if let url = project.url {
-                    InfoRow(title: L("common.address"), value: url.absoluteString, copyID: "project.copyAddress", link: url, linkID: "project.address")
-                }
-                FolderRow(path: project.path)
-                if project.isServed {
-                    LabeledContent(L("site.docroot")) { Text(project.docroot).textSelection(.enabled) }
-                }
-                if let upstream = project.upstream {
-                    LabeledContent(L("site.upstream")) { Text(verbatim: "127.0.0.1:\(upstream)").monospacedDigit().textSelection(.enabled) }
-                }
-                if let env = store.activeEnvironment(project.id) {
-                    LabeledContent(L("env.activeLabel")) { Chip(env: env) }
-                }
-            }
-            if !project.isServed {
-                ProjectCommandsSection(store: store, project: project, showLog: showLog)
-            }
-            if !runtimes.isEmpty {
-                Section(L("site.environment")) {
-                    ForEach(runtimes, id: \.key) { item in
-                        ProjectVersionRow(store: store, project: project, key: item.key)
-                    }
-                }
-            }
-            if !project.services.isEmpty {
-                Section(L("site.services")) {
-                    ForEach(project.services, id: \.self) { service in
-                        TechRow(tech: .of(service), value: store.engineVersion(service) ?? L("panel.notInstalled")) {
-                            store.route = .service(Route.category(of: service))
-                        }
-                        .help(L("palette.openPage"))
-                        .accessibilityIdentifier("project.service.\(service)")
-                    }
-                }
-            }
-            ProjectExtensionsSection(store: store, project: project)
-            ProjectCredentialsSection(store: store, project: project)
-            if store.pluginEnabled("gcp") { GCPProjectSection(project: project) }
-            if project.isServed { ShareSection(store: store, project: project) }
-            if let info = store.git[project.id] {
-                GitSection(store: store, project: project, info: info)
-            } else if store.pluginEnabled("git") && !project.isMissing {
-                GitCreateHereSection(project: project)
+            } else {
+                Form { primary; secondary }.formStyle(.grouped).themedScroll()
             }
         }
-        .formStyle(.grouped).themedScroll()
+        .onGeometryChange(for: Bool.self) { $0.size.width >= Self.wideWidth } action: { wide = $0 }
+    }
+
+    /// Versiones, Procesos, Servicios que usa and what the project is given by other tools.
+    @ViewBuilder private var primary: some View {
+        if !project.isServed {
+            // What it is: built with what, and that Stack does not serve it.
+            Section {
+                LabeledContent(L("common.type")) {
+                    Text(project.technology.map { "\(Tech.of($0).title) · \(L("kind.unserved"))" } ?? L("kind.unserved"))
+                }
+                Text(L("unserved.detail")).font(.uiCaption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            ProjectCommandsSection(store: store, project: project, showLog: showLog)
+        }
+        if !runtimes.isEmpty {
+            Section(L("site.environment")) {
+                ForEach(runtimes, id: \.key) { item in
+                    ProjectVersionRow(store: store, project: project, key: item.key)
+                }
+            }
+        }
+        if project.isServed && !project.processes.isEmpty {
+            Section(L("site.processes")) {
+                ForEach(project.processes) { process in
+                    let phase = store.phase("\(project.id).\(process.name)")
+                    LabeledContent(process.name) {
+                        HStack(spacing: 6) {
+                            StatusDot(color: phase.color, symbol: phase.markSymbol, label: L("state.\(phase.rawValue)"))
+                            Text(L("state.\(phase.rawValue)")).foregroundStyle(phase == .crashed ? Brand.dangerText : .secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("project.process.\(process.name)")
+                }
+            }
+        }
+        if !project.services.isEmpty {
+            Section(L("site.services")) {
+                ForEach(project.services, id: \.self) { service in
+                    TechRow(tech: .of(service), value: store.engineVersion(service) ?? L("panel.notInstalled")) {
+                        store.route = .service(Route.category(of: service))
+                    }
+                    .help(L("palette.openPage"))
+                    .accessibilityIdentifier("project.service.\(service)")
+                }
+            }
+        }
+        ProjectExtensionsSection(store: store, project: project)
+        ProjectCredentialsSection(store: store, project: project)
+    }
+
+    /// Git, Carpeta, Compartir en internet and Google Cloud. The state and the address are in the head.
+    @ViewBuilder private var secondary: some View {
+        if let info = store.git[project.id] {
+            GitSection(store: store, project: project, info: info)
+        } else if store.pluginEnabled("git") && !project.isMissing {
+            GitCreateHereSection(project: project)
+        }
+        Section(L("common.folder")) {
+            FolderRow(path: project.path)
+            if project.isServed {
+                LabeledContent(L("site.docroot")) { Text(project.docroot).textSelection(.enabled) }
+            }
+            if let upstream = project.upstream {
+                LabeledContent(L("site.upstream")) { Text(verbatim: "127.0.0.1:\(upstream)").monospacedDigit().textSelection(.enabled) }
+            }
+            if let env = store.activeEnvironment(project.id) {
+                LabeledContent(L("env.activeLabel")) { Chip(env: env) }
+            }
+        }
+        if project.isServed { ShareSection(store: store, project: project) }
+        if store.pluginEnabled("gcp") { GCPProjectSection(project: project) }
     }
 }
 

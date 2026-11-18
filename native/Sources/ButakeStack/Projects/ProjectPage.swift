@@ -25,9 +25,9 @@ extension ProjectPage.Tab {
     var shortcutKey: Character { switch self { case .summary: "1"; case .envs: "2"; case .processes: "3"; case .logs: "4" } }
 }
 
-/// A project as its own page, like an inspector: the name and kind live in the window's bar, the
-/// tabs (Resumen, Entornos, Procesos when it has them, Registros) in the toolbar with the page's
-/// actions, and editing in «Ajustes del proyecto…».
+/// A project as its own page: its head (`ProjectHeader`: logo, name, kind and address, state and
+/// actions with their words), the tabs under it (Resumen, Entornos, Procesos when it has them,
+/// Registros) and editing in «Ajustes del proyecto…». The window's toolbar keeps only its «+».
 struct ProjectPage: View {
     @Bindable var store: StackStore
     let project: Project
@@ -38,8 +38,6 @@ struct ProjectPage: View {
     @MainActor static var requestedTab: Tab?
     @State private var editing = false
     @State private var logProcess: String?
-    /// A narrow page: the tabs become a menu so the actions and the switch keep their room.
-    @State private var narrow = false
 
     /// Procesos only exists for a served project that runs processes (a project without a server
     /// has its commands in Resumen); Registros always (Caddy, PHP-FPM, its commands…).
@@ -50,6 +48,8 @@ struct ProjectPage: View {
             if project.isMissing {
                 MissingProjectPanel(store: store, project: project)
             } else {
+                ProjectHeader(store: store, project: project) { editing = true }
+                DetailTabs(tabs: tabs, selection: $tab, title: { L("site.tab.\($0.rawValue)") }, label: L("site.tabs"))
                 notices
                 switch tab {
                 case .summary: ProjectSummary(store: store, project: project) { id in logProcess = id; tab = .logs }
@@ -60,8 +60,6 @@ struct ProjectPage: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onGeometryChange(for: Bool.self) { $0.size.width < 900 } action: { narrow = $0 }
-        .toolbar { toolbar }
         .sheet(isPresented: $editing) { ProjectSettingsSheet(store: store, project: project, notes: [], isNew: false).themedSheet() }
         .focusedSceneValue(\.projectSettings, project.isMissing ? nil : ProjectSettingsRequest { editing = true })
         .focusedSceneValue(\.projectTabs, project.isMissing ? nil : ProjectTabRequest(available: tabs) { tab = $0 })
@@ -76,88 +74,6 @@ struct ProjectPage: View {
             #endif
         }
         .task(id: project.id) { await store.loadWorktrees(project.id) }
-    }
-
-    // MARK: Toolbar
-
-    /// Like Xcode's and Finder's bars: the tabs alone in the middle; on the right, apart from the
-    /// window's «+», the ways to open the project, then its settings, then the switch at the end.
-    /// Each block is set apart (`ToolbarSpacer`) so nothing packs against the tabs.
-    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        if !project.isMissing {
-            ToolbarItem(placement: .principal) {
-                let picker = Picker(L("site.tabs"), selection: $tab) {
-                    ForEach(tabs) { Text(L("site.tab.\($0.rawValue)")).tag($0) }
-                }
-                Group { if narrow { picker.pickerStyle(.menu) } else { picker.pickerStyle(.segmented) } }
-                    .labelsHidden().fixedSize().help(L("site.tabs")).accessibilityIdentifier("project.tabs")
-            }
-            if #available(macOS 26, *) {
-                // Apart from the window's own «+» (new project).
-                ToolbarSpacer(.fixed, placement: .primaryAction)
-            }
-            openActions
-            if #available(macOS 26, *) {
-                ToolbarSpacer(.fixed, placement: .primaryAction)
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button { editing = true } label: { Label(L("project.settings"), systemImage: Symbols.settings) }
-                    .help(L("project.settings")).accessibilityIdentifier("project.settings")
-            }
-        }
-        // A project without a server has no switch.
-        if project.isServed {
-            if #available(macOS 26, *) {
-                ToolbarSpacer(.fixed, placement: .primaryAction)
-            }
-            power
-        }
-    }
-
-    private var power: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Toggle(isOn: Binding(get: { project.enabled }, set: { on in Task { await store.setSite(project, enabled: on) } })) {
-                Label(project.enabled ? L("menu.stop") : L("menu.start"), systemImage: project.enabled ? Symbols.stop : Symbols.start)
-                    .labelStyle(.titleOnly)
-            }
-            .toggleStyle(.switch)
-            .disabled(project.isMissing)
-            .help(project.isMissing ? L("missing.title") : L("site.power"))
-            .accessibilityLabel(L("site.power"))
-            .accessibilityIdentifier("project.power")
-        }
-    }
-
-    /// The project in the browser, the editor and Terminal: one group.
-    @ToolbarContentBuilder private var openActions: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            if project.isServed {
-                Button { if let url = project.url { NSWorkspace.shared.open(url) } } label: {
-                    Label(L("menu.openInBrowser"), systemImage: Symbols.openInBrowser)
-                }
-                .help(L("menu.openInBrowser")).disabled(project.url == nil).accessibilityIdentifier("project.openBrowser")
-            }
-            Button { Editor.open(project.path) } label: { Label(L("project.openEditor"), systemImage: Symbols.editor) }
-                .help(L("project.openEditor")).accessibilityIdentifier("project.openEditor")
-            if store.pluginEnabled("ssh-terminal") {
-                // A click opens «Consola» in the project's folder; the menu, an assistant or Terminal.
-                Menu {
-                    ProjectConsoleItems(project: project)
-                    Divider()
-                    Button { Editor.terminal(project.path) } label: { Label(L("project.openTerminal"), systemImage: Symbols.openInApp) }
-                        .accessibilityIdentifier("project.openTerminal")
-                } label: {
-                    Label(L("ssh.local.openHere"), systemImage: Symbols.terminal)
-                } primaryAction: {
-                    LocalConsoles.open(.shell, project: project)
-                }
-                .disabled(project.isMissing)
-                .help(L("ssh.local.openHere")).accessibilityIdentifier("project.openConsole")
-            } else {
-                Button { Editor.terminal(project.path) } label: { Label(L("project.openTerminal"), systemImage: Symbols.terminal) }
-                    .help(L("project.openTerminal")).accessibilityIdentifier("project.openTerminal")
-            }
-        }
     }
 
     // MARK: Notices

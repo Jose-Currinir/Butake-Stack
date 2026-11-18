@@ -392,6 +392,8 @@
 
 "project.state" = "Estado";
 "project.openEditor" = "Abrir en el editor";
+"project.code" = "Código";
+"project.more" = "Más acciones del proyecto";
 "project.openTerminal" = "Abrir en Terminal";
 "project.settings" = "Ajustes del proyecto…";
 "project.settingsTitle" = "Ajustes del proyecto";
@@ -566,7 +568,7 @@
 "process.autostart" = "Inicio automático";
 "process.logs" = "Ver registro";
 "process.autostartShort" = "Automático";
-"process.logsShort" = "Registros";
+"process.more" = "Más acciones del proceso";
 "process.restart" = "Reiniciar";
 "process.copyCommand" = "Copiar comando";
 "process.commandCopied" = "Comando copiado";
@@ -901,6 +903,7 @@
 /* Proyectos: varias partes */
 "composite.title" = "Proyecto";
 "composite.subtitle" = "Proyecto de %ld partes";
+"composite.partsCount" = "%ld partes";
 "composite.hideParts" = "Ocultar las partes";
 "composite.showParts" = "Mostrar las partes";
 "composite.open" = "Abrir el proyecto";
@@ -916,6 +919,7 @@
 "composite.parts" = "Partes";
 "composite.dependencies" = "Dependencias";
 "composite.git" = "Git del proyecto";
+"composite.partsCount.one" = "1 parte";
 "composite.parts.empty" = "Sin partes. Arrastra proyectos a su fila en la barra lateral.";
 "composite.parts.earlier" = "Iniciar antes";
 "composite.parts.later" = "Iniciar después";

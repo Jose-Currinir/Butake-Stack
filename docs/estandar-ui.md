@@ -121,8 +121,21 @@ Las preferencias viven solo en Ajustes; la ventana no tiene una página «Genera
   trae el menú del proyecto. Con poco ancho se oculta primero Rama y luego Dirección (pasan al texto
   gris del nombre), nunca se corta una columna. Sin anillo ni interruptor: el estado es el punto con
   sus palabras. El estado es uno con la barra lateral.
-- **Proyecto:** Resumen · Entornos · Procesos (si hay) · Registros. La edición va en «Ajustes del
-  proyecto…» (hoja). Sin pestaña «Configuración». El título aparece solo en la barra.
+- **Patrón de las páginas de un elemento** (un proyecto, un proyecto de varias partes, un tipo de servicio, un lenguaje, un tipo de utilidad): `Shared/DetailHeader.swift`.
+  `DetailHeader` lleva el logo grande (`DetailHeaderLogo.size`), el nombre en grande, una línea debajo
+  (tipo, versión, dirección) y a la derecha las acciones de la página con texto, la principal al final
+  (`.borderedProminent`); con la ventana angosta las acciones pasan debajo del nombre, nunca se cortan.
+  `DetailTabs` pone las pestañas bajo la cabecera (segmentado, o menú si no caben) con un solo filo. La
+  barra de herramientas de la ventana queda solo con el «+».
+- **Proyecto:** cabecera con el logo, el nombre, «Laravel · PHP 8.4 · https://tienda.test» (la dirección abre
+  el navegador) y, a la derecha, el estado en palabras con su punto, Abrir, Código, Terminal, un menú «⋯»
+  (Ajustes del proyecto…, Copiar dirección) y Iniciar/Detener. Un proyecto sin servidor no lleva estado,
+  Abrir ni Iniciar/Detener. Pestañas: Resumen · Entornos · Procesos (si hay) · Registros (⌃⌥1…4). La edición
+  va en «Ajustes del proyecto…» (hoja); sin pestaña «Configuración». Resumen no repite lo que dice la
+  cabecera (estado, dirección) y usa dos columnas de secciones desde 1100 pt de ancho de página, una
+  columna debajo. Procesos: una acción visible por fila (el interruptor) y el estado en palabras;
+  Registros y Reiniciar van en el menú «⋯» de la fila y en su clic derecho.
+- **Proyecto de varias partes:** la misma cabecera (símbolo, nombre, «N partes», Detener todo e Iniciar todo).
 - **Servicio (tipo):** cabecera `DetailHeader` con la ficha del tipo, su nombre («Bases de datos») y
   debajo «2 en marcha de 3». Sin acciones en la cabecera: Instalar va en cada fila. Debajo, una fila
   por servicio con estado, versión, Iniciar/Detener y menú «⋯». La barra de herramientas queda con el «+»
