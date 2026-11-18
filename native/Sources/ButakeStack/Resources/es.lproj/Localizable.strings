@@ -59,7 +59,7 @@
 "lifecycle.ended" = "Sin soporte";
 "lifecycle.until" = "hasta %@";
 
-"engine.requestFailed" = "No se pudo completar la solicitud. Revisa la configuración y vuelve a intentarlo.";
+"engine.requestFailed" = "Stack no pudo completar la acción y no sabe la causa. Abre Registros para ver el detalle o inténtalo otra vez.";
 "engine.sites" = "Proyectos que lo usan";
 "engine.noSites" = "Ningún proyecto lo usa todavía.";
 "engine.start" = "Iniciar";
@@ -129,6 +129,16 @@
 "menu.git" = "Git";
 "menu.renameProject" = "Renombrar…";
 "menu.changeFolder" = "Cambiar carpeta…";
+"menu.back" = "Atrás";
+"menu.forward" = "Adelante";
+"menu.backHelp" = "Volver a la página anterior (⌘[)";
+"menu.forwardHelp" = "Ir a la página siguiente (⌘])";
+"menu.goTool" = "Ir a herramienta";
+"menu.findProject" = "Buscar proyecto";
+"menu.undo.start" = "Iniciar %@";
+"menu.undo.stop" = "Detener %@";
+"menu.undo.rename" = "Renombrar %@";
+"menu.undo.move" = "Cambiar carpeta de %@";
 
 "palette.prompt" = "Ir a un proyecto, iniciar un servicio, abrir una página…";
 "palette.openPage" = "Abrir página";
@@ -157,6 +167,8 @@
 "panel.quit" = "Salir";
 "panel.projects" = "Proyectos";
 "panel.dnsHelp" = "Estado de los dominios .test";
+"panel.dnsOn" = "Dominios .%@ activos";
+"panel.dnsOff" = "Dominios .%@ sin configurar";
 
 "stackState.setup" = "Falta preparar";
 "stackState.stopped" = "Detenido";
@@ -180,6 +192,9 @@
 "favorites.add" = "Agregar a favoritos";
 "favorites.remove" = "Quitar de favoritos";
 "favorites.openSite" = "Abrir en el navegador";
+"favorites.addFor" = "Agregar %@ a favoritos";
+"favorites.removeFor" = "Quitar %@ de favoritos";
+"favorites.openSiteFor" = "Abrir %@ en el navegador";
 
 /* Inicio */
 "home.more" = "Más acciones de Inicio";
@@ -2403,7 +2418,7 @@
 "git.dictionary.manual" = "Ayuda de este Mac";
 "git.dictionary.manualHelp" = "Muestra el manual del comando tal como lo trae el Git de este Mac (en inglés)";
 "git.dictionary.documentationHelp" = "Abre la documentación oficial de Git para este comando (en inglés)";
-"git.statusBoard.autoFetchShort" = "Cada 5 min";
+"git.statusBoard.autoFetchShort" = "Actualizar cada 5 min";
 "git.statusBoard.title" = "Git";
 "git.statusBoard.refreshHelp" = "Vuelve a leer el estado de los repositorios, sin usar la red";
 "git.statusBoard.allClear" = "Todo al día";
@@ -4747,3 +4762,8 @@
 "error.skills_import_choice_invalid" = "La copia elegida ya no está entre las encontradas.";
 "error.skills_import_verify" = "La copia no coincide con el original; no se cambió nada.";
 "error.skills_import_failed" = "No se pudo importar la skill; se dejó todo como estaba.";
+"error.retry" = "Reintentar";
+"error.openLogs" = "Abrir Registros";
+"error.withCause" = "Causa: %@";
+"error.startFailed" = "No se pudo iniciar %@";
+"error.stopFailed" = "No se pudo detener %@";
