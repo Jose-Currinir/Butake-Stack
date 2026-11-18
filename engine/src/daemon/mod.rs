@@ -390,6 +390,9 @@ pub async fn run() -> Result<()> {
         return Err(error);
     }
     let observer = supervisor.reader();
+    let disk_watcher = tokio::spawn(crate::web::projects::disk::watch_loop(
+        supervisor.events.clone(),
+    ));
     let supervisor = Arc::new(Mutex::new(supervisor));
     let (shutdown, mut stopped) = watch::channel(false);
     loop {
@@ -412,6 +415,7 @@ pub async fn run() -> Result<()> {
         }
     }
     let _ = shutdown.send(true);
+    disk_watcher.abort();
     supervisor.lock().await.shutdown().await;
     Ok(())
 }
@@ -518,6 +522,7 @@ async fn serve(
                             Some("logs") => value["event"] == "stack.changed" ||
                                 (value["event"] == "log" && value["id"].as_str() == process),
                             Some("dumps") => value["event"] == "dumps.changed",
+                            Some("disk") => value["event"] == "disk.changed",
                             _ => true,
                         } => write(&mut writer, &value).await?,
                         Ok(_) => {},
@@ -529,7 +534,7 @@ async fn serve(
         }
         let result = if matches!(
             request["method"].as_str(),
-            Some("status" | "stackStatus" | "logs" | "dumps")
+            Some("status" | "stackStatus" | "logs" | "dumps" | "diskRevision")
         ) {
             request_read(&request, &observer).await
         } else {
@@ -599,6 +604,7 @@ async fn request_read(request: &Value, supervisor: &SupervisorReader) -> Result<
                 }).collect::<Vec<_>>(),
             }))
         }
+        "diskRevision" => Ok(json!({"revision": crate::web::projects::disk::revision()})),
         "dumps" => Ok(json!(crate::web::tools::dumps::list(
             request["params"]["after"].as_u64().unwrap_or(0)
         ))),
@@ -791,6 +797,7 @@ pub fn watch(store: &Store, topic: &str, process: Option<&str>) -> Result<()> {
             ("logs", json!({"id": id, "tail": 500}))
         }
         "dumps" => ("dumps", json!({})),
+        "disk" => ("diskRevision", json!({})),
         _ => anyhow::bail!("unknown_method"),
     };
     let socket = store.directory("run")?.join("daemon.sock");

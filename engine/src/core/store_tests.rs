@@ -136,6 +136,8 @@ fn a_project_of_several_parts_round_trips() {
         repositories: vec!["/tmp/qa/infra/".into(), "/tmp/qa/infra".into()],
         ordered: true,
         gcp: Some(link.clone()),
+        path: None,
+        parent: None,
     };
     let saved = store.save_groups(vec![salud.clone()]).unwrap();
     assert_eq!(saved[0].repositories, vec!["/tmp/qa/infra".to_string()]);

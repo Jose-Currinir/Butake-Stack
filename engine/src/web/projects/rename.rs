@@ -113,7 +113,7 @@ fn check(store: &Store, project: &mut Project, others: &[Project]) -> Result<()>
 
 /// Turns a project off (or on) as `setSiteEnabled` does and asks the daemon to apply it right
 /// away: its processes stop (or start) before this returns.
-fn set_enabled(store: &Store, id: &str, enabled: bool) -> Result<()> {
+pub(crate) fn set_enabled(store: &Store, id: &str, enabled: bool) -> Result<()> {
     let mut project = store.get(id)?;
     if project.enabled != enabled {
         project.enabled = enabled;
