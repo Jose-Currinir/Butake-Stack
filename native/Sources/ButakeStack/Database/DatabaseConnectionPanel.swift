@@ -188,6 +188,8 @@ struct TablesPanel: View {
     @State private var creating = false
     @State private var picked: DBObject.ID?
     @State private var order = [KeyPathComparator(\DBObject.sortSize, order: .reverse)]
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.db.tables") private var tableColumns: TableColumnCustomization<DBObject> = TableColumnCustomization()
     var body: some View {
         let key = "\(connection.id)/\(database)"
         let list = (client.objects[key] ?? []).sorted(using: order)
@@ -197,23 +199,23 @@ struct TablesPanel: View {
                 ContentUnavailableView(L("db.noTables"), systemImage: Symbols.table, description: Text(L("db.noTablesDetail")))
                     .accessibilityIdentifier("db.tables.empty")
             } else {
-                Table(list, selection: $picked, sortOrder: $order) {
+                Table(list, selection: $picked, sortOrder: $order, columnCustomization: $tableColumns) {
                     TableColumn(L("db.col.table"), value: \.qualifiedName) { o in
                         Label(o.qualifiedName, systemImage: o.view ? Symbols.databaseView : Symbols.table).lineLimit(1)
                     }
-                    .width(min: 120, ideal: 200)
+                    .width(min: 120, ideal: 200).customizationID("table")
                     TableColumn(L("db.col.rows"), value: \.sortRows) { o in
                         Text(o.rows.map { "≈ \($0.formatted())" } ?? "—").monospacedDigit().foregroundStyle(.secondary)
                     }
-                    .width(min: 60, ideal: 80).alignment(.trailing)
+                    .width(min: 60, ideal: 80).alignment(.trailing).customizationID("rows")
                     TableColumn(L("db.col.size"), value: \.sortSize) { o in
                         Text(Format.fileSizeText(o.size)).monospacedDigit()
                     }
-                    .width(min: 60, ideal: 80).alignment(.trailing)
+                    .width(min: 60, ideal: 80).alignment(.trailing).customizationID("size")
                     TableColumn(L("db.col.engine"), value: \.sortEngine) { o in
                         Text(o.view ? L("db.view") : (o.engine ?? "")).foregroundStyle(.secondary)
                     }
-                    .width(min: 60, ideal: 80)
+                    .width(min: 60, ideal: 80).customizationID("engine")
                 }
                 .contextMenu(forSelectionType: DBObject.ID.self) { ids in
                     if let object = list.first(where: { ids.contains($0.id) }) {

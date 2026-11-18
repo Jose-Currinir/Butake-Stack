@@ -38,8 +38,14 @@ struct StructurePanel: View {
     @State private var error: DBProblem?
     @State private var sheet: DDLSheet?
     @State private var columnOrder = [KeyPathComparator(\StructureColumnRow.id)]
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.db.structure.columns") private var structureColumns: TableColumnCustomization<StructureColumnRow> = TableColumnCustomization()
     @State private var indexOrder = [KeyPathComparator(\StructureIndexRow.name)]
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.db.structure.indexes") private var indexColumns: TableColumnCustomization<StructureIndexRow> = TableColumnCustomization()
     @State private var keyOrder = [KeyPathComparator(\StructureForeignKeyRow.name)]
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.db.structure.foreignKeys") private var foreignKeyColumns: TableColumnCustomization<StructureForeignKeyRow> = TableColumnCustomization()
     @State private var pickedColumn: StructureColumnRow.ID?
     var canChange: Bool { connection.allowsWrites && !selection.isView }
     var body: some View {
@@ -117,9 +123,9 @@ struct StructurePanel: View {
                     .buttonStyle(.bordered).controlSize(.small).accessibilityIdentifier("db.structure.addColumn")
             }
         } content: {
-            Table(rows, selection: $pickedColumn, sortOrder: $columnOrder) {
+            Table(rows, selection: $pickedColumn, sortOrder: $columnOrder, columnCustomization: $structureColumns) {
                 TableColumn(L("db.col.position"), value: \.id) { row in Text("\(row.id + 1)").monospacedDigit().foregroundStyle(.secondary) }
-                    .width(min: 28, ideal: 36)
+                    .width(min: 28, ideal: 36).customizationID("position")
                 TableColumn(L("common.name"), value: \.name) { row in
                     HStack(spacing: 4) {
                         if row.key == "PRI" {
@@ -129,19 +135,19 @@ struct StructurePanel: View {
                         Text(row.name).font(.uiMonospaced)
                     }
                 }
-                .width(min: 90, ideal: 140)
+                .width(min: 90, ideal: 140).customizationID("name")
                 TableColumn(L("common.type"), value: \.type) { row in Text(row.type).font(.uiMonospaced).foregroundStyle(.secondary) }
-                    .width(min: 70, ideal: 110)
+                    .width(min: 70, ideal: 110).customizationID("type")
                 TableColumn(L("db.col.null")) { row in Text(row.column.nullable ? "NULL" : "NOT NULL").font(.uiCaption).foregroundStyle(.secondary) }
-                    .width(min: 60, ideal: 80)
+                    .width(min: 60, ideal: 80).customizationID("null")
                 TableColumn(L("db.col.default"), value: \.defaultValue) { row in
                     Text(row.column.default ?? "—").font(.uiMonospaced).foregroundStyle(.secondary).lineLimit(1).help(row.defaultValue)
                 }
-                .width(min: 60, ideal: 100)
+                .width(min: 60, ideal: 100).customizationID("default")
                 TableColumn(L("db.col.key"), value: \.key) { row in Text(row.key).font(.uiCaption) }
-                    .width(min: 40, ideal: 60)
+                    .width(min: 40, ideal: 60).customizationID("key")
                 TableColumn(L("db.col.extra")) { row in Text(row.column.extra ?? "").font(.uiCaption).foregroundStyle(.secondary).lineLimit(1) }
-                    .width(min: 40, ideal: 90)
+                    .width(min: 40, ideal: 90).customizationID("extra")
                 TableColumn("") { row in
                     if canChange {
                         Menu {
@@ -155,7 +161,7 @@ struct StructurePanel: View {
                             .accessibilityIdentifier("db.structure.column.\(row.name)")
                     }
                 }
-                .width(28)
+                .width(28).customizationID("actions")
             }
             .contextMenu(forSelectionType: StructureColumnRow.ID.self) { ids in
                 if canChange, let id = ids.first, let column = s.columns[safe: id] {
@@ -178,21 +184,21 @@ struct StructurePanel: View {
                     .buttonStyle(.bordered).controlSize(.small).accessibilityIdentifier("db.structure.addIndex")
             }
         } content: {
-            Table(rows, sortOrder: $indexOrder) {
+            Table(rows, sortOrder: $indexOrder, columnCustomization: $indexColumns) {
                 TableColumn(L("common.name"), value: \.name) { row in
                     HStack(spacing: 6) {
                         Text(row.name).lineLimit(1)
                         if row.index.unique { Chip(text: "UNIQUE", tint: Brand.info) }
                     }
-                }
-                TableColumn(L("db.columns"), value: \.columns) { row in Text(row.columns).font(.uiMonospaced).foregroundStyle(.secondary).lineLimit(1) }
+                }.customizationID("name")
+                TableColumn(L("db.columns"), value: \.columns) { row in Text(row.columns).font(.uiMonospaced).foregroundStyle(.secondary).lineLimit(1) }.customizationID("columns")
                 TableColumn("") { row in
                     if canChange && Self.droppable(row.index) {
                         Button { Task { await dropIndex(row.name) } } label: { Label(L("ddl.dropIndex"), systemImage: Symbols.delete).labelStyle(.iconOnly) }
                             .buttonStyle(.borderless).help(L("ddl.dropIndex")).accessibilityIdentifier("db.structure.dropIndex.\(row.name)")
                     }
                 }
-                .width(28)
+                .width(28).customizationID("actions")
             }
             .overlay { if rows.isEmpty { Text(L("db.noIndexes")).foregroundStyle(.secondary) } }
             .accessibilityIdentifier("db.structure.indexes")
@@ -208,19 +214,19 @@ struct StructurePanel: View {
                     .buttonStyle(.bordered).controlSize(.small).accessibilityIdentifier("db.structure.addForeignKey")
             }
         } content: {
-            Table(rows, sortOrder: $keyOrder) {
-                TableColumn(L("common.name"), value: \.name) { row in Text(row.name).lineLimit(1) }
+            Table(rows, sortOrder: $keyOrder, columnCustomization: $foreignKeyColumns) {
+                TableColumn(L("common.name"), value: \.name) { row in Text(row.name).lineLimit(1) }.customizationID("name")
                 TableColumn(L("db.col.references"), value: \.references) { row in
                     Text("\(row.columns) → \(row.references)").font(.uiMonospaced).foregroundStyle(.secondary).lineLimit(1)
                         .help("\(row.columns) → \(row.references)")
-                }
+                }.customizationID("references")
                 TableColumn("") { row in
                     if canChange && !sqlite {
                         Button { Task { await dropForeignKey(row.name) } } label: { Label(L("ddl.dropForeignKey"), systemImage: Symbols.delete).labelStyle(.iconOnly) }
                             .buttonStyle(.borderless).help(L("ddl.dropForeignKey")).accessibilityIdentifier("db.structure.dropForeignKey.\(row.name)")
                     }
                 }
-                .width(28)
+                .width(28).customizationID("actions")
             }
             .overlay {
                 if rows.isEmpty {
