@@ -1,0 +1,539 @@
+//! Import of existing skills: failure rollback, no data loss, the import trash and emptying it.
+use super::import::*;
+use super::*;
+use crate::skills::import::FAIL_AFTER_FIRST;
+use std::{
+    collections::BTreeMap,
+    fs,
+    os::unix::fs::symlink,
+    path::{Path, PathBuf},
+};
+
+#[test]
+fn the_copy_is_byte_identical_and_inner_links_are_not_followed() {
+    let env = env();
+    let files = [
+        ("scripts/run.sh", "echo hi\n"),
+        ("deep/er/data.txt", "datos"),
+    ];
+    let real = folder(&env, ".claude/skills", "a", &files);
+    fs::write(real.join("bin.dat"), [0u8, 255, 1, 2, 254]).unwrap();
+    let secret = env.home.join("secretos");
+    fs::create_dir_all(&secret).unwrap();
+    fs::write(secret.join("clave.txt"), "no copiar").unwrap();
+    symlink(&secret, real.join("fuera")).unwrap();
+    symlink(secret.join("clave.txt"), real.join("clave.txt")).unwrap();
+    let mut expected = snap(&real);
+    expected.retain(|_, v| !v.starts_with("->"));
+    apply(&env, &["a"]);
+    let copy = env.skills_dir().join("a");
+    assert_eq!(snap(&copy), expected);
+    assert_eq!(
+        fs::read(copy.join("bin.dat")).unwrap(),
+        [0u8, 255, 1, 2, 254]
+    );
+    assert!(fs::symlink_metadata(copy.join("fuera")).is_err());
+    assert!(fs::symlink_metadata(copy.join("clave.txt")).is_err());
+    assert_eq!(
+        fs::read_to_string(secret.join("clave.txt")).unwrap(),
+        "no copiar"
+    );
+}
+
+#[test]
+fn links_and_special_files_inside_a_skill_are_warned_not_silently_skipped() {
+    let env = env();
+    let real = folder(&env, ".claude/skills", "a", &[("deep/er/data.txt", "x")]);
+    let elsewhere = env.home.join("fuera");
+    fs::create_dir_all(&elsewhere).unwrap();
+    symlink(&elsewhere, real.join("enlace")).unwrap();
+    symlink(elsewhere.join("x"), real.join("deep/er/roto")).unwrap();
+    let fifo = std::ffi::CString::new(real.join("tuberia").to_string_lossy().as_bytes()).unwrap();
+    // SAFETY: `fifo` is a valid NUL-terminated path that outlives the call.
+    assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+    folder(&env, ".claude/skills", "limpia", &[("n.md", "n")]);
+    let skipped = json!(["deep/er/roto", "enlace", "tuberia"]);
+    let found = env.ok("skillsImportScan", json!({}));
+    assert_eq!(find(&found, "a")["sources"][0]["skipped"], skipped);
+    assert!(find(&found, "limpia")["sources"][0]["skipped"].is_null());
+    let ask = json!({"ids": ["a", "limpia"], "group": "personal"});
+    let plan = env.ok("skillsImportPlan", ask);
+    assert_eq!(plan["warnings"], json!([{"id": "a", "skipped": skipped}]));
+    // The warning is only information: the import still copies everything that is a file.
+    let done = apply(&env, &["a"]);
+    assert_eq!(done["imported"].as_array().unwrap().len(), 1);
+    assert!(env.skills_dir().join("a/deep/er/data.txt").exists());
+    assert!(fs::symlink_metadata(env.skills_dir().join("a/enlace")).is_err());
+}
+
+#[test]
+fn duplicating_a_skill_with_links_answers_what_was_not_copied() {
+    let env = env();
+    env.create("a");
+    let outside = env.home.join("fuera");
+    fs::create_dir_all(&outside).unwrap();
+    symlink(&outside, env.skills_dir().join("a/enlace")).unwrap();
+    let copy = env.ok("skillsDuplicate", json!({"id": "a", "newId": "b"}));
+    assert_eq!(copy["skipped"], json!(["enlace"]));
+    env.create("c");
+    let plain = env.ok("skillsDuplicate", json!({"id": "c", "newId": "d"}));
+    assert!(plain["skipped"].is_null());
+}
+
+#[test]
+fn folders_go_to_the_import_trash_and_undo_brings_everything_back() {
+    let env = env();
+    let real = folder(&env, ".claude/skills", "a", &[("n.md", "n")]);
+    let target = elsewhere(&env, "a");
+    let foreign = link(&env, ".agents/skills", "a", &target);
+    apply(&env, &["a"]);
+    let trash_id = first_trash_id(&env);
+    assert!(trash_id.starts_with("import-a-"));
+    let dir = trash_dir(&env).join(&trash_id);
+    assert_eq!(fs::read_to_string(dir.join("sources/0/n.md")).unwrap(), "n");
+    let entry: Value = serde_json::from_slice(&fs::read(dir.join("entry.json")).unwrap()).unwrap();
+    assert_eq!(entry["sources"][0]["path"], text(&real));
+    assert_eq!(entry["sources"][0]["agent"], "claude");
+    assert!(env.link_path(".claude/skills", "a").join("n.md").exists());
+    assert_eq!(fs::read_link(&foreign).unwrap(), env.skills_dir().join("a"));
+    assert_eq!(fs::read_to_string(target.join("n.md")).unwrap(), "n");
+    // Undo: needs confirmation; the plan lists what it does.
+    let ask = json!({"trashId": trash_id});
+    assert_eq!(env.code("skillsImportUndo", ask), "confirmation_required");
+    let plan = env.ok(
+        "skillsImportUndo",
+        json!({"trashId": trash_id, "plan": true}),
+    );
+    let restore = json!([{"from": text(&dir.join("sources/0")), "to": text(&real)}]);
+    assert_eq!(plan["restore"], restore);
+    let relink = json!([{"path": text(&foreign), "target": text(&target)}]);
+    assert_eq!(plan["relink"], relink);
+    assert_eq!(
+        paths(&plan["remove"]),
+        paths(&json!([text(&real), text(&foreign)]))
+    );
+    assert_eq!(plan["conflicts"], json!([]));
+    assert!(env.skills_dir().join("a").exists());
+    let done = env.ok(
+        "skillsImportUndo",
+        json!({"trashId": trash_id, "confirmed": true}),
+    );
+    assert_eq!(done["conflicts"], json!([]));
+    assert!(fs::symlink_metadata(&real).unwrap().is_dir());
+    assert_eq!(fs::read_to_string(real.join("n.md")).unwrap(), "n");
+    assert_eq!(fs::read_link(&foreign).unwrap(), target);
+    assert!(!env.skills_dir().join("a").exists());
+    assert!(!dir.exists());
+    assert_eq!(env.ok("skillsImportTrashList", json!({})), json!([]));
+    assert_eq!(env.ok("skillsList", json!({}))["skills"], json!([]));
+}
+
+#[test]
+fn undo_with_a_changed_copy_does_nothing() {
+    let env = env();
+    let real = folder(&env, ".claude/skills", "a", &[]);
+    apply(&env, &["a"]);
+    let trash_id = first_trash_id(&env);
+    fs::write(env.skills_dir().join("a/SKILL.md"), "editado").unwrap();
+    let before = snap(env.root.as_path());
+    let done = env.ok(
+        "skillsImportUndo",
+        json!({"trashId": trash_id, "confirmed": true}),
+    );
+    assert_eq!(done["restored"], json!([]));
+    assert_eq!(done["conflicts"][0]["reason"], "changed");
+    assert_eq!(snap(env.root.as_path()), before);
+    assert!(
+        fs::symlink_metadata(&real)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+}
+
+/// The trash record is a file on disk: a destination outside the folders of the AIs, or a stored
+/// path that is not `sources/<number>`, is refused and nothing moves.
+#[test]
+fn undo_refuses_a_record_that_points_outside_the_agent_folders() {
+    let env = env();
+    let (trash_id, real, foreign, _target) = imported_with_links(&env);
+    let entry_path = trash_dir(&env).join(&trash_id).join("entry.json");
+    let original: Value = serde_json::from_slice(&fs::read(&entry_path).unwrap()).unwrap();
+    for (field, value) in [
+        ("path", text(&env.home.join("Documents/robado"))),
+        ("path", text(&env.home.join(".claude/skills/../../fuera"))),
+        ("stored", "sources/../../../fuera".to_string()),
+    ] {
+        let mut tampered = original.clone();
+        tampered["sources"][0][field] = json!(value);
+        fs::write(&entry_path, serde_json::to_vec(&tampered).unwrap()).unwrap();
+        let before = snap(env.root.as_path());
+        let done = env.ok(
+            "skillsImportUndo",
+            json!({"trashId": trash_id, "confirmed": true}),
+        );
+        assert_eq!(done["restored"], json!([]), "{field}");
+        assert_eq!(done["conflicts"][0]["reason"], "changed", "{field}");
+        assert_eq!(snap(env.root.as_path()), before, "{field}");
+    }
+    assert!(
+        fs::symlink_metadata(&real)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert!(fs::symlink_metadata(&foreign).is_ok());
+}
+
+/// Imports `a` (real folder in Claude, link in `.agents`) and returns what undo must bring back.
+fn imported_with_links(env: &Env) -> (String, PathBuf, PathBuf, PathBuf) {
+    let real = folder(env, ".claude/skills", "a", &[("n.md", "n")]);
+    let target = elsewhere(env, "a");
+    let foreign = link(env, ".agents/skills", "a", &target);
+    apply(env, &["a"]);
+    (first_trash_id(env), real, foreign, target)
+}
+
+fn assert_undone(env: &Env, trash_id: &str, real: &Path, foreign: &Path, target: &Path) {
+    let done = env.ok(
+        "skillsImportUndo",
+        json!({"trashId": trash_id, "confirmed": true}),
+    );
+    assert_eq!(done["conflicts"], json!([]));
+    assert!(fs::symlink_metadata(real).unwrap().is_dir());
+    assert_eq!(fs::read_to_string(real.join("n.md")).unwrap(), "n");
+    assert_eq!(fs::read_link(foreign).unwrap(), target);
+    assert!(!trash_dir(env).join(trash_id).exists());
+}
+
+#[test]
+fn undo_after_the_skill_was_deleted_returns_the_originals_and_trashes_nothing() {
+    let env = env();
+    let (trash_id, real, foreign, target) = imported_with_links(&env);
+    env.ok("skillsDelete", json!({"id": "a", "confirmed": true}));
+    let deleted = snap(&trash_dir(&env))
+        .into_keys()
+        .filter(|k| !k.starts_with("import-"))
+        .collect::<Vec<_>>();
+    assert_undone(&env, &trash_id, &real, &foreign, &target);
+    let after = snap(&trash_dir(&env))
+        .into_keys()
+        .filter(|k| !k.starts_with("import-"))
+        .collect::<Vec<_>>();
+    assert_eq!(after, deleted);
+}
+
+#[test]
+fn undo_after_the_skill_was_renamed_returns_the_originals() {
+    let env = env();
+    let (trash_id, real, foreign, target) = imported_with_links(&env);
+    env.ok(
+        "skillsRename",
+        json!({"id": "a", "newId": "b", "confirmed": true}),
+    );
+    assert!(env.skills_dir().join("b").exists());
+    assert_undone(&env, &trash_id, &real, &foreign, &target);
+    // The renamed copy is not Stack's copy of the import any more: it stays.
+    assert!(env.skills_dir().join("b").exists());
+}
+
+#[test]
+fn undo_after_delete_all_returns_the_originals() {
+    let env = env();
+    let (trash_id, real, foreign, target) = imported_with_links(&env);
+    crate::skills::delete_all_in(&env.store, &env.home).unwrap();
+    assert!(!env.skills_dir().join("a").exists());
+    assert_undone(&env, &trash_id, &real, &foreign, &target);
+}
+
+#[test]
+fn a_failure_midway_rolls_that_skill_back_and_the_others_are_imported() {
+    let env = env();
+    let real = folder(&env, ".claude/skills", "a", &[("n.md", "n")]);
+    let target = elsewhere(&env, "a");
+    let foreign = link(&env, ".agents/skills", "a", &target);
+    folder(&env, ".claude/skills", "b", &[]);
+    let before = snap(&env.home);
+    FAIL_AFTER_FIRST.with(|f| *f.borrow_mut() = Some("a".into()));
+    let done = apply(&env, &["a", "b"]);
+    FAIL_AFTER_FIRST.with(|f| *f.borrow_mut() = None);
+    assert_eq!(done["imported"].as_array().unwrap().len(), 1);
+    assert_eq!(done["imported"][0]["id"], "b");
+    let failed = json!([{"path": text(&real), "reason": "skills_import_failed"}]);
+    assert_eq!(done["conflicts"], failed);
+    // `a` is as it was: folder, link, no copy, no entry, no trash entry.
+    assert!(fs::symlink_metadata(&real).unwrap().is_dir());
+    assert_eq!(fs::read_link(&foreign).unwrap(), target);
+    assert!(!env.skills_dir().join("a").exists());
+    let list = env.ok("skillsList", json!({}));
+    assert_eq!(list["skills"].as_array().unwrap().len(), 1);
+    let trashed = env.ok("skillsImportTrashList", json!({}));
+    assert_eq!(trashed.as_array().unwrap().len(), 1);
+    assert_eq!(trashed[0]["id"], "b");
+    let after = snap(&env.home);
+    for (key, value) in &before {
+        if key.starts_with(".claude/skills/a")
+            || key.starts_with(".agents/skills/a")
+            || key.starts_with("elsewhere")
+        {
+            assert_eq!(after.get(key), Some(value), "{key}");
+        }
+    }
+}
+
+#[test]
+fn no_file_is_ever_deleted() {
+    let env = env();
+    folder(
+        &env,
+        ".claude/skills",
+        "a",
+        &[("x/y.md", "y"), ("z.md", "z")],
+    );
+    folder(
+        &env,
+        ".gemini/skills",
+        "a",
+        &[("x/y.md", "y"), ("z.md", "z")],
+    );
+    folder(&env, ".agents/skills", "b", &[("w.md", "w")]);
+    let before: Vec<(String, String)> = snap(&env.home)
+        .into_iter()
+        .filter(|(_, v)| v != "dir")
+        .collect();
+    assert_eq!(before.len(), 8);
+    apply(&env, &["a", "b"]);
+    // Every original file is in the import trash with the same bytes, at its folder's slot.
+    let mut kept: Vec<String> = snap(&trash_dir(&env))
+        .into_iter()
+        .filter(|(k, v)| k.contains("/sources/") && v != "dir")
+        .map(|(_, v)| v)
+        .collect();
+    let mut wanted: Vec<String> = before.into_iter().map(|(_, v)| v).collect();
+    kept.sort();
+    wanted.sort();
+    assert_eq!(kept, wanted);
+}
+
+#[test]
+fn the_import_trash_is_not_purged_by_age_but_deleted_skills_are() {
+    let env = env();
+    folder(&env, ".claude/skills", "a", &[("n.md", "n")]);
+    apply(&env, &["a"]);
+    let trash_id = first_trash_id(&env);
+    let old = trash_dir(&env).join("import-a-1000");
+    fs::rename(trash_dir(&env).join(&trash_id), &old).unwrap();
+    // A deleted skill whose id starts with `import-` is purged like any other.
+    env.create("import-x");
+    let gone = env.ok("skillsDelete", json!({"id": "import-x", "confirmed": true}));
+    let aged = trash_dir(&env).join("import-x-1000");
+    fs::rename(
+        trash_dir(&env).join(gone["trashId"].as_str().unwrap()),
+        &aged,
+    )
+    .unwrap();
+    env.ok("skillsList", json!({}));
+    assert!(old.join("sources/0/n.md").exists());
+    assert!(!aged.exists());
+    assert_eq!(first_trash_id(&env), "import-a-1000");
+    // «Borrar los datos» of the tool leaves it too.
+    crate::skills::delete_all_in(&env.store, &env.home).unwrap();
+    assert!(old.join("sources/0/n.md").exists());
+}
+
+#[test]
+fn emptying_the_import_trash_needs_confirmed_and_removes_only_the_listed_folders() {
+    let env = env();
+    folder(&env, ".claude/skills", "a", &[]);
+    folder(&env, ".claude/skills", "b", &[]);
+    apply(&env, &["a", "b"]);
+    env.create("gone");
+    env.ok("skillsDelete", json!({"id": "gone", "confirmed": true}));
+    let list = env.ok("skillsImportTrashList", json!({}));
+    let ids: Vec<String> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["trashId"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(ids.len(), 2);
+    let a = ids
+        .iter()
+        .find(|i| i.starts_with("import-a-"))
+        .unwrap()
+        .clone();
+    let b = ids
+        .iter()
+        .find(|i| i.starts_with("import-b-"))
+        .unwrap()
+        .clone();
+    let before = snap(&trash_dir(&env));
+    let code = |request: Value| env.code("skillsImportTrashEmpty", request);
+    assert_eq!(code(json!({"trashIds": [a]})), "confirmation_required");
+    assert_eq!(
+        code(json!({"trashIds": [], "confirmed": true})),
+        "invalid_request"
+    );
+    assert_eq!(
+        code(json!({"trashIds": ["gone-1"], "confirmed": true})),
+        "skills_not_found"
+    );
+    assert_eq!(
+        code(json!({"trashIds": ["../x"], "confirmed": true})),
+        "skills_not_found"
+    );
+    let plan = env.ok(
+        "skillsImportTrashEmpty",
+        json!({"trashIds": [a], "plan": true}),
+    );
+    assert_eq!(plan["delete"], json!([text(&trash_dir(&env).join(&a))]));
+    assert_eq!(snap(&trash_dir(&env)), before);
+    let done = env.ok(
+        "skillsImportTrashEmpty",
+        json!({"trashIds": [a], "confirmed": true}),
+    );
+    assert_eq!(done["removed"], json!([a]));
+    assert!(!trash_dir(&env).join(&a).exists());
+    assert!(trash_dir(&env).join(&b).join("sources/0/SKILL.md").exists());
+    let expected: BTreeMap<String, String> = before
+        .into_iter()
+        .filter(|(k, _)| !k.starts_with(&a))
+        .collect();
+    assert_eq!(snap(&trash_dir(&env)), expected);
+    assert!(env.skills_dir().join("a").exists());
+}
+
+/// The plan and the apply read only the folders of the requested skills: the others are not hashed.
+#[test]
+fn plan_and_apply_hash_only_the_requested_skills() {
+    use crate::skills::import::DIGESTS;
+    let env = env();
+    for name in ["a", "b", "c", "d"] {
+        folder(&env, ".claude/skills", name, &[("n.md", name)]);
+    }
+    let digests = || DIGESTS.with(|n| n.get());
+    let before = digests();
+    env.ok(
+        "skillsImportPlan",
+        json!({"ids": ["a"], "group": "personal"}),
+    );
+    assert_eq!(digests() - before, 1, "the plan hashes `a` only");
+    // The full scan still looks at everything.
+    let before = digests();
+    env.ok("skillsImportScan", json!({}));
+    assert_eq!(digests() - before, 4);
+    // Apply: one hash in the plan it rebuilds, one of the source and one of the copy to verify it.
+    let before = digests();
+    apply(&env, &["a"]);
+    assert_eq!(digests() - before, 3);
+    // Unrequested skills are untouched.
+    assert!(
+        fs::symlink_metadata(env.link_path(".claude/skills", "b"))
+            .unwrap()
+            .is_dir()
+    );
+}
+
+#[test]
+fn the_deleted_skills_list_has_only_deleted_skills_and_never_their_text() {
+    let env = env();
+    folder(&env, ".claude/skills", "imp", &[("n.md", "n")]);
+    apply(&env, &["imp"]);
+    let import_id = first_trash_id(&env);
+    env.create("a");
+    env.create("b");
+    let sentinel = "SENTINEL-no-debe-salir";
+    let mut body = env.ok("skillsRead", json!({"id": "a"}))["text"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    body.push_str(sentinel);
+    env.ok("skillsSave", json!({"id": "a", "text": body}));
+    fs::write(env.skills_dir().join("a/extra.md"), sentinel).unwrap();
+    let a = env.ok("skillsDelete", json!({"id": "a", "confirmed": true}))["trashId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let b = env.ok("skillsDelete", json!({"id": "b", "confirmed": true}))["trashId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    // An old one is purged first; a deleted skill called `import-x` is listed like any other.
+    let old = trash_dir(&env).join("c-1000");
+    fs::create_dir_all(old.join("files")).unwrap();
+    env.create("import-x");
+    env.ok("skillsDelete", json!({"id": "import-x", "confirmed": true}));
+
+    let list = env.ok("skillsTrashList", json!({}));
+    let ids: Vec<&str> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids.len(), 3, "{list}");
+    assert!(ids.contains(&"a") && ids.contains(&"b") && ids.contains(&"import-x"));
+    assert!(!list.to_string().contains(&import_id));
+    assert!(!old.exists());
+    assert!(!list.to_string().contains(sentinel));
+    let first = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["trashId"] == a.as_str())
+        .unwrap();
+    assert_eq!(first["name"], "a");
+    assert_eq!(first["description"], "Hace algo");
+    assert_eq!(first["group"], "personal");
+    let deleted = first["deleted"].as_u64().unwrap();
+    assert_eq!(first["expires"].as_u64().unwrap(), deleted + 30 * 86_400);
+    assert!(a.ends_with(&deleted.to_string()));
+    assert_eq!(
+        first.as_object().unwrap().len(),
+        7,
+        "only trashId, id, name, description, deleted, expires and group"
+    );
+
+    // Listing changes nothing: the entry still restores.
+    let back = env.ok("skillsRestore", json!({"trashId": b, "confirmed": true}));
+    assert_eq!(back["id"], "b");
+    assert!(env.skills_dir().join("b/SKILL.md").exists());
+    let after = env.ok("skillsTrashList", json!({}));
+    assert_eq!(after.as_array().unwrap().len(), 2);
+    assert!(!after.to_string().contains(&format!("\"{b}\"")));
+}
+
+#[test]
+fn a_damaged_entry_in_the_deleted_skills_trash_is_skipped_and_the_rest_is_listed() {
+    let env = env();
+    for id in ["a", "b", "c"] {
+        env.create(id);
+    }
+    let a = env.ok("skillsDelete", json!({"id": "a", "confirmed": true}))["trashId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let b = env.ok("skillsDelete", json!({"id": "b", "confirmed": true}))["trashId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let c = env.ok("skillsDelete", json!({"id": "c", "confirmed": true}))["trashId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    fs::write(trash_dir(&env).join(&c).join("entry.json"), "{ no es json").unwrap();
+
+    let list = env.ok("skillsTrashList", json!({}));
+    let mut ids: Vec<&str> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["trashId"].as_str().unwrap())
+        .collect();
+    ids.sort_unstable();
+    let mut expected = vec![a.as_str(), b.as_str()];
+    expected.sort_unstable();
+    assert_eq!(ids, expected, "{list}");
+    // The damaged folder is left alone for the purge, not deleted by listing.
+    assert!(trash_dir(&env).join(&c).join("entry.json").exists());
+}

@@ -1,0 +1,89 @@
+#!/bin/sh
+# A fake gcloud for tests and QA of the Google Cloud tool: it never reaches Google. It keeps its
+# state in the configuration folder CLOUDSDK_CONFIG names (it refuses to run without one, so it
+# never touches ~/.config/gcloud):
+#   accounts                    one made-up account per line
+#   active_config               the active configuration's name
+#   configurations/config_<n>   «[core]» with «account = …» and «project = …»
+#   expired                     accounts whose session has to be renewed
+#   slow                        when present, «projects list» waits that many seconds
+# Like the real one, «auth login» without --no-activate and «config set» change the active
+# configuration, and revoking the active account clears it: the tests check Stack never does.
+# Every call is written (arguments only) to calls.log in that folder.
+[ -n "$CLOUDSDK_CONFIG" ] || { echo "the fake gcloud needs CLOUDSDK_CONFIG" >&2; exit 3; }
+CONFIG="$CLOUDSDK_CONFIG"
+mkdir -p "$CONFIG/configurations"
+[ -f "$CONFIG/active_config" ] || printf 'default' > "$CONFIG/active_config"
+ACTIVE_FILE="$CONFIG/configurations/config_$(cat "$CONFIG/active_config")"
+[ -f "$ACTIVE_FILE" ] || printf '[core]\n' > "$ACTIVE_FILE"
+touch "$CONFIG/accounts"
+printf '%s\n' "$*" >> "$CONFIG/calls.log"
+
+active_account() { sed -n 's/^account = //p' "$ACTIVE_FILE"; }
+set_account() {
+    grep -v '^account = ' "$ACTIVE_FILE" > "$ACTIVE_FILE.tmp"
+    [ -n "$1" ] && printf 'account = %s\n' "$1" >> "$ACTIVE_FILE.tmp"
+    mv "$ACTIVE_FILE.tmp" "$ACTIVE_FILE"
+}
+account_flag() {
+    for arg in "$@"; do case "$arg" in --account=*) printf '%s' "${arg#--account=}";; esac; done
+}
+
+case "$1 $2" in
+"auth list")
+    active="$(active_account)"
+    printf '['
+    first=1
+    while IFS= read -r account; do
+        [ -z "$account" ] && continue
+        [ $first -eq 0 ] && printf ', '
+        first=0
+        status=""
+        [ "$account" = "$active" ] && status="ACTIVE"
+        printf '{"account": "%s", "status": "%s"}' "$account" "$status"
+    done < "$CONFIG/accounts"
+    printf ']\n'
+    ;;
+"projects list")
+    account="$(account_flag "$@")"
+    [ -z "$account" ] && account="$(active_account)"
+    if ! grep -qx "$account" "$CONFIG/accounts"; then
+        echo "ERROR: (gcloud.projects.list) Your current active account [$account] does not have any valid credentials" >&2
+        exit 1
+    fi
+    if [ -f "$CONFIG/expired" ] && grep -qx "$account" "$CONFIG/expired"; then
+        echo "ERROR: (gcloud.projects.list) There was a problem refreshing your current auth tokens: Reauthentication failed." >&2
+        exit 1
+    fi
+    [ -f "$CONFIG/slow" ] && sleep "$(cat "$CONFIG/slow")"
+    case "$account" in
+    *gserviceaccount.com)
+        printf '[{"name": "Despliegue ficticio", "projectId": "despliegue-ficticio", "projectNumber": "100000000003"}]\n' ;;
+    *)
+        printf '[{"name": "Tienda ficticia", "projectId": "tienda-ficticia", "projectNumber": "100000000001"}, {"name": "Agenda de prueba", "projectId": "agenda-de-prueba", "projectNumber": "100000000002"}]\n' ;;
+    esac
+    ;;
+"auth revoke")
+    account="$3"
+    grep -vx "$account" "$CONFIG/accounts" > "$CONFIG/accounts.tmp"; mv "$CONFIG/accounts.tmp" "$CONFIG/accounts"
+    [ "$account" = "$(active_account)" ] && set_account ""
+    echo "Revoked credentials:" >&2
+    echo " - $account" >&2
+    ;;
+"auth login")
+    account="nueva@ejemplo.test"
+    for arg in "$@"; do case "$arg" in *@*) account="$arg";; esac; done
+    grep -qx "$account" "$CONFIG/accounts" || printf '%s\n' "$account" >> "$CONFIG/accounts"
+    activate=1
+    for arg in "$@"; do [ "$arg" = "--no-activate" ] && activate=0; done
+    [ $activate -eq 1 ] && set_account "$account"
+    echo "You are now logged in as [$account]." >&2
+    ;;
+"config set")
+    grep -v "^$3 = " "$ACTIVE_FILE" > "$ACTIVE_FILE.tmp"; printf '%s = %s\n' "$3" "$4" >> "$ACTIVE_FILE.tmp"; mv "$ACTIVE_FILE.tmp" "$ACTIVE_FILE"
+    ;;
+*)
+    echo "ERROR: (gcloud) the fake does not know «$*»" >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,493 @@
+---
+import '@fontsource/inter/latin-400.css'
+import '@fontsource/inter/latin-500.css'
+import '@fontsource/inter/latin-600.css'
+import '@fontsource-variable/bricolage-grotesque'
+import '@fontsource/instrument-serif/latin-400-italic.css'
+import '@fontsource-variable/jetbrains-mono'
+import '../styles/site.css'
+import Icon from '../components/Icon.astro'
+import Pila from '../components/Pila.astro'
+import { t, repo, descarga, version } from '../i18n/es'
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+const img = (name: string) => `${base}/img/${name}`
+const oscura = (name: string) => img(name.replace('.png', '-oscuro.png'))
+// The light capture by default and the dark twin under the dark scheme; the theme picker rewrites
+// each source's media when the visitor chooses one.
+const MODO_OSCURO = '(prefers-color-scheme: dark)'
+const temas = [['system', 'computer-line', t.tema.sistema], ['light', 'sun-line', t.tema.claro], ['dark', 'moon-line', t.tema.oscuro]]
+const canonical = new URL(import.meta.env.BASE_URL, Astro.site).href
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Stack',
+  softwareVersion: version,
+  operatingSystem: 'macOS 15',
+  applicationCategory: 'DeveloperApplication',
+  description: t.descripcion,
+  url: canonical,
+  downloadUrl: descarga,
+  license: 'https://www.apache.org/licenses/LICENSE-2.0',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  publisher: { '@type': 'Organization', name: 'Butake SpA' },
+}
+const navegacion = [
+  ['#capas', t.nav.capas], ['#app', t.nav.app], ['#funciones', t.nav.funciones], ['#nunca', t.nav.nunca], ['#instalar', t.nav.instalar],
+]
+---
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{t.titulo}</title>
+  <meta name="description" content={t.descripcion} />
+  <link rel="canonical" href={canonical} />
+  <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+  <meta name="theme-color" content="#f5f8f6" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#050d0a" media="(prefers-color-scheme: dark)" />
+  <meta name="color-scheme" content="light dark" />
+  <script is:inline>try { const t = localStorage.getItem('stack-tema'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t } catch {}</script>
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content={t.titulo} />
+  <meta property="og:description" content={t.descripcion} />
+  <meta property="og:image" content={new URL(oscura('inicio.png'), Astro.site).href} />
+  <meta property="og:locale" content="es_CL" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+</head>
+<body>
+  <a class="saltar" href="#contenido">Saltar al contenido</a>
+
+  <header class="barra">
+    <div class="barra-pildora">
+      <a class="marca" href={`${base}/`} aria-label="Stack, inicio">
+        <img src={img('logo.png')} alt="" width="28" height="28" />
+        <span>Stack</span>
+      </a>
+      <nav class="nav" aria-label="Principal">
+        {navegacion.map(([href, texto]) => <a href={href}>{texto}</a>)}
+      </nav>
+      <div class="tema tema-barra" role="radiogroup" aria-label={t.tema.titulo}>
+        {temas.map(([valor, icono, nombre]) => <button type="button" role="radio" aria-checked={valor === 'system' ? 'true' : 'false'} data-tema={valor} aria-label={nombre} title={nombre}><Icon name={icono} size={15} /></button>)}
+      </div>
+      <a class="nav-github" href={repo} aria-label={t.nav.github}><Icon name="github-fill" size={18} /></a>
+      <a class="boton boton-verde boton-chico" href={descarga}><Icon name="download-2-line" size={16} /> <span>{t.nav.descargar}</span></a>
+      <button class="menu-boton" type="button" aria-expanded="false" aria-controls="menu-movil" aria-label={t.menu.abrir} data-abrir={t.menu.abrir} data-cerrar={t.menu.cerrar}><span></span><span></span></button>
+    </div>
+    <nav id="menu-movil" class="menu-movil" aria-label="Principal" hidden>
+      {navegacion.map(([href, texto]) => <a href={href}>{texto}</a>)}
+      <a href={repo}><Icon name="github-fill" size={18} /> {t.nav.github}</a>
+      <div class="tema tema-menu" role="radiogroup" aria-label={t.tema.titulo}>
+        {temas.map(([valor, icono, nombre]) => <button type="button" role="radio" aria-checked={valor === 'system' ? 'true' : 'false'} data-tema={valor}><Icon name={icono} size={16} /> {nombre}</button>)}
+      </div>
+    </nav>
+  </header>
+
+  <main id="contenido">
+    <!-- Portada -->
+    <section class="hero">
+      <div class="aurora" aria-hidden="true"></div>
+      <div class="contenedor hero-cuerpo">
+        <p class="etiqueta entra" style="--i:0"><span class="etiqueta-version">{t.hero.etiqueta}</span>{t.hero.etiquetaTexto}</p>
+        <h1 class="hero-titulo">
+          <span class="entra" style="--i:1">{t.hero.titulo[0]}</span>
+          <span class="entra serif" style="--i:2">{t.hero.titulo[1]}</span>
+          <span class="entra" style="--i:3">{t.hero.titulo[2]}<i class="cursor" aria-hidden="true"></i></span>
+        </h1>
+        <div class="hero-pie">
+          <p class="hero-texto entra" style="--i:4">{t.hero.texto}</p>
+          <div class="hero-acciones entra" style="--i:5">
+            <a class="boton boton-verde" href={descarga}><Icon name="apple-fill" size={20} /> {t.hero.descargar}</a>
+            <a class="boton boton-linea" href={repo}><Icon name="github-fill" size={20} /> {t.hero.github}</a>
+            <p class="requisitos">{t.hero.requisitos}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="contenedor hero-escena">
+        <div class="direccion entra" style="--i:6" aria-hidden="true">
+          <Icon name="lock-2-fill" size={15} />
+          <span class="direccion-esquema">https://</span><span class="direccion-host" data-direcciones={JSON.stringify(t.hero.direcciones)}>{t.hero.direcciones[0]}</span>
+          <span class="direccion-protocolo">HTTP/3</span>
+        </div>
+        <figure class="ventana ventana-hero ampliable">
+          <picture><source media={MODO_OSCURO} srcset={oscura('inicio.png')} /><img src={img('inicio.png')} alt={t.hero.imagen} width="2560" height="1560" fetchpriority="high" /></picture>
+        </figure>
+        <ul class="fichas" role="list" aria-hidden="true">
+          {t.hero.fichas.map((ficha, i) => (
+            <li class="ficha" style={`--i:${i}`}><span class="luz"></span><span><strong>{ficha.titulo}</strong><small>{ficha.detalle}</small></span><em>{ficha.estado}</em></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <!-- Tecnologías -->
+    <section class="cinta" aria-label="Lo que Stack corre en tu Mac">
+      <ul class="cinta-pista" role="list">
+        {[...t.tecnologias, ...t.tecnologias].map((nombre, i) => (
+          <li aria-hidden={i >= t.tecnologias.length ? 'true' : undefined}>{nombre}<span class="estrella" aria-hidden="true">✦</span></li>
+        ))}
+      </ul>
+    </section>
+
+    <!-- Capas -->
+    <section id="capas" class="seccion capas" aria-labelledby="capas-titulo">
+      <div class="contenedor">
+        <header class="encabezado aparece">
+          <p class="rotulo"><span>01</span>{t.capas.rotulo}</p>
+          <h2 id="capas-titulo">{t.capas.titulo}</h2>
+          <p class="encabezado-texto">{t.capas.texto}</p>
+        </header>
+        <div class="capas-rejilla">
+          <div class="capas-pila"><Pila capas={t.capas.lista} /></div>
+          <ol class="capas-lista" role="list">
+            {t.capas.lista.map((capa) => (
+              <li class="capa" id={`capa-${capa.id}`} data-capa={capa.id}>
+                <p class="capa-numero">{capa.numero} · {capa.nombre}</p>
+                <h3>{capa.titulo}</h3>
+                <p>{capa.texto}</p>
+                <ul class="lista-marcas" role="list">
+                  {capa.puntos.map((punto) => <li><Icon name="check-line" size={16} /> <code>{punto}</code></li>)}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- La app -->
+    <section id="app" class="seccion recorrido" aria-labelledby="app-titulo">
+      <div class="contenedor">
+        <header class="encabezado encabezado-fila aparece">
+          <div>
+            <p class="rotulo"><span>02</span>{t.recorrido.rotulo}</p>
+            <h2 id="app-titulo">{t.recorrido.titulo} <span class="serif verde">{t.recorrido.tituloAcento}</span></h2>
+          </div>
+          <p class="encabezado-texto">{t.recorrido.texto}</p>
+        </header>
+        <div class="recorrido-cuerpo aparece">
+          <div class="pestanas" role="tablist" aria-label={t.recorrido.rotulo} aria-orientation="vertical">
+            {t.recorrido.pestanas.map((p, i) => (
+              <button class="pestana" type="button" role="tab" id={`tab-${p.id}`} aria-controls={`panel-${p.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1}>
+                <span class="pestana-num">{String(i + 1).padStart(2, '0')}</span>
+                <span class="pestana-texto"><strong>{p.titulo}</strong><small>{p.texto}</small></span>
+                <i class="avance" aria-hidden="true"></i>
+              </button>
+            ))}
+          </div>
+          <div class="recorrido-visor">
+            <div class="visor-controles">
+              <button class="pausa" type="button" aria-label={t.recorrido.pausar} data-pausar={t.recorrido.pausar} data-reanudar={t.recorrido.reanudar}><Icon name="pause-line" size={16} /></button>
+            </div>
+            {t.recorrido.pestanas.map((p, i) => (
+              <figure class:list={['panel ventana ampliable', { activo: i === 0 }]} id={`panel-${p.id}`} role="tabpanel" aria-labelledby={`tab-${p.id}`} hidden={i !== 0}>
+                <picture><source media={MODO_OSCURO} srcset={oscura(p.imagen)} /><img src={img(p.imagen)} alt={`${p.titulo}: ${p.texto}`} width="2560" height="1560" loading="lazy" /></picture>
+              </figure>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Funciones -->
+    <section id="funciones" class="seccion" aria-labelledby="funciones-titulo">
+      <div class="contenedor">
+        <header class="encabezado aparece">
+          <p class="rotulo"><span>03</span>{t.funciones.rotulo}</p>
+          <h2 id="funciones-titulo">{t.funciones.titulo} <span class="serif verde">{t.funciones.tituloAcento}</span></h2>
+        </header>
+        <ul class="bento" role="list">
+          {t.funciones.celdas.map((celda) => (
+            <li class:list={['celda aparece foco', `celda-${celda.id}`]}>
+              <div class="celda-texto">
+                <span class="celda-icono"><Icon name={celda.icono} size={20} /></span>
+                <h3>{celda.titulo}</h3>
+                <p>{celda.texto}</p>
+              </div>
+              {celda.imagen && (
+                <figure class="celda-imagen ampliable"><picture><source media={MODO_OSCURO} srcset={oscura(celda.imagen)} /><img src={img(celda.imagen)} alt={celda.titulo} loading="lazy" /></picture></figure>
+              )}
+              {celda.codigo && (
+                <ul class="ramas" role="list" aria-hidden="true">
+                  {celda.codigo.map((rama, i) => <li class:list={{ actual: i === 1 }}><Icon name="git-branch-line" size={14} />{rama}{i === 1 && <span>feature-reportes.panel.test</span>}</li>)}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <!-- Lo que nunca hace -->
+    <section id="nunca" class="seccion nunca" aria-labelledby="nunca-titulo">
+      <div class="contenedor nunca-rejilla">
+        <header class="encabezado nunca-encabezado aparece">
+          <p class="rotulo"><span>04</span>{t.nunca.rotulo}</p>
+          <h2 id="nunca-titulo">{t.nunca.titulo} <span class="serif verde">{t.nunca.tituloAcento}</span></h2>
+          <p class="encabezado-texto">{t.nunca.texto}</p>
+        </header>
+        <ul class="nunca-lista" role="list">
+          {t.nunca.lista.map((item) => (
+            <li class="aparece">
+              <span class="tachado">{item.no}</span>
+              <p><Icon name="shield-check-line" size={16} /> {item.si}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <!-- Cifras -->
+    <section class="cifras" aria-label="Stack en cifras">
+      <dl class="contenedor cifras-fila">
+        {t.cifras.map((dato) => (
+          <div class="cifra aparece"><dd data-cifra={dato.valor}>{dato.valor}</dd><dt>{dato.texto}</dt></div>
+        ))}
+      </dl>
+    </section>
+
+    <!-- Instalar -->
+    <section id="instalar" class="seccion" aria-labelledby="instalar-titulo">
+      <div class="contenedor">
+        <header class="encabezado aparece">
+          <p class="rotulo"><span>05</span>{t.instalar.rotulo}</p>
+          <h2 id="instalar-titulo">{t.instalar.titulo} <span class="serif verde">{t.instalar.tituloAcento}</span></h2>
+        </header>
+        <ol class="pasos" role="list">
+          {t.instalar.pasos.map((paso, i) => (
+            <li class="paso aparece foco"><span class="paso-num serif">{i + 1}</span><h3>{paso.titulo}</h3><p>{paso.texto}</p></li>
+          ))}
+        </ol>
+        <div class="instalar-pie aparece">
+          <div class="instalar-cta">
+            <a class="boton boton-verde boton-grande" href={descarga}><Icon name="apple-fill" size={22} /> {t.hero.descargar}</a>
+            <p><Icon name="verified-badge-line" size={16} /> {t.instalar.aviso}</p>
+          </div>
+          <div class="terminal">
+            <div class="terminal-barra"><i></i><i></i><i></i><span>{t.instalar.codigoTitulo}</span>
+              <button class="copiar" type="button" data-copiar data-texto-copiar={t.instalar.copiar} data-texto-copiado={t.instalar.copiado}><Icon name="file-copy-line" size={14} /><span>{t.instalar.copiar}</span></button>
+            </div>
+            <pre><code>{t.instalar.codigo.map((linea) => <span class="linea">{linea}</span>)}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Preguntas -->
+    <section id="preguntas" class="seccion" aria-labelledby="faq-titulo">
+      <div class="contenedor faq">
+        <header class="encabezado faq-encabezado aparece">
+          <p class="rotulo"><span>06</span>{t.faq.rotulo}</p>
+          <h2 id="faq-titulo">{t.faq.titulo}</h2>
+        </header>
+        <div class="faq-lista">
+          {t.faq.items.map((item) => (
+            <details class="pregunta aparece">
+              <summary>{item.p}<span class="mas" aria-hidden="true"></span></summary>
+              <p>{item.r}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- Cierre -->
+    <section class="cierre" aria-labelledby="cierre-titulo">
+      <div class="aurora aurora-baja" aria-hidden="true"></div>
+      <div class="contenedor cierre-cuerpo aparece">
+        <img src={img('logo.png')} alt="" width="72" height="72" class="cierre-logo" />
+        <h2 id="cierre-titulo">{t.cierre.titulo[0]}<br /><span class="serif verde">{t.cierre.titulo[1]}</span></h2>
+        <p>{t.cierre.texto}</p>
+        <div class="hero-acciones hero-acciones-centro">
+          <a class="boton boton-verde boton-grande" href={descarga}><Icon name="apple-fill" size={22} /> {t.hero.descargar}</a>
+          <a class="boton boton-linea boton-grande" href={repo}><Icon name="github-fill" size={22} /> {t.hero.github}</a>
+        </div>
+        <p class="requisitos">{t.hero.requisitos}</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <div class="contenedor pie-rejilla">
+      <div class="pie-marca">
+        <a class="marca" href={`${base}/`}><img src={img('logo.png')} alt="" width="26" height="26" /><span>Stack <small>de Butake</small></span></a>
+        <p>{t.descripcion}</p>
+      </div>
+      {t.pieColumnas.map((columna) => (
+        <div class="pie-columna">
+          <h3>{columna.titulo}</h3>
+          <ul role="list">
+            {columna.enlaces.map(([texto, destino]) => <li><a href={destino.startsWith('#') || destino.startsWith('http') ? destino : `${repo}${destino}`}>{texto}</a></li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+    <p class="pie-gigante" aria-hidden="true">Stack</p>
+    <div class="contenedor pie-legal">
+      <p>{t.pie.copyright} · {t.pie.licencia} {t.pie.marca}</p>
+      <a href="#contenido"><Icon name="arrow-up-line" size={16} /> {t.pie.arriba}</a>
+    </div>
+  </footer>
+
+  <dialog class="visor" aria-label="Captura ampliada">
+    <button class="visor-cerrar" type="button" aria-label="Cerrar"><Icon name="close-line" size={22} /></button>
+    <img alt="" />
+  </dialog>
+
+  <script>
+    const reducido = matchMedia('(prefers-reduced-motion: reduce)').matches
+    document.documentElement.classList.add('js')
+
+    // Tema: sistema (por defecto), claro u oscuro. La elección queda en este navegador.
+    const fuentes = [...document.querySelectorAll('picture source')] as HTMLSourceElement[]
+    const aplicarTema = (tema: string) => {
+      const raiz = document.documentElement
+      if (tema === 'light' || tema === 'dark') raiz.dataset.theme = tema; else delete raiz.dataset.theme
+      fuentes.forEach((f) => { f.media = tema === 'dark' ? 'all' : tema === 'light' ? 'not all' : '(prefers-color-scheme: dark)' })
+      document.querySelectorAll('[data-tema]').forEach((b) => b.setAttribute('aria-checked', String((b as HTMLElement).dataset.tema === tema)))
+    }
+    let temaGuardado = 'system'
+    try { temaGuardado = localStorage.getItem('stack-tema') ?? 'system' } catch {}
+    aplicarTema(temaGuardado)
+    document.querySelectorAll('[data-tema]').forEach((b) => b.addEventListener('click', () => {
+      const tema = (b as HTMLElement).dataset.tema!
+      aplicarTema(tema)
+      try { if (tema === 'system') localStorage.removeItem('stack-tema'); else localStorage.setItem('stack-tema', tema) } catch {}
+    }))
+
+    // Aparición al entrar en pantalla.
+    const aparecer = new IntersectionObserver((entradas) => {
+      for (const e of entradas) if (e.isIntersecting) { e.target.classList.add('visible'); aparecer.unobserve(e.target) }
+    }, { rootMargin: '0px 0px -6% 0px', threshold: 0.1 })
+    document.querySelectorAll('.aparece').forEach((el, i) => { (el as HTMLElement).style.setProperty('--d', `${(i % 4) * 80}ms`); aparecer.observe(el) })
+
+    // Barra: se compacta al bajar.
+    const barra = document.querySelector('.barra') as HTMLElement
+    const alDesplazar = () => barra.classList.toggle('compacta', scrollY > 24)
+    addEventListener('scroll', alDesplazar, { passive: true }); alDesplazar()
+
+    // Dirección de la portada: escribe un dominio .test tras otro.
+    const host = document.querySelector('.direccion-host') as HTMLElement
+    const direcciones: string[] = JSON.parse(host.dataset.direcciones ?? '[]')
+    if (!reducido && direcciones.length > 1) {
+      let n = 0
+      const escribir = async () => {
+        const texto = direcciones[n = (n + 1) % direcciones.length]
+        for (let i = host.textContent!.length; i >= 0; i--) { host.textContent = host.textContent!.slice(0, i); await new Promise((r) => setTimeout(r, 28)) }
+        for (let i = 1; i <= texto.length; i++) { host.textContent = texto.slice(0, i); await new Promise((r) => setTimeout(r, 55)) }
+        setTimeout(escribir, 2600)
+      }
+      setTimeout(escribir, 2600)
+    }
+
+    // Capas: la que está a media pantalla se ilumina en la pila.
+    const pila = document.querySelector('.pila') as HTMLElement
+    const capas = [...document.querySelectorAll('.capa')] as HTMLElement[]
+    const observaCapas = new IntersectionObserver((entradas) => {
+      for (const e of entradas) if (e.isIntersecting) {
+        pila.dataset.activa = (e.target as HTMLElement).dataset.capa!
+        capas.forEach((c) => c.classList.toggle('activa', c === e.target))
+      }
+    }, { rootMargin: '-45% 0px -45% 0px' })
+    capas.forEach((c) => observaCapas.observe(c))
+    capas[0]?.classList.add('activa')
+
+    // Cifras que cuentan.
+    const contar = new IntersectionObserver((entradas) => {
+      for (const e of entradas) {
+        if (!e.isIntersecting) continue
+        const el = e.target as HTMLElement; contar.unobserve(el)
+        const objetivo = parseInt(el.dataset.cifra ?? '0', 10)
+        if (reducido || !objetivo) continue
+        const inicio = performance.now()
+        const paso = (ahora: number) => {
+          const p = Math.min(1, (ahora - inicio) / 1200)
+          el.textContent = String(Math.round(objetivo * (1 - Math.pow(1 - p, 3))))
+          if (p < 1) requestAnimationFrame(paso)
+        }
+        requestAnimationFrame(paso)
+      }
+    }, { threshold: 0.6 })
+    document.querySelectorAll('[data-cifra]').forEach((el) => contar.observe(el))
+
+    // Luz que sigue al cursor.
+    document.querySelectorAll('.foco').forEach((el) => el.addEventListener('pointermove', (ev) => {
+      const r = (el as HTMLElement).getBoundingClientRect(), e = ev as PointerEvent
+      ;(el as HTMLElement).style.setProperty('--x', `${e.clientX - r.left}px`); (el as HTMLElement).style.setProperty('--y', `${e.clientY - r.top}px`)
+    }))
+
+    // Copiar.
+    document.querySelectorAll('[data-copiar]').forEach((boton) => boton.addEventListener('click', async () => {
+      const b = boton as HTMLElement
+      const lineas = [...(b.closest('.terminal')?.querySelectorAll('.linea') ?? [])].map((l) => l.textContent).join('\n')
+      try { await navigator.clipboard.writeText(lineas) } catch { return }
+      const etiqueta = b.querySelector('span') as HTMLElement
+      b.classList.add('copiado'); etiqueta.textContent = b.dataset.textoCopiado!
+      setTimeout(() => { b.classList.remove('copiado'); etiqueta.textContent = b.dataset.textoCopiar! }, 1800)
+    }))
+
+    // Visor de capturas.
+    const visor = document.querySelector('.visor') as HTMLDialogElement
+    const visorImg = visor.querySelector('img') as HTMLImageElement
+    document.querySelectorAll('.ampliable img').forEach((nodo) => {
+      const i = nodo as HTMLImageElement
+      i.tabIndex = 0; i.setAttribute('role', 'button'); i.setAttribute('aria-label', `Ampliar: ${i.alt}`)
+      const abrir = () => { visorImg.src = i.currentSrc || i.src; visorImg.alt = i.alt; visor.showModal() }
+      i.addEventListener('click', abrir)
+      i.addEventListener('keydown', (e) => { const k = (e as KeyboardEvent).key; if (k === 'Enter' || k === ' ') { e.preventDefault(); abrir() } })
+    })
+    visor.addEventListener('click', (e) => { if (e.target === visor || (e.target as HTMLElement).closest('.visor-cerrar')) visor.close() })
+
+    // Recorrido: avance automático, teclado y pausa.
+    const pestanas = [...document.querySelectorAll('.pestana')] as HTMLButtonElement[]
+    const paneles = [...document.querySelectorAll('.panel')] as HTMLElement[]
+    const pausa = document.querySelector('.pausa') as HTMLButtonElement
+    let actual = 0, temporizador = 0, pausado = reducido, enVista = false
+    const DURACION = 6000
+    const programar = () => {
+      clearTimeout(temporizador)
+      const b = pestanas[actual]
+      b.classList.remove('corriendo'); void b.offsetWidth
+      if (pausado || !enVista) return
+      b.style.setProperty('--duracion', `${DURACION}ms`); b.classList.add('corriendo')
+      temporizador = window.setTimeout(() => mostrar(actual + 1), DURACION)
+    }
+    const mostrar = (i: number, foco = false) => {
+      actual = (i + pestanas.length) % pestanas.length
+      pestanas.forEach((b, j) => { b.setAttribute('aria-selected', String(j === actual)); b.tabIndex = j === actual ? 0 : -1; b.classList.remove('corriendo') })
+      paneles.forEach((p, j) => { if (j === actual) { p.hidden = false; requestAnimationFrame(() => p.classList.add('activo')) } else { p.classList.remove('activo'); p.hidden = true } })
+      if (foco) pestanas[actual].focus()
+      programar()
+    }
+    pestanas.forEach((b, i) => {
+      b.addEventListener('click', () => mostrar(i))
+      b.addEventListener('keydown', (e) => {
+        const k = (e as KeyboardEvent).key
+        if (k === 'ArrowDown' || k === 'ArrowRight') { e.preventDefault(); mostrar(actual + 1, true) }
+        if (k === 'ArrowUp' || k === 'ArrowLeft') { e.preventDefault(); mostrar(actual - 1, true) }
+        if (k === 'Home') { e.preventDefault(); mostrar(0, true) }
+        if (k === 'End') { e.preventDefault(); mostrar(pestanas.length - 1, true) }
+      })
+    })
+    const ponerPausa = (v: boolean) => { pausado = v; pausa.setAttribute('aria-label', v ? pausa.dataset.reanudar! : pausa.dataset.pausar!); pausa.classList.toggle('en-pausa', v); programar() }
+    pausa.addEventListener('click', () => ponerPausa(!pausado))
+    if (reducido) ponerPausa(true)
+    new IntersectionObserver(([e]) => { enVista = e.isIntersecting; programar() }, { threshold: 0.3 }).observe(document.querySelector('.recorrido-cuerpo')!)
+
+    // Menú en teléfono.
+    const menuBoton = document.querySelector('.menu-boton') as HTMLButtonElement
+    const menuMovil = document.getElementById('menu-movil') as HTMLElement
+    const cerrarMenu = () => { menuMovil.hidden = true; menuBoton.setAttribute('aria-expanded', 'false'); menuBoton.setAttribute('aria-label', menuBoton.dataset.abrir!); document.body.classList.remove('menu-abierto') }
+    menuBoton.addEventListener('click', () => {
+      const abrir = menuMovil.hidden
+      menuMovil.hidden = !abrir; menuBoton.setAttribute('aria-expanded', String(abrir)); menuBoton.setAttribute('aria-label', abrir ? menuBoton.dataset.cerrar! : menuBoton.dataset.abrir!)
+      document.body.classList.toggle('menu-abierto', abrir)
+    })
+    menuMovil.querySelectorAll('a').forEach((a) => a.addEventListener('click', cerrarMenu))
+    addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Escape' && !menuMovil.hidden) { cerrarMenu(); menuBoton.focus() } })
+  </script>
+</body>
+</html>

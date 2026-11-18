@@ -1,0 +1,6 @@
+# The Rust toolchain of the engine: CI and every Mac build with this one. Raise it on purpose, in a
+# commit of its own (a new version brings new lints, and `clippy -D warnings` turns them into errors).
+[toolchain]
+channel = "1.100.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

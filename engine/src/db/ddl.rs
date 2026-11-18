@@ -1,0 +1,626 @@
+//! Structure changes from the client's forms (create a table; add, change or drop a column; indexes;
+//! foreign keys; rename or drop a table) as SQL for PostgreSQL, MySQL/MariaDB and SQLite. Pure
+//! functions: names always go through `ident`, types and defaults through small whitelists, so
+//! nothing typed in a form can become SQL of its own. The app shows the result before it runs.
+use crate::db::sql::{Dialect, ident};
+use anyhow::{Result, bail, ensure};
+use serde_json::Value;
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ColumnSpec {
+    pub name: String,
+    pub kind: String,
+    pub nullable: bool,
+    pub default: Option<String>,
+    pub primary: bool,
+    pub auto_increment: bool,
+}
+
+impl ColumnSpec {
+    pub fn from_json(value: &Value) -> Result<Self> {
+        let spec = Self {
+            name: value["name"].as_str().unwrap_or("").to_string(),
+            kind: value["type"].as_str().unwrap_or("").trim().to_string(),
+            nullable: value["nullable"].as_bool().unwrap_or(true),
+            default: value["default"]
+                .as_str()
+                .map(str::trim)
+                .filter(|d| !d.is_empty())
+                .map(str::to_string),
+            primary: value["primary"] == true,
+            auto_increment: value["autoIncrement"] == true,
+        };
+        valid_name(&spec.name)?;
+        valid_type(&spec.kind)?;
+        Ok(spec)
+    }
+}
+
+/// Any name the server accepts, as long as it is short and printable (it is always quoted).
+pub fn valid_name(name: &str) -> Result<()> {
+    ensure!(
+        !name.trim().is_empty()
+            && name.len() <= 64
+            && name.trim() == name
+            && !name.chars().any(char::is_control),
+        "invalid_ddl"
+    );
+    Ok(())
+}
+
+/// A type as written in SQL: words, digits and one argument list of numbers, e.g. `varchar(255)`,
+/// `numeric(10, 2)`, `timestamp with time zone`, `int unsigned`, `text[]`. No quotes, no `;`, and
+/// none of the words that start a column clause (`primary key`, `references`, `default`…).
+pub fn valid_type(kind: &str) -> Result<()> {
+    ensure!(
+        !kind.is_empty() && kind.len() <= 64 && kind.starts_with(|c: char| c.is_ascii_alphabetic()),
+        "invalid_ddl"
+    );
+    let mut depth = 0;
+    for c in kind.chars() {
+        match c {
+            '(' => {
+                depth += 1;
+                ensure!(depth == 1, "invalid_ddl");
+            }
+            ')' => {
+                depth -= 1;
+                ensure!(depth == 0, "invalid_ddl");
+            }
+            ',' => ensure!(depth == 1, "invalid_ddl"),
+            '[' | ']' | ' ' | '_' => {}
+            c if c.is_ascii_digit() => {}
+            c if c.is_ascii_alphabetic() => ensure!(depth == 0, "invalid_ddl"),
+            _ => bail!("invalid_ddl"),
+        }
+    }
+    ensure!(depth == 0, "invalid_ddl");
+    // Types are open (extensions add their own: citext, geometry…), but the words that open a
+    // clause of the column are not part of a type: the form has its own fields for those.
+    const CLAUSES: &[&str] = &[
+        "primary",
+        "key",
+        "unique",
+        "references",
+        "check",
+        "default",
+        "not",
+        "null",
+        "constraint",
+        "generated",
+        "collate",
+        "auto_increment",
+        "autoincrement",
+        "identity",
+        "as",
+        "on",
+        "comment",
+        "using",
+        "stored",
+        "virtual",
+        "after",
+        "first",
+    ];
+    let outside: String = kind
+        .chars()
+        .scan(0, |depth, c| {
+            match c {
+                '(' => *depth += 1,
+                ')' => *depth -= 1,
+                _ => {}
+            }
+            Some(if *depth == 0 && c != ')' { c } else { ' ' })
+        })
+        .collect();
+    ensure!(
+        !outside
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .any(|word| CLAUSES.contains(&word.to_ascii_lowercase().as_str())),
+        "invalid_ddl"
+    );
+    Ok(())
+}
+
+/// A default: a number, one of the usual expressions, or else a string literal.
+pub fn default_sql(dialect: Dialect, value: &str) -> String {
+    const EXPRESSIONS: &[&str] = &[
+        "NULL",
+        "TRUE",
+        "FALSE",
+        "CURRENT_TIMESTAMP",
+        "CURRENT_DATE",
+        "CURRENT_TIME",
+        "LOCALTIMESTAMP",
+        "NOW()",
+        "GEN_RANDOM_UUID()",
+        "UUID()",
+        "CURRENT_TIMESTAMP()",
+    ];
+    let upper = value.trim().to_ascii_uppercase();
+    if EXPRESSIONS.contains(&upper.as_str()) {
+        return upper;
+    }
+    let number = value.trim();
+    let digits = number.strip_prefix('-').unwrap_or(number);
+    if !digits.is_empty()
+        && digits.split('.').count() <= 2
+        && digits.chars().all(|c| c.is_ascii_digit() || c == '.')
+        && !digits.starts_with('.')
+        && !digits.ends_with('.')
+    {
+        return number.to_string();
+    }
+    string_literal(dialect, value)
+}
+
+/// A readable string literal (doubled quotes). A MySQL value with a backslash is written in hex
+/// instead: the server reads a doubled backslash as one or two characters depending on
+/// `NO_BACKSLASH_ESCAPES`, and hex means the same in every mode.
+pub fn string_literal(dialect: Dialect, value: &str) -> String {
+    match dialect {
+        Dialect::MySql if value.contains('\\') => crate::db::sql::literal(dialect, value),
+        _ => format!("'{}'", value.replace('\'', "''")),
+    }
+}
+
+fn column_definition(d: Dialect, c: &ColumnSpec, inline_primary: bool) -> String {
+    let mut out = format!("{} {}", ident(d, &c.name), c.kind);
+    match d {
+        Dialect::Postgres if c.auto_increment => out.push_str(" GENERATED BY DEFAULT AS IDENTITY"),
+        _ => {}
+    }
+    if inline_primary {
+        out.push_str(" PRIMARY KEY");
+        if d == Dialect::Sqlite && c.auto_increment {
+            out.push_str(" AUTOINCREMENT");
+        }
+    }
+    if !c.nullable && !inline_primary {
+        out.push_str(" NOT NULL");
+    }
+    if let Some(default) = &c.default {
+        out.push_str(&format!(" DEFAULT {}", default_sql(d, default)));
+    }
+    if d == Dialect::MySql && c.auto_increment {
+        out.push_str(" AUTO_INCREMENT");
+    }
+    out
+}
+
+pub fn create_table(d: Dialect, table: &str, columns: &[ColumnSpec]) -> Result<Vec<String>> {
+    ensure!(!columns.is_empty() && columns.len() <= 200, "invalid_ddl");
+    let primary: Vec<&ColumnSpec> = columns.iter().filter(|c| c.primary).collect();
+    // SQLite's AUTOINCREMENT only exists on a single INTEGER PRIMARY KEY written inline.
+    let inline = primary.len() == 1 && d == Dialect::Sqlite && primary[0].auto_increment;
+    if columns.iter().any(|c| c.auto_increment) {
+        ensure!(
+            d != Dialect::Sqlite || (inline && primary[0].kind.eq_ignore_ascii_case("integer")),
+            "unsupported_ddl"
+        );
+    }
+    let mut lines: Vec<String> = columns
+        .iter()
+        .map(|c| format!("    {}", column_definition(d, c, inline && c.primary)))
+        .collect();
+    if !primary.is_empty() && !inline {
+        lines.push(format!(
+            "    PRIMARY KEY ({})",
+            primary
+                .iter()
+                .map(|c| ident(d, &c.name))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    Ok(vec![format!(
+        "CREATE TABLE {table} (\n{}\n)",
+        lines.join(",\n")
+    )])
+}
+
+pub fn add_column(d: Dialect, table: &str, column: &ColumnSpec) -> Result<Vec<String>> {
+    ensure!(
+        !column.primary && (d != Dialect::Sqlite || !column.auto_increment),
+        "unsupported_ddl"
+    );
+    Ok(vec![format!(
+        "ALTER TABLE {table} ADD COLUMN {}",
+        column_definition(d, column, false)
+    )])
+}
+
+/// Changes a column from `old` to `new` (name, type, NULL and default).
+pub fn alter_column(
+    d: Dialect,
+    table: &str,
+    old: &ColumnSpec,
+    new: &ColumnSpec,
+) -> Result<Vec<String>> {
+    let renamed = old.name != new.name;
+    let rest_changed = !old.kind.eq_ignore_ascii_case(&new.kind)
+        || old.nullable != new.nullable
+        || old.default != new.default;
+    ensure!(renamed || rest_changed, "invalid_ddl");
+    match d {
+        Dialect::MySql => Ok(vec![format!(
+            "ALTER TABLE {table} CHANGE COLUMN {} {}",
+            ident(d, &old.name),
+            column_definition(d, new, false)
+        )]),
+        Dialect::Postgres => {
+            let mut out = vec![];
+            let name = ident(d, &new.name);
+            if renamed {
+                out.push(format!(
+                    "ALTER TABLE {table} RENAME COLUMN {} TO {name}",
+                    ident(d, &old.name)
+                ));
+            }
+            if !old.kind.eq_ignore_ascii_case(&new.kind) {
+                out.push(format!(
+                    "ALTER TABLE {table} ALTER COLUMN {name} TYPE {} USING {name}::{}",
+                    new.kind, new.kind
+                ));
+            }
+            if old.nullable != new.nullable {
+                out.push(format!(
+                    "ALTER TABLE {table} ALTER COLUMN {name} {} NOT NULL",
+                    if new.nullable { "DROP" } else { "SET" }
+                ));
+            }
+            if old.default != new.default {
+                out.push(match &new.default {
+                    Some(value) => format!(
+                        "ALTER TABLE {table} ALTER COLUMN {name} SET DEFAULT {}",
+                        default_sql(d, value)
+                    ),
+                    None => format!("ALTER TABLE {table} ALTER COLUMN {name} DROP DEFAULT"),
+                });
+            }
+            Ok(out)
+        }
+        // SQLite only renames in place; any other change rebuilds the table, which the client
+        // does not do on its own.
+        Dialect::Sqlite => {
+            ensure!(!rest_changed, "unsupported_ddl");
+            Ok(vec![format!(
+                "ALTER TABLE {table} RENAME COLUMN {} TO {}",
+                ident(d, &old.name),
+                ident(d, &new.name)
+            )])
+        }
+    }
+}
+
+pub fn drop_column(d: Dialect, table: &str, column: &str) -> Result<Vec<String>> {
+    valid_name(column)?;
+    Ok(vec![format!(
+        "ALTER TABLE {table} DROP COLUMN {}",
+        ident(d, column)
+    )])
+}
+
+fn names(d: Dialect, list: &[String]) -> Result<String> {
+    ensure!(!list.is_empty() && list.len() <= 32, "invalid_ddl");
+    for name in list {
+        valid_name(name)?;
+    }
+    Ok(list
+        .iter()
+        .map(|n| ident(d, n))
+        .collect::<Vec<_>>()
+        .join(", "))
+}
+
+pub fn create_index(
+    d: Dialect,
+    table: &str,
+    name: &str,
+    columns: &[String],
+    unique: bool,
+) -> Result<Vec<String>> {
+    valid_name(name)?;
+    Ok(vec![format!(
+        "CREATE {}INDEX {} ON {table} ({})",
+        if unique { "UNIQUE " } else { "" },
+        ident(d, name),
+        names(d, columns)?
+    )])
+}
+
+/// `schema` qualifies the index for PostgreSQL (indexes live in the table's schema).
+pub fn drop_index(d: Dialect, table: &str, schema: &str, name: &str) -> Result<Vec<String>> {
+    valid_name(name)?;
+    Ok(vec![match d {
+        Dialect::MySql => format!("DROP INDEX {} ON {table}", ident(d, name)),
+        Dialect::Postgres => format!(
+            "DROP INDEX {}.{}",
+            ident(d, if schema.is_empty() { "public" } else { schema }),
+            ident(d, name)
+        ),
+        Dialect::Sqlite => format!("DROP INDEX {}", ident(d, name)),
+    }])
+}
+
+fn referential_action(action: &str) -> Result<&'static str> {
+    Ok(match action.to_ascii_lowercase().as_str() {
+        "" | "no action" => "NO ACTION",
+        "restrict" => "RESTRICT",
+        "cascade" => "CASCADE",
+        "set null" => "SET NULL",
+        "set default" => "SET DEFAULT",
+        _ => bail!("invalid_ddl"),
+    })
+}
+
+/// `reference` is the referenced table, already quoted (and qualified).
+#[allow(clippy::too_many_arguments)]
+pub fn add_foreign_key(
+    d: Dialect,
+    table: &str,
+    name: &str,
+    columns: &[String],
+    reference: &str,
+    ref_columns: &[String],
+    on_delete: &str,
+    on_update: &str,
+) -> Result<Vec<String>> {
+    ensure!(d != Dialect::Sqlite, "unsupported_ddl");
+    valid_name(name)?;
+    ensure!(columns.len() == ref_columns.len(), "invalid_ddl");
+    Ok(vec![format!(
+        "ALTER TABLE {table} ADD CONSTRAINT {} FOREIGN KEY ({}) REFERENCES {reference} ({}) ON DELETE {} ON UPDATE {}",
+        ident(d, name),
+        names(d, columns)?,
+        names(d, ref_columns)?,
+        referential_action(on_delete)?,
+        referential_action(on_update)?
+    )])
+}
+
+pub fn drop_foreign_key(d: Dialect, table: &str, name: &str) -> Result<Vec<String>> {
+    valid_name(name)?;
+    Ok(vec![match d {
+        Dialect::MySql => format!("ALTER TABLE {table} DROP FOREIGN KEY {}", ident(d, name)),
+        Dialect::Postgres => format!("ALTER TABLE {table} DROP CONSTRAINT {}", ident(d, name)),
+        Dialect::Sqlite => bail!("unsupported_ddl"),
+    }])
+}
+
+/// `renamed` is the new full reference for MySQL (database.table) and just the name elsewhere.
+pub fn rename_table(
+    d: Dialect,
+    table: &str,
+    new_name: &str,
+    database: &str,
+) -> Result<Vec<String>> {
+    valid_name(new_name)?;
+    Ok(vec![match d {
+        Dialect::MySql => format!(
+            "RENAME TABLE {table} TO {}.{}",
+            ident(d, database),
+            ident(d, new_name)
+        ),
+        _ => format!("ALTER TABLE {table} RENAME TO {}", ident(d, new_name)),
+    }])
+}
+
+pub fn drop_table(table: &str, view: bool) -> Vec<String> {
+    vec![format!(
+        "DROP {} {table}",
+        if view { "VIEW" } else { "TABLE" }
+    )]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn col(name: &str, kind: &str) -> ColumnSpec {
+        ColumnSpec {
+            name: name.into(),
+            kind: kind.into(),
+            nullable: true,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn types_and_names_cannot_carry_sql() {
+        for ok in [
+            "int",
+            "varchar(255)",
+            "numeric(10, 2)",
+            "timestamp with time zone",
+            "int unsigned",
+            "text[]",
+            "double precision",
+        ] {
+            assert!(valid_type(ok).is_ok(), "{ok}");
+        }
+        for bad in [
+            "int; drop table x",
+            "varchar(255) default 'x'",
+            "text -- x",
+            "enum('a')",
+            "int)",
+            "(int",
+            "x(1(2))",
+            "",
+            "1int",
+            "int /* */",
+            "int primary key",
+            "text unique",
+            "int references other",
+            "int NOT NULL",
+            "varchar(10) collate x",
+        ] {
+            assert!(valid_type(bad).is_err(), "{bad}");
+        }
+        assert!(
+            valid_name("nombre raro\"`;").is_ok(),
+            "any printable name, it is quoted"
+        );
+        assert!(
+            valid_name(" espacio").is_err()
+                && valid_name("a\nb").is_err()
+                && valid_name("").is_err()
+        );
+        assert!(
+            ColumnSpec::from_json(&serde_json::json!({"name": "x", "type": "int; drop"})).is_err()
+        );
+    }
+
+    #[test]
+    fn defaults_are_numbers_known_expressions_or_strings() {
+        assert_eq!(default_sql(Dialect::Postgres, "42"), "42");
+        assert_eq!(default_sql(Dialect::Postgres, "-1.5"), "-1.5");
+        assert_eq!(default_sql(Dialect::Postgres, "now()"), "NOW()");
+        assert_eq!(default_sql(Dialect::Postgres, "it's"), "'it''s'");
+        // A backslash goes in hex: the same value whatever the server's SQL mode.
+        let tricky = "a\\'); x; --";
+        assert_eq!(
+            default_sql(Dialect::MySql, tricky),
+            crate::db::sql::literal(Dialect::MySql, tricky)
+        );
+        assert!(!default_sql(Dialect::MySql, tricky).contains("x;"));
+        assert_eq!(default_sql(Dialect::MySql, "it's"), "'it''s'");
+        assert_eq!(default_sql(Dialect::Sqlite, "1.2.3"), "'1.2.3'");
+    }
+
+    #[test]
+    fn create_table_per_dialect() {
+        let mut id = col("id", "integer");
+        id.primary = true;
+        id.auto_increment = true;
+        id.nullable = false;
+        let mut name = col("name", "varchar(80)");
+        name.nullable = false;
+        name.default = Some("sin nombre".into());
+        let columns = vec![id, name];
+        assert_eq!(
+            create_table(Dialect::Postgres, "\"public\".\"t\"", &columns).unwrap()[0],
+            "CREATE TABLE \"public\".\"t\" (\n    \"id\" integer GENERATED BY DEFAULT AS IDENTITY NOT NULL,\n    \"name\" varchar(80) NOT NULL DEFAULT 'sin nombre',\n    PRIMARY KEY (\"id\")\n)"
+        );
+        assert_eq!(
+            create_table(Dialect::MySql, "`db`.`t`", &columns).unwrap()[0],
+            "CREATE TABLE `db`.`t` (\n    `id` integer NOT NULL AUTO_INCREMENT,\n    `name` varchar(80) NOT NULL DEFAULT 'sin nombre',\n    PRIMARY KEY (`id`)\n)"
+        );
+        assert_eq!(
+            create_table(Dialect::Sqlite, "\"t\"", &columns).unwrap()[0],
+            "CREATE TABLE \"t\" (\n    \"id\" integer PRIMARY KEY AUTOINCREMENT,\n    \"name\" varchar(80) NOT NULL DEFAULT 'sin nombre'\n)"
+        );
+        let mut text_auto = col("x", "text");
+        text_auto.auto_increment = true;
+        assert!(create_table(Dialect::Sqlite, "\"t\"", &[text_auto]).is_err());
+    }
+
+    #[test]
+    fn column_changes_per_dialect() {
+        let old = col("nombre", "varchar(50)");
+        let mut new = col("name", "varchar(100)");
+        new.nullable = false;
+        let pg = alter_column(Dialect::Postgres, "\"public\".\"t\"", &old, &new).unwrap();
+        assert_eq!(
+            pg,
+            vec![
+                "ALTER TABLE \"public\".\"t\" RENAME COLUMN \"nombre\" TO \"name\"",
+                "ALTER TABLE \"public\".\"t\" ALTER COLUMN \"name\" TYPE varchar(100) USING \"name\"::varchar(100)",
+                "ALTER TABLE \"public\".\"t\" ALTER COLUMN \"name\" SET NOT NULL",
+            ]
+        );
+        assert_eq!(
+            alter_column(Dialect::MySql, "`d`.`t`", &old, &new).unwrap(),
+            vec!["ALTER TABLE `d`.`t` CHANGE COLUMN `nombre` `name` varchar(100) NOT NULL"]
+        );
+        assert!(
+            alter_column(Dialect::Sqlite, "\"t\"", &old, &new).is_err(),
+            "SQLite only renames"
+        );
+        let renamed = col("name", "varchar(50)");
+        assert_eq!(
+            alter_column(Dialect::Sqlite, "\"t\"", &old, &renamed).unwrap(),
+            vec!["ALTER TABLE \"t\" RENAME COLUMN \"nombre\" TO \"name\""]
+        );
+        assert!(
+            alter_column(Dialect::Sqlite, "\"t\"", &old, &old).is_err(),
+            "nothing changed"
+        );
+        assert_eq!(
+            drop_column(Dialect::MySql, "`d`.`t`", "a`b").unwrap(),
+            vec!["ALTER TABLE `d`.`t` DROP COLUMN `a``b`"]
+        );
+    }
+
+    #[test]
+    fn indexes_keys_and_tables() {
+        let cols = vec!["a".to_string(), "b".to_string()];
+        assert_eq!(
+            create_index(Dialect::Postgres, "\"s\".\"t\"", "t_ab", &cols, true).unwrap(),
+            vec!["CREATE UNIQUE INDEX \"t_ab\" ON \"s\".\"t\" (\"a\", \"b\")"]
+        );
+        assert_eq!(
+            drop_index(Dialect::MySql, "`d`.`t`", "", "t_ab").unwrap(),
+            vec!["DROP INDEX `t_ab` ON `d`.`t`"]
+        );
+        assert_eq!(
+            drop_index(Dialect::Postgres, "\"s\".\"t\"", "s", "t_ab").unwrap(),
+            vec!["DROP INDEX \"s\".\"t_ab\""]
+        );
+        assert_eq!(
+            add_foreign_key(
+                Dialect::MySql,
+                "`d`.`t`",
+                "fk_t_u",
+                &["user_id".into()],
+                "`d`.`users`",
+                &["id".into()],
+                "cascade",
+                ""
+            )
+            .unwrap(),
+            vec![
+                "ALTER TABLE `d`.`t` ADD CONSTRAINT `fk_t_u` FOREIGN KEY (`user_id`) REFERENCES `d`.`users` (`id`) ON DELETE CASCADE ON UPDATE NO ACTION"
+            ]
+        );
+        assert!(
+            add_foreign_key(
+                Dialect::MySql,
+                "`d`.`t`",
+                "fk",
+                &["a".into()],
+                "`d`.`u`",
+                &["id".into()],
+                "drop table x",
+                ""
+            )
+            .is_err()
+        );
+        assert!(
+            add_foreign_key(
+                Dialect::Sqlite,
+                "\"t\"",
+                "fk",
+                &["a".into()],
+                "\"u\"",
+                &["id".into()],
+                "",
+                ""
+            )
+            .is_err()
+        );
+        assert_eq!(
+            drop_foreign_key(Dialect::Postgres, "\"s\".\"t\"", "fk").unwrap(),
+            vec!["ALTER TABLE \"s\".\"t\" DROP CONSTRAINT \"fk\""]
+        );
+        assert_eq!(
+            rename_table(Dialect::MySql, "`d`.`t`", "u", "d").unwrap(),
+            vec!["RENAME TABLE `d`.`t` TO `d`.`u`"]
+        );
+        assert_eq!(
+            rename_table(Dialect::Postgres, "\"s\".\"t\"", "u", "d").unwrap(),
+            vec!["ALTER TABLE \"s\".\"t\" RENAME TO \"u\""]
+        );
+        assert_eq!(drop_table("\"t\"", true), vec!["DROP VIEW \"t\""]);
+    }
+}

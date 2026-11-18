@@ -1,0 +1,79 @@
+---
+// Las tres capas de Stack como placas isométricas apiladas. La sección «Capas» marca la activa
+// con `data-activa` en `.pila`; una petición (punto verde) baja por el eje atravesándolas.
+interface Props { capas: { id: string; numero: string; nombre: string; detalle: string }[] }
+const { capas } = Astro.props
+---
+<div class="pila" data-activa={capas[0].id} role="img" aria-label={`Las capas de Stack: ${capas.map((c) => c.nombre).join(', ')}`}>
+  <div class="pila-escena">
+    {capas.map((capa, i) => (
+      <div class="placa" data-capa={capa.id} style={`--i:${i}`}>
+        <div class="placa-cara">
+          <span class="placa-numero">{capa.numero}</span>
+          <span class="placa-nombre">{capa.nombre}</span>
+          <span class="placa-detalle">{capa.detalle}</span>
+          <span class="placa-luz" aria-hidden="true"></span>
+        </div>
+      </div>
+    ))}
+    <span class="pila-eje" aria-hidden="true"><i></i></span>
+  </div>
+</div>
+
+<style>
+  .pila { position: relative; width: 100%; aspect-ratio: 1 / 1.05; display: grid; place-items: center; perspective: 1600px; }
+  .pila-escena { position: relative; width: 58%; top: 6%; aspect-ratio: 1; transform-style: preserve-3d; transform: rotateX(58deg) rotateZ(-42deg); }
+  .placa { position: absolute; inset: 0; transform-style: preserve-3d; transform: translateZ(calc((2 - var(--i)) * 110px)); opacity: .42; transition: transform .9s cubic-bezier(.16, 1, .3, 1), opacity .6s; }
+  .placa-cara {
+    position: absolute; inset: 0; border-radius: 22px; padding: 9% 10%;
+    display: grid; grid-template-rows: auto 1fr auto; align-content: start;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--text) 7.0%, transparent), color-mix(in srgb, var(--text) 1.5%, transparent)),
+      repeating-linear-gradient(0deg, transparent 0 23px, color-mix(in srgb, var(--text) 3.5%, transparent) 23px 24px),
+      repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in srgb, var(--text) 3.5%, transparent) 23px 24px),
+      var(--ink-2);
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--shadow) 40%, transparent), 0 40px 60px -20px color-mix(in srgb, var(--shadow) 70%, transparent);
+    transition: border-color .6s, box-shadow .6s, background .6s;
+  }
+  .placa-cara::after { content: ''; position: absolute; left: 0; right: 0; bottom: -10px; height: 10px; border-radius: 0 0 22px 22px; background: linear-gradient(var(--ink-3), var(--muted-2)); transform-origin: top; transform: rotateX(-90deg); }
+  .placa-numero { font: 500 13px/1 var(--font-mono); color: var(--muted); letter-spacing: .08em; }
+  .placa-nombre { align-self: end; font: 700 clamp(22px, 3.2vw, 38px)/1 var(--font-display); letter-spacing: -.03em; color: var(--text); }
+  .placa-detalle { margin-top: 8px; font: 500 12px/1.3 var(--font-mono); color: var(--muted); }
+  .placa-luz { position: absolute; top: 9%; right: 10%; width: 10px; height: 10px; border-radius: 50%; background: var(--muted-2); transition: background .5s, box-shadow .5s; }
+
+  .pila[data-activa='sitios'] .placa[data-capa='sitios'],
+  .pila[data-activa='lenguajes'] .placa[data-capa='lenguajes'],
+  .pila[data-activa='motores'] .placa[data-capa='motores'] { transform: translateZ(calc((2 - var(--i)) * 110px + 30px)); opacity: 1; }
+  .pila[data-activa='sitios'] .placa[data-capa='sitios'] .placa-cara,
+  .pila[data-activa='lenguajes'] .placa[data-capa='lenguajes'] .placa-cara,
+  .pila[data-activa='motores'] .placa[data-capa='motores'] .placa-cara {
+    border-color: color-mix(in srgb, var(--green) 70%, transparent);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--green) 22%, transparent), color-mix(in srgb, var(--text) 2.0%, transparent)),
+      repeating-linear-gradient(0deg, transparent 0 23px, color-mix(in srgb, var(--green) 10%, transparent) 23px 24px),
+      repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in srgb, var(--green) 10%, transparent) 23px 24px),
+      var(--ink-2);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--shadow) 40%, transparent), 0 0 80px -10px color-mix(in srgb, var(--green) 45%, transparent), 0 40px 60px -20px color-mix(in srgb, var(--shadow) 70%, transparent);
+  }
+  .pila[data-activa='sitios'] .placa[data-capa='sitios'] .placa-luz,
+  .pila[data-activa='lenguajes'] .placa[data-capa='lenguajes'] .placa-luz,
+  .pila[data-activa='motores'] .placa[data-capa='motores'] .placa-luz { background: var(--green); box-shadow: 0 0 0 6px color-mix(in srgb, var(--green) 25%, transparent), 0 0 18px var(--green); }
+
+  .pila-eje { position: absolute; left: 50%; top: 50%; width: 2px; height: 300px; transform-origin: top; transform: translate(-50%, 0) rotateX(-90deg); background: linear-gradient(color-mix(in srgb, var(--green) 50%, transparent), transparent); }
+  .pila-eje i { position: absolute; left: 50%; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--green); box-shadow: 0 0 14px var(--green); animation: bajar 2.8s cubic-bezier(.5, 0, .5, 1) infinite; }
+  @keyframes bajar { 0% { top: -40%; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { top: 70%; opacity: 0; } }
+
+  @media (max-width: 860px) {
+    .pila { aspect-ratio: 1 / .8; }
+    .pila-escena { width: 52%; }
+    .placa { transform: translateZ(calc((2 - var(--i)) * 70px)); }
+    .pila[data-activa='sitios'] .placa[data-capa='sitios'],
+    .pila[data-activa='lenguajes'] .placa[data-capa='lenguajes'],
+    .pila[data-activa='motores'] .placa[data-capa='motores'] { transform: translateZ(calc((2 - var(--i)) * 70px + 20px)); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .placa, .placa-cara { transition: none; }
+    .pila-eje i { animation: none; display: none; }
+  }
+</style>

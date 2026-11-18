@@ -1,0 +1,34 @@
+{
+  "spc": {
+    "version": "2.8.5",
+    "url": "https://github.com/crazywhalecc/static-php-cli/releases/download/2.8.5/spc-macos-aarch64.tar.gz",
+    "sha256": "acf2f25d56d0cbf8e65aa82e5054fef555f7be7c5c38046c6e0819f266d83225"
+  },
+  "source": {
+    "url": "https://codeload.github.com/crazywhalecc/static-php-cli/tar.gz/refs/tags/2.8.5",
+    "sha256": "ce9e14581e22713ae275d027fa8b32ac7d8a0e7647360fb7f2027f1cb6beec69"
+  },
+  "pkgconfig": {
+    "url": "https://github.com/static-php/hosted/releases/download/2026.2.17/pkg-config-aarch64-darwin.txz",
+    "sha256": "7541c2f775e6a535acb47c8bab0a60d4c4c13eb62d09df334b21fecedd71a21e"
+  },
+  "composer": {
+    "version": "2.11.2",
+    "url": "https://getcomposer.org/download/2.11.2/composer.phar",
+    "sha256": "dd158c0afd41d15fac89e1b4e47b5d42911fe316c3687cd5edac98319b25d028"
+  },
+  "cacert": {
+    "url": "https://curl.se/ca/cacert-2026-11-05.pem",
+    "sha256": "427c064216761a1e72a8b30f0d954d08cb6e4435a82091fb865afd20c8497285"
+  },
+  "xdebug": {
+    "version": "3.5.3",
+    "url": "https://xdebug.org/files/xdebug-3.5.3.tgz",
+    "sha256": "f073de91bea046106abf4d6071c963ea71e58571df6ce58948ceca89d121cb2d"
+  },
+  "onig": {
+    "version": "6.9.10",
+    "url": "https://github.com/kkos/oniguruma/releases/download/v6.9.10/onig-6.9.10.tar.gz",
+    "sha256": "2a5cfc5ae259e4e97f86b68dfffc152cdaffe94e2060b770cb827238d769fc05"
+  }
+}

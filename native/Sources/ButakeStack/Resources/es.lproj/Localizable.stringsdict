@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>branch.migrations</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d migración nueva o cambiada</string>
+			<key>other</key>
+			<string>%d migraciones nuevas o cambiadas</string>
+		</dict>
+	</dict>
+	<key>language.installedCount</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d versión instalada</string>
+			<key>other</key>
+			<string>%d versiones instaladas</string>
+		</dict>
+	</dict>
+	<key>utilities.installedOf</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@n@ de %2$d</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d instalada</string>
+			<key>other</key>
+			<string>%d instaladas</string>
+		</dict>
+	</dict>
+	<key>env.missing</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@ de .env.example</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Falta %d variable</string>
+			<key>other</key>
+			<string>Faltan %d variables</string>
+		</dict>
+	</dict>
+	<key>git.changesCount</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d archivo con cambios</string>
+			<key>other</key>
+			<string>%d archivos con cambios</string>
+		</dict>
+	</dict>
+	<key>runtimes.extensions</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d extensión</string>
+			<key>other</key>
+			<string>%d extensiones</string>
+		</dict>
+	</dict>
+	<key>status.engines</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$d de %2$#@m@ en ejecución</string>
+		<key>m</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d</string>
+			<key>other</key>
+			<string>%d</string>
+		</dict>
+	</dict>
+	<key>ssh.hostCount</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d host</string>
+			<key>other</key>
+			<string>%d hosts</string>
+		</dict>
+	</dict>
+	<key>ssh.groups.deleteDetail</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@n@ a «Sin grupo». No se elimina ningún host.</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Su host pasa</string>
+			<key>other</key>
+			<string>Sus %d hosts pasan</string>
+		</dict>
+	</dict>
+	<key>ssh.groups.deleteTagDetail</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>Se quita de %#@n@. No se elimina ningún host.</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d host</string>
+			<key>other</key>
+			<string>%d hosts</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

@@ -1,0 +1,1360 @@
+{
+ "commands": [
+  {
+   "name": "add",
+   "category": "everyday",
+   "description": "Prepara archivos o partes de sus cambios en el índice.",
+   "documentation": "https://git-scm.com/docs/git-add",
+   "experimental": false
+  },
+  {
+   "name": "am",
+   "category": "everyday",
+   "description": "Aplica una serie de commits recibidos como parches de correo.",
+   "documentation": "https://git-scm.com/docs/git-am",
+   "experimental": false
+  },
+  {
+   "name": "archive",
+   "category": "everyday",
+   "description": "Exporta un árbol versionado como archivo tar o zip.",
+   "documentation": "https://git-scm.com/docs/git-archive",
+   "experimental": false
+  },
+  {
+   "name": "backfill",
+   "category": "everyday",
+   "description": "Descarga objetos pendientes de un clon parcial.",
+   "documentation": "https://git-scm.com/docs/git-backfill",
+   "experimental": false
+  },
+  {
+   "name": "bisect",
+   "category": "everyday",
+   "description": "Busca por división binaria el commit que introdujo un fallo.",
+   "documentation": "https://git-scm.com/docs/git-bisect",
+   "experimental": false
+  },
+  {
+   "name": "branch",
+   "category": "everyday",
+   "description": "Lista, crea, renombra y elimina ramas.",
+   "documentation": "https://git-scm.com/docs/git-branch",
+   "experimental": false
+  },
+  {
+   "name": "bundle",
+   "category": "everyday",
+   "description": "Transporta objetos y referencias en un archivo sin servidor.",
+   "documentation": "https://git-scm.com/docs/git-bundle",
+   "experimental": false
+  },
+  {
+   "name": "checkout",
+   "category": "everyday",
+   "description": "Cambia de rama o recupera archivos; switch y restore separan esos usos.",
+   "documentation": "https://git-scm.com/docs/git-checkout",
+   "experimental": false
+  },
+  {
+   "name": "cherry-pick",
+   "category": "everyday",
+   "description": "Aplica commits seleccionados sobre la rama actual.",
+   "documentation": "https://git-scm.com/docs/git-cherry-pick",
+   "experimental": false
+  },
+  {
+   "name": "citool",
+   "category": "everyday",
+   "description": "Abre la herramienta gráfica de commits de Git, si está instalada.",
+   "documentation": "https://git-scm.com/docs/git-citool",
+   "experimental": false
+  },
+  {
+   "name": "clean",
+   "category": "everyday",
+   "description": "Elimina archivos sin seguimiento; -n permite inspeccionar antes.",
+   "documentation": "https://git-scm.com/docs/git-clean",
+   "experimental": false
+  },
+  {
+   "name": "clone",
+   "category": "everyday",
+   "description": "Crea una copia local de un repositorio existente.",
+   "documentation": "https://git-scm.com/docs/git-clone",
+   "experimental": false
+  },
+  {
+   "name": "commit",
+   "category": "everyday",
+   "description": "Registra una instantánea del índice y su mensaje en el historial.",
+   "documentation": "https://git-scm.com/docs/git-commit",
+   "experimental": false
+  },
+  {
+   "name": "describe",
+   "category": "everyday",
+   "description": "Obtiene un nombre legible a partir de tags y distancia de commits.",
+   "documentation": "https://git-scm.com/docs/git-describe",
+   "experimental": false
+  },
+  {
+   "name": "diff",
+   "category": "everyday",
+   "description": "Compara directorio de trabajo, índice, commits o archivos.",
+   "documentation": "https://git-scm.com/docs/git-diff",
+   "experimental": false
+  },
+  {
+   "name": "fetch",
+   "category": "everyday",
+   "description": "Descarga objetos y actualiza referencias remotas sin integrar la rama.",
+   "documentation": "https://git-scm.com/docs/git-fetch",
+   "experimental": false
+  },
+  {
+   "name": "format-patch",
+   "category": "everyday",
+   "description": "Genera parches de commits para revisión o envío.",
+   "documentation": "https://git-scm.com/docs/git-format-patch",
+   "experimental": false
+  },
+  {
+   "name": "gc",
+   "category": "everyday",
+   "description": "Ejecuta limpieza y optimización del almacenamiento del repositorio.",
+   "documentation": "https://git-scm.com/docs/git-gc",
+   "experimental": false
+  },
+  {
+   "name": "gitk",
+   "category": "everyday",
+   "description": "Explora gráficamente el historial con el programa gitk opcional.",
+   "documentation": "https://git-scm.com/docs/git-gitk",
+   "experimental": false
+  },
+  {
+   "name": "grep",
+   "category": "everyday",
+   "description": "Busca texto en archivos versionados o árboles históricos.",
+   "documentation": "https://git-scm.com/docs/git-grep",
+   "experimental": false
+  },
+  {
+   "name": "gui",
+   "category": "everyday",
+   "description": "Abre la interfaz gráfica opcional incluida con Git.",
+   "documentation": "https://git-scm.com/docs/git-gui",
+   "experimental": false
+  },
+  {
+   "name": "history",
+   "category": "everyday",
+   "description": "Reescribe historial mediante interfaz experimental de esta versión.",
+   "documentation": "https://git-scm.com/docs/git-history",
+   "experimental": true
+  },
+  {
+   "name": "init",
+   "category": "everyday",
+   "description": "Inicializa o reinicializa un repositorio Git.",
+   "documentation": "https://git-scm.com/docs/git-init",
+   "experimental": false
+  },
+  {
+   "name": "log",
+   "category": "everyday",
+   "description": "Consulta commits, autores, fechas, referencias y cambios.",
+   "documentation": "https://git-scm.com/docs/git-log",
+   "experimental": false
+  },
+  {
+   "name": "maintenance",
+   "category": "everyday",
+   "description": "Ejecuta o programa tareas de mantenimiento del repositorio.",
+   "documentation": "https://git-scm.com/docs/git-maintenance",
+   "experimental": false
+  },
+  {
+   "name": "merge",
+   "category": "everyday",
+   "description": "Integra historiales de ramas; puede producir un commit de merge.",
+   "documentation": "https://git-scm.com/docs/git-merge",
+   "experimental": false
+  },
+  {
+   "name": "mv",
+   "category": "everyday",
+   "description": "Renombra o mueve archivos con seguimiento.",
+   "documentation": "https://git-scm.com/docs/git-mv",
+   "experimental": false
+  },
+  {
+   "name": "notes",
+   "category": "everyday",
+   "description": "Añade o consulta anotaciones asociadas a objetos sin cambiar sus commits.",
+   "documentation": "https://git-scm.com/docs/git-notes",
+   "experimental": false
+  },
+  {
+   "name": "pull",
+   "category": "everyday",
+   "description": "Descarga e integra cambios mediante merge, rebase o fast-forward.",
+   "documentation": "https://git-scm.com/docs/git-pull",
+   "experimental": false
+  },
+  {
+   "name": "push",
+   "category": "everyday",
+   "description": "Actualiza referencias del servidor; puede disparar CI/CD y despliegues.",
+   "documentation": "https://git-scm.com/docs/git-push",
+   "experimental": false
+  },
+  {
+   "name": "range-diff",
+   "category": "everyday",
+   "description": "Compara dos series de commits, por ejemplo antes y después de rebase.",
+   "documentation": "https://git-scm.com/docs/git-range-diff",
+   "experimental": false
+  },
+  {
+   "name": "rebase",
+   "category": "everyday",
+   "description": "Reaplica commits sobre otra base y permite editar su secuencia.",
+   "documentation": "https://git-scm.com/docs/git-rebase",
+   "experimental": false
+  },
+  {
+   "name": "reset",
+   "category": "everyday",
+   "description": "Mueve HEAD y, según modo, modifica índice y archivos de trabajo.",
+   "documentation": "https://git-scm.com/docs/git-reset",
+   "experimental": false
+  },
+  {
+   "name": "restore",
+   "category": "everyday",
+   "description": "Recupera archivos del índice o de otro árbol.",
+   "documentation": "https://git-scm.com/docs/git-restore",
+   "experimental": false
+  },
+  {
+   "name": "revert",
+   "category": "everyday",
+   "description": "Crea un commit que deshace cambios de commits anteriores.",
+   "documentation": "https://git-scm.com/docs/git-revert",
+   "experimental": false
+  },
+  {
+   "name": "rm",
+   "category": "everyday",
+   "description": "Elimina archivos del índice y, salvo --cached, del directorio de trabajo.",
+   "documentation": "https://git-scm.com/docs/git-rm",
+   "experimental": false
+  },
+  {
+   "name": "scalar",
+   "category": "everyday",
+   "description": "Configura y administra repositorios grandes con la utilidad opcional Scalar.",
+   "documentation": "https://git-scm.com/docs/git-scalar",
+   "experimental": false
+  },
+  {
+   "name": "shortlog",
+   "category": "everyday",
+   "description": "Resume commits agrupados por autor u otros criterios.",
+   "documentation": "https://git-scm.com/docs/git-shortlog",
+   "experimental": false
+  },
+  {
+   "name": "show",
+   "category": "everyday",
+   "description": "Muestra contenido y metadatos de commits, tags, árboles u objetos.",
+   "documentation": "https://git-scm.com/docs/git-show",
+   "experimental": false
+  },
+  {
+   "name": "sparse-checkout",
+   "category": "everyday",
+   "description": "Selecciona qué partes del repositorio aparecen en el directorio de trabajo.",
+   "documentation": "https://git-scm.com/docs/git-sparse-checkout",
+   "experimental": false
+  },
+  {
+   "name": "stash",
+   "category": "everyday",
+   "description": "Guarda cambios temporalmente; permite listar, inspeccionar, aplicar y eliminar entradas.",
+   "documentation": "https://git-scm.com/docs/git-stash",
+   "experimental": false
+  },
+  {
+   "name": "status",
+   "category": "everyday",
+   "description": "Muestra rama, índice, cambios locales y archivos sin seguimiento.",
+   "documentation": "https://git-scm.com/docs/git-status",
+   "experimental": false
+  },
+  {
+   "name": "submodule",
+   "category": "everyday",
+   "description": "Administra repositorios anidados registrados como submódulos.",
+   "documentation": "https://git-scm.com/docs/git-submodule",
+   "experimental": false
+  },
+  {
+   "name": "switch",
+   "category": "everyday",
+   "description": "Cambia de rama o crea una rama nueva.",
+   "documentation": "https://git-scm.com/docs/git-switch",
+   "experimental": false
+  },
+  {
+   "name": "tag",
+   "category": "everyday",
+   "description": "Lista, crea, firma, verifica o elimina etiquetas.",
+   "documentation": "https://git-scm.com/docs/git-tag",
+   "experimental": false
+  },
+  {
+   "name": "worktree",
+   "category": "everyday",
+   "description": "Administra directorios de trabajo adicionales que comparten objetos Git.",
+   "documentation": "https://git-scm.com/docs/git-worktree",
+   "experimental": false
+  },
+  {
+   "name": "config",
+   "category": "administration",
+   "description": "Consulta o cambia configuración local, global o de sistema.",
+   "documentation": "https://git-scm.com/docs/git-config",
+   "experimental": false
+  },
+  {
+   "name": "fast-export",
+   "category": "administration",
+   "description": "Exporta historial en el formato de intercambio de Git.",
+   "documentation": "https://git-scm.com/docs/git-fast-export",
+   "experimental": false
+  },
+  {
+   "name": "fast-import",
+   "category": "administration",
+   "description": "Importa objetos y referencias desde un flujo de datos estructurado.",
+   "documentation": "https://git-scm.com/docs/git-fast-import",
+   "experimental": false
+  },
+  {
+   "name": "filter-branch",
+   "category": "administration",
+   "description": "Reescribe múltiples commits con filtros; herramienta histórica de alto impacto.",
+   "documentation": "https://git-scm.com/docs/git-filter-branch",
+   "experimental": false
+  },
+  {
+   "name": "mergetool",
+   "category": "administration",
+   "description": "Ejecuta el resolvedor de conflictos configurado.",
+   "documentation": "https://git-scm.com/docs/git-mergetool",
+   "experimental": false
+  },
+  {
+   "name": "pack-refs",
+   "category": "administration",
+   "description": "Compacta referencias para optimizar su almacenamiento.",
+   "documentation": "https://git-scm.com/docs/git-pack-refs",
+   "experimental": false
+  },
+  {
+   "name": "prune",
+   "category": "administration",
+   "description": "Elimina objetos no alcanzables según sus opciones y antigüedad.",
+   "documentation": "https://git-scm.com/docs/git-prune",
+   "experimental": false
+  },
+  {
+   "name": "reflog",
+   "category": "administration",
+   "description": "Consulta y administra movimientos históricos de referencias locales.",
+   "documentation": "https://git-scm.com/docs/git-reflog",
+   "experimental": false
+  },
+  {
+   "name": "refs",
+   "category": "administration",
+   "description": "Inspecciona y administra el almacenamiento de referencias.",
+   "documentation": "https://git-scm.com/docs/git-refs",
+   "experimental": false
+  },
+  {
+   "name": "remote",
+   "category": "administration",
+   "description": "Lista y configura remotos y sus URLs, ramas y seguimiento.",
+   "documentation": "https://git-scm.com/docs/git-remote",
+   "experimental": false
+  },
+  {
+   "name": "repack",
+   "category": "administration",
+   "description": "Reorganiza objetos en archivos pack.",
+   "documentation": "https://git-scm.com/docs/git-repack",
+   "experimental": false
+  },
+  {
+   "name": "replace",
+   "category": "administration",
+   "description": "Crea o elimina referencias que sustituyen objetos durante su lectura.",
+   "documentation": "https://git-scm.com/docs/git-replace",
+   "experimental": false
+  },
+  {
+   "name": "annotate",
+   "category": "inspection",
+   "description": "Anota líneas de un archivo con el commit responsable.",
+   "documentation": "https://git-scm.com/docs/git-annotate",
+   "experimental": false
+  },
+  {
+   "name": "blame",
+   "category": "inspection",
+   "description": "Identifica autor y commit asociados a cada línea de un archivo.",
+   "documentation": "https://git-scm.com/docs/git-blame",
+   "experimental": false
+  },
+  {
+   "name": "bugreport",
+   "category": "inspection",
+   "description": "Recopila información técnica para reportar problemas de Git.",
+   "documentation": "https://git-scm.com/docs/git-bugreport",
+   "experimental": false
+  },
+  {
+   "name": "count-objects",
+   "category": "inspection",
+   "description": "Cuenta objetos sueltos y mide almacenamiento utilizado.",
+   "documentation": "https://git-scm.com/docs/git-count-objects",
+   "experimental": false
+  },
+  {
+   "name": "diagnose",
+   "category": "inspection",
+   "description": "Genera un paquete de diagnóstico del repositorio.",
+   "documentation": "https://git-scm.com/docs/git-diagnose",
+   "experimental": false
+  },
+  {
+   "name": "difftool",
+   "category": "inspection",
+   "description": "Abre una herramienta externa para comparar diferencias.",
+   "documentation": "https://git-scm.com/docs/git-difftool",
+   "experimental": false
+  },
+  {
+   "name": "fsck",
+   "category": "inspection",
+   "description": "Verifica integridad, conectividad y validez de objetos.",
+   "documentation": "https://git-scm.com/docs/git-fsck",
+   "experimental": false
+  },
+  {
+   "name": "gitweb",
+   "category": "inspection",
+   "description": "Interfaz web opcional para consultar repositorios.",
+   "documentation": "https://git-scm.com/docs/git-gitweb",
+   "experimental": false
+  },
+  {
+   "name": "help",
+   "category": "inspection",
+   "description": "Muestra documentación y guías de Git.",
+   "documentation": "https://git-scm.com/docs/git-help",
+   "experimental": false
+  },
+  {
+   "name": "instaweb",
+   "category": "inspection",
+   "description": "Arranca una vista web local mediante gitweb y un servidor compatible.",
+   "documentation": "https://git-scm.com/docs/git-instaweb",
+   "experimental": false
+  },
+  {
+   "name": "merge-tree",
+   "category": "inspection",
+   "description": "Calcula una integración de árboles sin cambiar el directorio de trabajo.",
+   "documentation": "https://git-scm.com/docs/git-merge-tree",
+   "experimental": false
+  },
+  {
+   "name": "rerere",
+   "category": "inspection",
+   "description": "Reutiliza resoluciones de conflictos registradas previamente.",
+   "documentation": "https://git-scm.com/docs/git-rerere",
+   "experimental": false
+  },
+  {
+   "name": "show-branch",
+   "category": "inspection",
+   "description": "Compara ramas y su ascendencia.",
+   "documentation": "https://git-scm.com/docs/git-show-branch",
+   "experimental": false
+  },
+  {
+   "name": "verify-commit",
+   "category": "inspection",
+   "description": "Verifica firmas criptográficas de commits.",
+   "documentation": "https://git-scm.com/docs/git-verify-commit",
+   "experimental": false
+  },
+  {
+   "name": "verify-tag",
+   "category": "inspection",
+   "description": "Verifica firmas criptográficas de etiquetas.",
+   "documentation": "https://git-scm.com/docs/git-verify-tag",
+   "experimental": false
+  },
+  {
+   "name": "version",
+   "category": "inspection",
+   "description": "Muestra la versión del ejecutable Git.",
+   "documentation": "https://git-scm.com/docs/git-version",
+   "experimental": false
+  },
+  {
+   "name": "whatchanged",
+   "category": "inspection",
+   "description": "Consulta historial incluyendo cambios por commit; interfaz histórica.",
+   "documentation": "https://git-scm.com/docs/git-whatchanged",
+   "experimental": false
+  },
+  {
+   "name": "archimport",
+   "category": "interop",
+   "description": "Importa historial de GNU Arch mediante un componente opcional.",
+   "documentation": "https://git-scm.com/docs/git-archimport",
+   "experimental": false
+  },
+  {
+   "name": "cvsexportcommit",
+   "category": "interop",
+   "description": "Exporta un commit a una copia de trabajo CVS.",
+   "documentation": "https://git-scm.com/docs/git-cvsexportcommit",
+   "experimental": false
+  },
+  {
+   "name": "cvsimport",
+   "category": "interop",
+   "description": "Importa historial desde CVS con herramientas auxiliares.",
+   "documentation": "https://git-scm.com/docs/git-cvsimport",
+   "experimental": false
+  },
+  {
+   "name": "cvsserver",
+   "category": "interop",
+   "description": "Expone un servidor de compatibilidad CVS sobre Git.",
+   "documentation": "https://git-scm.com/docs/git-cvsserver",
+   "experimental": false
+  },
+  {
+   "name": "imap-send",
+   "category": "interop",
+   "description": "Envía parches a una carpeta IMAP; requiere configuración del servicio.",
+   "documentation": "https://git-scm.com/docs/git-imap-send",
+   "experimental": false
+  },
+  {
+   "name": "p4",
+   "category": "interop",
+   "description": "Intercambia historial y cambios con Perforce mediante componente opcional.",
+   "documentation": "https://git-scm.com/docs/git-p4",
+   "experimental": false
+  },
+  {
+   "name": "quiltimport",
+   "category": "interop",
+   "description": "Importa una cola de parches Quilt.",
+   "documentation": "https://git-scm.com/docs/git-quiltimport",
+   "experimental": false
+  },
+  {
+   "name": "request-pull",
+   "category": "interop",
+   "description": "Genera un resumen para solicitar integración; no crea un PR del proveedor.",
+   "documentation": "https://git-scm.com/docs/git-request-pull",
+   "experimental": false
+  },
+  {
+   "name": "send-email",
+   "category": "interop",
+   "description": "Envía parches por correo mediante configuración SMTP o servicio equivalente.",
+   "documentation": "https://git-scm.com/docs/git-send-email",
+   "experimental": false
+  },
+  {
+   "name": "svn",
+   "category": "interop",
+   "description": "Intercambia historial y cambios con Subversion mediante componente opcional.",
+   "documentation": "https://git-scm.com/docs/git-svn",
+   "experimental": false
+  },
+  {
+   "name": "apply",
+   "category": "plumbing-write",
+   "description": "Aplica parches al directorio de trabajo o al índice.",
+   "documentation": "https://git-scm.com/docs/git-apply",
+   "experimental": false
+  },
+  {
+   "name": "checkout-index",
+   "category": "plumbing-write",
+   "description": "Copia archivos del índice al directorio de trabajo.",
+   "documentation": "https://git-scm.com/docs/git-checkout-index",
+   "experimental": false
+  },
+  {
+   "name": "commit-graph",
+   "category": "plumbing-write",
+   "description": "Escribe o verifica estructuras que aceleran consultas de commits.",
+   "documentation": "https://git-scm.com/docs/git-commit-graph",
+   "experimental": false
+  },
+  {
+   "name": "commit-tree",
+   "category": "plumbing-write",
+   "description": "Crea directamente un objeto commit desde un árbol y sus padres.",
+   "documentation": "https://git-scm.com/docs/git-commit-tree",
+   "experimental": false
+  },
+  {
+   "name": "hash-object",
+   "category": "plumbing-write",
+   "description": "Calcula el identificador de contenido y puede almacenar un objeto.",
+   "documentation": "https://git-scm.com/docs/git-hash-object",
+   "experimental": false
+  },
+  {
+   "name": "index-pack",
+   "category": "plumbing-write",
+   "description": "Construye el índice de un archivo pack recibido.",
+   "documentation": "https://git-scm.com/docs/git-index-pack",
+   "experimental": false
+  },
+  {
+   "name": "merge-file",
+   "category": "plumbing-write",
+   "description": "Integra tres versiones de un archivo.",
+   "documentation": "https://git-scm.com/docs/git-merge-file",
+   "experimental": false
+  },
+  {
+   "name": "merge-index",
+   "category": "plumbing-write",
+   "description": "Ejecuta una integración usando entradas conflictivas del índice.",
+   "documentation": "https://git-scm.com/docs/git-merge-index",
+   "experimental": false
+  },
+  {
+   "name": "mktag",
+   "category": "plumbing-write",
+   "description": "Crea un objeto tag con validaciones de formato.",
+   "documentation": "https://git-scm.com/docs/git-mktag",
+   "experimental": false
+  },
+  {
+   "name": "mktree",
+   "category": "plumbing-write",
+   "description": "Construye un árbol a partir de una lista de entradas.",
+   "documentation": "https://git-scm.com/docs/git-mktree",
+   "experimental": false
+  },
+  {
+   "name": "multi-pack-index",
+   "category": "plumbing-write",
+   "description": "Escribe o verifica un índice que abarca varios packs.",
+   "documentation": "https://git-scm.com/docs/git-multi-pack-index",
+   "experimental": false
+  },
+  {
+   "name": "pack-objects",
+   "category": "plumbing-write",
+   "description": "Construye archivos pack a partir de objetos.",
+   "documentation": "https://git-scm.com/docs/git-pack-objects",
+   "experimental": false
+  },
+  {
+   "name": "prune-packed",
+   "category": "plumbing-write",
+   "description": "Elimina objetos sueltos que ya están almacenados en packs.",
+   "documentation": "https://git-scm.com/docs/git-prune-packed",
+   "experimental": false
+  },
+  {
+   "name": "read-tree",
+   "category": "plumbing-write",
+   "description": "Carga árboles en el índice; puede participar en integraciones.",
+   "documentation": "https://git-scm.com/docs/git-read-tree",
+   "experimental": false
+  },
+  {
+   "name": "replay",
+   "category": "plumbing-write",
+   "description": "Reaplica commits sobre otra base mediante interfaz experimental.",
+   "documentation": "https://git-scm.com/docs/git-replay",
+   "experimental": true
+  },
+  {
+   "name": "symbolic-ref",
+   "category": "plumbing-write",
+   "description": "Consulta, modifica o elimina referencias simbólicas como HEAD.",
+   "documentation": "https://git-scm.com/docs/git-symbolic-ref",
+   "experimental": false
+  },
+  {
+   "name": "unpack-objects",
+   "category": "plumbing-write",
+   "description": "Extrae objetos de un flujo pack.",
+   "documentation": "https://git-scm.com/docs/git-unpack-objects",
+   "experimental": false
+  },
+  {
+   "name": "update-index",
+   "category": "plumbing-write",
+   "description": "Actualiza directamente entradas y propiedades del índice.",
+   "documentation": "https://git-scm.com/docs/git-update-index",
+   "experimental": false
+  },
+  {
+   "name": "update-ref",
+   "category": "plumbing-write",
+   "description": "Actualiza referencias de objetos de forma transaccional.",
+   "documentation": "https://git-scm.com/docs/git-update-ref",
+   "experimental": false
+  },
+  {
+   "name": "write-tree",
+   "category": "plumbing-write",
+   "description": "Crea un objeto árbol a partir del índice.",
+   "documentation": "https://git-scm.com/docs/git-write-tree",
+   "experimental": false
+  },
+  {
+   "name": "cat-file",
+   "category": "plumbing-read",
+   "description": "Inspecciona tipo, tamaño o contenido de objetos.",
+   "documentation": "https://git-scm.com/docs/git-cat-file",
+   "experimental": false
+  },
+  {
+   "name": "cherry",
+   "category": "plumbing-read",
+   "description": "Detecta commits cuyo cambio todavía no aparece en upstream.",
+   "documentation": "https://git-scm.com/docs/git-cherry",
+   "experimental": false
+  },
+  {
+   "name": "diff-files",
+   "category": "plumbing-read",
+   "description": "Compara archivos del directorio de trabajo contra el índice.",
+   "documentation": "https://git-scm.com/docs/git-diff-files",
+   "experimental": false
+  },
+  {
+   "name": "diff-index",
+   "category": "plumbing-read",
+   "description": "Compara un árbol con el índice o el directorio de trabajo.",
+   "documentation": "https://git-scm.com/docs/git-diff-index",
+   "experimental": false
+  },
+  {
+   "name": "diff-pairs",
+   "category": "plumbing-read",
+   "description": "Compara pares de blobs y sus modos.",
+   "documentation": "https://git-scm.com/docs/git-diff-pairs",
+   "experimental": false
+  },
+  {
+   "name": "diff-tree",
+   "category": "plumbing-read",
+   "description": "Compara árboles y cambios de commits.",
+   "documentation": "https://git-scm.com/docs/git-diff-tree",
+   "experimental": false
+  },
+  {
+   "name": "for-each-ref",
+   "category": "plumbing-read",
+   "description": "Lista referencias usando formatos y filtros.",
+   "documentation": "https://git-scm.com/docs/git-for-each-ref",
+   "experimental": false
+  },
+  {
+   "name": "for-each-repo",
+   "category": "plumbing-read",
+   "description": "Ejecuta una operación Git sobre un conjunto configurado de repositorios.",
+   "documentation": "https://git-scm.com/docs/git-for-each-repo",
+   "experimental": false
+  },
+  {
+   "name": "get-tar-commit-id",
+   "category": "plumbing-read",
+   "description": "Extrae de un tar el commit registrado por git archive.",
+   "documentation": "https://git-scm.com/docs/git-get-tar-commit-id",
+   "experimental": false
+  },
+  {
+   "name": "last-modified",
+   "category": "plumbing-read",
+   "description": "Consulta experimentalmente cuándo se modificaron archivos.",
+   "documentation": "https://git-scm.com/docs/git-last-modified",
+   "experimental": true
+  },
+  {
+   "name": "ls-files",
+   "category": "plumbing-read",
+   "description": "Lista archivos y entradas del índice.",
+   "documentation": "https://git-scm.com/docs/git-ls-files",
+   "experimental": false
+  },
+  {
+   "name": "ls-remote",
+   "category": "plumbing-read",
+   "description": "Lista referencias anunciadas por un servidor remoto.",
+   "documentation": "https://git-scm.com/docs/git-ls-remote",
+   "experimental": false
+  },
+  {
+   "name": "ls-tree",
+   "category": "plumbing-read",
+   "description": "Lista archivos y subárboles de un árbol Git.",
+   "documentation": "https://git-scm.com/docs/git-ls-tree",
+   "experimental": false
+  },
+  {
+   "name": "merge-base",
+   "category": "plumbing-read",
+   "description": "Calcula ancestros comunes adecuados para integrar historiales.",
+   "documentation": "https://git-scm.com/docs/git-merge-base",
+   "experimental": false
+  },
+  {
+   "name": "name-rev",
+   "category": "plumbing-read",
+   "description": "Asigna nombres basados en referencias a commits.",
+   "documentation": "https://git-scm.com/docs/git-name-rev",
+   "experimental": false
+  },
+  {
+   "name": "pack-redundant",
+   "category": "plumbing-read",
+   "description": "Identifica packs redundantes mediante interfaz de bajo nivel.",
+   "documentation": "https://git-scm.com/docs/git-pack-redundant",
+   "experimental": false
+  },
+  {
+   "name": "repo",
+   "category": "plumbing-read",
+   "description": "Consulta información del repositorio en versiones compatibles.",
+   "documentation": "https://git-scm.com/docs/git-repo",
+   "experimental": false
+  },
+  {
+   "name": "rev-list",
+   "category": "plumbing-read",
+   "description": "Recorre y filtra objetos commit alcanzables.",
+   "documentation": "https://git-scm.com/docs/git-rev-list",
+   "experimental": false
+  },
+  {
+   "name": "rev-parse",
+   "category": "plumbing-read",
+   "description": "Resuelve referencias y consulta propiedades del repositorio.",
+   "documentation": "https://git-scm.com/docs/git-rev-parse",
+   "experimental": false
+  },
+  {
+   "name": "show-index",
+   "category": "plumbing-read",
+   "description": "Lee índices de archivos pack.",
+   "documentation": "https://git-scm.com/docs/git-show-index",
+   "experimental": false
+  },
+  {
+   "name": "show-ref",
+   "category": "plumbing-read",
+   "description": "Lista o verifica referencias locales.",
+   "documentation": "https://git-scm.com/docs/git-show-ref",
+   "experimental": false
+  },
+  {
+   "name": "unpack-file",
+   "category": "plumbing-read",
+   "description": "Escribe un blob en un archivo temporal.",
+   "documentation": "https://git-scm.com/docs/git-unpack-file",
+   "experimental": false
+  },
+  {
+   "name": "var",
+   "category": "plumbing-read",
+   "description": "Consulta variables lógicas de Git y sus valores resueltos.",
+   "documentation": "https://git-scm.com/docs/git-var",
+   "experimental": false
+  },
+  {
+   "name": "verify-pack",
+   "category": "plumbing-read",
+   "description": "Verifica objetos y estructura de archivos pack.",
+   "documentation": "https://git-scm.com/docs/git-verify-pack",
+   "experimental": false
+  },
+  {
+   "name": "daemon",
+   "category": "transport",
+   "description": "Sirve repositorios mediante el protocolo Git; proceso de servidor.",
+   "documentation": "https://git-scm.com/docs/git-daemon",
+   "experimental": false
+  },
+  {
+   "name": "fetch-pack",
+   "category": "transport",
+   "description": "Recibe objetos y referencias mediante el protocolo Git.",
+   "documentation": "https://git-scm.com/docs/git-fetch-pack",
+   "experimental": false
+  },
+  {
+   "name": "http-backend",
+   "category": "transport",
+   "description": "Atiende el lado servidor de Git sobre HTTP como proceso CGI.",
+   "documentation": "https://git-scm.com/docs/git-http-backend",
+   "experimental": false
+  },
+  {
+   "name": "send-pack",
+   "category": "transport",
+   "description": "Envía objetos y actualiza referencias remotas a bajo nivel.",
+   "documentation": "https://git-scm.com/docs/git-send-pack",
+   "experimental": false
+  },
+  {
+   "name": "update-server-info",
+   "category": "transport",
+   "description": "Actualiza metadatos para transporte HTTP simple.",
+   "documentation": "https://git-scm.com/docs/git-update-server-info",
+   "experimental": false
+  },
+  {
+   "name": "check-attr",
+   "category": "helpers",
+   "description": "Consulta atributos aplicables a rutas.",
+   "documentation": "https://git-scm.com/docs/git-check-attr",
+   "experimental": false
+  },
+  {
+   "name": "check-ignore",
+   "category": "helpers",
+   "description": "Explica qué regla ignora un archivo o ruta.",
+   "documentation": "https://git-scm.com/docs/git-check-ignore",
+   "experimental": false
+  },
+  {
+   "name": "check-mailmap",
+   "category": "helpers",
+   "description": "Resuelve identidades mediante reglas de mailmap.",
+   "documentation": "https://git-scm.com/docs/git-check-mailmap",
+   "experimental": false
+  },
+  {
+   "name": "check-ref-format",
+   "category": "helpers",
+   "description": "Valida nombres de ramas y referencias.",
+   "documentation": "https://git-scm.com/docs/git-check-ref-format",
+   "experimental": false
+  },
+  {
+   "name": "column",
+   "category": "helpers",
+   "description": "Formatea entradas en columnas.",
+   "documentation": "https://git-scm.com/docs/git-column",
+   "experimental": false
+  },
+  {
+   "name": "credential",
+   "category": "helpers",
+   "description": "Consulta, almacena o descarta credenciales mediante helpers; tratar como sensible.",
+   "documentation": "https://git-scm.com/docs/git-credential",
+   "experimental": false
+  },
+  {
+   "name": "credential-cache",
+   "category": "helpers",
+   "description": "Administra credenciales temporales en memoria mediante un helper.",
+   "documentation": "https://git-scm.com/docs/git-credential-cache",
+   "experimental": false
+  },
+  {
+   "name": "credential-store",
+   "category": "helpers",
+   "description": "Helper de credenciales en disco; su formato guarda secretos sin cifrar.",
+   "documentation": "https://git-scm.com/docs/git-credential-store",
+   "experimental": false
+  },
+  {
+   "name": "fmt-merge-msg",
+   "category": "helpers",
+   "description": "Construye mensajes de merge a partir de referencias integradas.",
+   "documentation": "https://git-scm.com/docs/git-fmt-merge-msg",
+   "experimental": false
+  },
+  {
+   "name": "hook",
+   "category": "helpers",
+   "description": "Ejecuta hooks del repositorio.",
+   "documentation": "https://git-scm.com/docs/git-hook",
+   "experimental": false
+  },
+  {
+   "name": "interpret-trailers",
+   "category": "helpers",
+   "description": "Lee, añade o normaliza trailers como Signed-off-by.",
+   "documentation": "https://git-scm.com/docs/git-interpret-trailers",
+   "experimental": false
+  },
+  {
+   "name": "mailinfo",
+   "category": "helpers",
+   "description": "Extrae metadatos y parche de un mensaje de correo.",
+   "documentation": "https://git-scm.com/docs/git-mailinfo",
+   "experimental": false
+  },
+  {
+   "name": "mailsplit",
+   "category": "helpers",
+   "description": "Divide mensajes de un buzón mbox.",
+   "documentation": "https://git-scm.com/docs/git-mailsplit",
+   "experimental": false
+  },
+  {
+   "name": "merge-one-file",
+   "category": "helpers",
+   "description": "Helper de integración de un archivo usado por merge-index.",
+   "documentation": "https://git-scm.com/docs/git-merge-one-file",
+   "experimental": false
+  },
+  {
+   "name": "patch-id",
+   "category": "helpers",
+   "description": "Calcula un identificador para comparar equivalencia de parches.",
+   "documentation": "https://git-scm.com/docs/git-patch-id",
+   "experimental": false
+  },
+  {
+   "name": "sh-i18n",
+   "category": "helpers",
+   "description": "Biblioteca interna de traducción para scripts shell de Git.",
+   "documentation": "https://git-scm.com/docs/git-sh-i18n",
+   "experimental": false
+  },
+  {
+   "name": "sh-setup",
+   "category": "helpers",
+   "description": "Biblioteca interna de inicialización para scripts shell de Git.",
+   "documentation": "https://git-scm.com/docs/git-sh-setup",
+   "experimental": false
+  },
+  {
+   "name": "stripspace",
+   "category": "helpers",
+   "description": "Normaliza espacios y líneas vacías en texto.",
+   "documentation": "https://git-scm.com/docs/git-stripspace",
+   "experimental": false
+  }
+ ],
+ "concepts": [
+  {
+   "id": "repository",
+   "term": "Repositorio",
+   "definition": "Base de objetos, referencias y configuración que guarda el historial de un proyecto."
+  },
+  {
+   "id": "working-tree",
+   "term": "Directorio de trabajo",
+   "definition": "Archivos que estás editando. Pueden diferir del índice y del último commit."
+  },
+  {
+   "id": "index",
+   "term": "Índice / staging area",
+   "definition": "Instantánea preparada para el próximo commit; no incluye automáticamente todos los cambios locales."
+  },
+  {
+   "id": "commit",
+   "term": "Commit",
+   "definition": "Objeto inmutable que registra árbol, padres, autor y mensaje. Editarlo produce otro identificador."
+  },
+  {
+   "id": "branch",
+   "term": "Rama",
+   "definition": "Referencia móvil a un commit. Avanza al crear nuevos commits en ella."
+  },
+  {
+   "id": "head",
+   "term": "HEAD",
+   "definition": "Referencia al commit o rama que está seleccionado en el directorio de trabajo."
+  },
+  {
+   "id": "detached",
+   "term": "Detached HEAD",
+   "definition": "HEAD apunta directamente a un commit. Crear una rama conserva los nuevos commits de esa sesión."
+  },
+  {
+   "id": "remote",
+   "term": "Remoto",
+   "definition": "Nombre asociado a otro repositorio, sus URLs y reglas de intercambio."
+  },
+  {
+   "id": "origin",
+   "term": "origin",
+   "definition": "Nombre convencional del remoto creado al clonar. No es una palabra reservada del protocolo."
+  },
+  {
+   "id": "upstream",
+   "term": "Upstream",
+   "definition": "Rama de seguimiento usada para comparar divergencia y elegir destinos predeterminados."
+  },
+  {
+   "id": "fetch",
+   "term": "Fetch",
+   "definition": "Descarga objetos y actualiza referencias remotas sin integrar cambios en tu rama."
+  },
+  {
+   "id": "pull",
+   "term": "Pull",
+   "definition": "Combina fetch con integración por merge, rebase o fast-forward."
+  },
+  {
+   "id": "push",
+   "term": "Push",
+   "definition": "Publica referencias y objetos. En este proyecto puede activar CI/CD."
+  },
+  {
+   "id": "merge",
+   "term": "Merge",
+   "definition": "Integra historiales preservando la relación entre sus ramas; puede crear un commit con varios padres."
+  },
+  {
+   "id": "fast-forward",
+   "term": "Fast-forward",
+   "definition": "Avance de una referencia hacia un descendiente sin crear commit de merge."
+  },
+  {
+   "id": "rebase",
+   "term": "Rebase",
+   "definition": "Reaplica commits en otra base. Cambian los hashes; pueden aparecer conflictos."
+  },
+  {
+   "id": "interactive-rebase",
+   "term": "Rebase interactivo",
+   "definition": "Plan para conservar, reordenar, combinar, renombrar, editar o eliminar commits."
+  },
+  {
+   "id": "pick",
+   "term": "Pick",
+   "definition": "Conserva el cambio del commit en el plan de rebase."
+  },
+  {
+   "id": "reword",
+   "term": "Reword",
+   "definition": "Conserva el cambio y abre el editor para modificar el mensaje del commit."
+  },
+  {
+   "id": "edit",
+   "term": "Edit",
+   "definition": "Detiene el rebase en ese commit para permitir cambios antes de continuar."
+  },
+  {
+   "id": "squash",
+   "term": "Squash",
+   "definition": "Combina el cambio con el commit anterior y permite editar el mensaje combinado."
+  },
+  {
+   "id": "fixup",
+   "term": "Fixup",
+   "definition": "Combina el cambio con el commit anterior y descarta el mensaje del commit marcado."
+  },
+  {
+   "id": "drop",
+   "term": "Drop",
+   "definition": "Excluye el commit del historial resultante del rebase."
+  },
+  {
+   "id": "cherry-pick",
+   "term": "Cherry-pick",
+   "definition": "Aplica el cambio de un commit seleccionado sobre la rama actual."
+  },
+  {
+   "id": "revert",
+   "term": "Revert",
+   "definition": "Crea un commit que invierte un cambio anterior; conserva el historial original."
+  },
+  {
+   "id": "reset",
+   "term": "Reset",
+   "definition": "Mueve una referencia. Sus modos soft, mixed y hard afectan diferentes capas del estado local."
+  },
+  {
+   "id": "soft-reset",
+   "term": "Reset soft",
+   "definition": "Mueve HEAD y conserva índice y archivos tal como estaban."
+  },
+  {
+   "id": "mixed-reset",
+   "term": "Reset mixed",
+   "definition": "Mueve HEAD y restablece el índice; conserva archivos de trabajo."
+  },
+  {
+   "id": "hard-reset",
+   "term": "Reset hard",
+   "definition": "Restablece HEAD, índice y archivos versionados; puede perder cambios locales."
+  },
+  {
+   "id": "stash",
+   "term": "Stash",
+   "definition": "Entrada local que guarda cambios temporalmente para recuperarlos después."
+  },
+  {
+   "id": "reflog",
+   "term": "Reflog",
+   "definition": "Registro local de movimientos de referencias; ayuda a recuperar commits que ya no aparecen en ramas."
+  },
+  {
+   "id": "worktree",
+   "term": "Worktree",
+   "definition": "Directorio adicional del mismo repositorio con su propio HEAD e índice."
+  },
+  {
+   "id": "tag",
+   "term": "Tag",
+   "definition": "Etiqueta que señala un objeto; puede ser ligera, anotada y firmada."
+  },
+  {
+   "id": "conflict",
+   "term": "Conflicto",
+   "definition": "Git no pudo integrar automáticamente cambios. Debes resolver el resultado y preparar el archivo."
+  },
+  {
+   "id": "ours-theirs",
+   "term": "Ours / theirs",
+   "definition": "Lados de una integración. En rebase su interpretación puede resultar distinta a la de merge."
+  },
+  {
+   "id": "base",
+   "term": "Base común",
+   "definition": "Ancestro usado como punto de comparación para integrar cambios."
+  },
+  {
+   "id": "hunk",
+   "term": "Hunk",
+   "definition": "Bloque de diferencias con líneas de contexto; puede prepararse de forma parcial."
+  },
+  {
+   "id": "patch",
+   "term": "Parche",
+   "definition": "Representación textual de cambios que Git puede revisar y aplicar."
+  },
+  {
+   "id": "tracked",
+   "term": "Archivo con seguimiento",
+   "definition": "Archivo registrado en el índice. Puede estar modificado, eliminado o sin cambios."
+  },
+  {
+   "id": "untracked",
+   "term": "Archivo sin seguimiento",
+   "definition": "Archivo presente en disco que todavía no está registrado en el índice."
+  },
+  {
+   "id": "ignored",
+   "term": "Archivo ignorado",
+   "definition": "Ruta excluida por reglas de ignore mientras no tenga seguimiento."
+  },
+  {
+   "id": "staged",
+   "term": "Cambio preparado",
+   "definition": "Versión de un archivo registrada en el índice para el próximo commit."
+  },
+  {
+   "id": "amend",
+   "term": "Amend",
+   "definition": "Sustituye el último commit por uno nuevo, cambiando contenido o mensaje."
+  },
+  {
+   "id": "signed-commit",
+   "term": "Firma de commit",
+   "definition": "Firma criptográfica verificable con el mecanismo configurado en Git."
+  },
+  {
+   "id": "hook",
+   "term": "Hook",
+   "definition": "Programa configurado que se ejecuta durante determinadas operaciones Git."
+  },
+  {
+   "id": "submodule",
+   "term": "Submódulo",
+   "definition": "Referencia a otro repositorio en un commit concreto dentro del proyecto principal."
+  },
+  {
+   "id": "lfs",
+   "term": "Git LFS",
+   "definition": "Extensión para gestionar archivos grandes mediante punteros y almacenamiento separado."
+  },
+  {
+   "id": "sparse",
+   "term": "Sparse checkout",
+   "definition": "Configuración que limita qué rutas aparecen en el directorio de trabajo."
+  },
+  {
+   "id": "shallow",
+   "term": "Clon superficial",
+   "definition": "Clon con historial limitado por profundidad o fecha."
+  },
+  {
+   "id": "partial",
+   "term": "Clon parcial",
+   "definition": "Clon que omite inicialmente determinados objetos y puede descargarlos después."
+  },
+  {
+   "id": "bisect",
+   "term": "Bisect",
+   "definition": "Búsqueda binaria entre un commit bueno y uno malo para localizar una regresión."
+  },
+  {
+   "id": "blame",
+   "term": "Blame",
+   "definition": "Vista que atribuye líneas a commits y autores; no determina responsabilidad por sí sola."
+  },
+  {
+   "id": "refspec",
+   "term": "Refspec",
+   "definition": "Regla que relaciona referencias de origen y destino en fetch o push."
+  },
+  {
+   "id": "pr",
+   "term": "Pull request",
+   "definition": "Solicitud de integración gestionada por Bitbucket, GitHub o GitLab. No es un objeto de Git."
+  },
+  {
+   "id": "checks",
+   "term": "Checks",
+   "definition": "Resultados de validaciones vinculadas al código por el proveedor o el sistema CI."
+  },
+  {
+   "id": "ci-cd",
+   "term": "CI/CD",
+   "definition": "Automatización de validación y entrega. Un push o merge puede disparar despliegues."
+  },
+  {
+   "id": "protected",
+   "term": "Rama protegida",
+   "definition": "Rama con reglas que restringen cambios. Las guardas locales no sustituyen la protección del servidor."
+  },
+  {
+   "id": "agent",
+   "term": "Sesión de agente",
+   "definition": "Proceso de una herramienta de programación asistida que trabaja en un repositorio o worktree."
+  }
+ ]
+}

@@ -1,0 +1,1222 @@
+{
+  "schemaVersion": 1,
+  "gitVersion": "git version 2.54.0 (Apple Git-157)",
+  "commands": [
+    {
+      "name": "add",
+      "category": "everyday",
+      "descriptionKey": "command.add",
+      "experimental": false,
+      "visual": "stage",
+      "documentation": "https://git-scm.com/docs/git-add"
+    },
+    {
+      "name": "am",
+      "category": "everyday",
+      "descriptionKey": "command.am",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-am"
+    },
+    {
+      "name": "archive",
+      "category": "everyday",
+      "descriptionKey": "command.archive",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-archive"
+    },
+    {
+      "name": "backfill",
+      "category": "everyday",
+      "descriptionKey": "command.backfill",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-backfill"
+    },
+    {
+      "name": "bisect",
+      "category": "everyday",
+      "descriptionKey": "command.bisect",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-bisect"
+    },
+    {
+      "name": "branch",
+      "category": "everyday",
+      "descriptionKey": "command.branch",
+      "experimental": false,
+      "visual": "branches",
+      "documentation": "https://git-scm.com/docs/git-branch"
+    },
+    {
+      "name": "bundle",
+      "category": "everyday",
+      "descriptionKey": "command.bundle",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-bundle"
+    },
+    {
+      "name": "checkout",
+      "category": "everyday",
+      "descriptionKey": "command.checkout",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-checkout"
+    },
+    {
+      "name": "cherry-pick",
+      "category": "everyday",
+      "descriptionKey": "command.cherry-pick",
+      "experimental": false,
+      "visual": "cherryPick",
+      "documentation": "https://git-scm.com/docs/git-cherry-pick"
+    },
+    {
+      "name": "citool",
+      "category": "everyday",
+      "descriptionKey": "command.citool",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-citool"
+    },
+    {
+      "name": "clean",
+      "category": "everyday",
+      "descriptionKey": "command.clean",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-clean"
+    },
+    {
+      "name": "clone",
+      "category": "everyday",
+      "descriptionKey": "command.clone",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-clone"
+    },
+    {
+      "name": "commit",
+      "category": "everyday",
+      "descriptionKey": "command.commit",
+      "experimental": false,
+      "visual": "commit",
+      "documentation": "https://git-scm.com/docs/git-commit"
+    },
+    {
+      "name": "describe",
+      "category": "everyday",
+      "descriptionKey": "command.describe",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-describe"
+    },
+    {
+      "name": "diff",
+      "category": "everyday",
+      "descriptionKey": "command.diff",
+      "experimental": false,
+      "visual": "diff",
+      "documentation": "https://git-scm.com/docs/git-diff"
+    },
+    {
+      "name": "fetch",
+      "category": "everyday",
+      "descriptionKey": "command.fetch",
+      "experimental": false,
+      "visual": "fetch",
+      "documentation": "https://git-scm.com/docs/git-fetch"
+    },
+    {
+      "name": "format-patch",
+      "category": "everyday",
+      "descriptionKey": "command.format-patch",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-format-patch"
+    },
+    {
+      "name": "gc",
+      "category": "everyday",
+      "descriptionKey": "command.gc",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-gc"
+    },
+    {
+      "name": "gitk",
+      "category": "everyday",
+      "descriptionKey": "command.gitk",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-gitk"
+    },
+    {
+      "name": "grep",
+      "category": "everyday",
+      "descriptionKey": "command.grep",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-grep"
+    },
+    {
+      "name": "gui",
+      "category": "everyday",
+      "descriptionKey": "command.gui",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-gui"
+    },
+    {
+      "name": "history",
+      "category": "everyday",
+      "descriptionKey": "command.history",
+      "experimental": true,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-history"
+    },
+    {
+      "name": "init",
+      "category": "everyday",
+      "descriptionKey": "command.init",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-init"
+    },
+    {
+      "name": "log",
+      "category": "everyday",
+      "descriptionKey": "command.log",
+      "experimental": false,
+      "visual": "history",
+      "documentation": "https://git-scm.com/docs/git-log"
+    },
+    {
+      "name": "maintenance",
+      "category": "everyday",
+      "descriptionKey": "command.maintenance",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-maintenance"
+    },
+    {
+      "name": "merge",
+      "category": "everyday",
+      "descriptionKey": "command.merge",
+      "experimental": false,
+      "visual": "merge",
+      "documentation": "https://git-scm.com/docs/git-merge"
+    },
+    {
+      "name": "mv",
+      "category": "everyday",
+      "descriptionKey": "command.mv",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-mv"
+    },
+    {
+      "name": "notes",
+      "category": "everyday",
+      "descriptionKey": "command.notes",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-notes"
+    },
+    {
+      "name": "pull",
+      "category": "everyday",
+      "descriptionKey": "command.pull",
+      "experimental": false,
+      "visual": "pull",
+      "documentation": "https://git-scm.com/docs/git-pull"
+    },
+    {
+      "name": "push",
+      "category": "everyday",
+      "descriptionKey": "command.push",
+      "experimental": false,
+      "visual": "push",
+      "documentation": "https://git-scm.com/docs/git-push"
+    },
+    {
+      "name": "range-diff",
+      "category": "everyday",
+      "descriptionKey": "command.range-diff",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-range-diff"
+    },
+    {
+      "name": "rebase",
+      "category": "everyday",
+      "descriptionKey": "command.rebase",
+      "experimental": false,
+      "visual": "rebase",
+      "documentation": "https://git-scm.com/docs/git-rebase"
+    },
+    {
+      "name": "reset",
+      "category": "everyday",
+      "descriptionKey": "command.reset",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-reset"
+    },
+    {
+      "name": "restore",
+      "category": "everyday",
+      "descriptionKey": "command.restore",
+      "experimental": false,
+      "visual": "unstage",
+      "documentation": "https://git-scm.com/docs/git-restore"
+    },
+    {
+      "name": "revert",
+      "category": "everyday",
+      "descriptionKey": "command.revert",
+      "experimental": false,
+      "visual": "revert",
+      "documentation": "https://git-scm.com/docs/git-revert"
+    },
+    {
+      "name": "rm",
+      "category": "everyday",
+      "descriptionKey": "command.rm",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-rm"
+    },
+    {
+      "name": "scalar",
+      "category": "everyday",
+      "descriptionKey": "command.scalar",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-scalar"
+    },
+    {
+      "name": "shortlog",
+      "category": "everyday",
+      "descriptionKey": "command.shortlog",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-shortlog"
+    },
+    {
+      "name": "show",
+      "category": "everyday",
+      "descriptionKey": "command.show",
+      "experimental": false,
+      "visual": "history",
+      "documentation": "https://git-scm.com/docs/git-show"
+    },
+    {
+      "name": "sparse-checkout",
+      "category": "everyday",
+      "descriptionKey": "command.sparse-checkout",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-sparse-checkout"
+    },
+    {
+      "name": "stash",
+      "category": "everyday",
+      "descriptionKey": "command.stash",
+      "experimental": false,
+      "visual": "stash",
+      "documentation": "https://git-scm.com/docs/git-stash"
+    },
+    {
+      "name": "status",
+      "category": "everyday",
+      "descriptionKey": "command.status",
+      "experimental": false,
+      "visual": "changes",
+      "documentation": "https://git-scm.com/docs/git-status"
+    },
+    {
+      "name": "submodule",
+      "category": "everyday",
+      "descriptionKey": "command.submodule",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-submodule"
+    },
+    {
+      "name": "switch",
+      "category": "everyday",
+      "descriptionKey": "command.switch",
+      "experimental": false,
+      "visual": "branches",
+      "documentation": "https://git-scm.com/docs/git-switch"
+    },
+    {
+      "name": "tag",
+      "category": "everyday",
+      "descriptionKey": "command.tag",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-tag"
+    },
+    {
+      "name": "worktree",
+      "category": "everyday",
+      "descriptionKey": "command.worktree",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-worktree"
+    },
+    {
+      "name": "config",
+      "category": "administration",
+      "descriptionKey": "command.config",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-config"
+    },
+    {
+      "name": "fast-export",
+      "category": "administration",
+      "descriptionKey": "command.fast-export",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-fast-export"
+    },
+    {
+      "name": "fast-import",
+      "category": "administration",
+      "descriptionKey": "command.fast-import",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-fast-import"
+    },
+    {
+      "name": "filter-branch",
+      "category": "administration",
+      "descriptionKey": "command.filter-branch",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-filter-branch"
+    },
+    {
+      "name": "mergetool",
+      "category": "administration",
+      "descriptionKey": "command.mergetool",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-mergetool"
+    },
+    {
+      "name": "pack-refs",
+      "category": "administration",
+      "descriptionKey": "command.pack-refs",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-pack-refs"
+    },
+    {
+      "name": "prune",
+      "category": "administration",
+      "descriptionKey": "command.prune",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-prune"
+    },
+    {
+      "name": "reflog",
+      "category": "administration",
+      "descriptionKey": "command.reflog",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-reflog"
+    },
+    {
+      "name": "refs",
+      "category": "administration",
+      "descriptionKey": "command.refs",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-refs"
+    },
+    {
+      "name": "remote",
+      "category": "administration",
+      "descriptionKey": "command.remote",
+      "experimental": false,
+      "visual": "operations",
+      "documentation": "https://git-scm.com/docs/git-remote"
+    },
+    {
+      "name": "repack",
+      "category": "administration",
+      "descriptionKey": "command.repack",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-repack"
+    },
+    {
+      "name": "replace",
+      "category": "administration",
+      "descriptionKey": "command.replace",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-replace"
+    },
+    {
+      "name": "annotate",
+      "category": "inspection",
+      "descriptionKey": "command.annotate",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-annotate"
+    },
+    {
+      "name": "blame",
+      "category": "inspection",
+      "descriptionKey": "command.blame",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-blame"
+    },
+    {
+      "name": "bugreport",
+      "category": "inspection",
+      "descriptionKey": "command.bugreport",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-bugreport"
+    },
+    {
+      "name": "count-objects",
+      "category": "inspection",
+      "descriptionKey": "command.count-objects",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-count-objects"
+    },
+    {
+      "name": "diagnose",
+      "category": "inspection",
+      "descriptionKey": "command.diagnose",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-diagnose"
+    },
+    {
+      "name": "difftool",
+      "category": "inspection",
+      "descriptionKey": "command.difftool",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-difftool"
+    },
+    {
+      "name": "fsck",
+      "category": "inspection",
+      "descriptionKey": "command.fsck",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-fsck"
+    },
+    {
+      "name": "gitweb",
+      "category": "inspection",
+      "descriptionKey": "command.gitweb",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-gitweb"
+    },
+    {
+      "name": "help",
+      "category": "inspection",
+      "descriptionKey": "command.help",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-help"
+    },
+    {
+      "name": "instaweb",
+      "category": "inspection",
+      "descriptionKey": "command.instaweb",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-instaweb"
+    },
+    {
+      "name": "merge-tree",
+      "category": "inspection",
+      "descriptionKey": "command.merge-tree",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-merge-tree"
+    },
+    {
+      "name": "rerere",
+      "category": "inspection",
+      "descriptionKey": "command.rerere",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-rerere"
+    },
+    {
+      "name": "show-branch",
+      "category": "inspection",
+      "descriptionKey": "command.show-branch",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-show-branch"
+    },
+    {
+      "name": "verify-commit",
+      "category": "inspection",
+      "descriptionKey": "command.verify-commit",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-verify-commit"
+    },
+    {
+      "name": "verify-tag",
+      "category": "inspection",
+      "descriptionKey": "command.verify-tag",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-verify-tag"
+    },
+    {
+      "name": "version",
+      "category": "inspection",
+      "descriptionKey": "command.version",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-version"
+    },
+    {
+      "name": "whatchanged",
+      "category": "inspection",
+      "descriptionKey": "command.whatchanged",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-whatchanged"
+    },
+    {
+      "name": "archimport",
+      "category": "interop",
+      "descriptionKey": "command.archimport",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-archimport"
+    },
+    {
+      "name": "cvsexportcommit",
+      "category": "interop",
+      "descriptionKey": "command.cvsexportcommit",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-cvsexportcommit"
+    },
+    {
+      "name": "cvsimport",
+      "category": "interop",
+      "descriptionKey": "command.cvsimport",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-cvsimport"
+    },
+    {
+      "name": "cvsserver",
+      "category": "interop",
+      "descriptionKey": "command.cvsserver",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-cvsserver"
+    },
+    {
+      "name": "imap-send",
+      "category": "interop",
+      "descriptionKey": "command.imap-send",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-imap-send"
+    },
+    {
+      "name": "p4",
+      "category": "interop",
+      "descriptionKey": "command.p4",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-p4"
+    },
+    {
+      "name": "quiltimport",
+      "category": "interop",
+      "descriptionKey": "command.quiltimport",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-quiltimport"
+    },
+    {
+      "name": "request-pull",
+      "category": "interop",
+      "descriptionKey": "command.request-pull",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-request-pull"
+    },
+    {
+      "name": "send-email",
+      "category": "interop",
+      "descriptionKey": "command.send-email",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-send-email"
+    },
+    {
+      "name": "svn",
+      "category": "interop",
+      "descriptionKey": "command.svn",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-svn"
+    },
+    {
+      "name": "apply",
+      "category": "plumbing-write",
+      "descriptionKey": "command.apply",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-apply"
+    },
+    {
+      "name": "checkout-index",
+      "category": "plumbing-write",
+      "descriptionKey": "command.checkout-index",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-checkout-index"
+    },
+    {
+      "name": "commit-graph",
+      "category": "plumbing-write",
+      "descriptionKey": "command.commit-graph",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-commit-graph"
+    },
+    {
+      "name": "commit-tree",
+      "category": "plumbing-write",
+      "descriptionKey": "command.commit-tree",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-commit-tree"
+    },
+    {
+      "name": "hash-object",
+      "category": "plumbing-write",
+      "descriptionKey": "command.hash-object",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-hash-object"
+    },
+    {
+      "name": "index-pack",
+      "category": "plumbing-write",
+      "descriptionKey": "command.index-pack",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-index-pack"
+    },
+    {
+      "name": "merge-file",
+      "category": "plumbing-write",
+      "descriptionKey": "command.merge-file",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-merge-file"
+    },
+    {
+      "name": "merge-index",
+      "category": "plumbing-write",
+      "descriptionKey": "command.merge-index",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-merge-index"
+    },
+    {
+      "name": "mktag",
+      "category": "plumbing-write",
+      "descriptionKey": "command.mktag",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-mktag"
+    },
+    {
+      "name": "mktree",
+      "category": "plumbing-write",
+      "descriptionKey": "command.mktree",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-mktree"
+    },
+    {
+      "name": "multi-pack-index",
+      "category": "plumbing-write",
+      "descriptionKey": "command.multi-pack-index",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-multi-pack-index"
+    },
+    {
+      "name": "pack-objects",
+      "category": "plumbing-write",
+      "descriptionKey": "command.pack-objects",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-pack-objects"
+    },
+    {
+      "name": "prune-packed",
+      "category": "plumbing-write",
+      "descriptionKey": "command.prune-packed",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-prune-packed"
+    },
+    {
+      "name": "read-tree",
+      "category": "plumbing-write",
+      "descriptionKey": "command.read-tree",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-read-tree"
+    },
+    {
+      "name": "replay",
+      "category": "plumbing-write",
+      "descriptionKey": "command.replay",
+      "experimental": true,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-replay"
+    },
+    {
+      "name": "symbolic-ref",
+      "category": "plumbing-write",
+      "descriptionKey": "command.symbolic-ref",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-symbolic-ref"
+    },
+    {
+      "name": "unpack-objects",
+      "category": "plumbing-write",
+      "descriptionKey": "command.unpack-objects",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-unpack-objects"
+    },
+    {
+      "name": "update-index",
+      "category": "plumbing-write",
+      "descriptionKey": "command.update-index",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-update-index"
+    },
+    {
+      "name": "update-ref",
+      "category": "plumbing-write",
+      "descriptionKey": "command.update-ref",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-update-ref"
+    },
+    {
+      "name": "write-tree",
+      "category": "plumbing-write",
+      "descriptionKey": "command.write-tree",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-write-tree"
+    },
+    {
+      "name": "cat-file",
+      "category": "plumbing-read",
+      "descriptionKey": "command.cat-file",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-cat-file"
+    },
+    {
+      "name": "cherry",
+      "category": "plumbing-read",
+      "descriptionKey": "command.cherry",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-cherry"
+    },
+    {
+      "name": "diff-files",
+      "category": "plumbing-read",
+      "descriptionKey": "command.diff-files",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-diff-files"
+    },
+    {
+      "name": "diff-index",
+      "category": "plumbing-read",
+      "descriptionKey": "command.diff-index",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-diff-index"
+    },
+    {
+      "name": "diff-pairs",
+      "category": "plumbing-read",
+      "descriptionKey": "command.diff-pairs",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-diff-pairs"
+    },
+    {
+      "name": "diff-tree",
+      "category": "plumbing-read",
+      "descriptionKey": "command.diff-tree",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-diff-tree"
+    },
+    {
+      "name": "for-each-ref",
+      "category": "plumbing-read",
+      "descriptionKey": "command.for-each-ref",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-for-each-ref"
+    },
+    {
+      "name": "for-each-repo",
+      "category": "plumbing-read",
+      "descriptionKey": "command.for-each-repo",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-for-each-repo"
+    },
+    {
+      "name": "get-tar-commit-id",
+      "category": "plumbing-read",
+      "descriptionKey": "command.get-tar-commit-id",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-get-tar-commit-id"
+    },
+    {
+      "name": "last-modified",
+      "category": "plumbing-read",
+      "descriptionKey": "command.last-modified",
+      "experimental": true,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-last-modified"
+    },
+    {
+      "name": "ls-files",
+      "category": "plumbing-read",
+      "descriptionKey": "command.ls-files",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-ls-files"
+    },
+    {
+      "name": "ls-remote",
+      "category": "plumbing-read",
+      "descriptionKey": "command.ls-remote",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-ls-remote"
+    },
+    {
+      "name": "ls-tree",
+      "category": "plumbing-read",
+      "descriptionKey": "command.ls-tree",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-ls-tree"
+    },
+    {
+      "name": "merge-base",
+      "category": "plumbing-read",
+      "descriptionKey": "command.merge-base",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-merge-base"
+    },
+    {
+      "name": "name-rev",
+      "category": "plumbing-read",
+      "descriptionKey": "command.name-rev",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-name-rev"
+    },
+    {
+      "name": "pack-redundant",
+      "category": "plumbing-read",
+      "descriptionKey": "command.pack-redundant",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-pack-redundant"
+    },
+    {
+      "name": "repo",
+      "category": "plumbing-read",
+      "descriptionKey": "command.repo",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-repo"
+    },
+    {
+      "name": "rev-list",
+      "category": "plumbing-read",
+      "descriptionKey": "command.rev-list",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-rev-list"
+    },
+    {
+      "name": "rev-parse",
+      "category": "plumbing-read",
+      "descriptionKey": "command.rev-parse",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-rev-parse"
+    },
+    {
+      "name": "show-index",
+      "category": "plumbing-read",
+      "descriptionKey": "command.show-index",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-show-index"
+    },
+    {
+      "name": "show-ref",
+      "category": "plumbing-read",
+      "descriptionKey": "command.show-ref",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-show-ref"
+    },
+    {
+      "name": "unpack-file",
+      "category": "plumbing-read",
+      "descriptionKey": "command.unpack-file",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-unpack-file"
+    },
+    {
+      "name": "var",
+      "category": "plumbing-read",
+      "descriptionKey": "command.var",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-var"
+    },
+    {
+      "name": "verify-pack",
+      "category": "plumbing-read",
+      "descriptionKey": "command.verify-pack",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-verify-pack"
+    },
+    {
+      "name": "daemon",
+      "category": "transport",
+      "descriptionKey": "command.daemon",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-daemon"
+    },
+    {
+      "name": "fetch-pack",
+      "category": "transport",
+      "descriptionKey": "command.fetch-pack",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-fetch-pack"
+    },
+    {
+      "name": "http-backend",
+      "category": "transport",
+      "descriptionKey": "command.http-backend",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-http-backend"
+    },
+    {
+      "name": "send-pack",
+      "category": "transport",
+      "descriptionKey": "command.send-pack",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-send-pack"
+    },
+    {
+      "name": "update-server-info",
+      "category": "transport",
+      "descriptionKey": "command.update-server-info",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-update-server-info"
+    },
+    {
+      "name": "check-attr",
+      "category": "helpers",
+      "descriptionKey": "command.check-attr",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-check-attr"
+    },
+    {
+      "name": "check-ignore",
+      "category": "helpers",
+      "descriptionKey": "command.check-ignore",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-check-ignore"
+    },
+    {
+      "name": "check-mailmap",
+      "category": "helpers",
+      "descriptionKey": "command.check-mailmap",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-check-mailmap"
+    },
+    {
+      "name": "check-ref-format",
+      "category": "helpers",
+      "descriptionKey": "command.check-ref-format",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-check-ref-format"
+    },
+    {
+      "name": "column",
+      "category": "helpers",
+      "descriptionKey": "command.column",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-column"
+    },
+    {
+      "name": "credential",
+      "category": "helpers",
+      "descriptionKey": "command.credential",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-credential"
+    },
+    {
+      "name": "credential-cache",
+      "category": "helpers",
+      "descriptionKey": "command.credential-cache",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-credential-cache"
+    },
+    {
+      "name": "credential-store",
+      "category": "helpers",
+      "descriptionKey": "command.credential-store",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-credential-store"
+    },
+    {
+      "name": "fmt-merge-msg",
+      "category": "helpers",
+      "descriptionKey": "command.fmt-merge-msg",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-fmt-merge-msg"
+    },
+    {
+      "name": "hook",
+      "category": "helpers",
+      "descriptionKey": "command.hook",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-hook"
+    },
+    {
+      "name": "interpret-trailers",
+      "category": "helpers",
+      "descriptionKey": "command.interpret-trailers",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-interpret-trailers"
+    },
+    {
+      "name": "mailinfo",
+      "category": "helpers",
+      "descriptionKey": "command.mailinfo",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-mailinfo"
+    },
+    {
+      "name": "mailsplit",
+      "category": "helpers",
+      "descriptionKey": "command.mailsplit",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-mailsplit"
+    },
+    {
+      "name": "merge-one-file",
+      "category": "helpers",
+      "descriptionKey": "command.merge-one-file",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-merge-one-file"
+    },
+    {
+      "name": "patch-id",
+      "category": "helpers",
+      "descriptionKey": "command.patch-id",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-patch-id"
+    },
+    {
+      "name": "sh-i18n",
+      "category": "helpers",
+      "descriptionKey": "command.sh-i18n",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-sh-i18n"
+    },
+    {
+      "name": "sh-setup",
+      "category": "helpers",
+      "descriptionKey": "command.sh-setup",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-sh-setup"
+    },
+    {
+      "name": "stripspace",
+      "category": "helpers",
+      "descriptionKey": "command.stripspace",
+      "experimental": false,
+      "visual": null,
+      "documentation": "https://git-scm.com/docs/git-stripspace"
+    }
+  ]
+}
