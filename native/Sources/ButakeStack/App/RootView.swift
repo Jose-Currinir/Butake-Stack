@@ -4,6 +4,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.undoManager) private var undoManager
     @Bindable var store: StackStore
     @Bindable var updates = UpdateService.shared
     /// The page on screen, kept with the window (state restoration).
@@ -76,6 +77,13 @@ struct RootView: View {
             .scaledText()
             .contentColumn(shown: store.showsContentColumn)
             .toolbar {
+                // Like a browser's: the pages already visited, nearest first.
+                ToolbarItemGroup(placement: .navigation) {
+                    Button { store.goBack() } label: { Label(L("menu.back"), systemImage: Symbols.back).labelStyle(.iconOnly) }
+                        .disabled(!store.history.canGoBack).help(L("menu.backHelp")).accessibilityIdentifier("toolbar.back")
+                    Button { store.goForward() } label: { Label(L("menu.forward"), systemImage: Symbols.forward).labelStyle(.iconOnly) }
+                        .disabled(!store.history.canGoForward).help(L("menu.forwardHelp")).accessibilityIdentifier("toolbar.forward")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         // On the Terminal, its own additions first: one «+» per window.
@@ -169,9 +177,8 @@ struct RootView: View {
         // Edición › Buscar (⌘F); the SSH terminal keeps ⌘F for its own search.
         .focusedSceneValue(\.sidebarSearch, store.route == .tool("ssh-terminal") ? nil : SidebarSearchFocus { store.findRequests += 1 })
         .serviceStopConfirmation(store)
-        .alert(L("error.title"), isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
-            Button(L("common.close"), role: .cancel) { store.errorMessage = nil }
-        } message: { Text(store.errorMessage ?? "") }
+        .failureAlert(store)
+        .swipeNavigation(store)
         // Colors are read while drawing: a change of theme repaints in place, keeping page and scroll.
         .themedTint()
         .opensSettings()
@@ -184,7 +191,10 @@ struct RootView: View {
             await store.bootstrap()
             store.restore(savedRoute)
         }
+        // Edición › Deshacer acts on this window's manager (StackStore+Undo).
+        .onChange(of: undoManager, initial: true) { store.undoManager = undoManager }
         .onChange(of: store.route) {
+            store.history.visit(store.route)
             savedRoute = store.route.storageValue
             // A row of Componentes opens again on the last category seen.
             Component.remember(store.route)
