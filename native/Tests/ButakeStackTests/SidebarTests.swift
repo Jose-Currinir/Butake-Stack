@@ -141,15 +141,14 @@ private func selected(_ route: Route) -> (SidebarRow, String?) {
     #expect(SidebarLayout.migrateClosedSections("") == [])
 }
 
-/// No two rows of the sidebar share a tile: the same mark in the same color.
-@Test func noTwoSidebarRowsShareAnIcon() {
-    let techs = SidebarLayout.toolRows(enabled: allTools).map(Tech.of) + SidebarLayout.cloudRows(enabled: allTools).map(Tech.of)
-        + Component.allCases.map(\.tech)
-    let marks = techs.map { $0.simple ?? $0.svg ?? $0.symbol }
+/// Sidebar rows are gray symbols: each concept has its own, except the two cloud accounts, which share the cloud.
+@Test func sidebarRowSymbolsAreDistinct() {
+    let tools = SidebarLayout.toolRows(enabled: allTools).map(SidebarLayout.symbol(ofTool:))
+    let clouds = SidebarLayout.cloudRows(enabled: allTools).map(SidebarLayout.symbol(ofTool:))
+    #expect(clouds == [Symbols.cloud, Symbols.cloud])
+    let marks = tools + [Symbols.cloud] + Component.allCases.map(\.tech.symbol) + [Symbols.home]
     #expect(Set(marks).count == marks.count, "\(marks)")
     // Nor in the content column of Utilidades: the command lines don't take a tool's mark.
     let utilities = UtilityCatalog.groups.map(\.tech.symbol)
     #expect(Set(utilities + marks).count == utilities.count + marks.count)
-    // Google Cloud has its provider's logo, not the cloud.
-    #expect(Tech.of("gcp").svg == "gcp" && Tech.of("aws").symbol != Symbols.cloud)
 }

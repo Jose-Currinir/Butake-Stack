@@ -22,9 +22,9 @@ struct Sidebar: View {
             if search.isEmpty {
                 // A section without a title, like the first one of Finder's sidebar: the list leaves
                 // the same space under the search field as before every other section.
-                // Every row has its tile in the same column; Inicio carries the app's mark.
+                // Every row has its gray symbol in the same column, as in Finder and Mail.
                 Section {
-                    Label { Text(L("route.home")) } icon: { BrandMark(size: 18) }
+                    Label { Text(L("route.home")) } icon: { Image(systemName: Symbols.home).foregroundStyle(.secondary) }
                         .tag(SidebarRow.home).accessibilityIdentifier("route.home")
                         .badge(store.attentionOn.count)
                         .help(Self.attentionHelp(store.attentionOn.count))
@@ -105,7 +105,7 @@ struct Sidebar: View {
             if !components.isEmpty || !found.isEmpty {
                 Section {
                     ForEach(components, id: \.self) { component in
-                        Label { Text(component.title) } icon: { TechLogo(tech: component.tech, size: 18) }
+                        Label { Text(component.title) } icon: { Image(systemName: component.tech.symbol).foregroundStyle(.secondary) }
                             .tag(SidebarRow.component(component))
                             .accessibilityIdentifier("route.components.\(component.rawValue)")
                             .contextMenu { ComponentMenuItems(store: store, component: component) }
@@ -184,9 +184,7 @@ extension Sidebar {
     /// The name of a tool's row: the catalog's, or Registros.
     static func title(ofTool id: String) -> String { id == "logs" ? Tech.of("logs").title : L("plugin.\(id).title") }
     func toolRow(_ id: String) -> some View {
-        Label {
-            Text(Self.title(ofTool: id)).lineLimit(1)
-        } icon: { TechLogo(tech: .of(id), size: 18) }
+        Label { Text(Self.title(ofTool: id)).lineLimit(1) } icon: { Image(systemName: SidebarLayout.symbol(ofTool: id)).foregroundStyle(.secondary) }
             .tag(SidebarRow.tool(id))
             .accessibilityIdentifier("route.tool.\(id)")
             .contextMenu { ToolMenuItems(store: store, id: id) }
@@ -200,7 +198,7 @@ extension Sidebar {
                 Spacer()
                 Text(component.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
-        } icon: { TechLogo(tech: component.tech(of: category), size: 18) }
+        } icon: { Image(systemName: SidebarLayout.symbol(ofCategory: category, in: component)).foregroundStyle(.secondary) }
             .tag(SidebarRow.category(route))
             .accessibilityIdentifier("route.\(route.storageValue.replacingOccurrences(of: ":", with: "."))")
             .contextMenu {
@@ -230,10 +228,10 @@ extension Sidebar {
                             .accessibilityLabel(L("share.sidebar")).accessibilityIdentifier("route.site.shared.\(project.id)")
                     }
                     // A project without a server is never on: no state to show.
-                    if project.isServed { StatusRing(phase: store.sitePhase(project), size: 10) }
+                    if project.isServed { SidebarStateDot(phase: store.sitePhase(project)) }
                 }
             }
-        } icon: { TechLogo(tech: project.tech, size: 18) }
+        } icon: { TechLogo(tech: project.tech, size: 16) }
             .tag(SidebarRow.site(project.id)).accessibilityIdentifier("route.site.\(project.id)")
             .contextMenu { ProjectMenuItems(store: store, project: project) }
             .draggable(project.id) {
@@ -258,7 +256,7 @@ extension Sidebar {
                     .buttonStyle(.borderless).font(.caption).foregroundStyle(Brand.accent)
                     .help(L("groups.newRepoHelp")).accessibilityIdentifier("sidebar.new.add.\(repository.title)")
             }
-        } icon: { IconTile(symbol: Symbols.newFolder, size: 18) }
+        } icon: { Image(systemName: Symbols.newFolder).foregroundStyle(.secondary) }
             .selectionDisabled().accessibilityIdentifier("sidebar.new.\(repository.title)")
             .contextMenu {
                 Button { Task { await store.openFolder(repository.path) } } label: { Label(L("groups.newRepoAdd"), systemImage: Symbols.add) }
@@ -396,9 +394,9 @@ private struct GroupRow: View {
                 }
             }
         } icon: {
-            // The same tile as every other row, in the folder's color (a project's has its own);
+            // A gray symbol like every other row (a project of several parts has its own);
             // open or closed shows only in the chevron.
-            IconTile(symbol: group.isProject ? Symbols.compositeProject : Symbols.folder, size: 18)
+            Image(systemName: group.isProject ? Symbols.compositeProject : Symbols.folder).foregroundStyle(.secondary)
         }
         .padding(.vertical, 1)
         .background(RoundedRectangle(cornerRadius: Radius.small).fill(targeted ? Brand.accent.opacity(0.18) : .clear).padding(.horizontal, -6))
@@ -412,5 +410,15 @@ private struct GroupRow: View {
         .contextMenu { GroupMenuItems(store: store, group: group) }
         // A folder moves on the disk when it is dragged into another.
         .draggableFolder(store.followsDisk ? StackStore.folderDragPrefix + group.id : nil, title: group.name)
+    }
+}
+
+/// A project's state at the end of its row: a small dot, green running, a gray outline stopped,
+/// amber starting, red failing; with Differentiate without color, a symbol of its own shape.
+struct SidebarStateDot: View {
+    let phase: ProcessPhase
+    var body: some View {
+        StatusDot(color: phase.color, symbol: phase.markSymbol, label: L("state.\(phase.rawValue)"), size: 7, outlined: phase == .stopped)
+            .accessibilityIdentifier("sidebar.state.\(phase.rawValue)")
     }
 }

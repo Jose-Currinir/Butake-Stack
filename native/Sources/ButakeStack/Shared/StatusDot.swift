@@ -9,6 +9,8 @@ struct StatusDot: View {
     let symbol: String
     let label: String
     var size: CGFloat = 6
+    /// A gray outline instead of a filled dot, for what is off.
+    var outlined = false
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiate
 
     var body: some View {
@@ -16,7 +18,11 @@ struct StatusDot: View {
             if differentiate || QAAccessibility.differentiateWithoutColor {
                 Image(systemName: symbol).resizable().scaledToFit().foregroundStyle(color).frame(width: size + 4, height: size + 4)
             } else {
-                Circle().fill(color).frame(width: size, height: size)
+                if outlined {
+                    Circle().strokeBorder(color, lineWidth: 1.2).frame(width: size, height: size)
+                } else {
+                    Circle().fill(color).frame(width: size, height: size)
+                }
             }
         }
         .help(label)
