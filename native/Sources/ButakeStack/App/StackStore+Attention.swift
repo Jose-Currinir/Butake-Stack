@@ -14,6 +14,30 @@ struct ServiceStopRequest: Identifiable, Hashable {
 /// menu bar panel.
 enum StopSurface: Hashable, Sendable { case window, panel }
 
+/// An error ready to show on the surface that asked: what happened, the cause when the engine
+/// says it, and the button that helps («Reintentar» when the action can run again, «Abrir Registros»
+/// when the cause is not known). The window shows it as an alert and the panel as a banner.
+struct ActionFailure: Identifiable {
+    let id = UUID()
+    var title: String
+    var message: String
+    /// Runs the same action again; nil when it cannot be repeated.
+    var retry: (@MainActor () async -> Void)?
+    /// The engine gave no cause of its own: the logs may have it.
+    var offersLogs = false
+
+    init(title: String, message: String, retry: (@MainActor () async -> Void)? = nil, offersLogs: Bool = false) {
+        self.title = title; self.message = message; self.retry = retry; self.offersLogs = offersLogs
+    }
+
+    init(error: Error, title: String? = nil, retry: (@MainActor () async -> Void)? = nil) {
+        let known = (error as? EngineFailure).map {
+            $0.messageKey != "engine.requestFailed" && (localized($0.messageKey) != nil || $0.detail != nil)
+        } ?? false
+        self.init(title: title ?? L("error.title"), message: EngineFailure.message(error), retry: retry, offersLogs: !known)
+    }
+}
+
 /// What `setSiteEnabled` answers beyond the project: the services Stack turned on with it.
 struct SiteSwitch: Decodable { let servicesStarted: [String]? }
 
@@ -112,4 +136,27 @@ extension View {
     func serviceStopConfirmation(_ store: StackStore, on surface: StopSurface = .window) -> some View {
         modifier(ServiceStopConfirmation(store: store, surface: surface))
     }
+}
+
+/// What went wrong, its cause when the engine says it, and the button that helps. Only what was
+/// asked in the window: the menu bar panel shows its own (`panelFailure`).
+private struct FailureAlert: ViewModifier {
+    @Bindable var store: StackStore
+    func body(content: Content) -> some View {
+        content.alert(store.windowFailure?.title ?? L("error.title"),
+                      isPresented: Binding(get: { store.windowFailure != nil }, set: { if !$0 { store.dismissFailure() } }),
+                      presenting: store.windowFailure) { failure in
+            if let retry = failure.retry {
+                Button(L("error.retry")) { Task { await retry() } }.accessibilityIdentifier("error.retry")
+            }
+            if failure.offersLogs {
+                Button(L("error.openLogs")) { store.route = .tool("logs") }.accessibilityIdentifier("error.openLogs")
+            }
+            Button(L("common.cancel"), role: .cancel) {}
+        } message: { Text($0.message) }
+    }
+}
+
+extension View {
+    func failureAlert(_ store: StackStore) -> some View { modifier(FailureAlert(store: store)) }
 }

@@ -8,7 +8,11 @@ struct EngineFailure: Codable, LocalizedError {
     var errorDescription: String? {
         // GitHub limited this network: the detail is the minutes until it resets.
         if code == "source_rate_limited" { return String(format: L(messageKey), detail ?? "60") }
-        return detail.map { "\(L(messageKey)): \($0)" } ?? L(messageKey)
+        // A code this app has no text for still says its cause when the engine gave one.
+        guard let text = localized(messageKey) else {
+            return detail.map { String(format: L("error.withCause"), $0) } ?? L("engine.requestFailed")
+        }
+        return detail.map { "\(text): \($0)" } ?? text
     }
     /// The engine's code as it travels inside other answers ("source_rate_limited:12").
     init(code: String) {
