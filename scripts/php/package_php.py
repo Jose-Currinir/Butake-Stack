@@ -1,4 +1,4 @@
-"""Prepare reviewed PHP packages and a local distribution catalog; never publish."""
+"""Prepare reviewed PHP packages and a signed local distribution catalog; never publish."""
 import argparse
 import gzip
 import hashlib
@@ -97,4 +97,8 @@ if __name__ == "__main__":
     parser.add_argument("runtime", type=Path)
     parser.add_argument("output", type=Path)
     arguments = parser.parse_args()
+    from sign_catalog import sign_catalog
+
     package(arguments.runtime, arguments.output)
+    # The engine refuses a catalog without this signature (R-62); publish both files together.
+    print("signed: " + str(sign_catalog(arguments.output / "catalog.json")))

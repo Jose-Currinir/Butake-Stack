@@ -66,12 +66,13 @@ fn file_digest(path: &Path) -> Result<String> {
 }
 pub fn manifest(store: &Store, series: &str) -> Result<PhpManifest> {
     validate_series(series)?;
-    let root = store.root().join("runtimes/php").join(series);
+    verify_runtime(&store.root().join("runtimes/php").join(series), series)
+}
+/// Verifies the runtime folder `root` (the installed line, or its staging copy before it becomes
+/// visible): its manifest, the paths it lists and the SHA-256 of every file.
+fn verify_runtime(root: &Path, series: &str) -> Result<PhpManifest> {
     let canonical = root.canonicalize()?;
-    ensure!(
-        canonical.starts_with(store.root()) && canonical == root,
-        "unsafe_runtime_path"
-    );
+    ensure!(canonical == root, "unsafe_runtime_path");
     let path = root.join("manifest.json");
     ensure!(
         !path.symlink_metadata()?.file_type().is_symlink() && path.metadata()?.len() <= 1_048_576,
@@ -101,7 +102,7 @@ pub fn manifest(store: &Store, series: &str) -> Result<PhpManifest> {
         );
         let file = root.join(name).canonicalize()?;
         ensure!(
-            file.starts_with(&root) && file == root.join(name),
+            file.starts_with(root) && file == root.join(name),
             "unsafe_runtime_path"
         );
         ensure!(file_digest(&file)? == *expected, "runtime_hash_mismatch");
@@ -182,7 +183,8 @@ pub const DOWNLOAD_PLAN: [&str; 3] = ["download", "verifySum", "install"];
 pub const PACKAGE_PLAN: [&str; 2] = ["verifySum", "install"];
 
 /// Installs a reviewed PHP package (`php-<version>-macos-arm64.tar.gz`) whose SHA-256 must
-/// match the `catalog.json` next to it. Extraction happens in a private temporary folder and
+/// match the `catalog.json` next to it (a package the user picked on this Mac; the signature
+/// applies to the downloaded catalog, see `download_php`). Extraction happens in a private temporary folder and
 /// the runtime only becomes visible after its manifest hashes are verified.
 pub fn install_package(store: &Store, package: &Path) -> Result<PhpManifest> {
     let package = package.canonicalize()?;
@@ -234,8 +236,10 @@ pub fn install_package(store: &Store, package: &Path) -> Result<PhpManifest> {
         progress::fixed_step("install");
         archive::extract_tar_gz(&package, &staging, false, "package_extract_failed")?;
         archive::check_tree(&staging, Links::Forbid)?;
+        // Everything is verified in staging: the runtime only appears once its files match.
+        let manifest = verify_runtime(&staging, &series)?;
         fs::rename(&staging, &target)?;
-        manifest(store, &series)
+        Ok(manifest)
     })();
     if result.is_err() {
         let _ = fs::remove_dir_all(&staging);
@@ -319,16 +323,62 @@ pub fn generate_ini(store: &Store, series: &str) -> Result<PathBuf> {
 pub const RUNTIMES_RELEASE: &str =
     "https://github.com/Jose-Currinir/Butake-Stack/releases/download/runtimes";
 
-/// The catalog URL with a value that changes every 10 minutes: GitHub's download CDN can keep
-/// serving a replaced asset for a long time; the local cache keeps requests rare anyway.
-fn catalog_url() -> String {
+/// Public key (uncompressed X9.63 point, hex) of the ECDSA P-256 key that signs `catalog.json`.
+/// The private half stays with the publisher (`scripts/php/sign_catalog.py`); rotating the key
+/// means shipping a new Stack. A catalog without a valid signature by this key is never used.
+const CATALOG_PUBLIC_KEY: &str = "046ea9e5085d7b1848dc0e064d396a057de3bfd53ea5124567f2c17b3e8c2cf5284d42ddccd40761228f305da9dffd7b46607f5876334df3ea6d898ad836c288fc";
+
+fn decode_hex(text: &str) -> Result<Vec<u8>> {
+    ensure!(
+        text.len().is_multiple_of(2) && text.is_ascii(),
+        "invalid_public_key"
+    );
+    (0..text.len())
+        .step_by(2)
+        .map(|i| {
+            u8::from_str_radix(&text[i..i + 2], 16)
+                .map_err(|_| anyhow::anyhow!("invalid_public_key"))
+        })
+        .collect()
+}
+
+/// Checks `data` (the bytes of `catalog.json`) against its DER signature made with the key
+/// `public_key_hex`. No signature is `catalog_unsigned`; a signature that does not match is
+/// `catalog_signature_invalid`.
+fn verify_catalog(public_key_hex: &str, data: &[u8], signature: Option<&[u8]>) -> Result<()> {
+    let signature = match signature {
+        Some(signature) if !signature.is_empty() => signature,
+        _ => anyhow::bail!("catalog_unsigned"),
+    };
+    crate::core::ecdsa::verify(&decode_hex(public_key_hex)?, data, signature)
+        .map_err(|_| anyhow::anyhow!("catalog_signature_invalid"))
+}
+
+/// The catalog URLs carry a value that changes every 10 minutes: GitHub's download CDN can keep
+/// serving a replaced asset for a long time; the local cache keeps requests rare anyway. Both
+/// files use the same value so they come from the same moment.
+fn catalog_urls() -> (String, String) {
     let bucket = now_secs() / 600;
-    format!("{RUNTIMES_RELEASE}/catalog.json?t={bucket}")
+    (
+        format!("{RUNTIMES_RELEASE}/catalog.json?t={bucket}"),
+        format!("{RUNTIMES_RELEASE}/catalog.json.sig?t={bucket}"),
+    )
+}
+
+/// Downloads `catalog.json` and its signature and returns the catalog bytes with their parsed
+/// form, only when the signature is valid.
+fn fetch_catalog() -> Result<(Vec<u8>, serde_json::Value)> {
+    let (catalog_url, signature_url) = catalog_urls();
+    let data = crate::core::download::fetch(&catalog_url, 1_048_576)?;
+    // A DER ECDSA P-256 signature is 70-72 bytes; a missing file is an unsigned catalog.
+    let signature = crate::core::download::fetch(&signature_url, 1024).ok();
+    verify_catalog(CATALOG_PUBLIC_KEY, &data, signature.as_deref())?;
+    let catalog = serde_json::from_slice(&data)?;
+    Ok((data, catalog))
 }
 
 pub fn php_catalog() -> Result<Vec<serde_json::Value>> {
-    let data = crate::core::download::fetch(&catalog_url(), 1_048_576)?;
-    let catalog: serde_json::Value = serde_json::from_slice(&data)?;
+    let (_, catalog) = fetch_catalog()?;
     Ok(catalog["entries"]
         .as_array()
         .cloned()
@@ -338,8 +388,8 @@ pub fn php_catalog() -> Result<Vec<serde_json::Value>> {
         .collect())
 }
 
-/// Downloads one PHP build from the catalog and installs it like a local package (the SHA-256 in
-/// the catalog must match), then writes its php.ini.
+/// Downloads one PHP build from the signed catalog and installs it like a local package (the
+/// SHA-256 in the catalog must match), then writes its php.ini.
 pub fn download_php(store: &Store, version: &str) -> Result<PhpManifest> {
     ensure!(
         !version.is_empty()
@@ -348,8 +398,7 @@ pub fn download_php(store: &Store, version: &str) -> Result<PhpManifest> {
         "invalid_version"
     );
     progress::step("download");
-    let data = crate::core::download::fetch(&catalog_url(), 1_048_576)?;
-    let catalog: serde_json::Value = serde_json::from_slice(&data)?;
+    let (data, catalog) = fetch_catalog()?;
     let entry = catalog["entries"]
         .as_array()
         .and_then(|entries| {
@@ -547,5 +596,98 @@ mod tests {
         let tampered = fake_package(&temp.path().join("tampered"), false);
         fs::write(&tampered, b"not the package").unwrap();
         assert!(install_package(&other, &tampered).is_err());
+    }
+
+    /// A throwaway P-256 key made with openssl in `dir`: the public X9.63 point (hex) and a
+    /// function that signs bytes with the private half. Never the publisher's key.
+    fn test_key(dir: &Path) -> (String, impl Fn(&[u8]) -> Vec<u8> + use<>) {
+        const OPENSSL: &str = "/usr/bin/openssl";
+        fs::create_dir_all(dir).unwrap();
+        let key = dir.join("key.pem");
+        let run = |args: &[&str]| {
+            let out = std::process::Command::new(OPENSSL)
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "{args:?}");
+            out.stdout
+        };
+        run(&[
+            "ecparam",
+            "-name",
+            "prime256v1",
+            "-genkey",
+            "-noout",
+            "-out",
+            key.to_str().unwrap(),
+        ]);
+        let spki = run(&[
+            "ec",
+            "-in",
+            key.to_str().unwrap(),
+            "-pubout",
+            "-outform",
+            "DER",
+        ]);
+        let point = &spki[spki.len() - 65..];
+        let hex: String = point.iter().map(|b| format!("{b:02x}")).collect();
+        let dir = dir.to_path_buf();
+        let sign = move |data: &[u8]| {
+            let input = dir.join("data.bin");
+            fs::write(&input, data).unwrap();
+            run(&[
+                "dgst",
+                "-sha256",
+                "-sign",
+                dir.join("key.pem").to_str().unwrap(),
+                input.to_str().unwrap(),
+            ])
+        };
+        (hex, sign)
+    }
+
+    #[test]
+    fn catalog_needs_a_valid_signature_of_the_publisher_key() {
+        let temp = tempfile::tempdir().unwrap();
+        let (key, sign) = test_key(&temp.path().join("a"));
+        let catalog = br#"{"schema_version":1,"entries":[]}"#;
+        let signature = sign(catalog);
+        verify_catalog(&key, catalog, Some(&signature)).unwrap();
+
+        let changed = br#"{"schema_version":1,"entries":[{"id":"evil"}]}"#;
+        assert_eq!(
+            verify_catalog(&key, changed, Some(&signature))
+                .unwrap_err()
+                .to_string(),
+            "catalog_signature_invalid"
+        );
+        for missing in [None, Some(&[][..])] {
+            assert_eq!(
+                verify_catalog(&key, catalog, missing)
+                    .unwrap_err()
+                    .to_string(),
+                "catalog_unsigned"
+            );
+        }
+        let (other, other_sign) = test_key(&temp.path().join("b"));
+        assert_ne!(key, other);
+        assert_eq!(
+            verify_catalog(&key, catalog, Some(&other_sign(catalog)))
+                .unwrap_err()
+                .to_string(),
+            "catalog_signature_invalid"
+        );
+        assert_eq!(
+            verify_catalog(&key, catalog, Some(b"not a signature"))
+                .unwrap_err()
+                .to_string(),
+            "catalog_signature_invalid"
+        );
+    }
+
+    #[test]
+    fn embedded_public_key_is_a_valid_p256_point() {
+        let key = decode_hex(CATALOG_PUBLIC_KEY).unwrap();
+        assert_eq!((key.len(), key[0]), (65, 4));
     }
 }

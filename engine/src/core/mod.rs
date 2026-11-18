@@ -7,6 +7,7 @@ pub mod cache;
 pub mod cli_tool;
 pub mod codec;
 pub mod download;
+pub mod ecdsa;
 pub mod fsutil;
 pub mod github;
 pub mod hash;

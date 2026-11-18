@@ -4641,6 +4641,8 @@
 "error.swiftly_not_installed" = "Falta swiftly: instálalo en Lenguajes › Swift.";
 "error.unknown_method" = "Stack no reconoce esa acción. Reinicia la app y, si sigue, busca actualizaciones.";
 "error.version_not_in_catalog" = "Esa versión ya no está en el catálogo oficial. Actualiza la lista y elige otra.";
+"error.catalog_unsigned" = "El catálogo de PHP no trae la firma de Stack y no se usó. Vuelve a intentarlo más tarde.";
+"error.catalog_signature_invalid" = "La firma del catálogo de PHP no es válida y no se instaló nada. Vuelve a intentarlo más tarde.";
 "error.installed_elsewhere" = "Ya está instalada por otra vía en este Mac. Stack la muestra pero no la reemplaza: actualízala con el método con que la instalaste.";
 "error.not_managed" = "Esta utilidad no la instaló Stack, así que Stack no la quita. Usa el método con que la instalaste.";
 "error.not_notarized" = "Apple no reconoce la descarga como software notarizado y no se instaló nada. Vuelve a intentarlo más tarde.";

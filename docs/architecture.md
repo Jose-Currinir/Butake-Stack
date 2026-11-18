@@ -455,7 +455,14 @@ conserva si lo usa otro llamador (anotado junto al método) o se quita con sus p
 
 - **Asistente de configuración.** Al iniciar, si falta PHP, Caddy o el agente de sesión, se abre
   la hoja de requisitos. PHP se descarga del release `runtimes` de este repositorio (`catalog.json`
-  con la SHA-256 de cada compilación; `phpCatalog` / `downloadPhp`), Caddy y Node.js de sus
+  con la SHA-256 de cada compilación; `phpCatalog` / `downloadPhp`). El catálogo viene firmado: el
+  motor baja también `catalog.json.sig` (ECDSA P-256 sobre SHA-256, en DER) y lo verifica con
+  Security.framework contra la clave pública que lleva dentro (`CATALOG_PUBLIC_KEY` en
+  `engine/src/runtimes/languages/php.rs`); sin firma válida (`catalog_unsigned`,
+  `catalog_signature_invalid`) no se usa el catálogo ni se instala nada. Después se verifica la
+  SHA-256 del paquete y, ya extraído en una carpeta de preparación, la de cada archivo del
+  manifiesto, y solo entonces se mueve a `runtimes/php/<versión>/`. Un paquete local elegido por el
+  usuario sigue verificándose contra el `catalog.json` de su carpeta, sin firma. Caddy y Node.js de sus
   catálogos oficiales, y las herramientas de Apple con `xcode-select --install`. Todo pide
   confirmación.
 - **Actualizaciones.** El actualizador consulta `releases/latest`, descarga `Butake-Stack.zip`
