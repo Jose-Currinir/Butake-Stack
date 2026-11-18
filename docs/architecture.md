@@ -431,9 +431,13 @@ conserva si lo usa otro llamador (anotado junto al método) o se quita con sus p
   `siteTask` (`composer install`, `npm install`, `artisan migrate` con el PHP y el Node.js de Stack).
 - **Esquemas de URL** (`App/StackStore+Links.swift`). Un enlace solo muestra: nunca conecta, importa,
   renombra ni desbloquea. Una herramienta desactivada abre Ajustes › Herramientas con su fila resaltada.
+  El enlace es entrada no confiable: `App/DeepLink.swift` (`DeepLink.parse`) lo lee antes de actuar, con
+  una lista cerrada de destinos, hasta 2000 caracteres, una clave por dato (solo `vault/import` repite
+  `path`) y rutas absolutas sin `..`. Uno que no cumple no navega: dice por qué en la alerta de la ventana.
 
   | Enlace | Abre |
   |---|---|
+  | `butakestack://home` | Inicio (lo usa «abrir Stack otra vez» para mostrar la ventana) |
   | `butakestack://setup` (alias `welcome`) | Asistente de configuración |
   | `butakestack://site/<id>` | El proyecto |
   | `butakestack://open?path=<carpeta>` | El proyecto de esa carpeta, o propone agregarla |

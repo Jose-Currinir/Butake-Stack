@@ -115,6 +115,12 @@ con Llavero apuntan al motor de la app con la que se activaron: apaga y vuelve a
 «Iniciar con la sesión» (Ajustes › General) y usa «Reparar…» en cada perfil de AWS antes de
 borrar la app anterior.
 
+**Qué hace «Iniciar con la sesión».** Instala el LaunchAgent del supervisor (puertos 53, 80 y 443) y,
+además, registra la app misma como elemento de inicio con `SMAppService.mainApp`: Stack aparece en la
+barra de menús al iniciar sesión, sin abrir su ventana. Apagarlo quita las dos cosas. Si macOS no deja
+registrar la app (no está en Aplicaciones, o se quitó en Ajustes del Sistema › Elementos de inicio), el
+interruptor sigue valiendo por el agente: solo se registra el error.
+
 ## Desarrollo y QA
 
 Cadena de validación, pruebas, QA visual con un almacén temporal y dobles de programas externos:

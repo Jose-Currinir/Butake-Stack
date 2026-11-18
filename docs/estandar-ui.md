@@ -99,7 +99,7 @@ Las preferencias viven solo en Ajustes; la ventana no tiene una página «Genera
 
 | Pestaña | Contenido |
 |---|---|
-| General | Iniciar con la sesión, actualizaciones, tamaño de texto, versión |
+| General | Iniciar con la sesión, avisos del sistema, actualizaciones, tamaño de texto, versión |
 | Apariencia | Tema |
 | Red | Dominios `.test`, certificado local, servidor web y sus puertos, carpetas vigiladas |
 | Herramientas | Catálogo con interruptores y datos de cada una |
@@ -135,7 +135,18 @@ Proyecto (Iniciar/Detener, Abrir en el navegador, Mostrar en Finder, ⌘⌫ Quit
 Ayuda (Asistente de configuración…, documentación).
 
 La app se comporta como una app normal mientras su ventana está abierta (Dock, ⌘Tab y barra de
-menús) y vuelve a ser solo de barra de menús al cerrarla.
+menús) y vuelve a ser solo de barra de menús al cerrarla. Abrir Stack otra vez estando en marcha y
+sin ventana (Finder, Spotlight) muestra la ventana principal; al iniciar la sesión no se abre ninguna.
+
+El icono de la barra de menús es una imagen plantilla; lleva un punto (una forma, no un color)
+mientras el estado no es «Todo en marcha», y su descripción accesible dice el estado. La barra
+inferior dice «Reconectando…» durante 5 s desde que el servicio deja de contestar y solo después
+«Detenido»; una lectura que cruzó la suspensión del Mac empieza esa espera otra vez.
+
+Avisos del sistema (Ajustes › General › Avisos): apagados al instalar; macOS pide el permiso solo al
+encenderlos. Avisan una vez por episodio, y solo con la ventana en segundo plano, de una actualización
+lista, un proceso de un proyecto que se detuvo y una instalación que terminó; tocar el aviso abre la
+página del asunto.
 
 ## Glosario
 
