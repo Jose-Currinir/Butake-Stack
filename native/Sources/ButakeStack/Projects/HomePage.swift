@@ -16,8 +16,9 @@ enum HomeFilter {
     }
 }
 
-/// Inicio: what needs doing (only when something does), the projects and the services installed.
-/// Stack's state itself is said by the status bar.
+/// Inicio: one line of summary, what needs doing (only when something does), the projects as a
+/// list with columns grouped by folder, and the services in use. Stack's state itself is said by
+/// the status bar.
 struct HomePage: View {
     @Bindable var store: StackStore
     var services: [String] { Route.allEngines.filter { store.engineVersion($0) != nil } }
@@ -30,23 +31,16 @@ struct HomePage: View {
     @State private var filter = ""
     #endif
     @State private var filterRequests = 0
+    @State private var selection: String?
+    @State private var columns = HomeColumns()
     var query: String { filter.trimmingCharacters(in: .whitespaces) }
+    var served: [Project] { store.projects.filter(\.isServed) }
     var online: Int { store.projects.filter { store.sitePhase($0) == .running }.count }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 26) {
-                let state = store.stackState
-                if state.needsAction { HomeHeader(store: store, state: state) }
-                if !store.attentionOn.isEmpty { HomeAttention(store: store) }
-                if store.projects.isEmpty { noProjects(prominent: !state.needsAction) } else { projects }
-                if !services.isEmpty { servicesSection }
-            }
-            .padding(28)
-            .frame(maxWidth: 1680, alignment: .leading)
-            .frame(maxWidth: .infinity)
+        Group {
+            if store.projects.isEmpty { emptyPage } else { projectList }
         }
-        .rememberScroll("page.home")
         .background(Brand.background)
         .focusedSceneValue(\.textFinder, store.projects.isEmpty ? nil : TextFinderRequest { filterRequests += 1 })
         .toolbar {
@@ -67,33 +61,65 @@ struct HomePage: View {
         }
     }
 
-    /// Cards share the row: as many columns as fit, each stretching to fill; wide enough for a name
-    /// and its kind beside the switch.
-    private func grid<Item: Identifiable, Card: View>(_ items: [Item], @ViewBuilder card: @escaping (Item) -> Card) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: TextScale.points(290)), spacing: 12)], spacing: 12) {
-            ForEach(items) { card($0) }
+    /// No projects: the way to the first one, and the services if there are any.
+    private var emptyPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                let state = store.stackState
+                if state.needsAction { HomeHeader(store: store, state: state) }
+                noProjects(prominent: !state.needsAction)
+                if !services.isEmpty { HomeServices(store: store, names: services) }
+            }
+            .padding(28)
+            .frame(maxWidth: 1680, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
-        .animated(.snappy(duration: 0.3), value: items.map(\.id))
+        .rememberScroll("page.home")
     }
 
-    private var projects: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .firstTextBaseline, spacing: 16) {
-                SectionHeading(title: L("route.sites"), detail: String(format: L("sites.online"), online))
-                Spacer(minLength: 0)
-                FilterField(text: $filter, identifier: "home.filter", prompt: L("home.filter"), focusRequests: filterRequests)
-                    .frame(maxWidth: 260)
-            }
-            let filtering = !query.isEmpty
+    private var summary: some View {
+        let total = served.isEmpty ? store.projects.count : served.count
+        let warnings = store.attentionOn.reduce(0) { $0 + $1.items.count }
+        let count = services.count
+        let parts = [count == 0 ? nil : count == 1 ? L("home.summary.service") : String(format: L("home.summary.services"), count),
+                     warnings == 0 ? L("home.summary.noWarnings") : warnings == 1 ? L("home.summary.warning") : String(format: L("home.summary.warnings"), warnings)]
+        return HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(String(format: L("home.summary.running"), online, total)).font(.uiTitle2.weight(.semibold))
+            Text(parts.compactMap { $0 }.joined(separator: " · ")).font(.uiCallout).foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            FilterField(text: $filter, identifier: "home.filter", prompt: L("home.filter"), focusRequests: filterRequests)
+                .frame(maxWidth: 260)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home.summary")
+    }
+
+    /// One row of a folder's list: the project, draggable to a folder of the sidebar as before.
+    private func row(_ project: Project, depth: Int) -> some View {
+        HomeProjectRow(store: store, project: project, columns: columns)
+            .tag(project.id)
+            .draggable(project.id)
+            .listRowInsets(EdgeInsets(top: 2, leading: 12 + CGFloat(depth) * HomePage.indent, bottom: 2, trailing: 12))
+    }
+
+    private var projectList: some View {
+        let filtering = !query.isEmpty
+        return List(selection: $selection) {
+            let state = store.stackState
+            if state.needsAction { HomeHeader(store: store, state: state).staticRow() }
+            summary.staticRow()
+            if !store.attentionOn.isEmpty { HomeAttention(store: store).staticRow() }
+            HomeColumnHeader(columns: columns).staticRow(top: 6)
             // The folders as the sidebar draws them: each inside the one it is in, a folder closed hides
-            // everything under it, and a folder counts every project inside it. Cards are the folder's
-            // own projects; the ones of a folder inside it are under that folder's title.
+            // everything under it, and a folder counts every project inside it.
             ForEach(store.folderTree) { entry in
                 let group = entry.group
                 let inside = HomeFilter.shown(store.projects(inside: group), folder: group.name, query: query)
                 if !inside.isEmpty && (filtering || store.ancestors(of: group).allSatisfy({ store.folderOpen($0.id) })) {
                     let members = HomeFilter.shown(store.projects(in: group), folder: group.name, query: query)
-                    VStack(alignment: .leading, spacing: 10) {
+                    Section {
+                        if filtering || store.folderOpen(group.id) { ForEach(members) { row($0, depth: entry.depth) } }
+                    } header: {
                         // A project of several parts says so and leads to its page.
                         HStack(spacing: 4) {
                             HomeFolderHeader(store: store, id: group.id, title: group.name,
@@ -107,29 +133,44 @@ struct HomePage: View {
                                 .accessibilityIdentifier("home.folder.\(group.id).open")
                             }
                         }
-                        if (filtering || store.folderOpen(group.id)) && !members.isEmpty { grid(members) { HomeProjectCard(store: store, project: $0).draggable($0.id) } }
+                        .padding(.leading, CGFloat(entry.depth) * HomePage.indent)
                     }
-                    .padding(.leading, CGFloat(entry.depth) * HomePage.indent)
-                    .transitioned(.opacity.combined(with: .move(edge: .top)))
                 }
             }
             let loose = HomeFilter.shown(store.ungroupedProjects, folder: nil, query: query)
             if filtering && loose.isEmpty && !store.folderTree.contains(where: { !HomeFilter.shown(store.projects(inside: $0.group), folder: $0.group.name, query: query).isEmpty }) {
-                ContentUnavailableView.search(text: query)
+                ContentUnavailableView.search(text: query).staticRow()
             }
             if !loose.isEmpty {
-                // Named, and so closable, only next to folders that show cards.
+                // Named, and so closable, only next to folders that show projects.
                 let named = store.groups.contains(where: { !store.projects(in: $0).isEmpty })
-                VStack(alignment: .leading, spacing: 10) {
+                Section {
+                    if !named || filtering || store.folderOpen(StackStore.looseFolder) { ForEach(loose) { row($0, depth: 0) } }
+                } header: {
                     if named {
                         HomeFolderHeader(store: store, id: StackStore.looseFolder, title: L("groups.loose"), symbol: Symbols.project, members: loose)
                     }
-                    if !named || filtering || store.folderOpen(StackStore.looseFolder) {
-                        grid(loose) { HomeProjectCard(store: store, project: $0).draggable($0.id) }
-                    }
                 }
             }
+            if !services.isEmpty { HomeServices(store: store, names: services).staticRow(top: 18) }
         }
+        .listStyle(.inset)
+        .scrollContentBackground(.hidden)
+        .contextMenu(forSelectionType: String.self) { ids in
+            if let id = ids.first, let project = store.projects.first(where: { $0.id == id }) {
+                ProjectMenuItems(store: store, project: project)
+            }
+        } primaryAction: { ids in
+            if let id = ids.first { Motion.run(.smooth(duration: 0.3)) { store.openSite(id) } }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            var next = HomeColumns(width: width)
+            // Without Git data for any project the column would be empty.
+            if !store.projects.contains(where: { store.git[$0.id] != nil }) { next.branch = false }
+            if next != columns { columns = next }
+        }
+        .rememberScroll("page.home")
+        .accessibilityIdentifier("home.list")
     }
 
     /// No projects yet: the way to the first one. Its button is the main one unless the header has
@@ -156,17 +197,17 @@ struct HomePage: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
     }
-
-    private var servicesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // No count of what runs here: the status bar says it once for the whole window.
-            SectionHeading(title: L("sidebar.services"))
-            grid(services.map(ServiceID.init)) { HomeServiceCard(store: store, name: $0.id) }
-        }
-    }
 }
 
-private struct ServiceID: Identifiable { let id: String }
+private extension View {
+    /// A row of the page that is not a project: no separator, no highlight, never selected.
+    func staticRow(top: CGFloat = 4) -> some View {
+        listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: top, leading: 12, bottom: 4, trailing: 12))
+            .selectionDisabled()
+    }
+}
 
 /// Plegar / Desplegar todas las carpetas: Inicio's «⋯» and Visualización.
 struct FolderMenuItems: View {
@@ -182,7 +223,7 @@ struct FolderMenuItems: View {
     }
 }
 
-/// The title of a folder in Inicio: a button that closes and opens its cards, with the sidebar's
+/// The title of a folder in Inicio: a button that closes and opens its projects, with the sidebar's
 /// chevron (right when closed, down when open). Closed, it says how many of them are running.
 private struct HomeFolderHeader: View {
     @Bindable var store: StackStore
@@ -193,7 +234,7 @@ private struct HomeFolderHeader: View {
     var body: some View {
         let open = store.folderOpen(id)
         let running = members.filter { store.sitePhase($0) == .running }.count
-        // No animation of its own: the cards appear and leave at once (Reduce Motion or not).
+        // No animation of its own: the rows appear and leave at once (Reduce Motion or not).
         Button { store.setFolder(id, open: !open) } label: {
             HStack(spacing: 8) {
                 Label { Text(title) } icon: { IconTile(symbol: symbol, size: TextScale.points(20)) }
@@ -258,126 +299,6 @@ struct SectionHeading: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title).font(.uiTitle3.weight(.semibold))
             if let detail { Text(detail).font(.uiCaption).foregroundStyle(.secondary) }
-        }
-    }
-}
-
-/// A compact card: logo, name and detail open its page; the state and the switch sit on top so
-/// they never trigger the card.
-private struct HomeCard<Trailing: View>: View {
-    let tech: Tech
-    let title: String
-    let detail: String
-    /// The detail with the kind's short name, used before the detail is cut.
-    var shortDetail: String?
-    let identifier: String
-    let open: () -> Void
-    @ViewBuilder let trailing: Trailing
-    /// What the state and the switch take, measured: the text gets the rest of the card.
-    @State private var trailingWidth: CGFloat = 0
-    var body: some View {
-        Button(action: open) {
-            HStack(spacing: 12) {
-                TechLogo(tech: tech, size: 32).accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.uiHeadline).lineLimit(1)
-                    ViewThatFits(in: .horizontal) {
-                        Text(detail).lineLimit(1)
-                        if let shortDetail { Text(shortDetail).lineLimit(1) }
-                        Text(shortDetail ?? detail).lineLimit(1).truncationMode(.tail)
-                    }
-                    .font(.uiCaption).foregroundStyle(.secondary)
-                }
-                .layoutPriority(1)
-                Spacer(minLength: trailingWidth + 12)
-            }
-            .padding(12)
-            .workSurface()
-        }
-        .buttonStyle(HighlightButtonStyle(radius: Radius.panel))
-        .overlay(alignment: .trailing) {
-            HStack(spacing: 10) { trailing }
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { trailingWidth = $0 }
-                .padding(.trailing, 12)
-        }
-        .help(title)
-        .accessibilityIdentifier(identifier)
-    }
-}
-
-private struct HomeProjectCard: View {
-    @Bindable var store: StackStore
-    let project: Project
-    var detail: String { detail(kind: project.tech.title) }
-    func detail(kind: String) -> String {
-        if project.isMissing { return L("missing.title") }
-        let state = stateText
-        let branch = store.git[project.id].map { $0.branch.isEmpty ? L("git.detached") : $0.branch }
-        let unserved = project.isServed || project.technology == nil ? nil : L("kind.unserved")
-        return ([state, kind] + [unserved, project.php.map { "PHP \($0)" }, branch]).compactMap { $0 }.joined(separator: " · ")
-    }
-    /// What is not running says so in words, first in the line: the ring and the switch say it only by color.
-    private var stateText: String? {
-        guard project.isServed else { return nil }
-        guard project.enabled else { return L("site.off") }
-        let phase = store.sitePhase(project)
-        return phase == .running ? nil : phase == .crashed ? L("home.state.crashed") : L("state.\(phase.rawValue)")
-    }
-    var body: some View {
-        let phase = store.sitePhase(project)
-        HomeCard(tech: project.tech, title: project.title, detail: detail,
-                 shortDetail: project.tech.shortTitle == project.tech.title ? nil : detail(kind: project.tech.shortTitle), identifier: "home.site.\(project.id)",
-                 open: { Motion.run(.smooth(duration: 0.3)) { store.openSite(project.id) } }) {
-            // Something it needs (P-42): the first cause on hover, the rest on its page.
-            if !project.isMissing, let first = store.attention[project.id]?.first {
-                Image(systemName: Symbols.warning).foregroundStyle(Brand.warningText).help(store.attentionText(first))
-                    .accessibilityLabel(L("attention.title"))
-                    .accessibilityIdentifier("home.site.attention.\(project.id)")
-            }
-            if project.isMissing {
-                // Without its folder it cannot start: its page finds the folder or removes the project.
-                Image(systemName: Symbols.missingFolder).foregroundStyle(Brand.warning).help(L("missing.title"))
-                    .accessibilityIdentifier("home.site.missing.\(project.id)")
-            } else if project.isServed {
-                // A project that is off says so with its switch alone.
-                if project.enabled { StatusRing(phase: phase) }
-                Toggle(String(format: L("site.powerFor"), project.title), isOn: Binding(get: { project.enabled }, set: { on in Task { await store.setSite(project, enabled: on) } }))
-                    .toggleStyle(.switch).controlSize(.small).labelsHidden()
-                    .accessibilityIdentifier("home.site.toggle.\(project.id)")
-            }
-        }
-        .contextMenu { ProjectMenuItems(store: store, project: project) }
-        .accessibilityLabel(project.title)
-        .accessibilityValue(project.isMissing ? L("missing.title") : project.enabled ? L("state.\(phase.rawValue)") : L("site.off"))
-    }
-}
-
-private struct HomeServiceCard: View {
-    @Bindable var store: StackStore
-    let name: String
-    func open() { store.route = .service(Route.category(of: name)) }
-
-    var body: some View {
-        let tech = Tech.of(name)
-        let enabled = store.engineEnabled(name)
-        let phase = store.phase("stack.\(name)")
-        let state = !enabled ? L("site.off") : phase == .running ? nil : phase == .crashed ? L("home.state.crashed") : L("state.\(phase.rawValue)")
-        HomeCard(tech: tech, title: tech.title, detail: [state, store.engineVersion(name), store.enginePort(name).map(String.init)].compactMap { $0 }.joined(separator: " · "),
-                 identifier: "home.service.\(name)", open: open) {
-            if enabled { StatusRing(phase: phase) }
-            Toggle(tech.title, isOn: Binding(get: { enabled }, set: { on in Task { await store.setEngine(name, enabled: on) } }))
-                .toggleStyle(.switch).controlSize(.small).labelsHidden()
-                .accessibilityIdentifier("home.service.toggle.\(name)")
-        }
-        .contextMenu {
-            Button { Task { await store.setEngine(name, enabled: !enabled) } } label: {
-                Label(enabled ? L("palette.stop") : L("palette.start"), systemImage: enabled ? Symbols.stop : Symbols.start)
-            }
-            .accessibilityIdentifier("home.service.menu.toggle.\(name)")
-            Button { open() } label: {
-                Label(L("palette.openPage"), systemImage: Symbols.forward)
-            }
-            .accessibilityIdentifier("home.service.menu.open.\(name)")
         }
     }
 }

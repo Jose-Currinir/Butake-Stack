@@ -250,6 +250,16 @@
 "home.setupDetail" = "Instala lo mínimo para servir tus proyectos .test.";
 "home.noSites" = "Crea un proyecto o agrega una carpeta existente.";
 "home.state.crashed" = "Falló: ver registros";
+"home.col.address" = "Dirección";
+"home.col.branch" = "Rama";
+"home.col.project" = "Proyecto";
+"home.col.state" = "Estado";
+"home.summary.noWarnings" = "sin avisos";
+"home.summary.running" = "%d de %d en marcha";
+"home.summary.service" = "1 servicio";
+"home.summary.services" = "%d servicios";
+"home.summary.warning" = "1 aviso";
+"home.summary.warnings" = "%d avisos";
 
 /* Asistente de configuración y activación */
 "setup.title" = "Preparar Stack";
@@ -378,7 +388,6 @@
 "site.tab.envs" = "Entornos";
 
 "sites.addHelp" = "Crea un proyecto o abre uno existente; Stack detecta y propone su configuración.";
-"sites.online" = "%d en línea";
 "sites.options" = "Agregar proyectos";
 
 "project.state" = "Estado";

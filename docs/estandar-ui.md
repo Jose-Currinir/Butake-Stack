@@ -113,8 +113,14 @@ Las preferencias viven solo en Ajustes; la ventana no tiene una página «Genera
 
 ### Páginas
 
-- **Inicio:** cabecera de estado (solo si hay algo que hacer), proyectos por carpeta, servicios en uso.
-  Cada carpeta (y «Sin carpeta») se pliega con su encabezado; el estado es uno con la barra lateral.
+- **Inicio:** cabecera de estado (solo si hay algo que hacer); una línea de resumen grande («5 de 5 en
+  marcha», y en gris servicios y avisos); «Necesita atención» solo si hay algo; los proyectos en una
+  sola lista con columnas (Proyecto con tipo y versión, Dirección, Rama, Estado y una acción
+  Iniciar/Detener), agrupada por carpeta; y los servicios en uso como fichas compactas. Cada carpeta
+  (y «Sin carpeta») se pliega con su encabezado. Doble clic o Retorno abre el proyecto; el clic derecho
+  trae el menú del proyecto. Con poco ancho se oculta primero Rama y luego Dirección (pasan al texto
+  gris del nombre), nunca se corta una columna. Sin anillo ni interruptor: el estado es el punto con
+  sus palabras. El estado es uno con la barra lateral.
 - **Proyecto:** Resumen · Entornos · Procesos (si hay) · Registros. La edición va en «Ajustes del
   proyecto…» (hoja). Sin pestaña «Configuración». El título aparece solo en la barra.
 - **Servicio:** una fila por servicio con estado, versión, Iniciar/Detener y menú «⋯».
