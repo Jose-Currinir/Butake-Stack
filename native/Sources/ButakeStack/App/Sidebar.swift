@@ -187,8 +187,6 @@ extension Sidebar {
         Label {
             Text(Self.title(ofTool: id)).lineLimit(1)
         } icon: { TechLogo(tech: .of(id), size: 18) }
-            // Mail shows the messages it holds (the catcher keeps no read state).
-            .badge(id == "mail" ? max(store.mailStatus?.count ?? 0, 0) : 0)
             .tag(SidebarRow.tool(id))
             .accessibilityIdentifier("route.tool.\(id)")
             .contextMenu { ToolMenuItems(store: store, id: id) }
