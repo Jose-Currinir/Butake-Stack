@@ -168,6 +168,7 @@
 "palette.stop" = "Detener";
 "palette.settings" = "Ajustes";
 "palette.settingsTab" = "Ajustes: %@";
+"palette.settingsKeywords" = "configuración preferencias opciones";
 "palette.recent" = "Recientes";
 "palette.clearRecent" = "Quitar recientes";
 "palette.clearRecentHelp" = "Quita de la lista las acciones usadas hace poco";

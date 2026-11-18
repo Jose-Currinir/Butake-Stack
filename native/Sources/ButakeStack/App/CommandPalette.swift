@@ -21,6 +21,8 @@ struct CommandPalette: View {
         var symbol: String = ""
         /// The chord of the same action in the menus, drawn on the right ("" = none).
         var shortcut = ""
+        /// Other words it is found by, never shown («configuración» finds Ajustes).
+        var keywords = ""
         let run: @MainActor () -> Void
         /// ⌘Return.
         var secondary: (title: String, run: @MainActor () -> Void)?
@@ -131,7 +133,7 @@ struct CommandPalette: View {
         for tab in SettingsTab.allCases {
             list.append(Command(id: "settings.\(tab.rawValue)", section: L("palette.pages"), title: String(format: L("palette.settingsTab"), tab.title),
                                 detail: L("palette.settings"), tech: nil, symbol: tab.symbol,
-                                shortcut: tab == .general ? Shortcuts.settings.display : "", run: { SettingsRouter.shared.open(tab) }))
+                                shortcut: tab == .general ? Shortcuts.settings.display : "", keywords: L("palette.settingsKeywords"), run: { SettingsRouter.shared.open(tab) }))
         }
         for page in Self.pages(enabled: store.enabledPlugins.map(\.id)) {
             list.append(Command(id: "page.\(page.id)", section: page.section, title: page.route.title, detail: page.detail, tech: page.tech,
@@ -156,7 +158,7 @@ struct CommandPalette: View {
             }
             return recent + list
         }
-        return PaletteMatch.rank(list, query: query, title: \.title, detail: { $0.detail })
+        return PaletteMatch.rank(list, query: query, title: \.title, detail: { $0.detail + " " + $0.keywords })
     }
 
     var body: some View {

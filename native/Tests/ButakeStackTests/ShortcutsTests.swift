@@ -85,3 +85,10 @@ import Testing
     #expect(withRecents.prefix(2).allSatisfy { $0.section == L("palette.recent") })
     #expect(Set(withRecents.map(\.id)).count == withRecents.count)
 }
+
+/// «configuracion», without accent and in other words than the menu's, still finds Ajustes.
+@Test func settingsAreFoundByTheirOtherNames() {
+    let detail = " " + L("palette.settingsKeywords")
+    #expect(PaletteMatch.score(query: "configuracion", title: String(format: L("palette.settingsTab"), "General"), detail: detail) != nil)
+    #expect(PaletteMatch.score(query: "preferencias", title: String(format: L("palette.settingsTab"), "Red"), detail: detail) != nil)
+}
