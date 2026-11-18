@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// A section of Utilidades (AI assistants, cloud, repositories), like a pane of System Settings: one
-/// grouped form with a row per utility, its state and its one action. Its title is the window's.
+/// grouped form with a row per utility, its state and its one action. Its header (`DetailHeader`) says
+/// which section it is and how many are installed, and holds the check for new versions.
 struct UtilitiesPage: View {
     @Bindable var store: StackStore
     let group: String
@@ -11,6 +12,27 @@ struct UtilitiesPage: View {
     var installedCount: Int { tools.filter { store.devTools[$0]?.installed == true }.count }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if let section = UtilityCatalog.group(group) {
+                DetailHeader(title: section.title) {
+                    TechLogo(tech: section.tech, size: DetailHeaderLogo.size)
+                } subtitle: {
+                    Text(String(format: L("utilities.installedOf"), installedCount, tools.count))
+                        .accessibilityIdentifier("utilities.summary")
+                } actions: {
+                    Button { Task { await reload(refresh: true) } } label: { Label(L("utilities.check"), systemImage: Symbols.reload) }
+                        .help(L("utilities.checkHelp"))
+                        .disabled(store.busy != nil)
+                        .accessibilityIdentifier("utilities.check")
+                }
+                Divider()
+            }
+            form
+        }
+        .task { await reload() }
+    }
+
+    private var form: some View {
         Form {
             Section {
                 ForEach(tools, id: \.self) { UtilityRow(store: store, tool: $0) }
@@ -28,15 +50,6 @@ struct UtilitiesPage: View {
         }
         .formStyle(.grouped)
         .themedScroll()
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button { Task { await reload(refresh: true) } } label: { Label(L("utilities.check"), systemImage: Symbols.reload).labelStyle(.iconOnly) }
-                    .help(L("utilities.checkHelp"))
-                    .disabled(store.busy != nil)
-                    .accessibilityIdentifier("utilities.check")
-            }
-        }
-        .task { await reload() }
     }
 
     @ViewBuilder private var notice: some View {

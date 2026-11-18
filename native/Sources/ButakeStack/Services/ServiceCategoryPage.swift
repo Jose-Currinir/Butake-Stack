@@ -3,7 +3,7 @@ import SwiftUI
 
 /// A service type (databases, cache and queues…): one row per installed service with its state,
 /// version, Iniciar/Detener and its menu; the rest under «Disponibles», installed through the same
-/// version picker as the languages. The title lives in the window's bar.
+/// version picker as the languages. Its header (`DetailHeader`) says which type it is and how many are running.
 struct CategoryPage: View {
     @Bindable var store: StackStore
     let category: String
@@ -24,7 +24,56 @@ struct CategoryPage: View {
         }
     }
 
+    /// «2 en marcha de 3»: the services Stack has installed, or Reverb's processes in the projects.
+    var runningSummary: String? {
+        if category == "broadcasting" {
+            let ids = store.projects.flatMap { project in
+                project.processes.filter { $0.args.contains("reverb:start") }.map { "\(project.id).\($0.name)" }
+            }
+            return ids.isEmpty ? nil : String(format: L("category.runningOf"), ids.filter { store.phase($0) == .running }.count, ids.count)
+        }
+        guard !installed.isEmpty else { return nil }
+        let running = installed.filter { store.engineEnabled($0) && store.phase("stack.\($0)") == .running }.count
+        return String(format: L("category.runningOf"), running, installed.count)
+    }
+
     var body: some View {
+        VStack(spacing: 0) {
+            DetailHeader(title: Tech.of(category).title) {
+                TechLogo(tech: .of(category), size: DetailHeaderLogo.size)
+            } subtitle: {
+                if let runningSummary { Text(runningSummary).accessibilityIdentifier("\(scope).summary") }
+                else { Text(L("category.noneInstalled")).accessibilityIdentifier("\(scope).summary") }
+            } actions: {
+                EmptyView()
+            }
+            Divider()
+            content
+        }
+        .task {
+            await store.refreshRuntimes()
+            #if DEBUG
+            if let id = QAHooks.versionPicker, engines.contains(id) { picking = id }
+            #endif
+        }
+        .sheet(item: Binding(get: { picking.map { LogTarget(id: $0) } }, set: { picking = $0?.id })) { target in
+            VersionPickerSheet(store: store, provider: .tool(store, target.id), scope: "\(scope).\(target.id)").themedSheet()
+        }
+        .sheet(item: Binding(get: { reinstalling.map { LogTarget(id: $0) } }, set: { reinstalling = $0?.id })) { target in
+            ReinstallExtensionsSheet(store: store, version: target.id).themedSheet()
+        }
+        .showsLogs($logProcess, store: store)
+        .confirmationDialog(removing.map { String(format: L("runtimes.confirmRemove"), "\(Tech.of($0).title) \(store.engineVersion($0) ?? "")") } ?? "",
+                            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), presenting: removing) { name in
+            Button(L("common.remove"), role: .destructive) {
+                if let version = store.engineVersion(name) { Task { await store.removeTool(name, version) } }
+            }
+            .accessibilityIdentifier("\(scope).\(name).confirmRemove")
+            Button(L("common.cancel"), role: .cancel) {}
+        } message: { _ in Text(L("engine.removeDetail")) }
+    }
+
+    private var content: some View {
         Form {
             PartialFailureNotice(store: store, area: .runtimes).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
             if category == "broadcasting" { ReverbSection(store: store) { logProcess = $0 } }
@@ -81,27 +130,6 @@ struct CategoryPage: View {
             }
         }
         .formStyle(.grouped).themedScroll()
-        .task {
-            await store.refreshRuntimes()
-            #if DEBUG
-            if let id = QAHooks.versionPicker, engines.contains(id) { picking = id }
-            #endif
-        }
-        .sheet(item: Binding(get: { picking.map { LogTarget(id: $0) } }, set: { picking = $0?.id })) { target in
-            VersionPickerSheet(store: store, provider: .tool(store, target.id), scope: "\(scope).\(target.id)").themedSheet()
-        }
-        .sheet(item: Binding(get: { reinstalling.map { LogTarget(id: $0) } }, set: { reinstalling = $0?.id })) { target in
-            ReinstallExtensionsSheet(store: store, version: target.id).themedSheet()
-        }
-        .showsLogs($logProcess, store: store)
-        .confirmationDialog(removing.map { String(format: L("runtimes.confirmRemove"), "\(Tech.of($0).title) \(store.engineVersion($0) ?? "")") } ?? "",
-                            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), presenting: removing) { name in
-            Button(L("common.remove"), role: .destructive) {
-                if let version = store.engineVersion(name) { Task { await store.removeTool(name, version) } }
-            }
-            .accessibilityIdentifier("\(scope).\(name).confirmRemove")
-            Button(L("common.cancel"), role: .cancel) {}
-        } message: { _ in Text(L("engine.removeDetail")) }
     }
 }
 
