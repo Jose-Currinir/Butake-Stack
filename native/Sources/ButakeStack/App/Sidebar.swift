@@ -24,7 +24,7 @@ struct Sidebar: View {
                 // the same space under the search field as before every other section.
                 // Every row has its gray symbol in the same column, as in Finder and Mail.
                 Section {
-                    Label { Text(L("route.home")) } icon: { Image(systemName: Symbols.home).foregroundStyle(.secondary) }
+                    Label { Text(L("route.home")) } icon: { Image(systemName: Symbols.home).sidebarSymbol() }
                         .tag(SidebarRow.home).accessibilityIdentifier("route.home")
                         .badge(store.attentionOn.count)
                         .help(Self.attentionHelp(store.attentionOn.count))
@@ -105,7 +105,7 @@ struct Sidebar: View {
             if !components.isEmpty || !found.isEmpty {
                 Section {
                     ForEach(components, id: \.self) { component in
-                        Label { Text(component.title) } icon: { Image(systemName: component.tech.symbol).foregroundStyle(.secondary) }
+                        Label { Text(component.title) } icon: { Image(systemName: component.tech.symbol).sidebarSymbol() }
                             .tag(SidebarRow.component(component))
                             .accessibilityIdentifier("route.components.\(component.rawValue)")
                             .contextMenu { ComponentMenuItems(store: store, component: component) }
@@ -184,7 +184,7 @@ extension Sidebar {
     /// The name of a tool's row: the catalog's, or Registros.
     static func title(ofTool id: String) -> String { id == "logs" ? Tech.of("logs").title : L("plugin.\(id).title") }
     func toolRow(_ id: String) -> some View {
-        Label { Text(Self.title(ofTool: id)).lineLimit(1) } icon: { Image(systemName: SidebarLayout.symbol(ofTool: id)).foregroundStyle(.secondary) }
+        Label { Text(Self.title(ofTool: id)).lineLimit(1) } icon: { Image(systemName: SidebarLayout.symbol(ofTool: id)).sidebarSymbol() }
             .tag(SidebarRow.tool(id))
             .accessibilityIdentifier("route.tool.\(id)")
             .contextMenu { ToolMenuItems(store: store, id: id) }
@@ -198,7 +198,7 @@ extension Sidebar {
                 Spacer()
                 Text(component.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
-        } icon: { Image(systemName: SidebarLayout.symbol(ofCategory: category, in: component)).foregroundStyle(.secondary) }
+        } icon: { Image(systemName: SidebarLayout.symbol(ofCategory: category, in: component)).sidebarSymbol() }
             .tag(SidebarRow.category(route))
             .accessibilityIdentifier("route.\(route.storageValue.replacingOccurrences(of: ":", with: "."))")
             .contextMenu {
@@ -256,7 +256,7 @@ extension Sidebar {
                     .buttonStyle(.borderless).font(.caption).foregroundStyle(Brand.accent)
                     .help(L("groups.newRepoHelp")).accessibilityIdentifier("sidebar.new.add.\(repository.title)")
             }
-        } icon: { Image(systemName: Symbols.newFolder).foregroundStyle(.secondary) }
+        } icon: { Image(systemName: Symbols.newFolder).sidebarSymbol() }
             .selectionDisabled().accessibilityIdentifier("sidebar.new.\(repository.title)")
             .contextMenu {
                 Button { Task { await store.openFolder(repository.path) } } label: { Label(L("groups.newRepoAdd"), systemImage: Symbols.add) }
@@ -396,7 +396,7 @@ private struct GroupRow: View {
         } icon: {
             // A gray symbol like every other row (a project of several parts has its own);
             // open or closed shows only in the chevron.
-            Image(systemName: group.isProject ? Symbols.compositeProject : Symbols.folder).foregroundStyle(.secondary)
+            Image(systemName: group.isProject ? Symbols.compositeProject : Symbols.folder).sidebarSymbol()
         }
         .padding(.vertical, 1)
         .background(RoundedRectangle(cornerRadius: Radius.small).fill(targeted ? Brand.accent.opacity(0.18) : .clear).padding(.horizontal, -6))
@@ -421,4 +421,11 @@ struct SidebarStateDot: View {
         StatusDot(color: phase.color, symbol: phase.markSymbol, label: L("state.\(phase.rawValue)"), size: 7, outlined: phase == .stopped)
             .accessibilityIdentifier("sidebar.state.\(phase.rawValue)")
     }
+}
+
+
+private extension Image {
+    /// A row's symbol in the system's secondary gray, a concrete color: in a sidebar list `.secondary`
+    /// comes out lighter than the section titles and `.primary` takes the accent's tint.
+    func sidebarSymbol() -> some View { foregroundStyle(Color(nsColor: .secondaryLabelColor)) }
 }

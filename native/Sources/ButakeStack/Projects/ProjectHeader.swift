@@ -39,7 +39,7 @@ struct ProjectHeader: View {
             Text(kind)
             if let url = project.url {
                 Text(verbatim: " · ")
-                Link(url.absoluteString, destination: url).accessibilityIdentifier("project.address")
+                Link(url.absoluteString, destination: url).foregroundStyle(.tint).accessibilityIdentifier("project.address")
             }
         }
     }
