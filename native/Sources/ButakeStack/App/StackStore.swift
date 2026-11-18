@@ -79,6 +79,8 @@ import SwiftUI
     var failure: ActionFailure?
     var panelFailure: ActionFailure?
     var toast: String?
+    /// The last action that can be undone, offered in the window's notice with «Deshacer» (StackStore+Undo).
+    var undoOffer: UndoOffer?
     /// The pages visited, for Atrás and Adelante (RouteHistory).
     var history = RouteHistory()
     /// The window's undo manager (set by `RootView`): what `undoable` registers on (StackStore+Undo).
