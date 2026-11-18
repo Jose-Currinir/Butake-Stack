@@ -207,6 +207,19 @@ private func link(_ text: String) -> Result<DeepLink.Target, DeepLink.Failure> {
         for x in Int(11 * scale)..<rep.pixelsWide { for y in 0..<Int(7 * scale) where (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.5 { count += 1 } }
         return count
     }
+    // BUTAKE_QA_ICON_DIR: writes both icons, black on white and enlarged, for the review's screenshot.
+    if let dir = ProcessInfo.processInfo.environment["BUTAKE_QA_ICON_DIR"] {
+        let sheet = NSImage(size: NSSize(width: 360, height: 180), flipped: false) { rect in
+            NSColor.white.setFill(); rect.fill()
+            for (index, state) in [StackState.running, .stopped].enumerated() {
+                MenuBarIcon.image(for: state).draw(in: NSRect(x: 20 + index * 170, y: 20, width: 140, height: 140))
+            }
+            return true
+        }
+        if let tiff = sheet.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+            try png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("icono-punto.png"))
+        }
+    }
     #expect(try corner(.stopped) != corner(.running))
     #expect(try corner(.stopped) > 0)
 }
