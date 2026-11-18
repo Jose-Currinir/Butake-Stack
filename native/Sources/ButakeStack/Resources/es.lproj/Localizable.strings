@@ -134,20 +134,17 @@
 "menu.git" = "Git";
 "menu.renameProject" = "Renombrar…";
 "menu.changeFolder" = "Cambiar carpeta…";
-<<<<<<< HEAD
 "menu.back" = "Atrás";
 "menu.forward" = "Adelante";
 "menu.backHelp" = "Volver a la página anterior (⌘[)";
 "menu.forwardHelp" = "Ir a la página siguiente (⌘])";
 "menu.goTool" = "Ir a herramienta";
 "menu.findProject" = "Buscar proyecto";
+"menu.cloneRepository" = "Clonar repositorio…";
 "menu.undo.start" = "Iniciar %@";
 "menu.undo.stop" = "Detener %@";
 "menu.undo.rename" = "Renombrar %@";
 "menu.undo.move" = "Cambiar carpeta de %@";
-=======
-"menu.cloneRepository" = "Clonar repositorio…";
->>>>>>> ui/barrido-c
 
 "palette.prompt" = "Ir a un proyecto, iniciar un servicio, abrir una página…";
 "palette.openPage" = "Abrir página";
