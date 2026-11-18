@@ -203,7 +203,9 @@ enum Symbols {
     static let emptyInbox = "xmark.bin"
     static let attachment = "paperclip"
     /// Stops a list from moving while it is read, and starts it again.
-    static let pause = "pause"
+    static let pause = "pause.fill"
+    /// Resumes a list that was paused.
+    static let resume = "play.fill"
     /// Clears what is on screen; the log file and the data stay.
     static let clearView = "clear"
     /// The level of the lines shown (all, warnings, errors).

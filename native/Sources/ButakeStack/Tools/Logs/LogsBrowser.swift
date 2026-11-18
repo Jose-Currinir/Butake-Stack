@@ -57,6 +57,8 @@ struct LogGroup: Identifiable, Equatable {
     var selection: String?
     /// Search of the list of sources.
     var search = ""
+    /// Edición › Buscar (⌘F): the list of sources takes the keyboard in its search field.
+    var searchRequests = 0
     /// Filter of the lines on screen.
     var filter = ""
     var level: LogLevel = .all
