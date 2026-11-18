@@ -23,9 +23,12 @@ struct LocalProgramCard: View {
             }
             Section {
                 if let version = program.version { InfoRow(title: L("ssh.local.version"), value: version) }
-                InfoRow(title: L("ssh.local.file"), value: (file as NSString).abbreviatingWithTildeInPath, mono: true)
-                InfoRow(title: L("ssh.local.folder"), value: L("ssh.local.homeFolder"))
-                    .help(NSHomeDirectory())
+                DisclosureGroup(L("ssh.local.options")) {
+                    InfoRow(title: L("ssh.local.file"), value: (file as NSString).abbreviatingWithTildeInPath, mono: true)
+                    InfoRow(title: L("ssh.local.folder"), value: L("ssh.local.homeFolder"))
+                        .help(NSHomeDirectory())
+                }
+                .accessibilityIdentifier("ssh.local.card.options")
                 LabeledContent {
                     HStack(spacing: 8) {
                         Button { if let folder = LocalConsoles.chooseFolder() { workspace.openLocal(program, directory: folder) } } label: {

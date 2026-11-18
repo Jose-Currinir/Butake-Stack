@@ -22,6 +22,7 @@ struct ToolSetup: View {
                 .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
                 .accessibilityIdentifier("\(identifier).lines")
             Text(footer).font(.uiCaption).foregroundStyle(.secondary)
+                .lineLimit(4).frame(maxWidth: .infinity, alignment: .leading).help(footer)
             Button {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(lines.joined(separator: "\n") + "\n", forType: .string)

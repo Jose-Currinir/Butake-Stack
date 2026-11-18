@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The dumps on screen: selection, search, and the list frozen while paused.
@@ -5,6 +6,8 @@ import SwiftUI
     static let shared = DumpsBrowser()
     var selection: DumpEntry.ID?
     var search = ""
+    /// Edición › Buscar (⌘F): the list takes the keyboard in its search field.
+    var searchRequests = 0
     /// The dumps kept on screen while paused; nil follows the receiver.
     var frozen: [DumpEntry]?
 
@@ -26,20 +29,35 @@ import SwiftUI
 struct DumpsList: View {
     @Bindable var store: StackStore
     @Bindable var browser = DumpsBrowser.shared
+    @FocusState private var searchFocused: Bool
     var body: some View {
         let dumps = browser.visible(store)
         List(selection: $browser.selection) {
             ForEach(dumps) { dump in
-                DumpRow(dump: dump).tag(dump.id).accessibilityIdentifier("dumps.row.\(dump.id)")
+                DumpRow(dump: dump).tag(dump.id)
+                    .contextMenu {
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(dump.lines.joined(separator: "\n"), forType: .string)
+                        } label: { Label(L("common.copy"), systemImage: Symbols.copy) }
+                            .accessibilityIdentifier("dumps.list.menu.copy")
+                        if let source = dump.source, dump.place != nil {
+                            Button { DumpFile.open(source.file, store: store) } label: { Label(L("dumps.openFile"), systemImage: Symbols.editor) }
+                                .accessibilityIdentifier("dumps.list.menu.open")
+                        }
+                    }
+                    .accessibilityIdentifier("dumps.row.\(dump.id)")
             }
         }
         .listStyle(.sidebar)
         .themedScroll()
         .overlay {
-            if browser.entries(store).isEmpty { ContentUnavailableView(L("dumps.empty"), systemImage: Symbols.debugDump) }
+            if browser.entries(store).isEmpty { Text(L("dumps.empty")).font(.uiCallout).foregroundStyle(.secondary) }
             else if dumps.isEmpty { ContentUnavailableView.search(text: browser.search) }
         }
         .searchable(text: $browser.search, placement: .sidebar, prompt: L("dumps.search"))
+        .searchFocused($searchFocused)
+        .onChange(of: browser.searchRequests) { searchFocused = true }
         .accessibilityIdentifier("dumps.list")
     }
 }

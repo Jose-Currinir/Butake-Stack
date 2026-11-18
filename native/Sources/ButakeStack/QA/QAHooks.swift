@@ -75,6 +75,8 @@ import SwiftUI
         // "home"; several joined by ">" change page one after another, a second apart (two and
         // three columns and back, without rebuilding the window).
         if let targets = env["BUTAKE_QA_ROUTE"]?.split(separator: ">").map(String.init) {
+            // The proposal to order the sidebar by the disk's folders would cover the page in the demo store.
+            if env["BUTAKE_QA_MIGRATION"] == nil { StackStore.shared.migrationDeferred = true }
             Task {
                 try? await Task.sleep(for: .seconds(1.5))
                 for (index, target) in targets.enumerated() {

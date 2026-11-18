@@ -30,6 +30,17 @@ struct DBProblem: Equatable, Sendable {
         return DBProblem(kind: .other, title: L("db.problem.other"), message: error.localizedDescription, detail: nil)
     }
 
+    /// A failure to reach `connection`, as a connection problem: when the engine has nothing more
+    /// specific than its generic query failure, it says it could not connect (with the server's
+    /// own words folded away), not that a query returned nothing.
+    static func connecting(_ error: Error, to connection: DBConnection) -> DBProblem {
+        let problem = from(error)
+        guard problem.kind == .other else { return problem }
+        let address = connection.kind == "sqlite" ? (connection.path ?? "") : "\(connection.host):\(connection.port)"
+        return DBProblem(kind: .offline, title: String(format: L("db.problem.connect"), connection.title, address),
+                         message: L("db.problem.connect.help"), detail: problem.detail ?? problem.message)
+    }
+
     /// MySQL's error number and SQLSTATE ("ERROR 1045 (28000): …") or PostgreSQL's SQLSTATE
     /// ("ERROR:  42P01: …", psql runs with VERBOSITY=verbose).
     static func codes(_ text: String) -> (errno: Int?, sqlstate: String?) {
