@@ -52,8 +52,7 @@ struct ProjectSummary: View {
             if !runtimes.isEmpty {
                 Section(L("site.environment")) {
                     ForEach(runtimes, id: \.key) { item in
-                        TechRow(tech: .of(item.key), value: item.version) { store.route = .language(item.key == "jdk" ? "java" : item.key) }
-                            .accessibilityIdentifier("project.language.\(item.key)")
+                        ProjectVersionRow(store: store, project: project, key: item.key)
                     }
                 }
             }
@@ -63,6 +62,7 @@ struct ProjectSummary: View {
                         TechRow(tech: .of(service), value: store.engineVersion(service) ?? L("panel.notInstalled")) {
                             store.route = .service(Route.category(of: service))
                         }
+                        .help(L("palette.openPage"))
                         .accessibilityIdentifier("project.service.\(service)")
                     }
                 }
