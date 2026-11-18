@@ -230,7 +230,7 @@ extension Sidebar {
                     .buttonStyle(.borderless).font(.caption).foregroundStyle(Brand.accent)
                     .help(L("groups.newRepoHelp")).accessibilityIdentifier("sidebar.new.add.\(repository.title)")
             }
-        } icon: { Image(systemName: Symbols.newFolder).foregroundStyle(Brand.info).frame(width: 18) }
+        } icon: { IconTile(symbol: Symbols.newFolder, size: 18) }
             .selectionDisabled().accessibilityIdentifier("sidebar.new.\(repository.title)")
             .contextMenu {
                 Button { Task { await store.openFolder(repository.path) } } label: { Label(L("groups.newRepoAdd"), systemImage: Symbols.add) }
@@ -240,7 +240,8 @@ extension Sidebar {
     /// A folder whose repositories share a prefix: it may be a project of several parts.
     func suggestionRow(_ suggestion: MultipartSuggestion, group: ProjectGroup) -> some View {
         HStack(spacing: 6) {
-            Text(String(format: L("groups.suggest"), suggestion.parts.joined(separator: ", "))).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            Text(L("groups.suggest")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                .help(suggestion.parts.joined(separator: ", "))
             Spacer()
             Button(L("groups.suggestConvert")) { store.setKind(group.id, .project) }
                 .buttonStyle(.borderless).font(.caption).foregroundStyle(Brand.accent)

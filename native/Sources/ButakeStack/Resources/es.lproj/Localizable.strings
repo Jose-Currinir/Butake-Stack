@@ -370,7 +370,7 @@
 "groups.newRepo" = "Nuevo";
 "groups.newRepoAdd" = "Agregar";
 "groups.newRepoHelp" = "Hay un repositorio nuevo en esta carpeta del disco. Stack no lo agrega solo.";
-"groups.suggest" = "Parece un proyecto de varias partes: %@";
+"groups.suggest" = "¿Varias partes?";
 "groups.suggestConvert" = "Convertir";
 "groups.moveConfirm" = "¿Mover la carpeta en el disco?";
 "groups.moveAction" = "Mover";
@@ -386,7 +386,7 @@
 "groups.expandAll" = "Desplegar todas las carpetas";
 "groups.migrate.title" = "Ordenar según las carpetas del disco";
 "groups.migrate.detail" = "La barra lateral ahora sigue las carpetas de tu carpeta de proyectos. Estas carpetas de Stack no existen en el disco todavía.";
-"groups.migrate.matches" = "%d carpetas ya coinciden con el disco y se convierten solas.";
+"groups.migrate.matches" = "Carpetas que ya coinciden con el disco: %d. Se convierten solas.";
 "groups.migrate.folder" = "Se crea «%@» y se mueven:";
 "groups.migrate.conflict" = "Ya existe: no se mueve";
 "groups.migrate.accept" = "Mover y convertir";
