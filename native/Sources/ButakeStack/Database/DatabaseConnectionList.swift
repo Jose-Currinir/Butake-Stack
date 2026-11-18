@@ -197,23 +197,30 @@ private struct DatabaseNode: View {
         if schemas.count > 1 || (schemas.first.map { $0 != "public" } ?? false) {
             ForEach(schemas, id: \.self) { schema in
                 Text(schema).font(.uiCaption.weight(.semibold)).foregroundStyle(.secondary).selectionDisabled()
-                ForEach(list.filter { $0.schema == schema }) { ObjectNode(connection: connection, database: database.name, object: $0) }
+                ForEach(list.filter { $0.schema == schema }) { ObjectNode(client: client, connection: connection, database: database.name, object: $0) }
             }
         } else {
-            ForEach(list) { ObjectNode(connection: connection, database: database.name, object: $0) }
+            ForEach(list) { ObjectNode(client: client, connection: connection, database: database.name, object: $0) }
         }
     }
 }
 
 private struct ObjectNode: View {
+    let client: DatabaseClient
     let connection: DBConnection
     let database: String
     let object: DBObject
+    private var selection: DBSelection {
+        DBSelection(connection: connection.id, database: database, schema: object.schema.flatMap { $0.isEmpty ? nil : $0 },
+                    table: object.name, isView: object.view)
+    }
     var body: some View {
+        let unsaved = client.pendingCount(DatabaseClient.pendingKey(selection))
         Label(object.name, systemImage: object.view ? Symbols.databaseView : Symbols.table)
             .font(.uiBody).lineLimit(1)
-            .tag(DBSelection(connection: connection.id, database: database, schema: object.schema.flatMap { $0.isEmpty ? nil : $0 },
-                             table: object.name, isView: object.view))
+            .tag(selection)
+            .badge(unsaved)
+            .help(unsaved > 0 ? String(format: L("db.unsavedHelp"), unsaved) : "")
             .contextMenu {
                 Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(object.name, forType: .string) } label: {
                     Label(L("db.copyName"), systemImage: Symbols.copy)

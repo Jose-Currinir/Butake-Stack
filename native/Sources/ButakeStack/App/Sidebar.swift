@@ -26,6 +26,8 @@ struct Sidebar: View {
                 Section {
                     Label { Text(L("route.home")) } icon: { BrandMark(size: 18) }
                         .tag(SidebarRow.home).accessibilityIdentifier("route.home")
+                        .badge(store.attentionOn.count)
+                        .help(Self.attentionHelp(store.attentionOn.count))
                 }
             }
             let sites = store.projects.filter { matches($0.title) || matches($0.domain) }
@@ -80,7 +82,7 @@ struct Sidebar: View {
                     if search.isEmpty { ForEach(store.newRepositories(in: nil)) { newRepositoryRow($0) } }
                 } header: {
                     // Closed, the title says how many projects it holds: never an empty section.
-                    SitesHeader(store: store, closed: !sectionOpen("sites").wrappedValue)
+                    SitesHeader(store: store, attention: store.attentionOn.count, closed: !sectionOpen("sites").wrappedValue)
                 }
             }
             // Herramientas: what is used, only the tools that are on, then Registros (base).
@@ -175,18 +177,18 @@ extension Sidebar {
             }
         })
     }
+    /// «N proyectos necesitan atención» for the tooltip of Inicio's badge (empty with none).
+    static func attentionHelp(_ count: Int) -> String {
+        count == 0 ? "" : String(format: L(count == 1 ? "sidebar.attentionHelp.one" : "sidebar.attentionHelp.many"), count)
+    }
     /// The name of a tool's row: the catalog's, or Registros.
     static func title(ofTool id: String) -> String { id == "logs" ? Tech.of("logs").title : L("plugin.\(id).title") }
     func toolRow(_ id: String) -> some View {
         Label {
-            HStack {
-                Text(Self.title(ofTool: id)).lineLimit(1)
-                Spacer()
-                if id == "mail", let count = store.mailStatus?.count, count > 0 {
-                    Text("\(count)").font(.caption.weight(.bold)).foregroundStyle(.secondary).monospacedDigit()
-                }
-            }
+            Text(Self.title(ofTool: id)).lineLimit(1)
         } icon: { TechLogo(tech: .of(id), size: 18) }
+            // Mail shows the messages it holds (the catcher keeps no read state).
+            .badge(id == "mail" ? max(store.mailStatus?.count ?? 0, 0) : 0)
             .tag(SidebarRow.tool(id))
             .accessibilityIdentifier("route.tool.\(id)")
             .contextMenu { ToolMenuItems(store: store, id: id) }
@@ -314,6 +316,8 @@ private extension View {
 /// The title of Proyectos: dropping a project here takes it out of its folder.
 private struct SitesHeader: View {
     let store: StackStore
+    /// Projects that need attention (shown beside the total while the section is closed).
+    let attention: Int
     let closed: Bool
     @State private var targeted = false
     var body: some View {
@@ -321,6 +325,14 @@ private struct SitesHeader: View {
             Text(L("route.sites"))
             Spacer()
             if closed {
+                if attention > 0 {
+                    Text("\(attention)").font(.uiCaption.weight(.bold)).monospacedDigit()
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(Capsule().fill(Brand.warning.opacity(0.25)))
+                        .help(Sidebar.attentionHelp(attention))
+                        .accessibilityLabel(Sidebar.attentionHelp(attention))
+                        .accessibilityIdentifier("sidebar.sites.attention")
+                }
                 Text("\(store.projects.count)").monospacedDigit()
                     .help(String(format: L("sidebar.closedCount"), store.projects.count))
                     .accessibilityIdentifier("sidebar.sites.count")

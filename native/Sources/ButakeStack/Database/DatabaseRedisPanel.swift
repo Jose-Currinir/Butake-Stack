@@ -15,6 +15,8 @@ struct RedisKeysPanel: View {
     @State private var keys: [RedisKeyRow] = []
     @State private var selected: RedisKeyRow.ID?
     @State private var order = [KeyPathComparator(\RedisKeyRow.id)]
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.db.redisKeys") private var redisColumns: TableColumnCustomization<RedisKeyRow> = TableColumnCustomization()
     @State private var value: RedisValue?
     @State private var error: DBProblem?
     var body: some View {
@@ -28,10 +30,10 @@ struct RedisKeysPanel: View {
                 }
                 .padding(10)
                 if let error { DBProblemCard(problem: error).padding(10) }
-                Table(keys.sorted(using: order), selection: $selected, sortOrder: $order) {
+                Table(keys.sorted(using: order), selection: $selected, sortOrder: $order, columnCustomization: $redisColumns) {
                     TableColumn(L("db.redis.key"), value: \.id) { row in
                         Text(row.id).font(.uiMonospaced).lineLimit(1).truncationMode(.middle).help(row.id)
-                    }
+                    }.customizationID("key")
                 }
                 .overlay {
                     if keys.isEmpty && error == nil {

@@ -48,6 +48,8 @@ struct PendingConfirmation: Identifiable {
             }
         }
     }
+    /// Unsaved table edits by `pendingKey` (they outlive the page that made them).
+    var pendingEdits: [String: PendingEdits] = [:]
     var loading: Set<String> = []
     var errors: [String: DBProblem] = [:]
     /// Whether each connection answers (checked when it is opened).
@@ -63,6 +65,8 @@ struct PendingConfirmation: Identifiable {
     /// Closes the connection's tunnel and session and forgets what was loaded; passwords stay in
     /// the Keychain. The connection stays disconnected until the user connects again.
     func disconnect(_ connection: DBConnection) async {
+        guard await confirmDiscardPending(connection: connection) else { return }
+        discardPending(connection: connection.id)
         let _: Bool? = try? await store.call(["method": "dbDisconnect", "connection": connection.id])
         // Closing the sessions rolls back an open manual transaction.
         transactions = transactions.filter { !$0.hasPrefix("\(connection.id)/") }
@@ -92,7 +96,7 @@ struct PendingConfirmation: Identifiable {
                 try? await Task.sleep(for: .seconds(60))
                 guard let self else { return }
                 let now = Date()
-                for connection in self.connections where self.isConnected(connection.id) && !connection.builtin {
+                for connection in self.connections where self.isConnected(connection.id) && !connection.builtin && self.pendingCount(connection: connection.id) == 0 {
                     if let used = self.lastUsed[connection.id], now.timeIntervalSince(used) > Self.idleLimit {
                         await self.disconnect(connection)
                     }
@@ -301,6 +305,7 @@ struct PendingConfirmation: Identifiable {
         do {
             let _: Bool = try await store.call(["method": "dbDeleteConnection", "connection": connection.id])
             DatabaseVault.deleteAll(connection: connection.id)
+            discardPending(connection: connection.id)
             if selection?.connection == connection.id { selection = nil }
             await loadConnections()
         } catch { store.report(error) }

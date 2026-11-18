@@ -384,6 +384,7 @@ import SwiftUI
                                           typedConnection: connection.production ? connection.name : nil)
             }
         }
+        seedPendingEdits(client)
         if sheet == "connection" {
             client.editing = DBConnection(id: "", name: "Producción", kind: "postgres", host: "db.interna", port: 5432, user: "app", database: "app",
                                           ssh: DBConnection.SSH(host: "bastion.ejemplo.cl", user: "deploy"))

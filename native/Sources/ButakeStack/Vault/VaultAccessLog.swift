@@ -5,32 +5,34 @@ import SwiftUI
 struct VaultAccessLog: View {
     @Bindable var vault: VaultSession
     @State private var entries: [VaultAccessEntry] = []
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.vault.accessLog") private var logColumns: TableColumnCustomization<VaultAccessEntry> = TableColumnCustomization()
     @State private var wide = true
 
     var body: some View {
         // `readLog` already returns the newest first.
-        Table(entries) {
+        Table(entries, columnCustomization: $logColumns) {
             TableColumn(L("vault.log.date")) { entry in
                 Text(entry.date.formatted(date: .numeric, time: .shortened)).monospacedDigit().lineLimit(1)
                     .help(entry.date.formatted(date: .complete, time: .standard))
             }
-            .width(min: 100, ideal: 120)
+            .width(min: 100, ideal: 120).customizationID("date")
             TableColumn(L("vault.log.action")) { entry in
                 Label { Text(L("vault.action.\(entry.action.rawValue)")).lineLimit(1) } icon: {
                     Image(systemName: entry.action.symbol).foregroundStyle(tint(entry.action))
                 }
                 .help(L("vault.action.\(entry.action.rawValue)"))
             }
-            .width(min: 100, ideal: 140)
+            .width(min: 100, ideal: 140).customizationID("action")
             TableColumn(L("vault.log.target")) { entry in
                 if let name = vault.targetName(entry.target) { Text(name).lineLimit(1).truncationMode(.middle).help(name) }
                 else if entry.target != nil { Text(L(vault.isUnlocked ? "vault.log.removed" : "vault.log.locked")).foregroundStyle(.secondary).lineLimit(1) }
             }
-            .width(min: 80, ideal: 150)
+            .width(min: 80, ideal: 150).customizationID("target")
             // The least important: who, always this Mac's user; it gives its room at a narrow width.
             if wide {
                 TableColumn(L("vault.log.user")) { entry in Text(entry.user).foregroundStyle(.secondary).lineLimit(1) }
-                    .width(min: 70, ideal: 100)
+                    .width(min: 70, ideal: 100).customizationID("user")
             }
         }
         .onGeometryChange(for: Bool.self) { $0.size.width >= 560 } action: { wide = $0 }
