@@ -9,11 +9,17 @@ final class GitDiffScrollView: NSScrollView {
     override func scrollWheel(with event: NSEvent) {
         if embedded && abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX) { nextResponder?.scrollWheel(with: event) } else { super.scrollWheel(with: event) }
     }
+    private var tiledWidth: CGFloat = 0
     /// The text is never narrower than the visible area, so row tints reach the right edge.
     override func tile() {
         super.tile()
         if let document = documentView, document.frame.width < contentSize.width {
             document.setFrameSize(NSSize(width: contentSize.width, height: document.frame.height))
+        }
+        // The block buttons sit at the edge of this width: a new width moves them, so all is redrawn.
+        if abs(contentSize.width - tiledWidth) > 0.5 {
+            tiledWidth = contentSize.width
+            documentView?.needsDisplay = true
         }
     }
 }
@@ -38,8 +44,7 @@ final class GitDiffTextView: NSTextView, @preconcurrency NSLayoutManagerDelegate
     /// Search: the text it looks for and the ranges found.
     private(set) var query = ""
     private var matches: [NSRange] = []
-    /// Block buttons drawn in the last pass, in view coordinates.
-    private var hunkButtons: [(rect: NSRect, hunk: Int)] = []
+
 
     // MARK: Layout
 
@@ -81,7 +86,8 @@ final class GitDiffTextView: NSTextView, @preconcurrency NSLayoutManagerDelegate
         NSBezierPath(rect: bounds).addClip()
         super.drawBackground(in: rect)
         guard let layoutManager, let textContainer else { return }
-        let range = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
+        // What AppKit asks for, which can lie outside the visible area (it draws ahead when scrolling).
+        let range = layoutManager.glyphRange(forBoundingRect: rect.union(visibleRect), in: textContainer)
         layoutManager.enumerateLineFragments(forGlyphRange: range) { [self] lineRect, _, _, glyphs, _ in
             let character = layoutManager.characterIndexForGlyph(at: glyphs.location)
             guard let line = displayLine(at: character), let color = Self.background(line, palette: palette) else { return }
@@ -98,45 +104,63 @@ final class GitDiffTextView: NSTextView, @preconcurrency NSLayoutManagerDelegate
             }
         }
         // With the background: the glyphs are drawn after this pass, and block headers are short.
-        drawHunkButtons()
+        drawHunkButtons(in: rect.union(visibleRect))
     }
 
-    /// «Preparar bloque» at the trailing edge of every visible block header, always shown.
-    private func drawHunkButtons() {
-        hunkButtons.removeAll(keepingCapacity: true)
-        guard onHunk != nil, let layoutManager, let textContainer else { return }
-        let visible = visibleRect
-        let range = layoutManager.glyphRange(forBoundingRect: visible, in: textContainer)
-        let font = NSFont.systemFont(ofSize: TextScale.points(11), weight: .medium)
-        // The Mac's accent, or the theme's when it brings its own.
-        let accent = NSColor(Brand.accent)
-        let title = hunkTitle as NSString
-        let titleSize = title.size(withAttributes: [.font: font])
-        let symbol = NSImage(systemSymbolName: Symbols.stageHunk, accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: font.pointSize, weight: .medium).applying(.init(paletteColors: [accent])))
-        let iconWidth = symbol.map { $0.size.width + 4 } ?? 0
+    private var hunkFont: NSFont { NSFont.systemFont(ofSize: TextScale.points(11), weight: .medium) }
+    /// The Mac's accent, or the theme's when it brings its own.
+    private var hunkAccent: NSColor { NSColor(Brand.accent) }
+    private var hunkSymbol: NSImage? {
+        NSImage(systemSymbolName: Symbols.stageHunk, accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: hunkFont.pointSize, weight: .medium).applying(.init(paletteColors: [hunkAccent])))
+    }
+
+    /// Where the «Preparar bloque» buttons of the block headers in `area` go, in view coordinates.
+    /// Fixed to the text, never to the visible area: AppKit moves what is already drawn when the view
+    /// scrolls sideways, so a button that followed the visible edge left copies of itself behind. It
+    /// sits at the edge of the unscrolled width (as wide as the window shows) and scrolls with the
+    /// text; the block's context menu and its accessibility action reach it from anywhere.
+    func hunkButtonFrames(in area: NSRect) -> [(rect: NSRect, hunk: Int)] {
+        guard onHunk != nil, let layoutManager, let textContainer else { return [] }
+        let titleSize = (hunkTitle as NSString).size(withAttributes: [.font: hunkFont])
+        let width = titleSize.width + (hunkSymbol.map { $0.size.width + 4 } ?? 0) + 16
+        let edge = enclosingScrollView?.contentSize.width ?? visibleRect.width
+        var frames: [(rect: NSRect, hunk: Int)] = []
+        let range = layoutManager.glyphRange(forBoundingRect: area, in: textContainer)
         layoutManager.enumerateLineFragments(forGlyphRange: range) { [self] lineRect, _, _, glyphs, _ in
             let character = layoutManager.characterIndexForGlyph(at: glyphs.location)
             guard let line = displayLine(at: character), line.kind == .hunk, let hunk = line.hunk else { return }
             let height = min(lineRect.height - 2, titleSize.height + 4)
-            let width = titleSize.width + iconWidth + 16
-            let button = NSRect(x: visible.maxX - width - 10, y: lineRect.minY + textContainerInset.height + (lineRect.height - height) / 2, width: width, height: height)
-            let shape = NSBezierPath(roundedRect: button, xRadius: height / 2, yRadius: height / 2)
+            frames.append((NSRect(x: edge - width - 10, y: lineRect.minY + textContainerInset.height + (lineRect.height - height) / 2, width: width, height: height), hunk))
+        }
+        return frames
+    }
+
+    /// «Preparar bloque» on every block header, always shown.
+    private func drawHunkButtons(in area: NSRect) {
+        let frames = hunkButtonFrames(in: area)
+        guard !frames.isEmpty else { return }
+        let font = hunkFont, accent = hunkAccent, symbol = hunkSymbol
+        let title = hunkTitle as NSString
+        let titleSize = title.size(withAttributes: [.font: font])
+        for (button, _) in frames {
+            let shape = NSBezierPath(roundedRect: button, xRadius: button.height / 2, yRadius: button.height / 2)
             palette.surface.setFill(); shape.fill()
             accent.withAlphaComponent(0.6).setStroke(); shape.lineWidth = 1; shape.stroke()
             var x = button.minX + 8
             if let symbol {
                 symbol.draw(in: NSRect(x: x, y: button.midY - symbol.size.height / 2, width: symbol.size.width, height: symbol.size.height))
-                x += iconWidth
+                x += symbol.size.width + 4
             }
             title.draw(at: NSPoint(x: x, y: button.midY - titleSize.height / 2), withAttributes: [.font: font, .foregroundColor: accent])
-            hunkButtons.append((button, hunk))
         }
     }
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        if let hit = hunkButtons.first(where: { $0.rect.contains(point) }) { onHunk?(hit.hunk); return }
+        // Worked out again here, not taken from the last drawing: AppKit often redraws only a part.
+        let row = NSRect(x: 0, y: point.y - 1, width: bounds.width, height: 2)
+        if let hit = hunkButtonFrames(in: row).first(where: { $0.rect.contains(point) }) { onHunk?(hit.hunk); return }
         super.mouseDown(with: event)
     }
 
