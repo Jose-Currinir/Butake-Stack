@@ -117,6 +117,9 @@ const PUBLIC_ERRORS: &[&str] = &[
     "python_not_installed",
     "swiftly_not_installed",
     "version_not_in_catalog",
+    // The PHP catalog must carry Stack's signature (R-62).
+    "catalog_unsigned",
+    "catalog_signature_invalid",
     "download_failed",
     "download_offline",
     "install_cancelled",
