@@ -417,7 +417,7 @@ conserva si lo usa otro llamador (anotado junto al método) o se quita con sus p
 | `gitRun`, `gitPrepare` | Conservado | Línea de comandos: un comando de consola revisado con la misma política que `git-console` |
 | `gitRebaseCandidates`, `gitValidateRebase` | Conservado | El plan del rebase interactivo que usan `git-console` y `git-write-plan` |
 | `gitSetMainProtection` | Conservado | Única forma de cambiar la protección de la rama principal (la app solo la lee); las pruebas preparan estados con él |
-| `clearDumps`, `sharePublic`, `cloudflareLogin` | Conservado | Del daemon: solo los pide el propio motor (`request_sync`) |
+| `clearDumps`, `deleteDump`, `sharePublic`, `cloudflareLogin` | Conservado | Del daemon: solo los pide el propio motor (`request_sync`) |
 | `gitCloneName`, `gitPullRequestUrl`, `gitFiles`, `gitBranchDiff`, `gitPreviewFile`, `gitSaveFile` | Quitado | Sin llamador; la app arma el nombre del clon y las páginas del proveedor, y el visor de archivos es de solo lectura |
 | `portDependents` | Quitado | Sin llamador; los proyectos afectados siguen llegando en las respuestas de guardar y eliminar |
 | `installSwiftly` | Quitado (R-2) | Sin llamador; swiftly se instala como utilidad de desarrollo (`devtools`) |

@@ -13,6 +13,17 @@ import SwiftUI
 
     func entries(_ store: StackStore) -> [DumpEntry] { frozen ?? store.dumps }
 
+    /// Deletes one dump. The selection moves to the next one down (or the previous), like a mail list.
+    func delete(_ id: DumpEntry.ID, store: StackStore) async {
+        let shown = visible(store)
+        let neighbour = shown.firstIndex { $0.id == id }.flatMap { index in
+            shown.indices.contains(index + 1) ? shown[index + 1].id : (index > 0 ? shown[index - 1].id : nil)
+        }
+        guard await store.deleteDump(id) else { return }
+        frozen?.removeAll { $0.id == id }
+        if selection == id { selection = neighbour }
+    }
+
     func visible(_ store: StackStore) -> [DumpEntry] {
         let query = search.trimmingCharacters(in: .whitespaces)
         let all = entries(store)
@@ -45,11 +56,20 @@ struct DumpsList: View {
                             Button { DumpFile.open(source.file, store: store) } label: { Label(L("dumps.openFile"), systemImage: Symbols.editor) }
                                 .accessibilityIdentifier("dumps.list.menu.open")
                         }
+                        Divider()
+                        Button(role: .destructive) { Task { await browser.delete(dump.id, store: store) } } label: {
+                            Label(L("dumps.delete"), systemImage: Symbols.delete)
+                        }
+                        .accessibilityIdentifier("dumps.list.menu.delete")
                     }
                     .accessibilityIdentifier("dumps.row.\(dump.id)")
             }
         }
         .listStyle(.sidebar)
+        // ⌫ on the selected row, like the menu's «Eliminar».
+        .onDeleteCommand {
+            if let id = browser.selection { Task { await browser.delete(id, store: store) } }
+        }
         .themedScroll()
         .overlay {
             if browser.entries(store).isEmpty { Text(L("dumps.empty")).font(.uiCallout).foregroundStyle(.secondary) }

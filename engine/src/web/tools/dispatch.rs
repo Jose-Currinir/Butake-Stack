@@ -38,6 +38,12 @@ pub fn dispatch(store: &Store, method: &str, request: &Value) -> Result<Option<V
             Ok(json!(true))
         }
         "dumpsClear" => daemon::request_sync(store, "clearDumps", json!({}), false),
+        "dumpsDelete" => daemon::request_sync(
+            store,
+            "deleteDump",
+            json!({"dump": request["dump"].as_u64().unwrap_or(u64::MAX)}),
+            false,
+        ),
         _ => return Ok(None),
     };
     result.map(Some)

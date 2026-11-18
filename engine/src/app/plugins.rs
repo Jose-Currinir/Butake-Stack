@@ -562,6 +562,7 @@ mod tests {
             "mailAttachment",
             "mailDelete",
             "dumpsClear",
+            "dumpsDelete",
             "setMail",
             "setDumps",
         ] {
