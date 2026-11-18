@@ -19,11 +19,11 @@ struct UpdateSheet: View {
                     Text(notes(latest.notes)).font(.uiBody).lineSpacing(4).frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled).padding(12)
                 }
-                .frame(minHeight: 160, maxHeight: 380).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+                .frame(minHeight: 160, maxHeight: 380).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))  // radius 10: outside the Radius scale, kept as it was
                 Label(L("updateVerification"), systemImage: Symbols.verified).font(.uiCaption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
             }
             if case .failed(let message) = updates.phase {
-                Label(message, systemImage: Symbols.warning).font(.uiCallout).foregroundStyle(Brand.warning).frame(maxWidth: .infinity, alignment: .leading)
+                Label(message, systemImage: Symbols.warning).font(.uiCallout).foregroundStyle(Brand.warningText).frame(maxWidth: .infinity, alignment: .leading)
             }
             if busy {
                 HStack(spacing: 10) { ProgressView().controlSize(.small); Text(progressText).font(.uiCallout).foregroundStyle(.secondary) }

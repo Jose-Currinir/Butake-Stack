@@ -10,7 +10,7 @@ fi
 # The version comes from VERSION at the root, its only source (the site reads it too); the build
 # number goes up by one with every version handed to QA.
 VERSION="$(tr -d '[:space:]' < VERSION)"
-BUILD=165
+BUILD=166
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     printf 'Error: VERSION debe ser X.Y.Z (dice «%s»).\n' "$VERSION" >&2
     exit 1

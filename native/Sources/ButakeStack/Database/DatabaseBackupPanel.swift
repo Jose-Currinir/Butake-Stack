@@ -25,6 +25,8 @@ struct BackupPanel: View {
     @State private var createTarget = false
     @State private var last: String?
     @State private var order = [KeyPathComparator(\DBDatabase.name)]
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.db.backup.databases") private var databaseColumns: TableColumnCustomization<DBDatabase> = TableColumnCustomization()
     var dbs: [DBDatabase] { (client.databases[connection.id] ?? []).filter { !$0.system || $0.name == "postgres" } }
     var objects: [DBObject] { database.map { client.objects["\(connection.id)/\($0)"] ?? [] } ?? [] }
     var body: some View {
@@ -52,16 +54,16 @@ struct BackupPanel: View {
 
     /// The databases of the server, ticked to go into the dump.
     private var databasesTable: some View {
-        Table(dbs.sorted(using: order), sortOrder: $order) {
+        Table(dbs.sorted(using: order), sortOrder: $order, columnCustomization: $databaseColumns) {
             TableColumn("") { d in
                 Toggle(L("db.dump.include"), isOn: Binding(get: { chosen.contains(d.name) }, set: { if $0 { chosen.insert(d.name) } else { chosen.remove(d.name) } }))
                     .labelsHidden().toggleStyle(.checkbox)
                     .accessibilityIdentifier("db.backup.choose.\(d.name)")
             }
-            .width(24)
-            TableColumn(L("db.database"), value: \.name) { d in Label(d.name, systemImage: Symbols.database) }
+            .width(24).customizationID("choose")
+            TableColumn(L("db.database"), value: \.name) { d in Label(d.name, systemImage: Symbols.database) }.customizationID("database")
             TableColumn(L("db.col.size"), value: \.sortSize) { d in Text(Format.fileSizeText(d.size)).monospacedDigit().foregroundStyle(.secondary) }
-                .width(min: 70, ideal: 100).alignment(.trailing)
+                .width(min: 70, ideal: 100).alignment(.trailing).customizationID("size")
         }
         .accessibilityIdentifier("db.backup.databases")
     }
@@ -98,7 +100,7 @@ struct BackupPanel: View {
             Toggle(L("db.compress"), isOn: $compress).accessibilityIdentifier("db.backup.compress")
             HStack {
                 if let last {
-                    Label(last, systemImage: Symbols.success).font(.uiCaption).foregroundStyle(Brand.success).textSelection(.enabled)
+                    Label(last, systemImage: Symbols.success).font(.uiCaption).foregroundStyle(Brand.successText).textSelection(.enabled)
                         .accessibilityIdentifier("db.backup.last")
                 }
                 Spacer()

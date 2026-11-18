@@ -7,14 +7,27 @@ struct Chip: View {
     var symbol: String?
     var tint: Color = .secondary
     var help: String?
+    @Environment(\.self) private var environment
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    /// The tint as text: shaded until it reads at 4.5:1 on its own fill (Contrast.readable).
+    private var textColor: Color {
+        let grounds = Brand.grounds(for: Brand.theme)
+        let resolved = tint.resolve(in: environment)
+        let opaque = Contrast.composite(HexColor(resolved: resolved), opacity: Double(resolved.opacity), over: grounds[0])
+        return Contrast.readable(opaque, isDark: scheme == .dark, over: grounds,
+                                 fill: Contrast.increased(contrast) ? Contrast.strongFill : Contrast.chipFill).color
+    }
+
     var body: some View {
         HStack(spacing: 4) {
             if let symbol { Image(systemName: symbol).font(.uiCaption2.weight(.bold)) }
             Text(text).font(.uiCaption.weight(.semibold))
         }
-        .foregroundStyle(tint)
+        .foregroundStyle(textColor)
         .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(tint.opacity(0.12), in: Capsule())
+        .tintedFill(tint, fill: Contrast.chipFill, in: Capsule())
         .help(help ?? "")
     }
 }

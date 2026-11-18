@@ -18,20 +18,36 @@
 			<string>%d migraciones nuevas o cambiadas</string>
 		</dict>
 	</dict>
-	<key>category.installedCount</key>
+	<key>language.installedCount</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>%1$d de %2$#@m@ instalados</string>
-		<key>m</key>
+		<string>%#@n@</string>
+		<key>n</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%d servicio</string>
+			<string>%d versión instalada</string>
 			<key>other</key>
-			<string>%d servicios</string>
+			<string>%d versiones instaladas</string>
+		</dict>
+	</dict>
+	<key>utilities.installedOf</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@n@ de %2$d</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d instalada</string>
+			<key>other</key>
+			<string>%d instaladas</string>
 		</dict>
 	</dict>
 	<key>env.missing</key>

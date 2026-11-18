@@ -49,7 +49,7 @@ struct SnippetPicker: View {
                 .frame(minHeight: 160, maxHeight: 320)
             }
             if refused {
-                Text(L("ssh.snippets.multilineRefused")).font(.uiCaption).foregroundStyle(Brand.warning)
+                Text(L("ssh.snippets.multilineRefused")).font(.uiCaption).foregroundStyle(Brand.warningText)
             }
         }
         }
@@ -143,7 +143,7 @@ private struct SnippetForm: View {
                         .frame(minHeight: 90)
                         .scrollContentBackground(.hidden)
                         .padding(4)
-                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.small).strokeBorder(.separator))
                         .accessibilityIdentifier("ssh.snippets.form.command")
                 }
                 Picker(L("ssh.snippets.scope"), selection: $snippet.host) {

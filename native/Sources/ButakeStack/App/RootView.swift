@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 struct RootView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.undoManager) private var undoManager
     @Bindable var store: StackStore
@@ -16,23 +15,9 @@ struct RootView: View {
         if store.route == .tool("database-client") { return L("db.title") }
         return store.route.title
     }
-    /// Each page says something of its own; the overall counts live in the status bar only.
-    var subtitle: String {
-        switch store.route {
-        case .site(let id):
-            guard let project = store.projects.first(where: { $0.id == id }) else { return "" }
-            let branch = store.git[id].map { $0.branch.isEmpty ? L("git.detached") : $0.branch }
-            return ([project.tech.title] + [project.php.map { "PHP \($0)" }, branch].compactMap { $0 }).joined(separator: " · ")
-        case .composite(let id):
-            guard let group = store.composite(id) else { return "" }
-            return String(format: L("composite.subtitle"), group.sites.count)
-        case .service(let category) where !Route.engines(in: category).isEmpty:
-            // Only what Stack installs counts; a type without such services has no subtitle.
-            let engines = Route.engines(in: category)
-            return String(format: L("category.installedCount"), engines.filter { store.engineVersion($0) != nil }.count, engines.count)
-        default: return ""
-        }
-    }
+    /// None: a page that says something of its own says it in its header (`DetailHeader`), and the
+    /// overall counts live in the status bar only.
+    var subtitle: String { "" }
     /// The project on screen, for the Proyecto menu.
     var currentProject: Project? {
         if case .site(let id) = store.route { return store.projects.first { $0.id == id } }
@@ -66,7 +51,7 @@ struct RootView: View {
                 // view taller than it (AppKit would center it and put every column under the title bar, P-15).
                 .frame(minHeight: 0, maxHeight: .infinity)
                 .frame(maxWidth: .infinity)
-                .transition(.opacity)
+                .transitioned(.opacity)
                 if let pending = store.watchedPending.first, store.importScan == nil {
                     WatchBanner(store: store, scan: pending)
                 }
@@ -119,28 +104,20 @@ struct RootView: View {
             }
             .overlay(alignment: .bottom) {
                 if let offer = store.undoOffer {
-                    HStack(spacing: 12) {
-                        Label(String(format: L("menu.undoDone"), offer.name), systemImage: Symbols.success).font(.uiCallout.weight(.medium))
-                        Button(L("menu.undoAction")) { store.undoOffered() }
-                            .buttonStyle(.borderless).font(.uiCallout.weight(.semibold))
-                            .accessibilityIdentifier("toast.undo")
-                    }
-                    .padding(.horizontal, 14).padding(.vertical, 9)
-                    .chromeGlass()
-                    .padding(.bottom, 46)
-                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-                    .accessibilityIdentifier("toast.undoOffer")
+                    UndoOfferBar(offer: offer, store: store)
+                        .padding(.bottom, 46)
+                        .transitioned(.move(edge: .bottom).combined(with: .opacity))
                 } else if let toast = store.toast {
                     Label(toast, systemImage: Symbols.success)
                         .font(.uiCallout.weight(.medium))
                         .padding(.horizontal, 14).padding(.vertical, 9)
                         .chromeGlass()
                         .padding(.bottom, 46)
-                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                        .transitioned(.move(edge: .bottom).combined(with: .opacity))
                         .accessibilityIdentifier("toast")
                 }
             }
-            .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: store.route)
+            .animated(.smooth(duration: 0.25), value: store.route)
             // Dropping a project folder on the window adds it as a site.
             .dropDestination(for: URL.self) { urls, _ in
                 guard let folder = urls.first(where: { $0.hasDirectoryPath || (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }) else { return false }
@@ -164,7 +141,9 @@ struct RootView: View {
         .sheet(item: $store.importScan, onDismiss: { Task { await store.refreshWatched() } }) { scan in ImportFolderSheet(store: store, scan: scan).themedSheet() }
         .sheet(isPresented: $store.showPalette) { CommandPalette(store: store).themedSheet() }
         .sheet(isPresented: $updates.showingSheet) { UpdateSheet(updates: updates).themedSheet() }
+        .sheet(isPresented: $store.showShortcuts) { ShortcutsSheet().themedSheet() }
         .sheet(isPresented: $store.showSetup) { SetupAssistantSheet(store: store).themedSheet() }
+        .sheet(isPresented: $store.showReport) { ReportProblemSheet(store: store).themedSheet() }
         .sheet(item: $store.restoreRequest) { request in RestoreSheet(store: store, request: request).themedSheet() }
         .sheet(item: $store.renaming) { request in ProjectRenameSheet(store: store, request: request).themedSheet() }
         .confirmationDialog(L("site.deleteConfirm"), isPresented: Binding(get: { store.removing != nil }, set: { if !$0 { store.removing = nil } }), presenting: store.removing) { project in
@@ -191,7 +170,7 @@ struct RootView: View {
             Text(String(format: L("env.portRestartDetail"), offer.changed, offer.projects.map(\.title).joined(separator: ", ")))
         }
         // ⌘K opens the palette too (Ir › Abrir rápidamente… is ⇧⌘O).
-        .background { Button(L("menu.quickOpen")) { store.showPalette = true }.keyboardShortcut("k").hidden() }
+        .background { Button(L("menu.quickOpen")) { store.showPalette = true }.shortcut(Shortcuts.quickOpenAlt).hidden() }
         .focusedSceneValue(\.selectedProject, currentProject)
         // Edición › Buscar (⌘F): a page with a search of its own (`textFinder`, the terminal's included) goes first.
         .focusedSceneValue(\.sidebarSearch, SidebarSearchFocus { store.findRequests += 1 })

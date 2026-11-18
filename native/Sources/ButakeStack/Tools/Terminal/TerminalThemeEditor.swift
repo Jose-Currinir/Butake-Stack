@@ -74,7 +74,7 @@ struct TerminalThemeEditor: View {
         .font(.drawing(draft.fontSize, design: .monospaced))
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
-        .background(Color(nsColor: draft.background.nsColor), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color(nsColor: draft.background.nsColor), in: RoundedRectangle(cornerRadius: 10))  // radius 10: outside the Radius scale, kept as it was
         .accessibilityHidden(true)
     }
 

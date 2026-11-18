@@ -40,6 +40,8 @@ struct SkillsList: View {
         .themedScroll()
         .overlay { empty(shown) }
         .searchable(text: $tool.search, placement: .sidebar, prompt: L("skills.search"))
+        // ⌫ on the selected skill, like its menu's «Eliminar…» (which shows what it unlinks and confirms).
+        .onDeleteCommand { if tool.scope != .health, let id = tool.selection, let skill = tool.skill(id) { tool.requestDelete(skill) } }
         .accessibilityIdentifier("skills.list")
         .confirmationDialog(L("skills.editor.switch.title"), isPresented: Binding(get: { tool.pendingSelection != nil || tool.pendingFilter != nil },
                                                                                    set: { if !$0 { tool.keepEditing() } }),
@@ -56,6 +58,7 @@ struct SkillsList: View {
     private func rows(_ skills: [Skill]) -> some View {
         ForEach(skills) { skill in
             SkillRow(skill: skill, tool: tool).tag(skill.id)
+                .contextMenu { SkillRowMenu(tool: tool, skill: skill) }
         }
     }
 
@@ -113,5 +116,23 @@ struct SkillRow: View {
         }
         .help(skill.description.isEmpty ? skill.id : skill.description)
         .accessibilityIdentifier("skills.list.skill.\(skill.id)")
+    }
+}
+
+/// The menu of a skill's row: the same actions as the toolbar's «Duplicar», «Exportar» and «Más».
+struct SkillRowMenu: View {
+    let tool: SkillsTool
+    let skill: Skill
+
+    /// The accessibility identifiers of its actions, in order (a test checks the menu stays complete).
+    static let actionIdentifiers = ["skills.rowMenu.duplicate", "skills.menu.exportCopy", "skills.menu.exportSave",
+                                    "skills.menu.move", "skills.menu.rename", "skills.menu.toggle", "skills.menu.delete"]
+
+    var body: some View {
+        Button { Task { await tool.duplicate(skill) } } label: { Label(L("skills.duplicate"), systemImage: Symbols.duplicate) }
+            .accessibilityIdentifier("skills.rowMenu.duplicate")
+        Menu { SkillExportMenu(tool: tool, skill: skill) } label: { Label(L("skills.exportEllipsis"), systemImage: Symbols.share) }
+        Divider()
+        SkillMoreMenu(tool: tool, skill: skill)
     }
 }

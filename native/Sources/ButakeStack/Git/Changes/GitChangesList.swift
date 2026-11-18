@@ -49,7 +49,7 @@ struct GitChangesList: View {
                 Spacer()
                 if repository.conflicts.count > 0 {
                     Label(String(format: L("git.changes.conflicts"), repository.conflicts.count), systemImage: Symbols.warning)
-                        .font(.uiCaption).foregroundStyle(Brand.warning)
+                        .font(.uiCaption).foregroundStyle(Brand.warningText)
                         .help(L("git.changes.conflictsHelp"))
                 }
             }

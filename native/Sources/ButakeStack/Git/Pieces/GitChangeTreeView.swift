@@ -26,7 +26,6 @@ struct GitChangeTreeView<RowMenu: View>: View {
     @State private var pending: [String: Bool] = [:]
     /// Bumped on every click: restarts the cleanup so it never erases marks that were just set.
     @State private var pendingStamp = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let rows = GitChangeTree.flatten(nodes, collapsed: collapsed)
@@ -133,13 +132,13 @@ struct GitChangeTreeView<RowMenu: View>: View {
     }
 
     private func toggleFolder(_ id: String) {
-        withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
+        Motion.run(.snappy(duration: 0.2)) {
             if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) }
         }
     }
 
     private func setCollapsed(_ ids: Set<String>) {
-        withAnimation(reduceMotion ? nil : .snappy) { collapsed = ids }
+        Motion.run(.snappy) { collapsed = ids }
     }
 
     /// Everything in the commit → leave it out; otherwise put the rest in.
@@ -204,6 +203,7 @@ private struct GitChangeTreeRow: View {
                             .rotationEffect(.degrees(collapsed ? 0 : 90))
                     }
                     .buttonStyle(.borderless)
+                    .help(L(collapsed ? "git.tree.expand" : "git.tree.collapse"))
                     .accessibilityIdentifier("git.tree.disclosure.\(id)")
                 } else {
                     Color.clear

@@ -15,7 +15,7 @@ struct HomeAttention: View {
                     HomeAttentionRow(store: store, project: entry.project, items: entry.items)
                 }
             }
-            .workSurface(radius: 16)
+            .workSurface(radius: Radius.panel)
         }
         .accessibilityIdentifier("home.attention")
     }

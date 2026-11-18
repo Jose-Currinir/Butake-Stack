@@ -93,6 +93,9 @@ struct VersionsSection: View {
     /// Identifier prefix: language.<name> or service.<category>.<engine>.
     let scope: String
     var footer: String?
+    /// The page's header holds «Instalar versión…»: it asks for the picker through this flag and the
+    /// section does not draw its own button.
+    var installRequest: Binding<Bool>?
     @State private var picking = false
     /// The version the picker opens on: an update of an installed line, or its own suggestion.
     @State private var preset: CatalogVersion.ID?
@@ -102,13 +105,13 @@ struct VersionsSection: View {
         Section {
             if let requirement = provider.requirement {
                 ToolRow(store: store, tool: requirement, padded: false)
-            } else if provider.installed.isEmpty {
+            } else if provider.installed.isEmpty, store.pageFailures[.runtimes] == nil {
                 ContentUnavailableView {
                     Label(String(format: L("runtimes.noneTitle"), provider.title), systemImage: Symbols.versions)
                 } description: {
                     Text(L("runtimes.noneDetail"))
                 } actions: {
-                    installButton.buttonStyle(.borderedProminent)
+                    if installRequest == nil { installButton.buttonStyle(.borderedProminent) }
                 }
             } else {
                 ForEach(provider.installed) { item in
@@ -116,9 +119,11 @@ struct VersionsSection: View {
                                         update: provider.update(for: item), remove: { removing = item },
                                         install: { preset = $0.id; picking = true })
                 }
-                HStack {
-                    Spacer()
-                    installButton
+                if installRequest == nil {
+                    HStack {
+                        Spacer()
+                        installButton
+                    }
                 }
             }
         } header: {
@@ -132,6 +137,9 @@ struct VersionsSection: View {
             #if DEBUG
             if QAHooks.versionPicker == provider.id { picking = true }
             #endif
+        }
+        .onChange(of: installRequest?.wrappedValue) {
+            if installRequest?.wrappedValue == true { preset = nil; picking = true; installRequest?.wrappedValue = false }
         }
         .sheet(isPresented: $picking) { VersionPickerSheet(store: store, provider: provider, scope: scope, preset: preset).themedSheet() }
         .confirmationDialog(removing.map { String(format: L("runtimes.confirmRemove"), provider.title(of: $0)) } ?? "",
@@ -195,7 +203,7 @@ private struct InstalledVersionRow: View {
                     HStack(spacing: 6) {
                         if let cycle { Chip(cycle: cycle).fixedSize() }
                         if let problem = item.problem {
-                            Label(problem, systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warning)
+                            Label(problem, systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warningText)
                         } else if let detail = item.detail {
                             Text(detail).font(.uiCaption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -379,7 +387,7 @@ struct VersionPickerSheet: View {
                         if let cycle = cycle(entry) { Chip(cycle: cycle).fixedSize() }
                         Spacer(minLength: 8)
                         if installed {
-                            Label(L("runtimes.installedShort"), systemImage: Symbols.success).font(.uiCaption).foregroundStyle(Brand.success)
+                            Label(L("runtimes.installedShort"), systemImage: Symbols.success).font(.uiCaption).foregroundStyle(Brand.successText)
                         } else if let detail = entry.detail {
                             Text(detail).font(.uiCaption.monospacedDigit()).foregroundStyle(.secondary)
                         }

@@ -23,7 +23,7 @@ AREAS = [
      ["app", "version", "buildNumber", "common", "value", "toast", "filter", "snippet", "state",
       "busy", "lifecycle", "engine", "daemon", "keychain"]),
     ("Ventana: barra lateral, rutas, menús, paleta y barra de menús",
-     ["route", "sidebar", "menu", "palette", "panel", "stackState", "favorites"]),
+     ["route", "sidebar", "menu", "palette", "shortcuts", "panel", "stackState", "favorites"]),
     ("Inicio", ["home"]),
     ("Asistente de configuración y activación",
      ["setup", "assistant", "activation", "profile", "profiles"]),

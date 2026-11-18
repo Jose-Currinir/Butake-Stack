@@ -102,9 +102,11 @@
 "sidebar.closedCount" = "%d proyectos";
 "sidebar.tools" = "Herramientas";
 "sidebar.menu.toolSettings" = "Ajustes de la herramienta…";
-"sidebar.menu.turnOff" = "Apagar herramienta";
-"sidebar.menu.undoTurnOff" = "Apagar %@";
+"sidebar.menu.turnOff" = "Desactivar herramienta";
+"sidebar.menu.undoTurnOff" = "Desactivar %@";
 "sidebar.menu.category" = "Abrir categoría";
+"sidebar.attentionHelp.one" = "%d proyecto necesita atención";
+"sidebar.attentionHelp.many" = "%d proyectos necesitan atención";
 
 "menu.restartAll" = "Reiniciar todo";
 "menu.open" = "Abrir Stack";
@@ -128,6 +130,7 @@
 "menu.removeProject" = "Quitar proyecto…";
 "menu.setup" = "Asistente de configuración…";
 "menu.website" = "Sitio web de Stack";
+"menu.reportProblem" = "Informar de un problema…";
 "menu.settings" = "Ajustes…";
 "menu.quit" = "Salir de Stack";
 "menu.quitHelp" = "Salir de Stack (los servicios siguen en ejecución)";
@@ -144,9 +147,18 @@
 "menu.undoDone" = "Hecho: %@";
 "menu.undoAction" = "Deshacer";
 "menu.projectTabs" = "Ir a la pestaña";
+"menu.shortcuts" = "Atajos de teclado…";
+"menu.hideList" = "Ocultar lista";
+"menu.showList" = "Mostrar lista";
+"menu.undoAnnounce" = "%@. Puedes deshacerlo.";
+"menu.undone" = "Deshecho: %@";
+"menu.redone" = "Rehecho: %@";
 "menu.undo.start" = "Iniciar %@";
 "menu.undo.stop" = "Detener %@";
 "menu.undo.rename" = "Renombrar %@";
+"menu.undo.moveToFolder" = "Mover %@ de carpeta";
+"menu.undo.deleteFolder" = "Quitar la carpeta %@";
+"menu.undo.moveHost" = "Mover el host %@ de grupo";
 "menu.undo.move" = "Cambiar carpeta de %@";
 
 "palette.prompt" = "Ir a un proyecto, iniciar un servicio, abrir una página…";
@@ -155,8 +167,11 @@
 "palette.start" = "Iniciar";
 "palette.stop" = "Detener";
 "palette.settings" = "Ajustes";
-"palette.settingsGeneral" = "Ajustes generales";
-"palette.manageTools" = "Administrar herramientas";
+"palette.settingsTab" = "Ajustes: %@";
+"palette.settingsKeywords" = "configuración preferencias opciones";
+"palette.recent" = "Recientes";
+"palette.clearRecent" = "Quitar recientes";
+"palette.clearRecentHelp" = "Quita de la lista las acciones usadas hace poco";
 "palette.pages" = "Páginas";
 "palette.actions" = "Acciones";
 "palette.empty" = "Nada coincide con la búsqueda.";
@@ -170,6 +185,26 @@
 "palette.openFiles" = "Abrir archivos (SFTP)";
 "palette.hint.toggle" = "Iniciar o detener";
 
+"shortcuts.title" = "Atajos de teclado";
+"shortcuts.detail" = "Los de cada menú y los de las páginas que tienen los suyos.";
+"shortcuts.search" = "Buscar un atajo";
+"shortcuts.empty" = "Ningún atajo coincide con la búsqueda.";
+"shortcuts.goTool" = "Ir a la herramienta %@";
+"shortcuts.startStop" = "Iniciar o detener el proyecto";
+"shortcuts.splitRight" = "Dividir a la derecha";
+"shortcuts.splitDown" = "Dividir hacia abajo";
+"shortcuts.group.app" = "Stack";
+"shortcuts.group.file" = "Archivo";
+"shortcuts.group.edit" = "Edición";
+"shortcuts.group.view" = "Visualización";
+"shortcuts.group.go" = "Ir";
+"shortcuts.group.project" = "Proyecto";
+"shortcuts.group.git" = "Git";
+"shortcuts.group.help" = "Ayuda";
+"shortcuts.group.database" = "Bases de datos";
+"shortcuts.group.terminal" = "Terminal";
+"shortcuts.group.vault" = "Bóveda";
+
 "panel.engines" = "Servicios";
 "panel.notInstalled" = "Sin instalar";
 "panel.web" = "Servidor web";
@@ -181,6 +216,7 @@
 
 "stackState.setup" = "Falta preparar";
 "stackState.stopped" = "Detenido";
+"stackState.reconnecting" = "Reconectando…";
 "stackState.attention" = "Algo necesita atención";
 "stackState.running" = "Todo en marcha";
 "stackState.title" = "Estado";
@@ -214,6 +250,16 @@
 "home.setupDetail" = "Instala lo mínimo para servir tus proyectos .test.";
 "home.noSites" = "Crea un proyecto o agrega una carpeta existente.";
 "home.state.crashed" = "Falló: ver registros";
+"home.col.address" = "Dirección";
+"home.col.branch" = "Rama";
+"home.col.project" = "Proyecto";
+"home.col.state" = "Estado";
+"home.summary.noWarnings" = "sin avisos";
+"home.summary.running" = "%d de %d en marcha";
+"home.summary.service" = "1 servicio";
+"home.summary.services" = "%d servicios";
+"home.summary.warning" = "1 aviso";
+"home.summary.warnings" = "%d avisos";
 
 /* Asistente de configuración y activación */
 "setup.title" = "Preparar Stack";
@@ -244,7 +290,7 @@
 "assistant.promise.2" = "Nada sin tu confirmación";
 
 "activation.title" = "Iniciar con la sesión";
-"activation.help" = "Stack se inicia al iniciar sesión y macOS le entrega los puertos 53, 80 y 443, sin contraseña ni cambios en /etc.";
+"activation.help" = "Stack se abre en la barra de menús al iniciar sesión, sin ventana, y macOS le entrega los puertos 53, 80 y 443, sin contraseña ni cambios en /etc.";
 "activation.php" = "PHP instalado y verificado";
 "activation.caddy" = "Caddy instalado";
 "activation.sites" = "Al menos un proyecto creado";
@@ -342,11 +388,12 @@
 "site.tab.envs" = "Entornos";
 
 "sites.addHelp" = "Crea un proyecto o abre uno existente; Stack detecta y propone su configuración.";
-"sites.online" = "%d en línea";
 "sites.options" = "Agregar proyectos";
 
 "project.state" = "Estado";
 "project.openEditor" = "Abrir en el editor";
+"project.code" = "Código";
+"project.more" = "Más acciones del proyecto";
 "project.openTerminal" = "Abrir en Terminal";
 "project.settings" = "Ajustes del proyecto…";
 "project.settingsTitle" = "Ajustes del proyecto";
@@ -434,7 +481,7 @@
 "import.title" = "Abrir «%@»";
 "import.summary" = "%1$d proyectos encontrados · %2$d con página web";
 "import.select" = "Seleccionar";
-"import.selectWeb" = "Sitios web";
+"import.selectWeb" = "Páginas web";
 "import.selectAll" = "Todos";
 "import.selectNone" = "Ninguno";
 "import.grouping" = "Carpetas en Stack";
@@ -465,14 +512,14 @@
 "missing.path" = "Estaba en";
 
 "attention.title" = "Necesita atención";
-"attention.servicesStarted" = "Stack encendió %1$@ para %2$@.";
+"attention.servicesStarted" = "Stack inició %1$@ para %2$@.";
 "attention.fixed" = "Corregido.";
-"attention.service_off" = "%@ está apagado y este proyecto lo usa.";
+"attention.service_off" = "%@ está detenido y este proyecto lo usa.";
 "attention.service_missing" = "Este proyecto usa %@, que no está instalado.";
 "attention.port_conflict" = "El puerto %1$ld también lo declara «%2$@».";
-"attention.serves_repository" = "Este sitio estático sirve una carpeta con un repositorio Git: su historial quedaría a la vista en su dirección.";
+"attention.serves_repository" = "Este proyecto estático sirve una carpeta con un repositorio Git: su historial quedaría a la vista en su dirección.";
 "attention.unsafe_web_path" = "La ruta de este proyecto tiene llaves, comillas o barras invertidas: no se puede servir con seguridad y quedó fuera del servidor web. Renombra la carpeta.";
-"attention.serves_project_root" = "Este sitio sirve la carpeta raíz del proyecto: todos sus archivos (código, composer.json, copias) quedarían a la vista en su dirección. Los que empiezan con punto, como .env y .git, no se entregan. Conviene servir una subcarpeta, por ejemplo public.";
+"attention.serves_project_root" = "Este proyecto sirve su carpeta raíz: todos sus archivos (código, composer.json, copias) quedarían a la vista en su dirección. Los que empiezan con punto, como .env y .git, no se entregan. Conviene servir una subcarpeta, por ejemplo public.";
 "attention.program_missing" = "El comando «%1$@» no puede ejecutarse: falta %2$@.";
 "attention.script_missing" = "El comando «%1$@» llama al guion «%2$@», que el proyecto no tiene.";
 "attention.script_forwards" = "El guion «%1$@» solo llama a «%2$@»: los argumentos de Stack (puerto, dirección) no llegan al servidor.";
@@ -481,8 +528,8 @@
 "attention.other" = "Algo de este proyecto necesita atención.";
 "attention.fix" = "Corregir";
 "attention.stopTitle" = "¿Detener %@?";
-"attention.stopDetail" = "Lo usan proyectos encendidos: %@. Dejarán de conectarse hasta que lo vuelvas a encender.";
-"attention.fix.startService" = "Encender %@";
+"attention.stopDetail" = "Lo usan proyectos iniciados: %@. Dejarán de conectarse hasta que lo vuelvas a iniciar.";
+"attention.fix.startService" = "Iniciar %@";
 "attention.fix.useScript" = "Usar «%@»";
 "attention.fix.setNode" = "Usar Node.js %@";
 "attention.fix.makeUnserved" = "Pasar a sin servidor";
@@ -521,7 +568,7 @@
 "process.autostart" = "Inicio automático";
 "process.logs" = "Ver registro";
 "process.autostartShort" = "Automático";
-"process.logsShort" = "Registros";
+"process.more" = "Más acciones del proceso";
 "process.restart" = "Reiniciar";
 "process.copyCommand" = "Copiar comando";
 "process.commandCopied" = "Comando copiado";
@@ -675,13 +722,13 @@
 "new.step.swiftPackage" = "Crear el paquete Swift";
 "new.step.venv" = "Crear el .venv";
 "new.about.laravel" = "Aplicación Laravel con el instalador oficial.";
-"new.about.php" = "Sitio web PHP sin framework.";
-"new.about.astro" = "Sitio web Astro con su asistente oficial, create-astro.";
-"new.about.emdash" = "Sitio web con el CMS EmDash, para Cloudflare Workers o Node.js.";
+"new.about.php" = "Página web PHP sin framework.";
+"new.about.astro" = "Página web Astro con su asistente oficial, create-astro.";
+"new.about.emdash" = "Página web con el CMS EmDash, para Cloudflare Workers o Node.js.";
 "new.about.next" = "Aplicación Next.js con create-next-app.";
 "new.about.vite" = "Aplicación de una página con create-vite.";
 "new.about.node" = "Servidor Node.js mínimo, sin dependencias.";
-"new.about.static" = "Sitio web de HTML, CSS y JavaScript sin compilar.";
+"new.about.static" = "Página web de HTML, CSS y JavaScript sin compilar.";
 "new.about.kmp" = "Backend Kotlin en un proyecto Kotlin Multiplatform.";
 "new.about.django" = "Aplicación Django con el Python que elijas: .venv propio y base SQLite migrada.";
 "new.about.fastapi" = "API con FastAPI y el Python que elijas, lista para agregar rutas.";
@@ -845,7 +892,7 @@
 "rename.changes.markers" = "Las referencias {port:…} y {public:…} que otros proyectos hacen a él.";
 "rename.changes.secrets" = "Sus entornos; los secretos pasan al identificador nuevo en el Llavero.";
 "rename.changes.links" = "Su dirección fija, los enlaces de la Bóveda, sus registros y su lugar en favoritos.";
-"rename.changes.restart" = "Está encendido: se detiene y vuelve a iniciarse. Si lo compartías, vuelve a compartirlo.";
+"rename.changes.restart" = "Está iniciado: se detiene y vuelve a iniciarse. Si lo compartías, vuelve a compartirlo.";
 "rename.changes.same" = "No cambian su carpeta, su puerto ni sus bases de datos.";
 
 "move.prompt" = "Usar esta carpeta";
@@ -855,7 +902,7 @@
 
 /* Proyectos: varias partes */
 "composite.title" = "Proyecto";
-"composite.subtitle" = "Proyecto de %ld partes";
+"composite.partsCount" = "%ld partes";
 "composite.hideParts" = "Ocultar las partes";
 "composite.showParts" = "Mostrar las partes";
 "composite.open" = "Abrir el proyecto";
@@ -871,6 +918,7 @@
 "composite.parts" = "Partes";
 "composite.dependencies" = "Dependencias";
 "composite.git" = "Git del proyecto";
+"composite.partsCount.one" = "1 parte";
 "composite.parts.empty" = "Sin partes. Arrastra proyectos a su fila en la barra lateral.";
 "composite.parts.earlier" = "Iniciar antes";
 "composite.parts.later" = "Iniciar después";
@@ -929,12 +977,12 @@
 "share.fixed.removeMenu" = "Quitar dirección fija…";
 "share.fixed.remove" = "Quitar dirección fija";
 "share.fixed.removeTitle" = "¿Quitar la dirección fija?";
-"share.fixed.removeDetail" = "Se elimina el túnel en Cloudflare y sus credenciales en este Mac. El registro DNS de %@ queda en Cloudflare: Stack no puede borrarlo.";
+"share.fixed.removeDetail" = "Se elimina el túnel en Cloudflare y sus credenciales en este Mac. El registro DNS de %@ queda en Cloudflare: Stack no puede eliminarlo.";
 "share.fixed.disconnect" = "Desconectar de Cloudflare…";
 "share.fixed.disconnectTitle" = "Cómo desconectar Stack de Cloudflare";
-"share.fixed.disconnectDetail" = "Stack no borra la conexión. Está en %@: bórrala tú y, para revocarla, elimina el certificado de origen en el panel de Cloudflare. Las direcciones fijas dejarán de poder crearse o quitarse, y las configuradas siguen funcionando hasta que quites sus túneles.";
+"share.fixed.disconnectDetail" = "Stack no elimina la conexión. Está en %@: elimínala tú y, para revocarla, elimina el certificado de origen en el panel de Cloudflare. Las direcciones fijas dejarán de poder crearse o quitarse, y las configuradas siguen funcionando hasta que quites sus túneles.";
 "share.fixed.dnsTitle" = "El registro DNS sigue en Cloudflare";
-"share.fixed.dnsDetail" = "%@ apunta todavía a un túnel que ya no usa. Bórralo en el panel de DNS de Cloudflare.";
+"share.fixed.dnsDetail" = "%@ apunta todavía a un túnel que ya no usa. Elimínalo en el panel de DNS de Cloudflare.";
 "share.fixed.openDNS" = "Abrir el panel de DNS";
 "share.fixed.notShared" = "Sin compartir";
 "share.fixed.shareHelp" = "La dirección está lista; compártela cuando quieras abrir el proyecto en ella.";
@@ -953,7 +1001,7 @@
 "share.fixed.sheet.change" = "Cambiar la dirección fija";
 "share.fixed.sheet.detail" = "Una dirección de tu dominio para «%@», que no cambia entre sesiones.";
 "share.fixed.sheet.note" = "Stack crea en tu cuenta de Cloudflare un túnel para este proyecto y el registro DNS del nombre.";
-"share.fixed.sheet.changeNote" = "El registro DNS del nombre anterior queda en Cloudflare; Stack te dirá cuál borrar.";
+"share.fixed.sheet.changeNote" = "El registro DNS del nombre anterior queda en Cloudflare; Stack te dirá cuál eliminar.";
 "share.fixed.sheet.create" = "Crear dirección";
 "share.fixed.sheet.save" = "Cambiar";
 "share.fixed.sheet.zone" = "Dominio en Cloudflare";
@@ -1139,6 +1187,8 @@
 "category.installed" = "Instalados";
 "category.available" = "Disponibles";
 "category.install" = "Instalar…";
+"category.runningOf" = "%1$d de %2$d en marcha";
+"category.noneInstalled" = "Ninguno instalado";
 "category.work.web" = "Desarrollo web";
 "category.work.native" = "Desarrollo nativo";
 "category.work.crossplatform" = "Desarrollo multiplataforma";
@@ -1161,7 +1211,7 @@
 "ext.bundled" = "Incluidas con el servicio";
 "ext.bundledCount" = "%d";
 "ext.confirmRemove" = "¿Quitar %@ del servicio?";
-"ext.removeDetail" = "Se borran sus archivos de esta versión de PostgreSQL. Si alguna base la tiene activa no se quita y Stack dice cuál.";
+"ext.removeDetail" = "Se eliminan sus archivos de esta versión de PostgreSQL. Si alguna base la tiene activa no se quita y Stack dice cuál.";
 "ext.notForVersion" = "No disponible";
 "ext.updateTo" = "Actualizar a %@";
 "ext.installed" = "Instalada";
@@ -1203,9 +1253,9 @@
 "ext.db.confirmActivate" = "¿Activar %@ en %@?";
 "ext.db.activateDetail" = "Crea la extensión en la base, con las que necesite.";
 "ext.db.confirmDeactivate" = "¿Desactivar %@ en %@?";
-"ext.db.deactivateAll" = "Desactivar y borrar lo que depende";
-"ext.db.deactivateDetail" = "Se borran sus funciones y tipos de esta base. Nada más depende de ella.";
-"ext.db.deactivateLoses" = "También se borra lo que depende de ella:\n%@%@";
+"ext.db.deactivateAll" = "Desactivar y eliminar lo que depende";
+"ext.db.deactivateDetail" = "Se eliminan sus funciones y tipos de esta base. Nada más depende de ella.";
+"ext.db.deactivateLoses" = "También se elimina lo que depende de ella:\n%@%@";
 "ext.db.andMore" = "\ny %d más";
 "ext.project.left" = "Quedan %d extensiones sin resolver.";
 "ext.project.toast" = "A las bases de %@ les faltan extensiones. Míralo en su Resumen.";
@@ -1236,6 +1286,8 @@
 "language.rust.versionsFooter" = "La global es la de rustup default; cada proyecto puede fijar la suya en rust-toolchain.toml.";
 "language.swift.versionsFooter" = "La global es la de swiftly use; cada proyecto puede fijar la suya en .swift-version. Xcode mantiene la suya.";
 "language.options" = "Opciones";
+"language.notInstalled" = "Sin instalar";
+"language.globalVersion" = "Global %@";
 
 "runtimes.reloadCatalog" = "Actualizar lista";
 "runtimes.invalid" = "No se pudo verificar";
@@ -1335,7 +1387,7 @@
 "utilities.actions" = "Más acciones de %@";
 "utilities.remove" = "Quitar…";
 "utilities.removeConfirm" = "¿Quitar %@?";
-"utilities.removeDetail" = "Se borra solo lo que Stack instaló. Tus ajustes y sesiones de la utilidad se conservan.";
+"utilities.removeDetail" = "Se elimina solo lo que Stack instaló. Tus ajustes y sesiones de la utilidad se conservan.";
 "utilities.removing" = "Quitando %@…";
 "utilities.removed" = "%@ quitada";
 "utilities.version" = "Versión";
@@ -1514,7 +1566,7 @@
 "plugin.git.title" = "Git";
 "plugin.git.summary" = "Cambios, commits, ramas, historial y conflictos de tus repositorios, con la rama principal protegida y sin subidas forzadas.";
 "plugin.git.row" = "Cambios, commits, ramas e historial de tus repositorios";
-"plugin.git.deleteDataDetail" = "Se desactiva Git y se olvida la lista de repositorios agregados y recientes. Los repositorios y sus archivos no se tocan.";
+"plugin.git.deleteDataDetail" = "Se desactiva Git y se elimina la lista de repositorios agregados y recientes. Los repositorios y sus archivos no se tocan.";
 "plugin.skills.title" = "Skills";
 "plugin.skills.summary" = "Guarda tus skills en un solo lugar y enlázalas a Claude, Codex, Gemini y otras IA sin copiarlas.";
 "plugin.skills.row" = "Skills";
@@ -1702,6 +1754,7 @@
 "git.progress.rename_branch" = "Renombrando la rama…";
 "git.progress.delete_branch" = "Eliminando la rama…";
 "git.progress.force_delete_branch" = "Eliminando la rama…";
+"git.progress.delete_merged_branch" = "Eliminando la rama…";
 "git.progress.revert" = "Revirtiendo el commit…";
 "git.progress.cherry_pick" = "Copiando el commit…";
 "git.progress.continue_operation" = "Terminando la operación…";
@@ -1746,6 +1799,8 @@
 "git.done.rename_branch" = "Rama renombrada";
 "git.done.delete_branch" = "Rama eliminada";
 "git.done.force_delete_branch" = "Rama eliminada";
+"git.done.delete_merged_branch" = "Rama eliminada";
+"git.done.deleteMergedBranches" = "Se eliminaron %ld ramas ya combinadas";
 "git.done.revert" = "Commit revertido con un commit nuevo";
 "git.done.cherry_pick" = "Commit copiado";
 "git.done.continue_operation" = "Operación terminada";
@@ -1852,6 +1907,10 @@
 "git.branch.localOnlyHelp" = "Esta rama aún no está en el remoto.";
 "git.branch.gone" = "Se eliminó en el remoto";
 "git.branch.goneHelp" = "Su rama del remoto ya no existe.";
+"git.branch.merged" = "Combinada";
+"git.branch.mergedGone" = "Se combinó y se eliminó en el remoto";
+"git.branch.mergedGoneHelp" = "Se combinó y se eliminó en el remoto: sus commits ya están allí. Puedes eliminarla de este Mac sin perder nada.";
+"git.branch.leftMerged" = "Volviste a %@ y se eliminó %@";
 "git.branch.protectedHelp" = "Rama principal protegida: no se confirma ni se sube directo.";
 "git.branch.currentHelp" = "%@ es la rama actual.";
 "git.branch.currentTitle" = "Rama actual";
@@ -2007,7 +2066,7 @@
 "git.accounts.disconnect" = "Desconectar";
 "git.accounts.disconnectEllipsis" = "Desconectar…";
 "git.accounts.disconnectTitle" = "¿Desconectar tu cuenta de %@?";
-"git.accounts.disconnectDetail" = "La ficha se borra del Llavero de este Mac. En %@ sigue existiendo: revócala allí si ya no la usas.";
+"git.accounts.disconnectDetail" = "La ficha se elimina del Llavero de este Mac. En %@ sigue existiendo: revócala allí si ya no la usas.";
 "git.pr.scope.label" = "Mostrar";
 "git.pr.scope.help" = "Qué pull requests muestra la lista";
 "git.pr.scope.branch" = "De esta rama";
@@ -2119,7 +2178,7 @@
 "git.clone.https" = "HTTPS";
 "git.clone.protocolHelp" = "HTTPS usa la ficha de tu cuenta conectada; SSH, las claves de este Mac";
 "git.clone.action" = "Clonar";
-"git.clone.cancelHelp" = "Detiene la copia y borra lo que alcanzó a bajar";
+"git.clone.cancelHelp" = "Detiene la copia y elimina lo que alcanzó a bajar";
 "git.clone.exists" = "Ya hay una carpeta llamada %@ en ese lugar.";
 "git.clone.done" = "Clonado: %@";
 "git.clone.help" = "Trae a este Mac una copia de un repositorio de GitHub, Bitbucket o cualquier dirección";
@@ -2238,7 +2297,7 @@
 "git.history.undoRewrite" = "Deshacer";
 "git.history.undoRewriteHelp" = "Devuelve la rama a como estaba antes de organizar sus commits. Lo que confirmaste después se guarda en un respaldo.";
 "git.history.revertEllipsis" = "Revertir…";
-"git.history.revertHelp" = "Crea un commit nuevo que deshace los cambios de este. El historial no se borra.";
+"git.history.revertHelp" = "Crea un commit nuevo que deshace los cambios de este. El historial no se elimina.";
 "git.history.revertMergeHelp" = "Un commit que une dos ramas no se revierte desde aquí.";
 "git.history.revertTitle" = "¿Revertir este commit?";
 "git.history.revertDetail" = "Se crea en %2$@ un commit nuevo que deshace «%1$@». El commit original se queda en el historial.";
@@ -2294,6 +2353,14 @@
 "git.problems.upstreamGone" = "La rama del remoto ya no existe";
 "git.problems.upstreamGoneReason" = "%@ se eliminó en el remoto (quizás ya se combinó). Tus commits siguen aquí; publícala de nuevo si aún la necesitas.";
 "git.problems.publishAgain" = "Publicar de nuevo";
+"git.problems.merged" = "%@ ya se combinó";
+"git.problems.mergedReason" = "Su rama del remoto se eliminó y sus commits ya están allí. Vuelve a %@ y elimínala de este Mac: no se pierde nada.";
+"git.problems.mergedDirtyReason" = "Su rama del remoto se eliminó y sus commits ya están allí. Confirma o guarda temporalmente tus cambios para volver a %@ y eliminarla.";
+"git.problems.leaveMerged" = "Volver a %@ y eliminar la rama";
+"git.problems.mergedBranchOne" = "%@ ya se combinó y sigue en este Mac";
+"git.problems.mergedBranches" = "%ld ramas ya combinadas siguen en este Mac";
+"git.problems.mergedBranchesReason" = "Se eliminaron en el remoto y sus commits ya están allí: puedes eliminarlas de este Mac sin perder nada.";
+"git.problems.deleteMerged" = "Eliminar de este Mac";
 "git.problems.notPublished" = "La rama no está en el remoto";
 "git.problems.notPublishedReason" = "Solo existe en este Mac: nadie más la ve y no tiene copia en el servidor.";
 "git.problems.lastSync" = "Falló el último intento: %@";
@@ -2323,7 +2390,7 @@
 "git.conflict.useBothHelp" = "El resultado lleva tu versión y, a continuación, la entrante.";
 "git.conflict.result" = "Resultado";
 "git.conflict.markersLeft" = "Quedan marcas de conflicto";
-"git.conflict.markersHelp" = "Borra las líneas <<<<<<< y >>>>>>> antes de guardar.";
+"git.conflict.markersHelp" = "Elimina las líneas <<<<<<< y >>>>>>> antes de guardar.";
 "git.conflict.saveNote" = "Puedes editar el resultado antes de guardarlo.";
 "git.conflict.save" = "Guardar resolución";
 "git.conflict.saveHelp" = "Guarda el resultado en el archivo y lo marca como resuelto.";
@@ -2433,7 +2500,7 @@
 "git.more.removeWorktree" = "Quitar carpeta";
 "git.more.removeWorktreeHelp" = "Quita esta carpeta de trabajo; su rama y sus commits se quedan";
 "git.more.removeWorktreeTitle" = "¿Quitar la carpeta de trabajo «%@»?";
-"git.more.removeWorktreeDetail" = "Se borra la carpeta del Mac. La rama %@ y sus commits siguen en el repositorio. Si la carpeta tiene cambios sin commit, no se quita.";
+"git.more.removeWorktreeDetail" = "Se elimina la carpeta del Mac. La rama %@ y sus commits siguen en el repositorio. Si la carpeta tiene cambios sin commit, no se quita.";
 "git.files.filter" = "Filtrar archivos";
 "git.files.emptyTitle" = "Sin archivos";
 "git.files.emptyDetail" = "Este repositorio todavía no tiene archivos.";
@@ -2500,7 +2567,7 @@
 "git.migration.help" = "Agrega a la lista los repositorios que tenías en Butake Git; esa app queda igual";
 "git.migration.title" = "Traer mis repositorios de Butake Git";
 "git.migration.detail" = "Los repositorios recientes de Butake Git pasan a la lista de Git, con sus preferencias equivalentes.";
-"git.migration.note" = "Solo se lee: en Butake Git nada se borra ni cambia.";
+"git.migration.note" = "Solo se lee: en Butake Git nada se elimina ni cambia.";
 "git.migration.action" = "Traer";
 "git.migration.later" = "Más tarde";
 "git.migration.repositories" = "Repositorios";
@@ -3021,7 +3088,7 @@
 "db.newConnectionHelp" = "Agrega una conexión a otro servidor o a un archivo SQLite.";
 "db.editConnectionEllipsis" = "Editar conexión…";
 "db.connectHelp" = "Abre la sesión con el servidor (y el túnel SSH si la conexión lo usa).";
-"db.reloadHelp" = "Vuelve a leer las bases, las tablas y lo que se muestra (⌘R).";
+"db.reloadHelp" = "Vuelve a leer las bases, las tablas y lo que se muestra (⌥⌘R).";
 "db.openInSQL" = "Abrir en SQL";
 "db.openInSQLHelp" = "Abre una consulta SELECT de esta tabla en el editor SQL de su base.";
 "db.openDatabase" = "Abrir la base";
@@ -3053,6 +3120,7 @@
 "db.noConnection" = "Sin conexión";
 "db.copyName" = "Copiar nombre";
 "db.restoreFileEllipsis" = "Restaurar un archivo…";
+"db.unsavedHelp" = "%d cambios sin guardar";
 "db.section.stack" = "Servicios de Stack";
 "db.section.saved" = "Conexiones guardadas";
 "db.tab.overview" = "Resumen";
@@ -3093,7 +3161,7 @@
 "db.col.table" = "Tabla";
 "db.col.rows" = "Filas";
 "db.col.size" = "Tamaño";
-"db.col.engine" = "Motor";
+"db.col.engine" = "Servicio";
 "db.col.null" = "Nulo";
 "db.col.default" = "Por defecto";
 "db.col.key" = "Clave";
@@ -3154,6 +3222,9 @@
 "db.confirm.sqlTransaction" = "Estas sentencias cambian datos en %@ dentro de la transacción abierta (nada queda guardado hasta «Confirmar»).";
 "db.confirm.busy" = "Responde la confirmación pendiente antes de continuar.";
 "db.confirm.discardEdits" = "Hay %d cambios sin guardar. Si continúas, se descartarán.";
+"db.confirm.disconnectEdits" = "Hay %d cambios sin guardar en tablas de «%@». Si te desconectas, se descartarán.";
+"db.confirm.quitEdits" = "Hay %d cambios sin guardar en tablas de bases de datos. Si sales, se descartarán.";
+"db.confirm.quitDiscard" = "Salir y descartar";
 "db.problem.detail" = "Detalle técnico";
 "db.problem.keychainNote" = "Se guarda en el Llavero de este Mac solo si el servidor la acepta.";
 "db.problem.needsPassword" = "Este usuario tiene contraseña";
@@ -3608,7 +3679,7 @@
 "vault.import.companionHelp" = "Se lee de %@ al importar y queda cifrado; nunca se muestra";
 "vault.import.propose" = "Usar %1$@ para este archivo (%2$@)";
 "vault.import.gathers" = "Reúne cuentas guardadas aparte: %ld";
-"vault.import.gathersHelp" = "Una importación anterior guardó cuentas de este servicio como servicios aparte: se reúnen aquí, cada una con su nombre. No se duplica ni se borra ningún elemento.";
+"vault.import.gathersHelp" = "Una importación anterior guardó cuentas de este servicio como servicios aparte: se reúnen aquí, cada una con su nombre. No se duplica ni se elimina ningún elemento.";
 "vault.import.excluded.quarantine" = "En cuarentena";
 "vault.import.scanning" = "Leyendo la carpeta…";
 "vault.import.progress" = "Importando %1$d de %2$d archivos…";
@@ -3828,7 +3899,7 @@
 "vault.removeEmpty.menu" = "Quitar contenedores vacíos…";
 "vault.removeEmpty.help" = "Quita las apps y los servicios que no tienen ningún elemento";
 "vault.removeEmpty.title" = "¿Quitar %ld contenedores vacíos?";
-"vault.removeEmpty.detail" = "Sin elementos: %@. Sus notas se quitan con ellos (las de una cuenta pasan a su servicio). No se borra ningún elemento.";
+"vault.removeEmpty.detail" = "Sin elementos: %@. Sus notas se quitan con ellos (las de una cuenta pasan a su servicio). No se elimina ningún elemento.";
 "vault.removeEmpty.action" = "Quitar vacíos";
 "vault.removeEmpty.done" = "%ld contenedores vacíos quitados";
 
@@ -4321,11 +4392,11 @@
 "skills.sheet.import.menu" = "Importar skills existentes…";
 "skills.sheet.import.trashMenu" = "Papelera de importación…";
 "skills.sheet.deletedTrash.title" = "Skills eliminadas";
-"skills.sheet.deletedTrash.detail" = "Las skills que eliminaste se guardan 30 días. Restaurar vuelve a crear sus enlaces donde el nombre siga libre. Pasado ese plazo se borran solas.";
+"skills.sheet.deletedTrash.detail" = "Las skills que eliminaste se guardan 30 días. Restaurar vuelve a crear sus enlaces donde el nombre siga libre. Pasado ese plazo se eliminan solas.";
 "skills.sheet.deletedTrash.none" = "No hay skills eliminadas";
 "skills.sheet.deletedTrash.noneDetail" = "Aquí aparecen las skills que eliminas, durante 30 días.";
 "skills.sheet.deletedTrash.deleted" = "Eliminada el";
-"skills.sheet.deletedTrash.expires" = "Se borra el";
+"skills.sheet.deletedTrash.expires" = "Se elimina el";
 "skills.sheet.deletedTrash.restore" = "Restaurar…";
 "skills.sheet.import.title" = "Importar skills existentes";
 "skills.sheet.import.detail" = "Skills que ya están en las carpetas de tus IA. Se copian a Stack y, en su lugar, queda un enlace.";
@@ -4348,7 +4419,7 @@
 "skills.sheet.import.plan.copyLine" = "Desde %@";
 "skills.sheet.import.plan.trash" = "Van a la papelera de importación y quedan enlazadas a Stack";
 "skills.sheet.import.plan.unlink" = "Solo se quita el enlace y queda enlazada a Stack";
-"skills.sheet.import.plan.trashDetail" = "Las carpetas reales no se borran: esperan en la papelera de importación hasta que la vacíes, y desde ahí se pueden deshacer.";
+"skills.sheet.import.plan.trashDetail" = "Las carpetas reales no se eliminan: esperan en la papelera de importación hasta que la vacíes, y desde ahí se pueden deshacer.";
 "skills.sheet.import.plan.conflicts" = "Se dejan como están";
 "skills.sheet.import.plan.conflictsDetail" = "Stack no las toca.";
 "skills.sheet.import.plan.warning" = "Otros programas que tengan enlaces a esas carpetas ahora llegarán a la carpeta de Stack.";
@@ -4364,7 +4435,7 @@
 "skills.sheet.import.reason.missing" = "Falta en la papelera";
 "skills.sheet.import.reason.failed" = "No se pudo importar";
 "skills.sheet.import.trash.title" = "Papelera de importación";
-"skills.sheet.import.trash.detail" = "Carpetas que una importación reemplazó por enlaces. Stack no las borra: quedan aquí hasta que vacíes la papelera.";
+"skills.sheet.import.trash.detail" = "Carpetas que una importación reemplazó por enlaces. Stack no las elimina: quedan aquí hasta que vacíes la papelera.";
 "skills.sheet.import.trash.none" = "La papelera está vacía";
 "skills.sheet.import.trash.noneDetail" = "Aquí aparecen las carpetas que reemplaza una importación.";
 "skills.sheet.import.trash.undo" = "Deshacer…";
@@ -4384,9 +4455,9 @@
 "skills.sheet.import.undone" = "Importación deshecha";
 "skills.sheet.import.undoneWithConflicts" = "No se pudo deshacer la importación";
 "skills.sheet.import.empty.title" = "Vaciar la papelera de importación";
-"skills.sheet.import.empty.note" = "Se borran para siempre. No se puede deshacer.";
+"skills.sheet.import.empty.note" = "Se eliminan para siempre. No se puede deshacer.";
 "skills.sheet.import.empty.apply" = "Vaciar";
-"skills.sheet.import.empty.delete" = "Se borrarán para siempre estas carpetas";
+"skills.sheet.import.empty.delete" = "Se eliminarán para siempre estas carpetas";
 "skills.sheet.import.emptying" = "Vaciando la papelera…";
 "skills.sheet.import.emptied" = "Papelera de importación vaciada";
 "skills.sheet.import.plan.skipped" = "Lo que no se copia";
@@ -4408,7 +4479,7 @@
 "settings.text" = "Texto";
 "settings.textSize" = "Tamaño (⌘+ / ⌘−)";
 "settings.login" = "Iniciar con la sesión";
-"settings.loginOn" = "Stack sirve los proyectos .test desde que inicias sesión.";
+"settings.loginOn" = "Stack se abre en la barra de menús y sirve los proyectos .test desde que inicias sesión.";
 "settings.loginOff" = "Stack se inicia al abrir la app.";
 "settings.startup" = "Sesión";
 "settings.textPercent" = "%d %%";
@@ -4425,6 +4496,16 @@
 "settings.sortProjects" = "Ordenar los proyectos nuevos en App, Service y Web";
 "settings.sortProjectsDetail" = "Según su tipo. Los proyectos existentes no se mueven.";
 "settings.dataFolder" = "Carpeta de Stack";
+"settings.notices.section" = "Avisos";
+"settings.notices.title" = "Avisos del sistema";
+"settings.notices.detail" = "Con Stack en segundo plano, macOS avisa una vez de una actualización lista, un proceso de un proyecto que se detuvo o una instalación que terminó.";
+"settings.notices.denied" = "macOS no permite avisos de Stack. Actívalos en Ajustes del Sistema › Notificaciones.";
+"settings.notices.update.title" = "Actualización lista";
+"settings.notices.update.body" = "Stack %@ está listo para instalar. Ábrelo en Ajustes › General.";
+"settings.notices.process.title" = "%@ se detuvo";
+"settings.notices.process.body" = "Abre Stack para ver el motivo.";
+"settings.notices.install.title" = "Instalación terminada";
+"settings.notices.install.body" = "%@ quedó instalado.";
 "settings.tab.general" = "General";
 "settings.tab.appearance" = "Apariencia";
 "settings.tab.network" = "Red";
@@ -4597,6 +4678,7 @@
 
 /* Errores del motor y de la app */
 "error.title" = "No se pudo completar";
+"error.link" = "Enlace no válido: %@";
 "error.daemon_outdated" = "El servicio de Stack que está corriendo es de otra versión y no se pudo reiniciar. Sal de Stack y ábrelo otra vez.";
 "error.migration_isolated" = "Un almacén aislado no tiene datos que mover.";
 "error.migration_conflict" = "Las dos carpetas tienen datos: no se mueve nada.";
@@ -4694,7 +4776,7 @@
 "error.duplicate_port" = "Ese puerto ya lo usa otro servicio de Stack. Elige otro.";
 "error.invalid_port" = "El puerto debe ser 1024 o mayor.";
 "error.cloudflare_not_connected" = "Stack no está conectado con Cloudflare. Usa «Conectar con Cloudflare…» y autoriza el dominio en el navegador.";
-"error.tunnel_name_taken" = "Tu cuenta de Cloudflare ya tiene un túnel con el nombre de este proyecto. Bórralo en el panel de Cloudflare (Zero Trust › Redes › Túneles) y vuelve a intentarlo.";
+"error.tunnel_name_taken" = "Tu cuenta de Cloudflare ya tiene un túnel con el nombre de este proyecto. Elimínalo en el panel de Cloudflare (Zero Trust › Redes › Túneles) y vuelve a intentarlo.";
 "error.tunnel_offline" = "No se pudo llegar a Cloudflare. Revisa la conexión a internet y vuelve a intentarlo.";
 "error.tunnel_failed" = "Cloudflare no completó la operación. Vuelve a intentarlo en un momento.";
 "error.tunnel_not_found" = "Cloudflare ya no tiene ese túnel.";
@@ -4795,10 +4877,10 @@
 "error.target_exists" = "Ya hay un archivo de Stack con el nombre nuevo; no se cambió nada.";
 "error.invalid_rename_step" = "Ese paso del renombre no existe.";
 "error.port_in_use" = "Ese puerto ya lo declara otro proyecto";
-"error.service_in_use" = "Lo usan proyectos encendidos";
+"error.service_in_use" = "Lo usan proyectos iniciados";
 "error.runtime_in_use" = "Esa versión la usa";
 "error.runtime_global" = "Es la versión global. Elige otra como global antes de quitarla.";
-"error.project_not_served" = "Ese proyecto no tiene servidor: no se enciende ni se apaga.";
+"error.project_not_served" = "Ese proyecto no tiene servidor: no se inicia ni se detiene.";
 "error.unknown_fix" = "Esa corrección ya no aplica. Vuelve a cargar el proyecto.";
 "error.extension_component_unsupported" = "Ese servicio no administra extensiones desde Stack.";
 "error.unknown_extension" = "Esa extensión no está en el catálogo de Stack.";
@@ -4812,7 +4894,7 @@
 "error.relocate_failed" = "La extensión se compiló, pero no se pudo dejar lista para esta carpeta; no se instaló nada.";
 "error.package_incomplete" = "Lo compilado no trae todo lo esperado; no se instaló nada.";
 "error.invalid_domain" = "El dominio no es válido. Usa letras minúsculas, números y guiones, con una terminación permitida.";
-"error.duplicate_domain" = "Ese dominio está repetido en el sitio.";
+"error.duplicate_domain" = "Ese dominio está repetido en el proyecto.";
 "error.invalid_docroot" = "La carpeta pública indicada no es válida o queda fuera del proyecto.";
 "error.invalid_path" = "La carpeta no existe o no es válida.";
 "error.invalid_executable" = "El programa del proceso no existe o no se puede ejecutar.";
@@ -4827,7 +4909,7 @@
 "error.agent_bootout_failed" = "macOS no pudo descargar el agente de Stack. Inténtalo de nuevo.";
 "error.download_too_large" = "La descarga supera el tamaño permitido y se canceló.";
 "error.insecure_url" = "Solo se permiten descargas por HTTPS.";
-"error.worktree_already_served" = "Ese árbol de trabajo ya está servido por otro sitio.";
+"error.worktree_already_served" = "Ese árbol de trabajo ya está servido por otro proyecto.";
 "error.mysql_init_failed" = "No se pudo preparar la base de datos por primera vez. Revisa el registro «mysql-init» o «mariadb-init» en la carpeta de registros e inténtalo de nuevo.";
 "error.ssh_known_hosts_unreadable" = "No se pudo leer el archivo de servidores de confianza de Stack; no se modificó.";
 "error.skills_invalid_id" = "El identificador de la skill no es válido: usa minúsculas, números y guiones.";
@@ -4844,7 +4926,41 @@
 "error.skills_import_verify" = "La copia no coincide con el original; no se cambió nada.";
 "error.skills_import_failed" = "No se pudo importar la skill; se dejó todo como estaba.";
 "error.retry" = "Reintentar";
+"error.copyDetails" = "Copiar detalles";
 "error.openLogs" = "Abrir Registros";
 "error.withCause" = "Causa: %@";
 "error.startFailed" = "No se pudo iniciar %@";
 "error.stopFailed" = "No se pudo detener %@";
+"error.link.tooLong" = "es demasiado largo.";
+"error.link.notStack" = "no es un enlace de Stack.";
+"error.link.unknownDestination" = "Stack no sabe abrir «%@».";
+"error.link.unknownPath" = "la ruta «%@» no existe.";
+"error.link.unknownKey" = "sobra el dato «%@».";
+"error.link.duplicateKey" = "el dato «%@» está repetido.";
+"error.link.missingKey" = "falta el dato «%@».";
+"error.link.badValue" = "el dato «%@» no es válido.";
+"error.link.noProject" = "No hay un proyecto «%@».";
+"error.link.noFolder" = "La carpeta del enlace no existe.";
+"error.link.noTool" = "No hay una herramienta «%@».";
+"error.read.runtimes" = "No se pudieron leer las versiones instaladas";
+"error.read.mail" = "No se pudo leer el correo";
+"error.report.title" = "Informar de un problema";
+"error.report.detail" = "Este texto queda en tu Mac: cópialo o guárdalo y envíalo tú si quieres. Stack no envía nada.";
+"error.report.note.removed" = "Se quitan contraseñas, fichas, valores de .env y el nombre de tu carpeta personal.";
+"error.report.whatHappened" = "¿Qué pasó?";
+"error.report.whatHappenedPrompt" = "Cuéntalo con tus palabras (opcional)";
+"error.report.header" = "Informe de un problema de Stack";
+"error.report.what" = "Qué falló";
+"error.report.message" = "Mensaje";
+"error.report.code" = "Código";
+"error.report.technical" = "Detalle técnico";
+"error.report.time" = "Hora";
+"error.report.note" = "Descripción";
+"error.report.failures" = "Últimos errores de Stack";
+"error.report.log" = "Últimos errores del registro del sistema";
+"error.report.none" = "ninguno en esta sesión";
+"error.report.copied" = "Copiado";
+"error.report.save" = "Guardar…";
+"error.report.savedFile" = "Guardado";
+"error.report.fileName" = "informe-de-stack.txt";
+"error.report.saveFailed" = "No se pudo guardar el informe";

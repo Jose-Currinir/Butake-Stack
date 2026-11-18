@@ -1,10 +1,27 @@
 # Decisiones vigentes
 
-Decisiones de producto y de arquitectura que siguen en pie. Una línea por decisión, con su fecha y su
-motivo. Las más nuevas, arriba. Una decisión que cambia se reemplaza aquí, no se agrega otra.
+Decisiones de producto y de arquitectura. Una línea por decisión, con su fecha y su motivo. Las más
+nuevas, arriba. Las entradas no se reescriben: una decisión que cambia agrega una entrada nueva que dice
+a cuál reemplaza, y la vieja queda marcada «reemplazada por la del <fecha>» (sin borrar su texto). Antes
+de cambiar un texto, un lugar o una regla de la interfaz, se busca aquí si ya hay una decisión.
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-11-18 | Rediseño A: la barra lateral usa símbolos grises del sistema y, en cada proyecto, su logo chico y un punto de estado; las fichas de color quedan para Ajustes, las listas de cada herramienta y las páginas de Componentes | Doce colores en la barra competían con lo importante; el color queda para la identidad del proyecto y su estado |
+| 2026-11-18 | Las páginas de un elemento (proyecto, proyecto de varias partes, tipo de servicio, lenguaje, tipo de utilidad) abren con `DetailHeader`: logo grande, nombre en grande, una línea debajo y sus acciones con texto; las pestañas van debajo y la ventana no repite el subtítulo | El nombre era lo más chico de la página y las acciones eran iconos sin texto en la barra |
+| 2026-11-18 | Las herramientas de tres columnas (Git, Terminal, Bases de datos, Bóveda, Correo…) siguen con sus acciones en la barra de herramientas | Es el patrón de Mail y Xcode para lista y detalle; una cabecera grande quitaría lugar a la lista |
+| 2026-11-18 | Inicio es una sola lista con columnas por carpeta (proyecto, dirección, rama, estado, Iniciar/Detener), con `List` y no `Table` | `Table` no pliega carpetas anidadas ni deja ocultar columnas cuando falta ancho |
+| 2026-11-18 | Avisos de macOS para una actualización lista, un proceso que se detuvo y una instalación terminada: vienen apagados (Ajustes › General), uno por episodio y solo con Stack en segundo plano | Útiles con la ventana cerrada sin volverse ruido; el permiso de macOS se pide solo al encenderlos |
+| 2026-11-18 | El icono de la barra de menús lleva un punto (forma, no color) mientras el estado no es «Todo en marcha» | Stack vive en la barra de menús: con la ventana cerrada es el único lugar donde se ve que algo falla |
+| 2026-11-18 | Una acción pedida que no se hizo es una alerta; una lectura o una parte que falló es una línea en su página, con Reintentar | Un fallo menor no bloquea la ventana, y «no se pudo leer» no se confunde con una lista vacía |
+| 2026-11-18 | «Informar de un problema…» arma un texto sin secretos que queda en el Mac: el usuario lo copia o lo guarda; Stack no envía nada | Diagnóstico sin abrir un canal de datos hacia afuera |
+| 2026-11-18 | Los atajos viven en un solo registro (`Shared/Shortcuts.swift`), con una prueba de choques: Atrás de la Bóveda es Esc, Actualizar de Bases de datos ⌥⌘R, Atajos de teclado ⌘/ y Ocultar lista ⌥⌘L | ⌘[ y ⌘R hacían dos cosas a la vez |
+| 2026-11-18 | La barra lateral muestra un número solo para lo que pide atención (Inicio, Proyectos plegado); Correo no lo lleva | El total de mensajes capturados nunca baja y no dice nada nuevo |
+| 2026-11-18 | Las ediciones sin guardar de una tabla viven en el cliente de bases de datos: cambiar de página o cerrar la ventana las conserva; desconectar y salir de Stack preguntan | No se pierde trabajo sin aviso |
+| 2026-11-18 | «Iniciar con la sesión» registra el servicio de fondo y también la app (`SMAppService.mainApp`), con un solo interruptor | El texto prometía que Stack se abría al iniciar sesión y solo arrancaba el servicio |
+| 2026-11-18 | El texto de un estado se calcula hasta 4,5:1 de contraste en cada tema, y toda animación pasa por `Shared/Motion.swift`, que respeta «Reducir movimiento» | Legible en el tema claro y con los ajustes de accesibilidad de macOS |
+| 2026-11-18 | Sin ventana aparte por página ni selección de varios proyectos a la vez, por ahora | Se revisa cuando haya un caso real que lo pida |
+| 2026-11-18 | Git: Actualizar y Bajar podan las ramas borradas en el remoto; una rama combinada y borrada allí se elimina de este Mac con un botón, después de comprobar que sus commits están en el remoto | Un pull request combinado en la web dejaba la rama listada en Stack |
 | 2026-11-16 | Skills: una carpeta plana por skill en la carpeta de datos de Stack; el grupo y las etiquetas viven solo en `index.json` y las IA reciben enlaces, nunca copias | Cambiar de grupo o renombrar un grupo no rompe ningún enlace; una sola copia real por skill (R23) |
 | 2026-11-14 | Renombrar o mover un proyecto encendido lo detiene y lo vuelve a iniciar; no se rechaza | Sus procesos no pueden escribir registros mientras estos cambian de nombre, y rechazar obligaba a un paso manual |
 | 2026-11-14 | El motor nunca lee el Llavero: al renombrar, la app copia, verifica y recién entonces borra los ítems de Entornos | Sin secretos huérfanos ni copias duplicadas (R22) |

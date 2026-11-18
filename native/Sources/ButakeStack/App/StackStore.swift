@@ -43,6 +43,11 @@ import SwiftUI
     var projectVersions: [String: String] = [:]
     var status: StackStatus?
     var daemonRunning = false
+    /// The supervisor stopped answering a moment ago: «Reconectando…» until `DaemonLiveness.grace` ends.
+    var daemonReconnecting = false
+    @ObservationIgnored var liveness = DaemonLiveness()
+    @ObservationIgnored private var graceTask: Task<Void, Never>?
+    @ObservationIgnored private var wakeObserver: NSObjectProtocol?
     var agent: AgentStatus?
     var config: StackConfig?
     var phpRuntimes: [PhpRuntimeSummary] = []
@@ -78,6 +83,13 @@ import SwiftUI
     /// panel: each surface shows its own, and an error never opens the window (StackStore+Attention).
     var failure: ActionFailure?
     var panelFailure: ActionFailure?
+    /// Reads that failed and are said on their own page, by what was read (StackStore+Failures).
+    var pageFailures: [ReadArea: ActionFailure] = [:]
+    @ObservationIgnored var readFailureCounts: [ReadArea: Int] = [:]
+    /// The last failures of this session, for the problem report (StackStore+Failures).
+    var recentFailures: [FailureRecord] = []
+    /// Ayuda › «Informar de un problema…»: the sheet that builds the report.
+    var showReport = false
     var toast: String?
     /// The last action that can be undone, offered in the window's notice with «Deshacer» (StackStore+Undo).
     var undoOffer: UndoOffer?
@@ -89,6 +101,12 @@ import SwiftUI
     @ObservationIgnored var replayingUndo = false
     /// The last undo or redo that ran, for tests to wait on.
     @ObservationIgnored var undoTask: Task<Void, Never>?
+    /// The undo notice's clock: seconds left, whether the pointer or focus holds it, and its task.
+    @ObservationIgnored var undoRemaining: Double = 0
+    @ObservationIgnored var undoHeld = false
+    @ObservationIgnored var undoTimer: Task<Void, Never>?
+    /// What says a notice to VoiceOver (replaced in tests).
+    @ObservationIgnored var announcer: @MainActor (String) -> Void = StackStore.postAnnouncement
     var newSite: Detection?
     /// A folder holding several projects, ready to import.
     var importScan: FolderScan?
@@ -150,6 +168,8 @@ import SwiftUI
 
     /// The setup assistant (first launch, while something is missing, Ayuda).
     var showSetup = false
+    /// Ayuda › Atajos de teclado.
+    var showShortcuts = false
     var phpCatalog: [PhpCatalogEntry] = []
     /// Apple's command line tools (Git, compiler): needed for new projects and engines built from source.
     var appleTools = true
@@ -238,21 +258,67 @@ import SwiftUI
         applyStatus(value)
     }
 
-    private func applyStatus(_ value: StackStatus?) {
+    func applyStatus(_ value: StackStatus?, at now: Date = Date()) {
         #if DEBUG
         let value = QAHooks.simulatedStatus ?? value
         #endif
+        liveness.observe(up: value != nil, at: now)
+        // During the grace the last state stays on screen: one missed reading is not «Detenido»
+        // on every card. When the grace ends, `updateReconnecting` lets it go.
+        if value != nil || liveness.phase(at: now) != .reconnecting { show(value) }
+        updateReconnecting(at: now)
+        #if DEBUG
+        if QAHooks.simulatesReconnecting { daemonReconnecting = true }
+        #endif
+    }
+
+    private func show(_ value: StackStatus?) {
         if status != value { status = value }
         if daemonRunning != (value != nil) { daemonRunning = value != nil }
     }
-    func refreshRuntimes() async {
-        phpRuntimes = (try? await call(["method": "listPhpRuntimes"])) ?? []
-        pythonRuntimes = (try? await call(["method": "listPythonRuntimes"])) ?? []
-        terminalLinks = (try? await call(["method": "terminalStatus"])) ?? [:]
-        recipes = (try? await call(["method": "engineRecipes"])) ?? recipes
-        for tool in ["node", "jdk", "caddy"] + Route.allEngines {
-            installedTools[tool] = (try? await call(["method": "installedTools", "tool": tool])) ?? []
+
+    /// «Reconectando…» while the grace lasts; a task ends it so the bar says «Detenido» on time.
+    private func updateReconnecting(at now: Date) {
+        let left = liveness.remaining(at: now)
+        let reconnecting = liveness.phase(at: now) == .reconnecting
+        if daemonReconnecting != reconnecting { daemonReconnecting = reconnecting }
+        if !reconnecting, liveness.phase(at: now) == .stopped { show(nil) }
+        graceTask?.cancel()
+        guard let left else { return }
+        graceTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(left + 0.05))
+            guard !Task.isCancelled, let self else { return }
+            self.updateReconnecting(at: Date())
         }
+    }
+
+    /// A Mac that wakes up reads the state at once instead of waiting for the next turn of the poll,
+    /// and a read that failed across the sleep does not count as «Detenido».
+    private func observeWake() {
+        guard wakeObserver == nil else { return }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.liveness.wake(at: Date())
+                Task { await self.refreshStatus(); await self.refreshDisk() }
+            }
+        }
+    }
+    func refreshRuntimes() async {
+        // A read that fails keeps the last list and is said on the page, instead of reading as «nothing installed».
+        var failed: Error?
+        func read<T: Decodable & Sendable>(_ parameters: [String: Any]) async -> T? {
+            do { return try await call(parameters) } catch { failed = failed ?? error; return nil }
+        }
+        if let value: [PhpRuntimeSummary] = await read(["method": "listPhpRuntimes"]) { phpRuntimes = value }
+        if let value: [PythonRuntime] = await read(["method": "listPythonRuntimes"]) { pythonRuntimes = value }
+        if let value: [String: TerminalLink] = await read(["method": "terminalStatus"]) { terminalLinks = value }
+        if let value: [EngineRecipe] = await read(["method": "engineRecipes"]) { recipes = value }
+        for tool in ["node", "jdk", "caddy"] + Route.allEngines {
+            if let value: [ToolManifest] = await read(["method": "installedTools", "tool": tool]) { installedTools[tool] = value }
+        }
+        readDone(.runtimes, failed, retry: { [weak self] in await self?.refreshRuntimes() })
     }
     /// A catalog that cannot be read is said in its picker (with «Reintentar»), never as an alert.
     func loadAvailable(_ tool: String, refresh: Bool = false) async {
@@ -305,6 +371,7 @@ import SwiftUI
     /// Says what went wrong where the action was asked: the window's alert, or the panel's banner.
     func report(_ error: Error, title: String? = nil, from surface: StopSurface = .window, retry: (@MainActor () async -> Void)? = nil) {
         let failure = ActionFailure(error: error, title: title, retry: retry)
+        record(failure)
         if surface == .panel { panelFailure = failure } else { self.failure = failure }
     }
     /// What the alert of the window shows: a failure with its buttons, or a plain message.
@@ -313,8 +380,9 @@ import SwiftUI
     }
     func dismissFailure() { failure = nil; errorMessage = nil }
     func notify(_ text: String) {
-        withAnimation(.snappy) { toast = text }
-        Task { try? await Task.sleep(for: .seconds(2.5)); withAnimation(.snappy) { if toast == text { toast = nil } } }
+        Motion.run(.snappy) { toast = text }
+        announce(text)
+        Task { try? await Task.sleep(for: .seconds(2.5)); Motion.run(.snappy) { if toast == text { toast = nil } } }
     }
 
     @ObservationIgnored private var startup: Task<Void, Never>?
@@ -340,6 +408,7 @@ import SwiftUI
     /// exits or after an upgrade, without restarting it on behalf of the user.
     func startPolling() {
         startDiskWatch()
+        observeWake()
         guard statusObserver == nil else { return }
         statusObserver = Task { [weak self] in
             var delay = 5.0

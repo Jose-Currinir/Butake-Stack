@@ -55,7 +55,7 @@ struct GitRepositoryPicker: View {
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.quaternary.opacity(0.6)))
+            .background(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).fill(.quaternary.opacity(0.6)))
             .contentShape(Rectangle())
         }
         .buttonStyle(HighlightButtonStyle())
@@ -172,7 +172,7 @@ struct GitCompositeHeader: View {
             Text(group.name).lineLimit(1)
             Spacer()
             if problems > 0 {
-                Label(String(problems), systemImage: Symbols.warning).font(.uiCaption.monospacedDigit()).foregroundStyle(Brand.warning)
+                Label(String(problems), systemImage: Symbols.warning).font(.uiCaption.monospacedDigit()).foregroundStyle(Brand.warningText)
                     .help(String(format: L("git.problems.count"), problems))
                     .accessibilityIdentifier("git.repo.composite.problems.\(group.id)")
             }
@@ -200,7 +200,7 @@ struct GitRepositoryRow: View {
                 Image(systemName: Symbols.missingFolder).foregroundStyle(Brand.warning).help(L("git.repo.missing"))
             } else if let summary {
                 if summary.problems > 0 {
-                    Label(String(summary.problems), systemImage: Symbols.warning).font(.uiCaption.monospacedDigit()).foregroundStyle(Brand.warning)
+                    Label(String(summary.problems), systemImage: Symbols.warning).font(.uiCaption.monospacedDigit()).foregroundStyle(Brand.warningText)
                         .help(String(format: L("git.problems.count"), summary.problems))
                 } else if summary.unfinished {
                     Image(systemName: Symbols.warning).foregroundStyle(Brand.warning).help(L("git.repo.unfinished"))

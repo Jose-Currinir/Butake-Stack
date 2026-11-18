@@ -43,6 +43,8 @@ struct LogViewer: View {
                     }
                     .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                 }
+                // A log that follows its end goes to the end; a paused one stays where it was.
+                .rememberScroll("log.\(id)", enabled: ownActions ? !follow : browser.isPaused(id))
                 .onChange(of: visible, initial: true) { _, current in
                     let following = ownActions ? follow : !browser.isPaused(id)
                     if following && !current.isEmpty { proxy.scrollTo(current.count - 1, anchor: .bottom) }
@@ -75,7 +77,7 @@ struct LiveLog: View {
     let id: String
     @State private var browser = LogsBrowser()
     var body: some View {
-        LogViewer(store: store, id: id, browser: browser, ownActions: true, minHeight: 420).workSurface(radius: 14)
+        LogViewer(store: store, id: id, browser: browser, ownActions: true, minHeight: 420).workSurface(radius: 14)  // radius 14: outside the Radius scale, kept as it was
     }
 }
 

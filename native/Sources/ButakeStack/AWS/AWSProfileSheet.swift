@@ -53,7 +53,7 @@ struct AWSProfileSheet: View {
                 Section {
                     TextField(L("aws.sheet.namePlaceholder"), text: $draft.name, prompt: Text(L("aws.sheet.namePlaceholder"))).formField(L("common.name"))
                         .accessibilityIdentifier("aws.sheet.name")
-                    if taken { Text(L("error.aws_profile_exists")).font(.uiCaption).foregroundStyle(Brand.danger) }
+                    if taken { Text(L("error.aws_profile_exists")).font(.uiCaption).foregroundStyle(Brand.dangerText) }
                     if isNew {
                         Picker(L("aws.sheet.kind"), selection: $draft.kind) {
                             ForEach([AWSProfile.Kind.static, .sso, .role], id: \.self) { Text($0.title).tag($0) }

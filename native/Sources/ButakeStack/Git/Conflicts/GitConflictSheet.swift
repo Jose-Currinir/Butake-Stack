@@ -43,7 +43,7 @@ struct GitConflictSheet: View {
             Divider()
             footer(remaining: conflicts.count)
         }
-        .frame(minWidth: 900, idealWidth: 1100, minHeight: 620, idealHeight: 760)
+        .frame(minWidth: 900, idealWidth: 1100, minHeight: 520, idealHeight: 760)
         .onAppear { if selection == nil { selection = conflicts.first?.path } }
         .accessibilityIdentifier("git.conflict.sheet")
     }
@@ -140,7 +140,7 @@ private struct GitConflictResolver: View {
                     Text(L("git.conflict.result")).font(.uiHeadline)
                     Spacer()
                     if unresolved {
-                        Label(L("git.conflict.markersLeft"), systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warning)
+                        Label(L("git.conflict.markersLeft"), systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warningText)
                     }
                     Button { result = Self.both(mine, incoming) } label: { Label(L("git.conflict.useBoth"), systemImage: Symbols.gitCombine) }
                         .buttonStyle(.bordered).controlSize(.small)
@@ -149,9 +149,9 @@ private struct GitConflictResolver: View {
                 }
                 CodeEditor(text: $result, path: path, editable: !saving)
                     .frame(minHeight: 160)
-                    .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)) }
+                    .overlay { RoundedRectangle(cornerRadius: Radius.small).strokeBorder(Color(nsColor: .separatorColor)) }
                     .accessibilityIdentifier("git.conflict.result")
-                if let failure { Text(failure).font(.uiCaption).foregroundStyle(Brand.danger).textSelection(.enabled) }
+                if let failure { Text(failure).font(.uiCaption).foregroundStyle(Brand.dangerText).textSelection(.enabled) }
                 HStack {
                     Text(L("git.conflict.saveNote")).font(.uiCaption).foregroundStyle(.secondary)
                     Spacer()
@@ -178,7 +178,7 @@ private struct GitConflictResolver: View {
                     .accessibilityIdentifier("git.conflict.use.\(id)")
             }
             CodeEditor(text: .constant(text), path: path, editable: false)
-                .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)) }
+                .overlay { RoundedRectangle(cornerRadius: Radius.small).strokeBorder(Color(nsColor: .separatorColor)) }
         }
     }
 

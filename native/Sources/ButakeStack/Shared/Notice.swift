@@ -60,8 +60,7 @@ struct Notice<Actions: View>: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(tint.opacity(0.3)))
+        .tintedFill(tint, fill: 0.1, edge: 0.3, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     }
 }
 
@@ -75,6 +74,30 @@ extension Notice {
     init(_ style: Style, _ title: String, detail: String? = nil, symbol: String? = nil, value: Double? = nil,
          @ViewBuilder actions: () -> Actions) {
         self.init(style: style, title: title, detail: detail, symbol: symbol, value: value, actions: actions)
+    }
+}
+
+/// A `.partial` failure on its page (E-02): what could not be read, the cause when there is one, and
+/// «Reintentar». No modal: the page keeps what it had. Nothing shows while `store.pageFailures[area]` is nil.
+struct PartialFailureNotice: View {
+    @Bindable var store: StackStore
+    let area: ReadArea
+
+    var body: some View {
+        if let failure = store.pageFailures[area] {
+            Notice(.warning, failure.title, detail: failure.message) {
+                if let retry = failure.retry {
+                    Button(L("error.retry")) { Task { await retry() } }
+                        .accessibilityIdentifier("error.read.\(area.rawValue).retry")
+                }
+                if failure.offersLogs {
+                    Button(L("error.openLogs")) { store.route = .tool("logs") }
+                        .accessibilityIdentifier("error.read.\(area.rawValue).openLogs")
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("error.read.\(area.rawValue)")
+        }
     }
 }
 

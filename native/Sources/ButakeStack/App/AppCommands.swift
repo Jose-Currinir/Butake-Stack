@@ -45,6 +45,9 @@ struct AppCommands: Commands {
     let canGoForward: Bool
     /// The Git menu exists only while the tool is on.
     let gitEnabled: Bool
+    /// The page on screen has a list in the middle column, and whether the user hid it.
+    let hasList: Bool
+    let listHidden: Bool
     @Environment(\.openWindow) private var openWindow
     @FocusedValue(\.selectedProject) private var project
     @FocusedValue(\.sidebarProject) private var listed
@@ -60,11 +63,11 @@ struct AppCommands: Commands {
             Button(L("menu.checkUpdates")) { Task { await UpdateService.shared.check(userInitiated: true) } }
         }
         CommandGroup(replacing: .newItem) {
-            Button(L("menu.newProject")) { inWindow { store.showNewProject = true } }.keyboardShortcut("n")
-            Button(L("menu.addExisting")) { inWindow { store.chooseFolder() } }.keyboardShortcut("n", modifiers: [.command, .option])
+            Button(L("menu.newProject")) { inWindow { store.showNewProject = true } }.shortcut(Shortcuts.newProject)
+            Button(L("menu.addExisting")) { inWindow { store.chooseFolder() } }.shortcut(Shortcuts.addExisting)
             Button(L("menu.importFolder")) { inWindow { store.chooseFolder(scan: true) } }
             Button(L("menu.cloneRepository")) { inWindow { store.showClone = true } }
-            Button(L("menu.newFolder")) { inWindow { store.groupNaming = .new(sites: []) } }.keyboardShortcut("n", modifiers: [.command, .shift])
+            Button(L("menu.newFolder")) { inWindow { store.groupNaming = .new(sites: []) } }.shortcut(Shortcuts.newFolder)
             Divider()
             Button(L("backup.export")) { Task { await store.exportConfiguration() } }.disabled(store.busy != nil)
             Button(L("backup.restore")) {
@@ -79,45 +82,49 @@ struct AppCommands: Commands {
             Divider()
             // With no search of its own on the page, ⌘F goes to the sidebar's: the menu says so.
             Button(finder == nil && search != nil ? L("menu.findProject") : L("menu.find")) { find() }
-                .keyboardShortcut("f").disabled(search == nil && finder == nil)
+                .shortcut(Shortcuts.find).disabled(search == nil && finder == nil)
         }
         SidebarCommands()
+        CommandGroup(after: .sidebar) {
+            Button(L(listHidden ? "menu.showList" : "menu.hideList")) { ContentColumnVisibility.shared.toggle(store.route) }
+                .shortcut(Shortcuts.toggleList).disabled(!hasList)
+        }
         CommandGroup(after: .toolbar) {
-            Button(L("menu.reload")) { Task { await reload() } }.keyboardShortcut("r")
+            Button(L("menu.reload")) { Task { await reload() } }.shortcut(Shortcuts.reload)
             Divider()
-            Button(L("menu.textBigger")) { text.increase() }.keyboardShortcut("+").disabled(!text.canIncrease)
-            Button(L("menu.textSmaller")) { text.decrease() }.keyboardShortcut("-").disabled(!text.canDecrease)
-            Button(L("menu.textReset")) { text.reset() }.keyboardShortcut("0").disabled(text.factor == 1)
+            Button(L("menu.textBigger")) { text.increase() }.shortcut(Shortcuts.textBigger).disabled(!text.canIncrease)
+            Button(L("menu.textSmaller")) { text.decrease() }.shortcut(Shortcuts.textSmaller).disabled(!text.canDecrease)
+            Button(L("menu.textReset")) { text.reset() }.shortcut(Shortcuts.textReset).disabled(text.factor == 1)
             Divider()
             // The folders of the sidebar and of Inicio (one state for both).
             FolderMenuItems(store: store)
         }
         CommandMenu(L("menu.go")) {
-            Button(L("menu.back")) { inWindow { store.goBack() } }.keyboardShortcut("[").disabled(!canGoBack)
-            Button(L("menu.forward")) { inWindow { store.goForward() } }.keyboardShortcut("]").disabled(!canGoForward)
+            Button(L("menu.back")) { inWindow { store.goBack() } }.shortcut(Shortcuts.back).disabled(!canGoBack)
+            Button(L("menu.forward")) { inWindow { store.goForward() } }.shortcut(Shortcuts.forward).disabled(!canGoForward)
             Divider()
-            Button(L("route.home")) { go(.home) }.keyboardShortcut("1")
+            Button(L("route.home")) { go(.home) }.shortcut(Shortcuts.home)
             Button(L("route.sites")) { if let id = store.selectedProject?.id ?? store.projects.first?.id { inWindow { store.openSite(id) } } }
-                .keyboardShortcut("2").disabled(!hasProjects)
+                .shortcut(Shortcuts.projects).disabled(!hasProjects)
             // In the sidebar's order; each shortcut keeps the page it always opened (P-37).
-            Button(L("sidebar.tools")) { go(toolsRoute) }.keyboardShortcut("6")
-            Button(L("sidebar.cloud")) { if let cloudRoute { go(cloudRoute) } }.keyboardShortcut("7").disabled(cloudRoute == nil)
+            Button(L("sidebar.tools")) { go(toolsRoute) }.shortcut(Shortcuts.tools)
+            Button(L("sidebar.cloud")) { if let cloudRoute { go(cloudRoute) } }.shortcut(Shortcuts.cloud).disabled(cloudRoute == nil)
             Section(L("sidebar.components")) {
                 // Each row of Componentes opens on its last category seen, like its row.
-                Button(L("sidebar.services")) { go(Component.services.lastRoute()) }.keyboardShortcut("3")
-                Button(L("sidebar.languages")) { go(Component.languages.lastRoute()) }.keyboardShortcut("4")
-                Button(L("route.utilities")) { go(Component.utilities.lastRoute()) }.keyboardShortcut("5")
+                Button(L("sidebar.services")) { go(Component.services.lastRoute()) }.shortcut(Shortcuts.services)
+                Button(L("sidebar.languages")) { go(Component.languages.lastRoute()) }.shortcut(Shortcuts.languages)
+                Button(L("route.utilities")) { go(Component.utilities.lastRoute()) }.shortcut(Shortcuts.utilities)
             }
             // ⌃⌘1…9: each tool that is on, in the sidebar's order.
             Menu(L("menu.goTool")) {
                 ForEach(Array(toolRows.prefix(9).enumerated()), id: \.element) { index, id in
                     Button(Route.tool(id).title) { go(.tool(id)) }
-                        .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.control, .command])
+                        .shortcut(Shortcuts.goTool(index + 1, title: Route.tool(id).title))
                 }
             }
             .disabled(toolRows.isEmpty)
             Divider()
-            Button(L("menu.quickOpen")) { inWindow { store.showPalette = true } }.keyboardShortcut("o", modifiers: [.command, .shift])
+            Button(L("menu.quickOpen")) { inWindow { store.showPalette = true } }.shortcut(Shortcuts.quickOpen)
         }
         if gitEnabled {
             CommandMenu(L("menu.git")) { GitMenuItems() }
@@ -126,19 +133,19 @@ struct AppCommands: Commands {
             Button(project?.enabled == true ? L("menu.stop") : L("menu.start")) {
                 if let project { Task { await store.setSite(project, enabled: !project.enabled) } }
             }
-            .keyboardShortcut("p", modifiers: [.control, .command])
+            .shortcut(Shortcuts.startStop)
             .disabled(project == nil || project?.isMissing == true || project?.isServed == false)
             Button(L("menu.openInBrowser")) { if let url = project?.url { NSWorkspace.shared.open(url) } }
-                .keyboardShortcut("b", modifiers: [.command, .option])
+                .shortcut(Shortcuts.openInBrowser)
                 .disabled(project?.enabled != true || project?.url == nil)
             Button(L("menu.showInFinder")) { if let path = project?.path { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path) } }
-                .keyboardShortcut("r", modifiers: [.command, .shift]).disabled(project == nil || project?.isMissing == true)
-            Button(L("project.settings")) { projectSettings?.open() }.keyboardShortcut("i").disabled(projectSettings == nil)
+                .shortcut(Shortcuts.showInFinder).disabled(project == nil || project?.isMissing == true)
+            Button(L("project.settings")) { projectSettings?.open() }.shortcut(Shortcuts.projectSettings).disabled(projectSettings == nil)
             // ⌃⌥1…4, only on a project's page (⌘⌥ + number is Git's).
             Menu(L("menu.projectTabs")) {
                 ForEach(ProjectPage.Tab.allCases) { tab in
                     Button(L("site.tab.\(tab.rawValue)")) { projectTabs?.select(tab) }
-                        .keyboardShortcut(KeyEquivalent(tab.shortcutKey), modifiers: [.control, .option])
+                        .shortcut(Shortcuts.projectTab(KeyEquivalent(tab.shortcutKey), title: L("site.tab.\(tab.rawValue)")))
                         .disabled(projectTabs?.available.contains(tab) != true)
                 }
             }
@@ -149,11 +156,13 @@ struct AppCommands: Commands {
                 .disabled(project == nil)
             Divider()
             Button(L("menu.removeProject")) { removeProject() }
-                .keyboardShortcut(.delete).disabled(listed == nil && project == nil)
+                .shortcut(Shortcuts.removeProject).disabled(listed == nil && project == nil)
         }
         CommandGroup(replacing: .help) {
             Button(L("menu.setup")) { inWindow { store.showSetup = true } }
             Button(L("menu.website")) { NSWorkspace.shared.open(Self.website) }
+            Button(L("menu.shortcuts")) { inWindow { store.showShortcuts = true } }.shortcut(Shortcuts.shortcutsSheet)
+            Button(L("menu.reportProblem")) { inWindow { store.showReport = true } }
             if gitEnabled {
                 Divider()
                 Button(L("git.dictionary.titleEllipsis")) { GitDictionaryLink.open(openWindow) }

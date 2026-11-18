@@ -50,6 +50,14 @@ pestaña Cuentas desaparece), deja de vigilar carpetas y cada `git*` responde `p
   revisiones, comentarios, crear, aprobar, comentar, combinar), lista de repositorios para clonar,
   crear y publicar un repositorio, y la protección de la rama principal leída del proveedor. Las
   comprobaciones fallidas van a Problemas (`GitHostingProblems`).
+- **Pull request combinado en la web:** al volver a Stack después de una página del proveedor que
+  Stack abrió («Ver en GitHub», «Ver en Bitbucket»), el repositorio abierto se actualiza una vez
+  (`GitHosting.returnedFromBrowser`). Actualizar y Bajar podan (`--prune`) las ramas borradas en el
+  remoto. Una rama local cuyos commits ya están todos en una rama del remoto y cuya rama del remoto se
+  borró se marca «Combinada» (`merged` en la instantánea); Problemas ofrece «Volver a develop y
+  eliminar la rama» (o a la rama principal sin develop) y «Eliminar de este Mac» para las demás
+  (`delete_merged_branch`, que el motor vuelve a comprobar). Un pull request combinado con *squash*
+  deja otros commits en el remoto: esa rama sigue como «Se eliminó en el remoto».
 
 Acciones propias de Stack en `gitAction` (sin consola): terminar (`continue_operation`) o cancelar
 (`abort_operation`) una combinación, reorganización, copia o reversión a medias; rama

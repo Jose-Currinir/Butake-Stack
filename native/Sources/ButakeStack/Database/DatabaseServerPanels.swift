@@ -17,11 +17,13 @@ struct UsersPanel: View {
     @State private var creating = false
     @State private var picked: DBUser.ID?
     @State private var order = [KeyPathComparator(\DBUser.account)]
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.db.users") private var userColumns: TableColumnCustomization<DBUser> = TableColumnCustomization()
     var shown: [DBUser] { (showSystem ? users : users.filter { !$0.system || $0.name == "root" || $0.name == "postgres" }).sorted(using: order) }
     var body: some View {
         VStack(spacing: 0) {
             if let error { DBProblemCard(problem: error).padding(14) }
-            Table(shown, selection: $picked, sortOrder: $order) {
+            Table(shown, selection: $picked, sortOrder: $order, columnCustomization: $userColumns) {
                 TableColumn(L("common.user"), value: \.account) { user in
                     Label {
                         Text(user.account).foregroundStyle(user.system ? .secondary : .primary)
@@ -30,12 +32,12 @@ struct UsersPanel: View {
                     }
                     .help(user.locked ? L("db.userLocked") : user.account)
                 }
-                .width(min: 140, ideal: 200)
+                .width(min: 140, ideal: 200).customizationID("user")
                 TableColumn(L("db.col.grants"), value: \.grantsText) { user in
                     Text(user.grantsText).font(.uiSubheadline.monospaced()).foregroundStyle(.secondary).lineLimit(1)
                         .truncationMode(.tail).help(user.grants.joined(separator: "\n"))
                 }
-                .width(min: 160, ideal: 300)
+                .width(min: 160, ideal: 300).customizationID("grants")
                 TableColumn("") { user in
                     if !user.system && connection.allowsWrites {
                         Button { Task { await drop(user) } } label: {
@@ -45,7 +47,7 @@ struct UsersPanel: View {
                         .accessibilityIdentifier("db.users.drop.\(user.account)")
                     }
                 }
-                .width(28)
+                .width(28).customizationID("actions")
             }
             .contextMenu(forSelectionType: DBUser.ID.self) { ids in
                 if connection.allowsWrites, let user = users.first(where: { ids.contains($0.id) }), !user.system {
@@ -160,25 +162,27 @@ struct ProcessesPanel: View {
     @State private var error: DBProblem?
     @State private var picked: DBProcess.ID?
     @State private var order = [KeyPathComparator(\DBProcess.sortID)]
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.db.processes") private var processColumns: TableColumnCustomization<DBProcess> = TableColumnCustomization()
     var body: some View {
         let rows = list.sorted(using: order)
         VStack(spacing: 0) {
             if let error { DBProblemCard(problem: error).padding(14) }
-            Table(rows, selection: $picked, sortOrder: $order) {
+            Table(rows, selection: $picked, sortOrder: $order, columnCustomization: $processColumns) {
                 TableColumn(L("db.col.id"), value: \.sortID) { p in Text(p.pid ?? "").monospacedDigit() }
-                    .width(min: 40, ideal: 60)
+                    .width(min: 40, ideal: 60).customizationID("id")
                 TableColumn(L("common.user"), value: \.sortUser) { p in Text(p.user ?? "").lineLimit(1).help(p.host ?? "") }
-                    .width(min: 60, ideal: 90)
+                    .width(min: 60, ideal: 90).customizationID("user")
                 TableColumn(L("db.database"), value: \.sortDatabase) { p in Text(p.database ?? "—").lineLimit(1) }
-                    .width(min: 60, ideal: 90)
+                    .width(min: 60, ideal: 90).customizationID("database")
                 TableColumn(L("db.col.state"), value: \.sortState) { p in Text(p.state ?? "").foregroundStyle(.secondary).lineLimit(1) }
-                    .width(min: 60, ideal: 90)
+                    .width(min: 60, ideal: 90).customizationID("state")
                 TableColumn(L("db.col.seconds"), value: \.sortSeconds) { p in Text(p.seconds.map(String.init) ?? "").monospacedDigit() }
-                    .width(min: 40, ideal: 60).alignment(.trailing)
+                    .width(min: 40, ideal: 60).alignment(.trailing).customizationID("seconds")
                 TableColumn(L("db.col.query"), value: \.sortQuery) { p in
                     Text(p.query ?? "").font(.uiSubheadline.monospaced()).lineLimit(1).help(p.query ?? "")
                 }
-                .width(min: 120, ideal: 260)
+                .width(min: 120, ideal: 260).customizationID("query")
                 TableColumn("") { p in
                     if connection.allowsWrites {
                         Button { Task { await kill(p) } } label: { Label(L("db.kill"), systemImage: Symbols.kill).labelStyle(.iconOnly) }
@@ -186,7 +190,7 @@ struct ProcessesPanel: View {
                             .accessibilityIdentifier("db.processes.kill.\(p.pid ?? "")")
                     }
                 }
-                .width(28)
+                .width(28).customizationID("actions")
             }
             .contextMenu(forSelectionType: DBProcess.ID.self) { ids in
                 if connection.allowsWrites, let process = list.first(where: { ids.contains($0.id) }) {

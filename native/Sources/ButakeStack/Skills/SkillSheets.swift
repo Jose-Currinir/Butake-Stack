@@ -62,10 +62,10 @@ struct NewSkillSheet: View {
                     .onChange(of: id) { if id != SkillIDs.slug(name) { idEdited = true } }
                     .accessibilityIdentifier("skills.sheet.new.id")
                 if taken {
-                    Text(L("error.skills_exists")).font(.uiCaption).foregroundStyle(Brand.danger)
+                    Text(L("error.skills_exists")).font(.uiCaption).foregroundStyle(Brand.dangerText)
                         .accessibilityIdentifier("skills.sheet.new.taken")
                 } else if !id.isEmpty && !SkillIDs.isValid(id) {
-                    Text(L("error.skills_invalid_id")).font(.uiCaption).foregroundStyle(Brand.danger)
+                    Text(L("error.skills_invalid_id")).font(.uiCaption).foregroundStyle(Brand.dangerText)
                         .accessibilityIdentifier("skills.sheet.new.invalid")
                 }
                 TextField(L("skills.new.description"), text: $description, prompt: Text(L("skills.new.descriptionPrompt")), axis: .vertical)
@@ -139,9 +139,9 @@ struct RenameSkillSheet: View {
             Form {
                 TextField(L("skills.new.id"), text: $id).accessibilityIdentifier("skills.sheet.rename.id")
                 if taken {
-                    Text(L("error.skills_exists")).font(.uiCaption).foregroundStyle(Brand.danger)
+                    Text(L("error.skills_exists")).font(.uiCaption).foregroundStyle(Brand.dangerText)
                 } else if !id.isEmpty && !SkillIDs.isValid(id) {
-                    Text(L("error.skills_invalid_id")).font(.uiCaption).foregroundStyle(Brand.danger)
+                    Text(L("error.skills_invalid_id")).font(.uiCaption).foregroundStyle(Brand.dangerText)
                 }
             }
             .formStyle(.grouped)

@@ -196,7 +196,7 @@ struct NewProjectSheet: View {
     }
 
     func select(_ new: Selection) {
-        withAnimation(.snappy(duration: 0.25)) { selection = new }
+        Motion.run(.snappy(duration: 0.25)) { selection = new }
     }
 
     // MARK: Content
@@ -208,13 +208,13 @@ struct NewProjectSheet: View {
                 if selection == .open { openPane } else if selection == .clone { clonePane } else if info.wizard { wizardPane } else { form }
             }
             .id(selection)
-            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 8)), removal: .opacity))
+            .transitioned(.asymmetric(insertion: .opacity.combined(with: .offset(y: 8)), removal: .opacity))
         case .creating:
-            creatingPane.transition(.opacity.combined(with: .scale(scale: 0.98)))
+            creatingPane.transitioned(.opacity.combined(with: .scale(scale: 0.98)))
         case .done(let created):
-            donePane(created).transition(.opacity.combined(with: .scale(scale: 0.98)))
+            donePane(created).transitioned(.opacity.combined(with: .scale(scale: 0.98)))
         case .failed(let message):
-            failedPane(message).transition(.opacity)
+            failedPane(message).transitioned(.opacity)
         }
     }
 
@@ -259,7 +259,7 @@ struct NewProjectSheet: View {
                 Button(L("new.goToSite")) { finish(created) }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("new.goToSite")
             case .failed:
-                Button { withAnimation(.snappy) { phase = .form } } label: { Label(L("new.back"), systemImage: Symbols.back) }
+                Button { Motion.run(.snappy) { phase = .form } } label: { Label(L("new.back"), systemImage: Symbols.back) }
                     .accessibilityIdentifier("new.back")
                 Spacer()
                 Button(L("common.cancel")) { dismiss() }.keyboardShortcut(.cancelAction).accessibilityIdentifier("new.cancel")
@@ -315,11 +315,11 @@ struct NewProjectSheet: View {
         }
         log = []
         started = Date()
-        withAnimation(.smooth(duration: 0.35)) { phase = .creating }
+        Motion.run(.smooth(duration: 0.35)) { phase = .creating }
         Task {
             let result = await store.createProject(request)
             log = await store.stepLog("create-\(slug)")
-            withAnimation(.smooth(duration: 0.35)) {
+            Motion.run(.smooth(duration: 0.35)) {
                 switch result {
                 case .success(var created):
                     created.seconds = Date().timeIntervalSince(started)
@@ -338,7 +338,7 @@ struct NewProjectSheet: View {
     func reset() {
         name = ""
         log = []
-        withAnimation(.snappy) { phase = .form }
+        Motion.run(.snappy) { phase = .form }
         nameFocused = true
     }
 }

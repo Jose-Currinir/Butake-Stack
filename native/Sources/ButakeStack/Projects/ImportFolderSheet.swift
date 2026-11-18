@@ -61,7 +61,7 @@ struct ImportFolderSheet: View {
         } status: {
             if !failures.isEmpty {
                 Label(String(format: L("import.failed"), failures.joined(separator: "; ")), systemImage: Symbols.warning)
-                    .font(.uiCaption).foregroundStyle(Brand.warning).lineLimit(3)
+                    .font(.uiCaption).foregroundStyle(Brand.warningText).lineLimit(3)
                     .help(failures.joined(separator: "\n")).accessibilityIdentifier("import.failures")
             } else {
                 Toggle(L("watch.toggle"), isOn: $watch)
@@ -182,7 +182,7 @@ struct ImportFolderSheet: View {
     func importSelected() async -> Bool {
         let items = toImport
         toImportCount = items.count
-        withAnimation(.smooth) { importing = true }
+        Motion.run(.smooth) { importing = true }
         done = 0; failures = []
         var reserved: Set<String> = []
         var placed: [String: [String]] = [:]
@@ -202,7 +202,7 @@ struct ImportFolderSheet: View {
             } catch {
                 failures.append("\(URL(fileURLWithPath: project.path).lastPathComponent) (\(EngineFailure.message(error)))")
             }
-            withAnimation(.snappy) { done += 1 }
+            Motion.run(.snappy) { done += 1 }
         }
         await store.refresh()
         // Into an existing Stack folder of the same name, or a new one.
@@ -221,7 +221,7 @@ struct ImportFolderSheet: View {
         let added = items.count - failures.count
         if added > 0 { store.notify(String(format: L("import.done"), added)) }
         if failures.isEmpty { return true }
-        withAnimation(.smooth) { importing = false }
+        Motion.run(.smooth) { importing = false }
         return false
     }
 }

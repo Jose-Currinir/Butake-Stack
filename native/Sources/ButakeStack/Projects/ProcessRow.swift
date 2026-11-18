@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// Process with its state in words, «Automático» when it starts with the project, and its buttons:
-/// registros, reiniciar and the start/stop switch. Right click offers the same.
+/// Process with its dot and its state in words, «Automático» when it starts with the project, and one
+/// visible action: the start/stop switch. Registros, Reiniciar and the rest are in the «⋯» menu and
+/// in the right click of the row.
 struct ProcessRow: View {
     let store: StackStore
     let id: String
@@ -12,7 +13,7 @@ struct ProcessRow: View {
         let phase = store.phase(id)
         let live = phase == .running || phase == .starting
         HStack(spacing: 10) {
-            Image(systemName: phase.symbol).foregroundStyle(phase.color).font(.uiSubheadline).accessibilityHidden(true)
+            StatusDot(color: phase.color, symbol: phase.markSymbol, label: L("state.\(phase.rawValue)"))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(process.name).font(.uiBody.weight(.medium))
@@ -26,13 +27,18 @@ struct ProcessRow: View {
                 Text(process.commandLine).font(.uiCaption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 6)
-            Text(L("state.\(phase.rawValue)")).font(.uiCaption).foregroundStyle(phase == .crashed ? phase.color : .secondary)
+            Text(L("state.\(phase.rawValue)")).font(.uiCaption).foregroundStyle(phase == .crashed ? Brand.dangerText : .secondary)
                 .accessibilityIdentifier("process.state.\(id)")
-            Button { showLog(id) } label: { Label(L("process.logsShort"), systemImage: Symbols.logs) }
-                .buttonStyle(.borderless).help(L("process.logs")).accessibilityIdentifier("process.logs.\(id)")
-            Button { Task { await store.processAction(id, "restart") } } label: { Label(L("process.restart"), systemImage: Symbols.reload) }
-                .buttonStyle(.borderless).disabled(!store.daemonRunning || !live)
-                .help(L("process.restart")).accessibilityIdentifier("process.restart.\(id)")
+            Menu {
+                Button { showLog(id) } label: { Label(L("process.logs"), systemImage: Symbols.logs) }
+                    .accessibilityIdentifier("process.logs.\(id)")
+                Button { Task { await store.processAction(id, "restart") } } label: { Label(L("process.restart"), systemImage: Symbols.reload) }
+                    .disabled(!store.daemonRunning || !live).accessibilityIdentifier("process.restart.\(id)")
+            } label: {
+                Label(L("process.more"), systemImage: Symbols.more).labelStyle(.iconOnly)
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .help(L("process.more")).accessibilityIdentifier("process.more.\(id)")
             Toggle(process.name, isOn: Binding(get: { live }, set: { on in Task { await store.processAction(id, on ? "start" : "stop") } }))
                 .toggleStyle(.switch).controlSize(.small).labelsHidden()
                 .disabled(!store.daemonRunning)

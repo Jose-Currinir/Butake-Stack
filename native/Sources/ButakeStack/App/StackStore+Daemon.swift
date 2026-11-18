@@ -44,9 +44,12 @@ extension StackStore {
         await run(L("busy.agent")) { let _: [String: Bool] = try await self.call(["method": "installAgent", "confirmed": true]) }
         try? await Task.sleep(for: .seconds(2))
         await refresh(); await refreshPorts()
+        // Stack itself opens at login too (menu bar only), once the agent is in.
+        LoginItem.sync(agentOn: agent?.loaded == true)
     }
     func uninstallAgent() async {
         await run(L("busy.agent")) { let _: [String: Bool] = try await self.call(["method": "uninstallAgent", "confirmed": true]) }
         await refresh(); await refreshPorts()
+        LoginItem.sync(agentOn: agent?.loaded == true)
     }
 }

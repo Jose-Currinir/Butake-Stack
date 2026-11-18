@@ -38,7 +38,7 @@ struct SkillEditorPanel: View {
                 .accessibilityIdentifier("skills.editor.text")
             HStack {
                 if tooLarge {
-                    Label(L("error.skills_too_large"), systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warning)
+                    Label(L("error.skills_too_large"), systemImage: Symbols.warning).font(.uiCaption).foregroundStyle(Brand.warningText)
                         .accessibilityIdentifier("skills.editor.tooLarge")
                 } else if dirty {
                     Text(L("skills.editor.unsaved")).font(.uiCaption).foregroundStyle(.secondary)

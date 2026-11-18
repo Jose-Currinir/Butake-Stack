@@ -9,6 +9,8 @@ struct SSHFilesView: View {
     @Bindable var browser: SFTPBrowser
     @State private var dropping = false
     @State private var pathText = ""
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.ssh.files") private var fileColumns: TableColumnCustomization<SFTPEntry> = TableColumnCustomization()
     var body: some View {
         VStack(spacing: 0) {
             TextField(L("ssh.sftp.path"), text: $pathText)
@@ -35,8 +37,8 @@ struct SSHFilesView: View {
                 }
                 if browser.loading { ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).padding(10) }
                 if dropping {
-                    RoundedRectangle(cornerRadius: 12).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6]))
-                        .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6]))
+                        .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: Radius.card))
                         .overlay(Label(String(format: L("ssh.sftp.dropHere"), browser.path), systemImage: Symbols.share).font(.uiHeadline).foregroundStyle(Color.accentColor))
                         .padding(8).allowsHitTesting(false)
                 }
@@ -79,7 +81,7 @@ struct SSHFilesView: View {
     }
 
     private var table: some View {
-        Table(browser.entries, selection: $browser.selection) {
+        Table(browser.entries, selection: $browser.selection, columnCustomization: $fileColumns) {
             TableColumn(L("common.name")) { entry in
                 Label {
                     Text(entry.name).lineLimit(1).truncationMode(.middle).help(entry.name)
@@ -88,15 +90,15 @@ struct SSHFilesView: View {
                         .foregroundStyle(entry.isDirectory ? TileColor.folder : .secondary)
                 }
             }
-            .width(min: 140, ideal: 200)
+            .width(min: 140, ideal: 200).customizationID("name")
             TableColumn(L("ssh.sftp.size")) { entry in
                 Text(entry.isDirectory ? "—" : Format.fileSizeText(Int64(entry.size))).monospacedDigit().foregroundStyle(.secondary)
             }
-            .width(min: 70, ideal: 90, max: 120)
+            .width(min: 70, ideal: 90, max: 120).customizationID("size")
             TableColumn(L("ssh.sftp.modified")) { entry in Text(entry.modified).monospacedDigit().foregroundStyle(.secondary) }
-                .width(min: 90, ideal: 130, max: 160)
+                .width(min: 90, ideal: 130, max: 160).customizationID("modified")
             TableColumn(L("ssh.sftp.mode")) { entry in Text(entry.mode).font(.uiSubheadline.monospaced()).foregroundStyle(.secondary) }
-                .width(min: 70, ideal: 90, max: 110)
+                .width(min: 70, ideal: 90, max: 110).customizationID("mode")
         }
         .contextMenu(forSelectionType: String.self) { names in
             let items = browser.entries.filter { names.contains($0.name) }
@@ -231,7 +233,7 @@ private struct TransferRow: View {
                 ProgressView(value: transfer.progress).progressViewStyle(.linear)
                     .tint(transfer.state == .failed ? Brand.danger : nil)
                 if transfer.state == .failed, !transfer.detail.isEmpty {
-                    Text(transfer.detail).font(.uiCaption).foregroundStyle(Brand.danger).lineLimit(2)
+                    Text(transfer.detail).font(.uiCaption).foregroundStyle(Brand.dangerText).lineLimit(2)
                 }
             }
             if transfer.state == .running {

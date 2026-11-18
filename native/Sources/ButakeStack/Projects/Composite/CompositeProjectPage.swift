@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The page of a project of several parts (P-39): its parts with their state and start order,
 /// what each one uses of another, the Git of all its repositories, and the vault's apps and the
-/// Google Cloud link its parts inherit. «Iniciar todo» and «Detener todo» in the toolbar.
+/// Google Cloud link its parts inherit. Its head is the project's (`DetailHeader`) with «Detener todo»
+/// and «Iniciar todo».
 struct CompositeProjectPage: View {
     @Bindable var store: StackStore
     let group: ProjectGroup
@@ -11,6 +12,14 @@ struct CompositeProjectPage: View {
 
     var body: some View {
         let parts = parts
+        VStack(spacing: 0) {
+            header(parts)
+            Divider()
+            form(parts)
+        }
+    }
+
+    private func form(_ parts: [Project]) -> some View {
         Form {
             CompositePartsSection(store: store, group: group, parts: parts)
             let dependencies = PartDependency.among(parts)
@@ -38,18 +47,22 @@ struct CompositeProjectPage: View {
             if store.pluginEnabled("gcp") { GCPCompositeSection(group: group) }
         }
         .formStyle(.grouped).themedScroll()
-        .toolbar { toolbar(parts) }
     }
 
-    @ToolbarContentBuilder private func toolbar(_ parts: [Project]) -> some ToolbarContent {
+    private func header(_ parts: [Project]) -> some View {
         let working = store.compositeWorking == group.id
-        ToolbarItemGroup(placement: .primaryAction) {
+        return DetailHeader(title: group.name) {
+            IconTile(symbol: Symbols.compositeProject, size: DetailHeaderLogo.size).accessibilityHidden(true)
+        } subtitle: {
+            Text(String(format: L(group.sites.count == 1 ? "composite.partsCount.one" : "composite.partsCount"), group.sites.count))
+        } actions: {
             if working { ProgressView().controlSize(.small).accessibilityIdentifier("composite.working") }
-            Button { Task { await store.stopAll(group) } } label: { Label(L("composite.stopAll"), systemImage: Symbols.stop) }
+            Button(L("composite.stopAll")) { Task { await store.stopAll(group) } }
                 .help(L("composite.stopAllHelp"))
                 .disabled(store.compositeWorking != nil || !parts.contains(where: \.enabled))
                 .accessibilityIdentifier("composite.stopAll")
-            Button { Task { await store.startAll(group) } } label: { Label(L("composite.startAll"), systemImage: Symbols.start) }
+            Button(L("composite.startAll")) { Task { await store.startAll(group) } }
+                .buttonStyle(.borderedProminent)
                 .help(L(group.ordered ? "composite.startAllOrderedHelp" : "composite.startAllHelp"))
                 .disabled(store.compositeWorking != nil || parts.filter { !$0.isMissing }.allSatisfy(\.enabled))
                 .accessibilityIdentifier("composite.startAll")

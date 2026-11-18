@@ -53,7 +53,7 @@ private struct TrustSection: View {
     private func row<Action: View>(symbol: String, title: String, detail: String, ok: Bool, @ViewBuilder action: () -> Action) -> some View {
         LabeledContent {
             if ok {
-                Label(L("setup.ready"), systemImage: Symbols.success).foregroundStyle(Brand.success)
+                Label(L("setup.ready"), systemImage: Symbols.success).foregroundStyle(Brand.successText)
             } else {
                 action()
             }

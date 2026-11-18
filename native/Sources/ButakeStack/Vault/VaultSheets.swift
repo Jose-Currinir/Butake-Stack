@@ -208,7 +208,7 @@ private struct VaultExportSheet: View {
                 Label(password.count < VaultArchive.minimumPasswordLength ? String(format: L("vault.passwordShort"), VaultArchive.minimumPasswordLength)
                       : password == confirm ? L("vault.passwordOk") : L("vault.passwordMismatch"),
                       systemImage: valid ? Symbols.success : Symbols.info)
-                    .font(.uiCaption).foregroundStyle(valid ? Brand.success : .secondary)
+                    .font(.uiCaption).foregroundStyle(valid ? Brand.successText : .secondary)
             }
             .formStyle(.grouped).themedScroll()
             Text(L("vault.exportWarning")).font(.uiCaption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
@@ -263,7 +263,7 @@ private struct VaultImportArchiveSheet: View {
                     LabeledContent(L("vault.archiveContent"), value: String(format: L("vault.archiveCounts"), header.containers, header.items))
                     SecureField(L("vault.archivePassword"), text: $password).accessibilityIdentifier("vault.sheet.importArchive.password")
                 } else {
-                    Label(L("vault.error.unsupported"), systemImage: Symbols.warning).foregroundStyle(Brand.warning)
+                    Label(L("vault.error.unsupported"), systemImage: Symbols.warning).foregroundStyle(Brand.warningText)
                 }
             }
             .formStyle(.grouped).themedScroll()

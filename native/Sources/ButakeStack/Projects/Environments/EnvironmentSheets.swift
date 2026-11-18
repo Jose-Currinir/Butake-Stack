@@ -45,7 +45,7 @@ struct NewEnvironmentSheet: View {
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L("env.kindDetail.\(kind.rawValue)") + " " + String(format: L("env.appEnvNote"), identifier.isEmpty ? "…" : identifier))
-                        if kind == .production { Text(L("env.productionNote")).foregroundStyle(Brand.danger) }
+                        if kind == .production { Text(L("env.productionNote")).foregroundStyle(Brand.dangerText) }
                     }
                     .font(.uiCaption).foregroundStyle(.secondary).multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -102,6 +102,8 @@ struct EnvAuditSheet: View {
     let store: StackStore
     let project: Project
     @State private var entries: [AuditRow] = []
+    /// Column widths, order and visibility the user chose, kept with the window.
+    @SceneStorage("table.env.audit") private var auditColumns: TableColumnCustomization<AuditRow> = TableColumnCustomization()
     struct AuditRow: Identifiable {
         let id: Int
         let entry: EnvAuditEntry
@@ -111,11 +113,11 @@ struct EnvAuditSheet: View {
     var body: some View {
         SheetFrame(title: L("env.audit"), symbol: Symbols.history, note: L("env.auditNote"), width: 640, height: 440,
                    actionTitle: L("common.close"), actionID: "env.auditClose", action: { true }) {
-            Table(entries) {
-                TableColumn(L("env.audit.date"), value: \.date).width(min: 120, ideal: 150)
-                TableColumn(L("env.audit.action")) { Text(L("env.action.\($0.entry.action)")) }.width(min: 70, ideal: 90)
-                TableColumn(L("env.audit.what")) { Text($0.what).font(.uiCallout.monospaced()) }
-                TableColumn(L("common.user"), value: \.entry.user).width(min: 70, ideal: 100)
+            Table(entries, columnCustomization: $auditColumns) {
+                TableColumn(L("env.audit.date"), value: \.date).width(min: 120, ideal: 150).customizationID("date")
+                TableColumn(L("env.audit.action")) { Text(L("env.action.\($0.entry.action)")) }.width(min: 70, ideal: 90).customizationID("action")
+                TableColumn(L("env.audit.what")) { Text($0.what).font(.uiCallout.monospaced()) }.customizationID("what")
+                TableColumn(L("common.user"), value: \.entry.user).width(min: 70, ideal: 100).customizationID("user")
             }
             .accessibilityIdentifier("env.auditTable")
         } status: {

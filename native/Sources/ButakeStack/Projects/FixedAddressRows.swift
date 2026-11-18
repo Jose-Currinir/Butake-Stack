@@ -90,7 +90,7 @@ struct FixedAddressRows: View {
                     .buttonStyle(.bordered).accessibilityIdentifier("share.fixed.cancelConnect")
                 } else {
                     if store.connectingCloudflare {
-                        Text(L("share.fixed.connectFailed")).foregroundStyle(Brand.danger)
+                        Text(L("share.fixed.connectFailed")).foregroundStyle(Brand.dangerText)
                     }
                     Button { Task { await store.connectCloudflare(true) } } label: {
                         Label(L("share.fixed.connect"), systemImage: Symbols.link)
@@ -125,7 +125,7 @@ struct FixedAddressRows: View {
         } label: {
             Text(L("share.fixed.title"))
             if address.advancedCertificate {
-                Label(L("share.fixed.advancedCertificate"), systemImage: Symbols.warning).foregroundStyle(Brand.warning)
+                Label(L("share.fixed.advancedCertificate"), systemImage: Symbols.warning).foregroundStyle(Brand.warningText)
             }
         }
         LabeledContent {
@@ -152,10 +152,10 @@ struct FixedAddressRows: View {
                 Text(L("share.fixed.notShared"))
                 Text(project.enabled ? L("share.fixed.shareHelp") : L("share.needsOn"))
             } else if phase == .crashed || phase == .stopped {
-                Text(L("share.failed")).foregroundStyle(Brand.danger)
+                Text(L("share.failed")).foregroundStyle(Brand.dangerText)
             } else if share?.ready == true {
                 Text(L("share.fixed.shared"))
-                Label(L("share.publicWarning"), systemImage: Symbols.warning).foregroundStyle(Brand.warning)
+                Label(L("share.publicWarning"), systemImage: Symbols.warning).foregroundStyle(Brand.warningText)
             } else {
                 Text(L("share.fixed.starting"))
             }
