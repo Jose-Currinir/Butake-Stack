@@ -47,6 +47,7 @@ struct HomePage: View {
             .frame(maxWidth: 1680, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
+        .rememberScroll("page.home")
         .background(Brand.background)
         .focusedSceneValue(\.textFinder, store.projects.isEmpty ? nil : TextFinderRequest { filterRequests += 1 })
         .toolbar {
