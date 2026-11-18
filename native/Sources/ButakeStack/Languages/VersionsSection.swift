@@ -93,6 +93,9 @@ struct VersionsSection: View {
     /// Identifier prefix: language.<name> or service.<category>.<engine>.
     let scope: String
     var footer: String?
+    /// The page's header holds «Instalar versión…»: it asks for the picker through this flag and the
+    /// section does not draw its own button.
+    var installRequest: Binding<Bool>?
     @State private var picking = false
     /// The version the picker opens on: an update of an installed line, or its own suggestion.
     @State private var preset: CatalogVersion.ID?
@@ -108,7 +111,7 @@ struct VersionsSection: View {
                 } description: {
                     Text(L("runtimes.noneDetail"))
                 } actions: {
-                    installButton.buttonStyle(.borderedProminent)
+                    if installRequest == nil { installButton.buttonStyle(.borderedProminent) }
                 }
             } else {
                 ForEach(provider.installed) { item in
@@ -116,9 +119,11 @@ struct VersionsSection: View {
                                         update: provider.update(for: item), remove: { removing = item },
                                         install: { preset = $0.id; picking = true })
                 }
-                HStack {
-                    Spacer()
-                    installButton
+                if installRequest == nil {
+                    HStack {
+                        Spacer()
+                        installButton
+                    }
                 }
             }
         } header: {
@@ -132,6 +137,9 @@ struct VersionsSection: View {
             #if DEBUG
             if QAHooks.versionPicker == provider.id { picking = true }
             #endif
+        }
+        .onChange(of: installRequest?.wrappedValue) {
+            if installRequest?.wrappedValue == true { preset = nil; picking = true; installRequest?.wrappedValue = false }
         }
         .sheet(isPresented: $picking) { VersionPickerSheet(store: store, provider: provider, scope: scope, preset: preset).themedSheet() }
         .confirmationDialog(removing.map { String(format: L("runtimes.confirmRemove"), provider.title(of: $0)) } ?? "",

@@ -1184,6 +1184,8 @@
 "category.installed" = "Instalados";
 "category.available" = "Disponibles";
 "category.install" = "Instalar…";
+"category.runningOf" = "%1$d en marcha de %2$d";
+"category.noneInstalled" = "Ninguno instalado";
 "category.work.web" = "Desarrollo web";
 "category.work.native" = "Desarrollo nativo";
 "category.work.crossplatform" = "Desarrollo multiplataforma";
@@ -1281,6 +1283,8 @@
 "language.rust.versionsFooter" = "La global es la de rustup default; cada proyecto puede fijar la suya en rust-toolchain.toml.";
 "language.swift.versionsFooter" = "La global es la de swiftly use; cada proyecto puede fijar la suya en .swift-version. Xcode mantiene la suya.";
 "language.options" = "Opciones";
+"language.notInstalled" = "Sin instalar";
+"language.globalVersion" = "Global %@";
 
 "runtimes.reloadCatalog" = "Actualizar lista";
 "runtimes.invalid" = "No se pudo verificar";

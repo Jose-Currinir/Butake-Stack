@@ -107,3 +107,8 @@ struct DetailTabs<Tab: Hashable & Identifiable>: View {
         }
     }
 }
+
+/// `DetailHeader.logoSize` cannot be written without the generic arguments; this is the same value.
+enum DetailHeaderLogo {
+    @MainActor static var size: CGFloat { DetailHeader<EmptyView, EmptyView, EmptyView>.logoSize }
+}

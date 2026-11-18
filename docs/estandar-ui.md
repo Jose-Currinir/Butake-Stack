@@ -123,15 +123,23 @@ Las preferencias viven solo en Ajustes; la ventana no tiene una página «Genera
   sus palabras. El estado es uno con la barra lateral.
 - **Proyecto:** Resumen · Entornos · Procesos (si hay) · Registros. La edición va en «Ajustes del
   proyecto…» (hoja). Sin pestaña «Configuración». El título aparece solo en la barra.
-- **Servicio:** una fila por servicio con estado, versión, Iniciar/Detener y menú «⋯».
-- **Lenguaje:** Versiones (la global marcada) · Instalar versión… · Opciones · Proyectos que lo
-  usan. Las versiones de un lenguaje se gestionan solo aquí; la versión de un proyecto se elige
-  en sus ajustes.
+- **Servicio (tipo):** cabecera `DetailHeader` con la ficha del tipo, su nombre («Bases de datos») y
+  debajo «2 en marcha de 3». Sin acciones en la cabecera: Instalar va en cada fila. Debajo, una fila
+  por servicio con estado, versión, Iniciar/Detener y menú «⋯». La barra de herramientas queda con el «+»
+  de la ventana.
+- **Lenguaje:** cabecera `DetailHeader` con el logo grande, el nombre («PHP»), debajo «Global 8.4.27 · 2
+  versiones instaladas» (sin versiones: «Sin instalar») y, a la derecha, el botón principal «Instalar
+  versión…» (donde un instalador previo lo exige, como Rust y Swift, su fila ocupa su lugar). Debajo:
+  Versiones (la global marcada) · Opciones · Proyectos que lo usan, sin repetir lo que dice la cabecera.
+  Desde 1100 pt de ancho de la página, Versiones va a la izquierda y el resto a la derecha. Las
+  versiones de un lenguaje se gestionan solo aquí; la versión de un proyecto se elige en sus ajustes.
 - **Utilidades:** una página por tipo (Asistentes de IA, Líneas de comandos de nube, Git y GitHub
-  en la terminal), como Servicios por
-  categoría, con su título en la barra: `Form(.grouped)` con una fila por utilidad: ficha, nombre,
-  qué es, versión o «Sin instalar», «Instalar…»/«Actualizar a X» y menú «⋯». Las filas de
-  utilidades en otros sitios (asistente, AWS) llevan a la página de su tipo.
+  en la terminal). Cabecera `DetailHeader` con la ficha del tipo, su nombre y «N instaladas de M»; su
+  acción, «Buscar versiones nuevas», va en la cabecera con su texto. Debajo, `Form(.grouped)` con una
+  fila por utilidad: ficha, nombre, qué es, versión o «Sin instalar», «Instalar…»/«Actualizar a X» y menú
+  «⋯». Las filas de utilidades en otros sitios (asistente, AWS) llevan a la página de su tipo.
+- **Páginas con cabecera (Proyecto, Servicio, Lenguaje, Utilidades):** las acciones de la página van en
+  la cabecera con su texto, la principal al final; la barra de herramientas queda con el «+» de la ventana.
 - **Herramientas:** cada una con tres columnas reales (lista, contenido, detalle) y sus acciones
   en la barra de herramientas.
 
