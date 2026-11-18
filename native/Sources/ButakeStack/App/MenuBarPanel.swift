@@ -77,20 +77,24 @@ struct MenuPanel: View {
                 }
             }
             PanelDivider()
+            // The state of the local domains, said in words.
+            if let dns = store.status?.listeners["dns"] {
+                let unavailable = dns.mode == "unavailable"
+                Label(String(format: L(unavailable ? "panel.dnsOff" : "panel.dnsOn"), store.config?.tld.first ?? "test"),
+                      systemImage: unavailable ? Symbols.warning : Symbols.success)
+                    .font(.caption2).foregroundStyle(unavailable ? Brand.warning : .secondary)
+                    .help(L("panel.dnsHelp")).padding(.horizontal, 14).padding(.bottom, 2)
+                    .accessibilityIdentifier("panel.dns")
+            }
             // One line, like the end of a menu: the window, the app's settings and quitting it.
             HStack(spacing: 2) {
                 Button { open() } label: { PanelMenuRow(title: L("menu.open")) }
                     .accessibilityIdentifier("panel.open")
                 Spacer(minLength: 4)
-                if let dns = store.status?.listeners["dns"] {
-                    Label(".\(store.config?.tld.first ?? "test")", systemImage: dns.mode == "unavailable" ? Symbols.warning : Symbols.success)
-                        .font(.caption2).foregroundStyle(dns.mode == "unavailable" ? Brand.warning : .secondary)
-                        .help(L("panel.dnsHelp")).padding(.trailing, 4)
-                }
                 SettingsLink { PanelMenuRow(title: L("menu.settings")) }
                     .accessibilityIdentifier("panel.settings")
-                Button { NSApp.terminate(nil) } label: { PanelMenuRow(title: L("panel.quit")) }
-                    .help(L("menu.quitHelp")).accessibilityIdentifier("panel.quit")
+                Button { NSApp.terminate(nil) } label: { PanelMenuRow(title: L("panel.quit"), shortcut: "⌘Q") }
+                    .keyboardShortcut("q").help(L("menu.quitHelp")).accessibilityIdentifier("panel.quit")
             }
             .buttonStyle(HighlightButtonStyle(radius: 6))
             .padding(.horizontal, 6).padding(.bottom, 6)
@@ -98,6 +102,14 @@ struct MenuPanel: View {
         .frame(width: 320)
         .themedTint()
         .serviceStopConfirmation(store, on: .panel)
+        // A failed action says so here, over the footer; it never opens the window.
+        .overlay(alignment: .bottom) {
+            if let failure = store.panelFailure {
+                PanelFailureBanner(failure: failure, open: open) { store.panelFailure = nil }
+                    .padding(.horizontal, 8).padding(.bottom, 36)
+            }
+        }
+        .onDisappear { store.panelFailure = nil }
         .task { await store.bootstrap() }
     }
 
@@ -200,7 +212,7 @@ private struct ServiceTile: View {
                         title: caddy ? L("panel.web") : "PHP " + entry.id.dropFirst("stack.php-".count).replacingOccurrences(of: "-", with: "."),
                         detail: caddy ? "Caddy" : "FPM",
                         phase: phase,
-                        isOn: Binding(get: { phase == .running || phase == .starting }, set: { on in Task { await store.processAction(entry.id, on ? "start" : "stop") } }),
+                        isOn: Binding(get: { phase == .running || phase == .starting }, set: { on in Task { await store.processAction(entry.id, on ? "start" : "stop", from: .panel) } }),
                         identifier: "panel.service.\(entry.id)")
     }
 }
@@ -227,20 +239,20 @@ private struct ProjectMenuRow: View {
             Spacer(minLength: 4)
             // Always visible: a favorite in the secondary tone, the rest fainter.
             Button { store.toggleFavorite(project.id) } label: {
-                Label(favorite ? L("favorites.remove") : L("favorites.add"), systemImage: Symbols.favorite).labelStyle(.iconOnly)
+                Label(String(format: L(favorite ? "favorites.removeFor" : "favorites.addFor"), project.title), systemImage: Symbols.favorite).labelStyle(.iconOnly)
                     .foregroundStyle(Color(nsColor: favorite ? .secondaryLabelColor : .tertiaryLabelColor))
             }
             .buttonStyle(.borderless)
-            .help(favorite ? L("favorites.remove") : L("favorites.add"))
+            .help(String(format: L(favorite ? "favorites.removeFor" : "favorites.addFor"), project.title))
             .accessibilityIdentifier("panel.favorite.\(project.id)")
             if project.enabled, let url = project.url {
-                Button { dismiss(); NSWorkspace.shared.open(url) } label: { Label(L("favorites.openSite"), systemImage: Symbols.openInBrowser).labelStyle(.iconOnly) }
-                    .buttonStyle(.borderless).help(L("favorites.openSite"))
+                Button { dismiss(); NSWorkspace.shared.open(url) } label: { Label(String(format: L("favorites.openSiteFor"), project.title), systemImage: Symbols.openInBrowser).labelStyle(.iconOnly) }
+                    .buttonStyle(.borderless).help(String(format: L("favorites.openSiteFor"), project.title))
                     .accessibilityIdentifier("panel.openSite.\(project.id)")
             }
             // A project without a server has no switch.
             if project.isServed {
-                Toggle("", isOn: Binding(get: { project.enabled }, set: { on in Task { await store.setSite(project, enabled: on) } }))
+                Toggle("", isOn: Binding(get: { project.enabled }, set: { on in Task { await store.setSite(project, enabled: on, from: .panel) } }))
                     .toggleStyle(.switch).controlSize(.mini).labelsHidden()
                     .disabled(project.isMissing)
                     .help(project.isMissing ? L("missing.title") : String(format: L("site.powerFor"), project.title))
@@ -260,7 +272,41 @@ private struct ProjectMenuRow: View {
 /// A row at the end of the panel that reads like a menu item.
 private struct PanelMenuRow: View {
     let title: String
+    /// The key that does the same, shown after the text like in a menu.
+    var shortcut: String?
     var body: some View {
-        Text(title).font(.callout).padding(.horizontal, 8).padding(.vertical, 3)
+        HStack(spacing: 5) {
+            Text(title).font(.callout)
+            if let shortcut { Text(shortcut).font(.caption).foregroundStyle(.secondary) }
+        }
+        .padding(.horizontal, 8).padding(.vertical, 3)
+    }
+}
+
+/// What failed in the panel, with its cause and the buttons that help; «Abrir Registros» opens the window.
+private struct PanelFailureBanner: View {
+    let failure: ActionFailure
+    let open: () -> Void
+    let dismiss: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(failure.title, systemImage: Symbols.warning).font(.callout.weight(.semibold)).foregroundStyle(Brand.danger)
+            Text(failure.message).font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                if let retry = failure.retry {
+                    Button(L("error.retry")) { dismiss(); Task { await retry() } }.accessibilityIdentifier("panel.error.retry")
+                }
+                if failure.offersLogs {
+                    Button(L("error.openLogs")) { dismiss(); open(); StackStore.shared.route = .tool("logs") }.accessibilityIdentifier("panel.error.logs")
+                }
+                Spacer()
+                Button(L("common.close"), action: dismiss).accessibilityIdentifier("panel.error.close")
+            }
+            .controlSize(.small)
+        }
+        .padding(10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Brand.danger.opacity(0.5)))
+        .accessibilityElement(children: .contain).accessibilityIdentifier("panel.error")
     }
 }

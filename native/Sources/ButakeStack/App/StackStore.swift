@@ -72,8 +72,21 @@ import SwiftUI
     /// Plugins of the catalog and whether it has been read (see `pluginEnabled`).
     var plugins: [ToolInfo] = []
     var pluginsLoaded = false
+    /// A plain message for the alert of the window (the text of a failure that has no button).
     var errorMessage: String?
+    /// The last failure of an action asked in the window, and the one asked in the menu bar
+    /// panel: each surface shows its own, and an error never opens the window (StackStore+Attention).
+    var failure: ActionFailure?
+    var panelFailure: ActionFailure?
     var toast: String?
+    /// The pages visited, for Atrás and Adelante (RouteHistory).
+    var history = RouteHistory()
+    /// The window's undo manager (set by `RootView`): what `undoable` registers on (StackStore+Undo).
+    @ObservationIgnored weak var undoManager: UndoManager?
+    /// True while an undo or redo runs, so the actions it repeats do not register themselves again.
+    @ObservationIgnored var replayingUndo = false
+    /// The last undo or redo that ran, for tests to wait on.
+    @ObservationIgnored var undoTask: Task<Void, Never>?
     var newSite: Detection?
     /// A folder holding several projects, ready to import.
     var importScan: FolderScan?
@@ -266,21 +279,35 @@ import SwiftUI
         jobs.removeAll { $0.id == id }
     }
 
-    /// Runs an engine action with a busy label, then refreshes; errors become a readable alert.
-    func run(_ label: String, refresh: Bool = false, _ work: @escaping @MainActor () async throws -> Void) async {
+    /// Runs an engine action with a busy label, then refreshes. A failure is said on the surface that
+    /// asked (`surface`), titled `failureTitle`, with «Reintentar» to run the same action again.
+    /// `canRetry` is false for work that leaves something behind when it fails (a rename's Keychain copies).
+    func run(_ label: String, refresh: Bool = false, from surface: StopSurface = .window, failureTitle: String? = nil,
+             canRetry: Bool = true, _ work: @escaping @MainActor () async throws -> Void) async {
         let job = beginJob(label)
         defer { endJob(job) }
         do {
             try await work()
         } catch {
-            report(error)
+            var retry: (@MainActor () async -> Void)?
+            if canRetry {
+                retry = { [weak self] in await self?.run(label, refresh: refresh, from: surface, failureTitle: failureTitle, work) }
+            }
+            report(error, title: failureTitle, from: surface, retry: retry)
         }
         // A partly successful action leaves new state behind even when it fails.
         if refresh { await self.refresh() }
     }
-    func report(_ error: Error) {
-        if let failure = error as? EngineFailure { errorMessage = failure.errorDescription } else { errorMessage = L("engine.requestFailed") }
+    /// Says what went wrong where the action was asked: the window's alert, or the panel's banner.
+    func report(_ error: Error, title: String? = nil, from surface: StopSurface = .window, retry: (@MainActor () async -> Void)? = nil) {
+        let failure = ActionFailure(error: error, title: title, retry: retry)
+        if surface == .panel { panelFailure = failure } else { self.failure = failure }
     }
+    /// What the alert of the window shows: a failure with its buttons, or a plain message.
+    var windowFailure: ActionFailure? {
+        failure ?? errorMessage.map { ActionFailure(title: L("error.title"), message: $0) }
+    }
+    func dismissFailure() { failure = nil; errorMessage = nil }
     func notify(_ text: String) {
         withAnimation(.snappy) { toast = text }
         Task { try? await Task.sleep(for: .seconds(2.5)); withAnimation(.snappy) { if toast == text { toast = nil } } }
