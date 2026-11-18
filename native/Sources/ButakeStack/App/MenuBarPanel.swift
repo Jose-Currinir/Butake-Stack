@@ -2,14 +2,53 @@ import AppKit
 import SwiftUI
 
 /// Menu bar icon: the Butake mark as a template image, tinted by the system like other menu extras.
+/// While Stack is not «Todo en marcha» a dot sits at its corner. It is part of the template (the
+/// system tints a template, so color cannot carry it): a solid dot with a clear ring around it, read
+/// as a shape in light, dark and tinted menu bars.
 enum MenuBarIcon {
-    static let image: NSImage = {
+    /// The dot shows for every state but running (the state the store already computes).
+    static func showsDot(for state: StackState) -> Bool { state != .running }
+
+    /// What VoiceOver says: the app and, with the dot, the state.
+    static func description(for state: StackState) -> String {
+        showsDot(for: state) ? "\(L("app.name")): \(state.title)" : L("app.name")
+    }
+
+    static let image: NSImage = base(description: L("app.name"))
+    private static let dotted: NSImage = {
+        let size = NSSize(width: 18, height: 18)
+        let source = base(description: nil)
+        let image = NSImage(size: size, flipped: false) { rect in
+            source.draw(in: rect)
+            let dot = NSRect(x: rect.maxX - 7.5, y: rect.maxY - 7.5, width: 6.5, height: 6.5)
+            // A clear ring around the dot keeps it apart from the mark.
+            NSGraphicsContext.current?.compositingOperation = .clear
+            NSBezierPath(ovalIn: dot.insetBy(dx: -1.5, dy: -1.5)).fill()
+            NSGraphicsContext.current?.compositingOperation = .sourceOver
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: dot).fill()
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }()
+
+    static func image(for state: StackState) -> NSImage {
+        let image = showsDot(for: state) ? dotted : Self.image
+        // The description is set on a copy: the cached image is shared by every state.
+        let copy = image.copy() as? NSImage ?? image
+        copy.isTemplate = true
+        copy.accessibilityDescription = description(for: state)
+        return copy
+    }
+
+    private static func base(description: String?) -> NSImage {
         let image = Bundle.module.image(forResource: "MenuBarIcon") ?? NSImage(systemSymbolName: "server.rack", accessibilityDescription: nil)!
         image.isTemplate = true
         image.size = NSSize(width: 18, height: 18)
-        image.accessibilityDescription = L("app.name")
+        image.accessibilityDescription = description
         return image
-    }()
+    }
 }
 
 /// The menu bar panel: the projects (favorites first; switch, open), the stack's services in a

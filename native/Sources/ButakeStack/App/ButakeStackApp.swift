@@ -17,7 +17,9 @@ import SwiftUI
         MenuBarExtra {
             MenuPanel(store: store).opensSettings()
         } label: {
-            Image(nsImage: MenuBarIcon.image)
+            Image(nsImage: MenuBarIcon.image(for: store.stackState))
+                .accessibilityLabel(MenuBarIcon.description(for: store.stackState))
+                .accessibilityIdentifier("menubar.icon")
         }
         .menuBarExtraStyle(.window)
         Window(L("app.name"), id: "main") {
