@@ -177,7 +177,7 @@ private struct ServiceTileView: View {
         HStack(spacing: 5) {
             TechLogo(tech: tech, size: 16)
             // One line: the dot says whether it runs; the port is in the tooltip.
-            if let phase { Circle().fill(phase.color).frame(width: 5, height: 5) }
+            if let phase { StatusDot(color: phase.color, symbol: phase.markSymbol, label: L("state.\(phase.rawValue)"), size: 5) }
             Text(title).font(.caption).lineLimit(1).minimumScaleFactor(0.75)
             Spacer(minLength: 0)
             Toggle("", isOn: isOn).toggleStyle(.switch).controlSize(.mini).labelsHidden().accessibilityIdentifier(identifier)

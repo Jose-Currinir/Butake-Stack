@@ -97,8 +97,7 @@ private struct ConnectionNode: View {
                 HStack(spacing: 5) {
                     Text(connection.title).font(.uiBody).lineLimit(1)
                     if client.isConnected(connection.id) {
-                        Circle().fill(Brand.success).frame(width: 6, height: 6).help(L("db.connected"))
-                            .accessibilityLabel(L("db.connected"))
+                        StatusDot(color: Brand.success, symbol: Symbols.success, label: L("db.connected"))
                     }
                     if connection.production {
                         Text(L("db.mode.productionShort")).font(.uiCaption2.weight(.bold)).foregroundStyle(.white)
