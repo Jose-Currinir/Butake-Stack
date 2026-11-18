@@ -105,6 +105,8 @@
 "sidebar.menu.turnOff" = "Apagar herramienta";
 "sidebar.menu.undoTurnOff" = "Apagar %@";
 "sidebar.menu.category" = "Abrir categoría";
+"sidebar.attentionHelp.one" = "%d proyecto necesita atención";
+"sidebar.attentionHelp.many" = "%d proyectos necesitan atención";
 
 "menu.restartAll" = "Reiniciar todo";
 "menu.open" = "Abrir Stack";
@@ -144,6 +146,8 @@
 "menu.undoDone" = "Hecho: %@";
 "menu.undoAction" = "Deshacer";
 "menu.projectTabs" = "Ir a la pestaña";
+"menu.hideList" = "Ocultar lista";
+"menu.showList" = "Mostrar lista";
 "menu.undo.start" = "Iniciar %@";
 "menu.undo.stop" = "Detener %@";
 "menu.undo.rename" = "Renombrar %@";
@@ -3053,6 +3057,7 @@
 "db.noConnection" = "Sin conexión";
 "db.copyName" = "Copiar nombre";
 "db.restoreFileEllipsis" = "Restaurar un archivo…";
+"db.unsavedHelp" = "%d cambios sin guardar";
 "db.section.stack" = "Servicios de Stack";
 "db.section.saved" = "Conexiones guardadas";
 "db.tab.overview" = "Resumen";
@@ -3154,6 +3159,9 @@
 "db.confirm.sqlTransaction" = "Estas sentencias cambian datos en %@ dentro de la transacción abierta (nada queda guardado hasta «Confirmar»).";
 "db.confirm.busy" = "Responde la confirmación pendiente antes de continuar.";
 "db.confirm.discardEdits" = "Hay %d cambios sin guardar. Si continúas, se descartarán.";
+"db.confirm.disconnectEdits" = "Hay %d cambios sin guardar en tablas de «%@». Si te desconectas, se descartarán.";
+"db.confirm.quitEdits" = "Hay %d cambios sin guardar en tablas de bases de datos. Si sales, se descartarán.";
+"db.confirm.quitDiscard" = "Salir y descartar";
 "db.problem.detail" = "Detalle técnico";
 "db.problem.keychainNote" = "Se guarda en el Llavero de este Mac solo si el servidor la acepta.";
 "db.problem.needsPassword" = "Este usuario tiene contraseña";

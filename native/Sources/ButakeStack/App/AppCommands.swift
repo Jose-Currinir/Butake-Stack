@@ -45,6 +45,9 @@ struct AppCommands: Commands {
     let canGoForward: Bool
     /// The Git menu exists only while the tool is on.
     let gitEnabled: Bool
+    /// The page on screen has a list in the middle column, and whether the user hid it.
+    let hasList: Bool
+    let listHidden: Bool
     @Environment(\.openWindow) private var openWindow
     @FocusedValue(\.selectedProject) private var project
     @FocusedValue(\.sidebarProject) private var listed
@@ -82,6 +85,10 @@ struct AppCommands: Commands {
                 .keyboardShortcut("f").disabled(search == nil && finder == nil)
         }
         SidebarCommands()
+        CommandGroup(after: .sidebar) {
+            Button(L(listHidden ? "menu.showList" : "menu.hideList")) { ContentColumnVisibility.shared.toggle(store.route) }
+                .keyboardShortcut("l", modifiers: [.command, .option]).disabled(!hasList)
+        }
         CommandGroup(after: .toolbar) {
             Button(L("menu.reload")) { Task { await reload() } }.keyboardShortcut("r")
             Divider()

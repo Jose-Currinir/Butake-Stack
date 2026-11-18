@@ -35,7 +35,8 @@ import SwiftUI
                         cloudRoute: SidebarLayout.cloudRows(enabled: store.enabledPlugins.map(\.id)).first.map(Route.tool),
                         toolRows: SidebarLayout.toolRows(enabled: store.enabledPlugins.map(\.id)),
                         canGoBack: store.history.canGoBack, canGoForward: store.history.canGoForward,
-                        gitEnabled: store.pluginEnabled("git"))
+                        gitEnabled: store.pluginEnabled("git"),
+                        hasList: store.hasList, listHidden: ContentColumnVisibility.shared.isHidden(store.route))
         }
         Settings {
             SettingsWindow(store: store)

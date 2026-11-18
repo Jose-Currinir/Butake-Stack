@@ -49,9 +49,43 @@ struct ContentColumn: View {
 }
 
 extension StackStore {
-    /// The page on screen has its list beside the sidebar (a tool that is off has no page).
+    /// The page on screen has its list beside the sidebar (a tool that is off has no page) and the
+    /// user has not hidden it (Visualización › Ocultar lista).
     /// Locked, the vault is one pane with «Desbloquear»; its apps and services only once it opens.
-    var showsContentColumn: Bool { route.hasContentColumn && canShow(route) && (route != .tool("vault") || VaultSession.shared.isUnlocked) }
+    var showsContentColumn: Bool { hasList && !ContentColumnVisibility.shared.isHidden(route) }
+    /// The page has a list to show or hide at all.
+    var hasList: Bool { route.hasContentColumn && canShow(route) && (route != .tool("vault") || VaultSession.shared.isUnlocked) }
+}
+
+extension Route {
+    /// What «hidden» is remembered by: one entry per tool, one per component (Servicios, Lenguajes…).
+    var listPage: String? {
+        guard hasContentColumn else { return nil }
+        if case .tool(let id) = self { return "tool.\(id)" }
+        return Component.of(self).map { "component.\($0.component.rawValue)" }
+    }
+}
+
+/// Pages whose list (the window's middle column) the user hid, remembered per page.
+@MainActor @Observable final class ContentColumnVisibility {
+    static let shared = ContentColumnVisibility(defaults: .standard)
+    private static let storageKey = "contentColumn.hidden"
+    private let defaults: UserDefaults
+    private(set) var hidden: Set<String>
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+        hidden = Set(defaults.stringArray(forKey: Self.storageKey) ?? [])
+    }
+
+    func isHidden(_ route: Route) -> Bool { route.listPage.map(hidden.contains) ?? false }
+
+    /// Hides the page's list, or shows it again.
+    func toggle(_ route: Route) {
+        guard let page = route.listPage else { return }
+        if hidden.contains(page) { hidden.remove(page) } else { hidden.insert(page) }
+        defaults.set(hidden.sorted(), forKey: Self.storageKey)
+    }
 }
 
 extension View {
