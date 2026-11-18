@@ -181,6 +181,7 @@
 
 "stackState.setup" = "Falta preparar";
 "stackState.stopped" = "Detenido";
+"stackState.reconnecting" = "Reconectando…";
 "stackState.attention" = "Algo necesita atención";
 "stackState.running" = "Todo en marcha";
 "stackState.title" = "Estado";
@@ -244,7 +245,7 @@
 "assistant.promise.2" = "Nada sin tu confirmación";
 
 "activation.title" = "Iniciar con la sesión";
-"activation.help" = "Stack se inicia al iniciar sesión y macOS le entrega los puertos 53, 80 y 443, sin contraseña ni cambios en /etc.";
+"activation.help" = "Stack se abre en la barra de menús al iniciar sesión, sin ventana, y macOS le entrega los puertos 53, 80 y 443, sin contraseña ni cambios en /etc.";
 "activation.php" = "PHP instalado y verificado";
 "activation.caddy" = "Caddy instalado";
 "activation.sites" = "Al menos un proyecto creado";
@@ -4408,7 +4409,7 @@
 "settings.text" = "Texto";
 "settings.textSize" = "Tamaño (⌘+ / ⌘−)";
 "settings.login" = "Iniciar con la sesión";
-"settings.loginOn" = "Stack sirve los proyectos .test desde que inicias sesión.";
+"settings.loginOn" = "Stack se abre en la barra de menús y sirve los proyectos .test desde que inicias sesión.";
 "settings.loginOff" = "Stack se inicia al abrir la app.";
 "settings.startup" = "Sesión";
 "settings.textPercent" = "%d %%";
@@ -4425,6 +4426,16 @@
 "settings.sortProjects" = "Ordenar los proyectos nuevos en App, Service y Web";
 "settings.sortProjectsDetail" = "Según su tipo. Los proyectos existentes no se mueven.";
 "settings.dataFolder" = "Carpeta de Stack";
+"settings.notices.section" = "Avisos";
+"settings.notices.title" = "Avisos del sistema";
+"settings.notices.detail" = "Con Stack en segundo plano, macOS avisa una vez de una actualización lista, un proceso de un proyecto que se detuvo o una instalación que terminó.";
+"settings.notices.denied" = "macOS no permite avisos de Stack. Actívalos en Ajustes del Sistema › Notificaciones.";
+"settings.notices.update.title" = "Actualización lista";
+"settings.notices.update.body" = "Stack %@ está listo para instalar. Ábrelo en Ajustes › General.";
+"settings.notices.process.title" = "%@ se detuvo";
+"settings.notices.process.body" = "Abre Stack para ver el motivo.";
+"settings.notices.install.title" = "Instalación terminada";
+"settings.notices.install.body" = "%@ quedó instalado.";
 "settings.tab.general" = "General";
 "settings.tab.appearance" = "Apariencia";
 "settings.tab.network" = "Red";
@@ -4597,6 +4608,7 @@
 
 /* Errores del motor y de la app */
 "error.title" = "No se pudo completar";
+"error.link" = "Enlace no válido: %@";
 "error.daemon_outdated" = "El servicio de Stack que está corriendo es de otra versión y no se pudo reiniciar. Sal de Stack y ábrelo otra vez.";
 "error.migration_isolated" = "Un almacén aislado no tiene datos que mover.";
 "error.migration_conflict" = "Las dos carpetas tienen datos: no se mueve nada.";
@@ -4848,3 +4860,14 @@
 "error.withCause" = "Causa: %@";
 "error.startFailed" = "No se pudo iniciar %@";
 "error.stopFailed" = "No se pudo detener %@";
+"error.link.tooLong" = "es demasiado largo.";
+"error.link.notStack" = "no es un enlace de Stack.";
+"error.link.unknownDestination" = "Stack no sabe abrir «%@».";
+"error.link.unknownPath" = "la ruta «%@» no existe.";
+"error.link.unknownKey" = "sobra el dato «%@».";
+"error.link.duplicateKey" = "el dato «%@» está repetido.";
+"error.link.missingKey" = "falta el dato «%@».";
+"error.link.badValue" = "el dato «%@» no es válido.";
+"error.link.noProject" = "No hay un proyecto «%@».";
+"error.link.noFolder" = "La carpeta del enlace no existe.";
+"error.link.noTool" = "No hay una herramienta «%@».";
