@@ -22,7 +22,8 @@ def make_key(folder):
 class SignerTests(unittest.TestCase):
     def test_signs_and_verifies_with_a_temporary_key(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            # sign_catalog resolves the catalog; on macOS the temporary folder is a link to /private.
+            root = Path(temporary).resolve()
             key = make_key(root)
             public = signer.public_key_hex(key)
             catalog = root / "catalog.json"
