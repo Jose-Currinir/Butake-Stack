@@ -30,6 +30,7 @@ extension NewProjectSheet {
     /// Applies the QA environment once the sheet is up.
     func qaNewProject() async {
         if QAHooks.newKind == "open" { selection = .open }
+        if QAHooks.newKind == "clone" { selection = .clone }
         if QAHooks.newScroll == "end" {
             try? await Task.sleep(for: .seconds(0.8))
             QAHooks.scrollNewProjectToEnd()

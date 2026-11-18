@@ -106,6 +106,8 @@ import SwiftUI
     /// Projects whose `.env` took another project's new port while their processes run.
     var portRestartOffer: PortRestartOffer?
     var showNewProject = false
+    /// «Clonar repositorio…»: the Git tool's clone sheet from anywhere (see `CloneRepositoryEntry`).
+    var showClone = false
     /// Last HTTP status of each site (0 = no answer).
     var siteHealth: [String: Int] = [:]
     func refreshHealth() async {

@@ -102,6 +102,8 @@ struct RootView: View {
                             .accessibilityIdentifier("toolbar.add.existing")
                         Button { store.chooseFolder(scan: true) } label: { Label(L("menu.importFolder"), systemImage: Symbols.importFolder) }
                             .accessibilityIdentifier("toolbar.add.importFolder")
+                        Button { store.showClone = true } label: { Label(L("menu.cloneRepository"), systemImage: Symbols.gitClone) }
+                            .accessibilityIdentifier("toolbar.add.clone")
                         Divider()
                         Button { store.groupNaming = .new(sites: []) } label: { Label(L("menu.newFolder"), systemImage: Symbols.newFolder) }
                             .accessibilityIdentifier("toolbar.add.newFolder")
@@ -141,6 +143,7 @@ struct RootView: View {
             ProjectSettingsSheet(store: store, project: box.detection.project, notes: box.detection.notes, isNew: true).themedSheet()
         }
         .sheet(isPresented: $store.showNewProject) { NewProjectSheet(store: store).themedSheet() }
+        .sheet(isPresented: $store.showClone) { CloneRepositoryEntry(store: store).themedSheet() }
         .sheet(item: $store.groupNaming, onDismiss: { store.newFolderParent = nil }) { naming in GroupNameSheet(store: store, naming: naming).themedSheet() }
         .sheet(item: $store.importScan, onDismiss: { Task { await store.refreshWatched() } }) { scan in ImportFolderSheet(store: store, scan: scan).themedSheet() }
         .sheet(isPresented: $store.showPalette) { CommandPalette(store: store).themedSheet() }

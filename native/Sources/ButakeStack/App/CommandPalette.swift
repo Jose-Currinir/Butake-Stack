@@ -136,6 +136,8 @@ struct CommandPalette: View {
         list.append(Command(id: "add", section: L("palette.actions"), title: L("menu.addExisting"), detail: "", tech: nil, symbol: Symbols.folder, run: { store.chooseFolder() }))
         list.append(Command(id: "import", section: L("palette.actions"), title: L("menu.importFolder"), detail: "", tech: nil, symbol: Symbols.importFolder,
                             run: { store.chooseFolder(scan: true) }))
+        list.append(Command(id: "clone", section: L("palette.actions"), title: L("menu.cloneRepository"), detail: "", tech: nil, symbol: Symbols.gitClone,
+                            run: { store.showClone = true }))
         list.append(Command(id: "restart", section: L("palette.actions"), title: L("menu.restartAll"), detail: "", tech: nil, symbol: Symbols.reload, run: { Task { await store.reloadStack() } }))
         let words = query.lowercased().split(separator: " ")
         return words.isEmpty ? list : list.filter { command in
