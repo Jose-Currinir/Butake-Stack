@@ -119,17 +119,9 @@ struct RootView: View {
             }
             .overlay(alignment: .bottom) {
                 if let offer = store.undoOffer {
-                    HStack(spacing: 12) {
-                        Label(String(format: L("menu.undoDone"), offer.name), systemImage: Symbols.success).font(.uiCallout.weight(.medium))
-                        Button(L("menu.undoAction")) { store.undoOffered() }
-                            .buttonStyle(.borderless).font(.uiCallout.weight(.semibold))
-                            .accessibilityIdentifier("toast.undo")
-                    }
-                    .padding(.horizontal, 14).padding(.vertical, 9)
-                    .chromeGlass()
-                    .padding(.bottom, 46)
-                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-                    .accessibilityIdentifier("toast.undoOffer")
+                    UndoOfferBar(offer: offer, store: store)
+                        .padding(.bottom, 46)
+                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 } else if let toast = store.toast {
                     Label(toast, systemImage: Symbols.success)
                         .font(.uiCallout.weight(.medium))

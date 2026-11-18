@@ -155,13 +155,26 @@ extension StackStore {
     /// Removes the folder; its sites go back to the plain list.
     func deleteGroup(_ id: String) {
         if followsDisk { removeFolderOnDisk(id); return }
+        let name = groups.first { $0.id == id }?.name ?? id
+        let before = groups
         updateGroups { $0.removeAll { $0.id == id } }
+        registerGroupsUndo(String(format: L("menu.undo.deleteFolder"), name), before: before)
+    }
+    /// Offers to take back a change of the folders (the projects and their files are untouched): the
+    /// folders as they were, and as they are now.
+    private func registerGroupsUndo(_ name: String, before: [ProjectGroup]) {
+        let after = groups
+        guard after != before else { return }
+        undoable(name, undo: { [weak self] in self?.updateGroups { $0 = before } },
+                 redo: { [weak self] in self?.updateGroups { $0 = after } })
     }
     /// Moves a site into a folder (nil: out of any folder), at the end or right before another of its sites.
     func move(_ site: String, to group: String?, before other: String? = nil) {
         // On the disk a move is a move of the folder: confirmed, and it can be undone.
         if followsDisk { requestDiskMove(site, into: group); return }
         guard !site.hasPrefix(Self.folderDragPrefix) else { return }
+        let before = groups
+        defer { registerGroupsUndo(String(format: L("menu.undo.moveToFolder"), projects.first { $0.id == site }?.title ?? site), before: before) }
         updateGroups { groups in
             for index in groups.indices { groups[index].sites.removeAll { $0 == site } }
             guard let group, let index = groups.firstIndex(where: { $0.id == group }) else { return }

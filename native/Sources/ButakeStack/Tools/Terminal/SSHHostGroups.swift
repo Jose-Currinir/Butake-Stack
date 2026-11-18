@@ -12,6 +12,18 @@ extension SSHTerminal {
     /// Moves a host to another group ("" takes it out of every group).
     func move(_ id: String, to group: String) async {
         guard var host = host(id), host.group != group else { return }
+        let old = host.group
+        let name = host.name
+        host.group = group
+        guard await rewrite([host]) else { return }
+        store.undoable(String(format: L("menu.undo.moveHost"), name),
+                       undo: { [weak self] in await self?.put(id, in: old) },
+                       redo: { [weak self] in await self?.put(id, in: group) })
+    }
+
+    /// Puts a host in a group without offering undo (what undo and redo do).
+    private func put(_ id: String, in group: String) async {
+        guard var host = host(id), host.group != group else { return }
         host.group = group
         await rewrite([host])
     }
@@ -30,10 +42,14 @@ extension SSHTerminal {
 
     /// Saves the changed hosts in one request: the engine validates all of them first and writes once,
     /// so a refusal leaves every host as it was.
-    private func rewrite(_ changed: [SSHHost]) async {
-        guard !changed.isEmpty else { return }
-        do { let _: [SSHHost] = try await store.call(["method": "sshUpdateHosts", "hosts": changed.map(encode)]) } catch { store.report(error) }
+    /// True when it was saved.
+    @discardableResult
+    private func rewrite(_ changed: [SSHHost]) async -> Bool {
+        guard !changed.isEmpty else { return false }
+        var saved = false
+        do { let _: [SSHHost] = try await store.call(["method": "sshUpdateHosts", "hosts": changed.map(encode)]); saved = true } catch { store.report(error) }
         await load()
+        return saved
     }
 }
 

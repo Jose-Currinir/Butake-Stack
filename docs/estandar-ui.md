@@ -226,6 +226,11 @@ seguir diciendo `engine` o `site` en identificadores internos; el glosario rige 
     (⌘Z, ⇧⌘Z). `nombre` es lo que dice Edición («Iniciar Tienda»), con clave `menu.undo.*`.
     `undo` y `redo` repiten acciones del store: no registran de nuevo mientras corren. Se pide
     confirmación solo para lo irreversible (borrar una base, quitar un proyecto con sus secretos).
+    El aviso «Hecho: … · Deshacer» dura 8 s más 0,1 s por carácter pasado de 30 (tope 20 s) y
+    espera mientras el puntero o el foco estén sobre él. Todo lo que se dice a VoiceOver sale por
+    `store.announce` (avisos de `notify`, el aviso de deshacer y lo deshecho o rehecho): no se
+    publica un anuncio aparte. También son deshacibles mover un proyecto de carpeta, quitar una
+    carpeta (solo el agrupamiento) y mover un host SSH de grupo.
 24. Un error se dice donde se pidió la acción: `store.run(…, from: .panel)` o `report(_, from:)`
     lo muestran en el panel de la barra de menús (`panelFailure`, nunca abre la ventana) o en la
     alerta de la ventana. Lleva título con el contexto (`failureTitle`), la causa si el motor la
