@@ -8,6 +8,11 @@ toolbar  A control in a ToolbarItem or ToolbarItemGroup whose label is a bare Te
          of a Label (VoiceOver, the toolbar's "Icon and Text" mode and the overflow menu read the
          Label's title).
 
+icononly A `.labelStyle(.iconOnly)` whose control has neither `.help(` nor an accessibility label: a
+         button with only an icon has no visible name, so the tooltip is the only text a pointer
+         user sees. The control is the modifier chain of the Label and, when the Label sits in a
+         closure (Button's label, a Menu's), the chain of the view that owns the closure.
+
 A line with `// lint-ui: <reason>` is an exemption and is not reported (scripts/lint-ui.sh lists it).
 """
 import pathlib
@@ -101,9 +106,68 @@ def toolbar(path, text):
                 yield f"{path}:{line_of(text, index)}: control de la barra sin Label"
 
 
+ICON_ONLY = re.compile(r"\.labelStyle\(\.iconOnly\)")
+NAMED = re.compile(r"\.help\(|\.accessibilityLabel\(|\.accessibilityHint\(")
+
+
+CONTROL_FLOW = re.compile(r"^\s*(\}\s*)?(else|if|case|default|switch|guard)\b")
+MODIFIER = re.compile(r"\s*\.[A-Za-z]+")
+
+
+def enclosing_open(text, index):
+    """Index of the bracket that is still open at `index`, or -1."""
+    depth = 0
+    for i in range(index - 1, -1, -1):
+        char = text[i]
+        if char in ")}]":
+            depth += 1
+        elif char in "({[":
+            if depth == 0:
+                return i
+            depth -= 1
+    return -1
+
+
+def chain_end(text, start):
+    """End of the control that holds the view at `start`: climbs out of the `if`/`else`/`case`
+    branches that hold it, then follows the modifiers (`.name(…)`, `.name { … }`) of the view
+    that owns the closure (a Button's label, a Menu's, a Group's)."""
+    index = start
+    while True:
+        opener = enclosing_open(text, index)
+        if opener < 0:
+            return len(text)
+        close = closing(text, opener, text[opener], {"(": ")", "{": "}", "[": "]"}[text[opener]])
+        header = text[text.rfind("\n", 0, opener) + 1:opener]
+        index = close + 1
+        if text[opener] == "{" and CONTROL_FLOW.match(header):
+            # A control-flow branch: skip the `else` branches that follow and keep climbing.
+            while re.compile(r"\s*else\b").match(text, index):
+                brace = text.find("{", index)
+                index = closing(text, brace, "{", "}") + 1
+            continue
+        break
+    while True:
+        rest = MODIFIER.match(text, index)
+        if not rest:
+            return index
+        index = rest.end()
+        if index < len(text) and text[index] in "({":
+            pair = ("(", ")") if text[index] == "(" else ("{", "}")
+            index = closing(text, index, *pair) + 1
+
+
+def icononly(path, text):
+    for match in ICON_ONLY.finditer(text):
+        if exempt(text, match.start()):
+            continue
+        if not NAMED.search(text, match.start(), chain_end(text, match.end())):
+            yield f"{path}:{line_of(text, match.start())}: botón de solo ícono sin .help ni accessibilityLabel"
+
+
 def main():
     sources, check = pathlib.Path(sys.argv[1]), sys.argv[2]
-    run = {"dialogs": dialogs, "toolbar": toolbar}[check]
+    run = {"dialogs": dialogs, "toolbar": toolbar, "icononly": icononly}[check]
     for path in sorted(sources.rglob("*.swift")):
         text = path.read_text(encoding="utf-8")
         for finding in run(path.relative_to(sources), text):
