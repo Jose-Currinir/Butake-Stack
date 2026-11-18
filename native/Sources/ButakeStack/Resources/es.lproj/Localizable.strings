@@ -1410,9 +1410,9 @@
 "plugin.database-client.title" = "Cliente de bases de datos";
 "plugin.database-client.summary" = "Conexiones, tablas, editor SQL, usuarios y respaldos, con túneles SSH verificados.";
 "plugin.database-client.deleteDataDetail" = "Se desactiva el cliente y se eliminan las conexiones guardadas y sus contraseñas del Llavero. Las bases de los servidores no se tocan. No se puede deshacer.";
-"plugin.ssh-terminal.row" = "Consolas de este Mac, hosts SSH, archivos SFTP y reenvío de puertos";
+"plugin.ssh-terminal.row" = "Terminal de este Mac, hosts SSH, archivos SFTP y reenvío de puertos";
 "plugin.ssh-terminal.title" = "Terminal";
-"plugin.ssh-terminal.summary" = "Consolas de este Mac y sus asistentes, y hosts SSH con pestañas, grupos, saltos, archivos SFTP, snippets y reenvíos de puertos.";
+"plugin.ssh-terminal.summary" = "Terminal de este Mac y sus asistentes, y hosts SSH con pestañas, grupos, saltos, archivos SFTP, snippets y reenvíos de puertos.";
 "plugin.ssh-terminal.deleteDataDetail" = "Se desactiva la terminal y se eliminan los hosts, reenvíos y comandos guardados. Las claves SSH y las huellas aceptadas se conservan.";
 "plugin.mail.row" = "Bandeja local para el correo de tus proyectos";
 "plugin.mail.title" = "Correo";
@@ -2502,8 +2502,8 @@
 "ssh.keys.newGroupEllipsis" = "Nuevo grupo de claves…";
 "ssh.keys.keychainFailed" = "No se pudo guardar la frase de paso en el Llavero. Tendrás que escribirla de nuevo.";
 "ssh.local.section" = "Este Mac";
-"ssh.local.shell" = "Consola";
-"ssh.local.shellDetail" = "El shell de inicio de sesión de este Mac";
+"ssh.local.shell" = "Terminal local";
+"ssh.local.shellDetail" = "La terminal de este Mac, con tu sesión de inicio";
 "ssh.local.tabTitle" = "%@ · %@";
 "ssh.local.open" = "Abrir";
 "ssh.local.openHelp" = "Abre este programa en una pestaña nueva, en tu carpeta personal (⌘T)";
@@ -2514,20 +2514,21 @@
 "ssh.local.folder" = "Carpeta inicial";
 "ssh.local.footer" = "Stack no guarda lo que escribes ni lo que muestra la sesión. Desde un proyecto, abre en su carpeta con sus versiones.";
 "ssh.local.new" = "Nuevo";
-"ssh.local.newHelp" = "Nueva consola, asistente o host";
-"ssh.local.newConsole" = "Nueva consola";
-"ssh.local.newConsoleHelp" = "Abre el shell de este Mac en tu carpeta personal";
-"ssh.local.newConsoleInFolderEllipsis" = "Nueva consola en carpeta…";
-"ssh.local.newConsoleInFolderHelp" = "Elige la carpeta donde empieza la consola";
+"ssh.local.newHelp" = "Nueva terminal local, asistente o host";
+"ssh.local.options" = "Opciones";
+"ssh.local.newConsole" = "Nueva terminal local";
+"ssh.local.newConsoleHelp" = "Abre la terminal de este Mac en tu carpeta personal";
+"ssh.local.newConsoleInFolderEllipsis" = "Nueva terminal local en carpeta…";
+"ssh.local.newConsoleInFolderHelp" = "Elige la carpeta donde empieza la terminal";
 "ssh.local.newAssistantHelp" = "Abre %@ en tu carpeta personal";
-"ssh.local.shellShort" = "Shell de este Mac";
+"ssh.local.shellShort" = "Este Mac";
 "ssh.local.homeFolder" = "Carpeta personal";
 "ssh.local.ended" = "El proceso terminó";
 "ssh.local.exitCode" = "Terminó con el código %d";
 "ssh.local.reopen" = "Volver a abrir";
 "ssh.local.openInTerminal" = "Abrir en la Terminal";
-"ssh.local.openHere" = "Abrir consola aquí";
-"ssh.hosts.section" = "Hosts";
+"ssh.local.openHere" = "Abrir terminal aquí";
+"ssh.hosts.section" = "Hosts SSH";
 "ssh.hosts.none" = "Aún no hay hosts.";
 "ssh.noGroup" = "Sin grupo";
 "ssh.opened" = "Sesión con %@ abierta en Terminal";
@@ -2566,6 +2567,8 @@
 "ssh.port" = "Puerto";
 "ssh.userPlaceholder" = "ubuntu, ec2-user, deploy…";
 "ssh.search" = "Buscar";
+"ssh.searchHosts" = "Buscar hosts";
+"ssh.addHostEllipsis" = "Agregar host SSH…";
 "ssh.authFooterAgent" = "Stack no guarda ninguna clave para este host: ssh usa tu agente y tus claves por defecto.";
 "ssh.authFooterFile" = "La clave se lee desde ~/.ssh en cada conexión; Stack no la copia.";
 "ssh.openExternal" = "Abrir en Terminal";
@@ -2968,6 +2971,9 @@
 "db.keychainReadFailed" = "No se pudo leer el Llavero, así que no se cambió la contraseña guardada. Desbloquéalo o permite el acceso e inténtalo de nuevo.";
 "db.keychainSaveFailed" = "No se pudo guardar la contraseña en el Llavero.";
 "db.keychainRestoreFailed" = "El servidor no aceptó la contraseña y no se pudo restaurar la anterior en el Llavero: vuelve a escribirla.";
+"db.noConnection" = "Sin conexión";
+"db.copyName" = "Copiar nombre";
+"db.restoreFileEllipsis" = "Restaurar un archivo…";
 "db.section.stack" = "Servicios de Stack";
 "db.section.saved" = "Conexiones guardadas";
 "db.tab.overview" = "Resumen";
@@ -3085,12 +3091,16 @@
 "db.problem.syntax.help" = "Revisa la sentencia cerca de lo que indica el detalle técnico.";
 "db.problem.permission" = "Sin permiso";
 "db.problem.permission.help" = "El usuario de esta conexión no tiene permiso para hacer eso.";
+"db.problem.connect" = "No se pudo conectar a %@ en %@";
+"db.problem.connect.help" = "Revisa que el servicio esté en marcha y que el usuario y la contraseña sean correctos. Los servicios de Stack se inician en Servicios.";
+"db.problem.startService" = "Iniciar %@";
 "db.problem.query" = "La base de datos rechazó la operación";
 "db.problem.other" = "No se pudo completar";
 "db.problem.ssh" = "No se pudo abrir el túnel SSH";
 "db.problem.client" = "Falta el cliente de la base de datos";
 "db.problem.readOnly" = "Conexión de solo lectura";
 "db.problem.readOnly.help" = "El servidor o Stack rechazaron un cambio porque esta conexión solo permite leer. Para modificar datos, quita «Solo lectura» al editar la conexión.";
+"db.drop.rejected" = "Suelta un archivo .sql o .sql.gz sobre una base donde se pueda escribir.";
 "db.edit.general" = "Conexión";
 "db.edit.server" = "Servidor";
 "db.edit.namePlaceholder" = "Ej. Producción de Gestión";
@@ -3745,7 +3755,7 @@
 
 /* Herramienta Correo */
 "mail.title" = "Correo";
-"mail.envHelp" = "Pon estas líneas en el .env del proyecto. Stack no escribe tu .env; usuario y contraseña pueden quedar vacíos.";
+"mail.envHelp" = "Pégalas en el .env del proyecto. Stack no lo escribe por ti.";
 "mail.busy" = "Puerto %d ocupado por %@";
 "mail.clear" = "Vaciar bandeja…";
 "mail.clearConfirm" = "¿Vaciar la bandeja?";
@@ -3761,12 +3771,14 @@
 "mail.cc" = "Cc";
 "mail.view" = "Vista";
 "mail.search" = "Buscar mensajes";
+"mail.copySubject" = "Copiar asunto";
+"mail.copySender" = "Copiar remitente";
 "mail.clearAction" = "Vaciar bandeja";
 "mail.clearDetail" = "Se eliminan todos los mensajes capturados. No se puede deshacer.";
 "mail.clearHelp" = "Elimina todos los mensajes capturados";
 "mail.deleteHelp" = "Elimina el mensaje seleccionado";
 "mail.setupTitle" = "Recibe el correo de tus proyectos";
-"mail.setupDetail" = "Configura tu proyecto para enviar por SMTP a 127.0.0.1:%d y sus correos aparecerán aquí.";
+"mail.setupDetail" = "Configura tu proyecto para enviar por SMTP a 127.0.0.1:%d y sus correos aparecerán aquí. Usuario y contraseña pueden quedar vacíos.";
 "mail.mode.html" = "Código HTML";
 "mail.mode.text" = "Texto";
 "mail.mode.headers" = "Encabezados";
@@ -3774,20 +3786,22 @@
 
 /* Herramienta Dumps */
 "dumps.title" = "Dumps";
-"dumps.envHelp" = "Pon esta línea en el .env del proyecto (Laravel y Symfony VarDumper). Los dumps se guardan en memoria, hasta 300 entradas o 8 MiB.";
-"dumps.clear" = "Limpiar";
+"dumps.envHelp" = "Pégala en el .env del proyecto (Laravel y Symfony).";
+"dumps.clear" = "Vaciar";
 "dumps.empty" = "Sin dumps";
 "dumps.search" = "Buscar dumps";
+"dumps.openFile" = "Abrir archivo en el editor";
 "dumps.choose" = "Ningún dump seleccionado";
 "dumps.noSource" = "Sin origen";
 "dumps.file" = "Archivo";
 "dumps.origin" = "Origen";
 "dumps.time" = "Hora";
 "dumps.pause" = "Pausar";
+"dumps.resume" = "Reanudar";
 "dumps.pauseHelp" = "Detiene la lista para leerla; los dumps nuevos siguen llegando";
 "dumps.clearHelp" = "Elimina los dumps recibidos";
 "dumps.setupTitle" = "Recibe los dump() de tus proyectos";
-"dumps.setupDetail" = "Configura tu proyecto para enviar sus dump() a 127.0.0.1:%d y aparecerán aquí.";
+"dumps.setupDetail" = "Configura tu proyecto para enviar sus dump() a 127.0.0.1:%d y aparecerán aquí. Se guardan en memoria, hasta 300 o 8 MiB.";
 
 /* Herramienta Registros */
 "logs.filter" = "Filtrar líneas";
@@ -3807,8 +3821,10 @@
 "logs.levelTitle" = "Nivel";
 "logs.levelHelp" = "Muestra todas las líneas, o solo avisos y errores";
 "logs.pause" = "Pausar";
+"logs.resume" = "Reanudar";
+"logs.paused" = "En pausa";
 "logs.pauseHelp" = "Detiene el registro en pantalla para leerlo; el archivo sigue creciendo";
-"logs.clear" = "Limpiar";
+"logs.clear" = "Vaciar";
 "logs.clearHelp" = "Oculta las líneas en pantalla; el archivo no se toca (⌥⌘K)";
 "logs.copyHelp" = "Copia las líneas que se ven";
 "logs.public" = "Dirección fija de %@";
