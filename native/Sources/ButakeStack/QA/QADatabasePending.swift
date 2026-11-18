@@ -4,7 +4,7 @@ import Foundation
 extension QAHooks {
     /// BUTAKE_QA_DB_PENDING: the tree of the selected connection with a table holding unsaved edits.
     static func seedPendingEdits(_ client: DatabaseClient) {
-        guard env["BUTAKE_QA_DB_PENDING"] != nil, let selection = client.selection else { return }
+        guard ProcessInfo.processInfo.environment["BUTAKE_QA_DB_PENDING"] != nil, let selection = client.selection else { return }
         let database = selection.database ?? "tienda"
         client.status[selection.connection] = .ok("MySQL 9.1")
         client.databases[selection.connection] = [DBDatabase(name: database, size: nil, tables: 3, system: false)]
