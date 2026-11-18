@@ -120,28 +120,6 @@ struct GitRepositoryChooser: View {
                 }
             }
             .accessibilityIdentifier("git.repo.list")
-            // One menu for the three ways in: three titled buttons don't fit the column's width.
-            HStack {
-                Menu {
-                    Button { chosen(); tool.chooseAndAdd() } label: { Label(L("git.repo.add"), systemImage: Symbols.add) }
-                        .help(L("git.repo.addHelp"))
-                        .accessibilityIdentifier("git.repo.add")
-                    Button { chosen(); GitHosting.shared.cloning = true } label: { Label(L("git.clone.ellipsis"), systemImage: Symbols.gitClone) }
-                        .help(L("git.clone.help"))
-                        .accessibilityIdentifier("git.repo.clone")
-                    Button { chosen(); GitHosting.shared.creating = true } label: { Label(L("git.create.ellipsis"), systemImage: Symbols.gitCreateRepository) }
-                        .help(L("git.create.help"))
-                        .accessibilityIdentifier("git.repo.create")
-                } label: {
-                    Label(L("git.repo.addMenu"), systemImage: Symbols.add)
-                }
-                .menuStyle(.borderlessButton).fixedSize()
-                .help(L("git.repo.addMenuHelp"))
-                .accessibilityIdentifier("git.repo.addMenu")
-                Spacer()
-            }
-            .padding(.horizontal, 10).frame(height: 29)
-            .overlay(alignment: .top) { Divider() }
         }
         .task { await tool.loadList(); await tool.loadSummaries() }
     }
@@ -157,16 +135,26 @@ struct GitRepositoryChooser: View {
         .buttonStyle(HighlightButtonStyle())
         .disabled(entry.missing || tool.opening != nil)
         .contextMenu {
-            if entry.project == nil, let group = tool.composite(of: entry), group.repositories.contains(entry.path) {
-                Button { StackStore.shared.removeRepository(entry.path, from: group.id) } label: {
-                    Label(L("composite.git.remove"), systemImage: Symbols.remove)
-                }
-                .accessibilityIdentifier("git.repo.removeFromProject.\(entry.name)")
-            }
-            if entry.project == nil, tool.list.added.contains(where: { $0.path == entry.path }) {
-                Button { Task { await tool.forget(entry) } } label: { Label(L("git.repo.forget"), systemImage: Symbols.remove) }.accessibilityIdentifier("git.repo.forget.\(entry.name)")
-            }
+            Button { chosen(); Task { await tool.open(entry.path) } } label: { Label(L("common.open"), systemImage: Symbols.forward) }
+                .disabled(entry.missing || tool.opening != nil)
+                .accessibilityIdentifier("git.repo.openRow.\(entry.name)")
             Button { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: entry.path) } label: { Label(L("menu.showInFinder"), systemImage: Symbols.folder) }.accessibilityIdentifier("git.repo.showInFinder.\(entry.name)")
+            Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(entry.path, forType: .string) } label: { Label(L("git.changes.copyPath"), systemImage: Symbols.copy) }
+                .accessibilityIdentifier("git.repo.copyPath.\(entry.name)")
+            let fromProject = entry.project == nil ? tool.composite(of: entry).flatMap { $0.repositories.contains(entry.path) ? $0 : nil } : nil
+            let forgettable = entry.project == nil && tool.list.added.contains(where: { $0.path == entry.path })
+            if fromProject != nil || forgettable {
+                Divider()
+                if let group = fromProject {
+                    Button { StackStore.shared.removeRepository(entry.path, from: group.id) } label: {
+                        Label(L("composite.git.remove"), systemImage: Symbols.remove)
+                    }
+                    .accessibilityIdentifier("git.repo.removeFromProject.\(entry.name)")
+                }
+                if forgettable {
+                    Button { Task { await tool.forget(entry) } } label: { Label(L("git.repo.forget"), systemImage: Symbols.remove) }.accessibilityIdentifier("git.repo.forget.\(entry.name)")
+                }
+            }
         }
         .accessibilityIdentifier("git.repo.row.\(entry.name)")
     }
