@@ -25,12 +25,21 @@ extension StackStore {
         } else {
             kind.append(GroupAction(id: "toProject", title: L("composite.toProject"), symbol: Symbols.compositeProject) { self.setKind(group.id, .project) })
         }
+        // The folder is a folder of the disk: made inside, shown in Finder.
+        let disk: [GroupAction] = followsDisk ? [
+            GroupAction(id: "newInside", title: L("groups.newInside"), symbol: Symbols.newFolder) {
+                self.newFolderParent = group.id
+                self.groupNaming = .new(sites: [])
+            },
+            GroupAction(id: "reveal", title: L("menu.showInFinder"), symbol: Symbols.folder) { self.revealInFinder(group) },
+        ] : []
         return [
             [GroupAction(id: "startAll", title: L(group.isProject ? "composite.startAll" : "groups.startAll"), symbol: Symbols.start,
                          enabled: !members.allSatisfy(\.enabled) && compositeWorking == nil) { Task { await self.startAll(group) } },
              GroupAction(id: "stopAll", title: L(group.isProject ? "composite.stopAll" : "groups.stopAll"), symbol: Symbols.stop,
                          enabled: members.contains(where: \.enabled) && compositeWorking == nil) { Task { await self.stopAll(group) } }],
             kind,
+        ] + (disk.isEmpty ? [] : [disk]) + [
             [GroupAction(id: "rename", title: L("groups.rename"), symbol: Symbols.edit) { self.groupNaming = .rename(group.id) },
              GroupAction(id: "delete", title: L(group.isProject ? "composite.delete" : "groups.delete"), symbol: Symbols.delete,
                          destructive: true) { self.deleteGroup(group.id) }],

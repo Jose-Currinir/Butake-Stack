@@ -26,6 +26,17 @@ import SwiftUI
     }
     /// A folder being named (new or renamed); the sidebar shows the prompt.
     var groupNaming: GroupNaming?
+    /// The folder (its id) a new folder is created in; nil: the projects folder.
+    var newFolderParent: String?
+    /// What the engine says of the projects folder (the sidebar follows it once `enabled`).
+    var disk: DiskState?
+    /// A move of a folder on the disk that waits for the user's yes.
+    var pendingDiskMove: DiskMoveRequest?
+    /// The user closed the first comparison with `groups.json` without deciding: asked again next time.
+    var migrationDeferred = false
+    /// Tests point the app at a temporary projects folder, never the owner's.
+    @ObservationIgnored var projectsFolderOverride: String?
+    @ObservationIgnored var diskObserver: Task<Void, Never>?
     /// The project of several parts whose «Iniciar todo» or «Detener todo» is under way.
     var compositeWorking: String?
     /// Current framework and generator versions (npm and Packagist), cached by the engine.
@@ -189,6 +200,7 @@ import SwiftUI
     func refresh() async {
         do { projects = try await call(["method": "listProjects"]) } catch { report(error) }
         await loadAttention()
+        await refreshDisk()
         groups = (try? await call(["method": "siteGroups"])) ?? groups
         // A transient engine failure keeps the last good value instead of reading as «not installed».
         if let value: StackConfig = try? await call(["method": "stackConfig"]) { config = value }
@@ -296,6 +308,7 @@ import SwiftUI
     /// State events are shared by the menu bar and the window. Reconnect after the daemon
     /// exits or after an upgrade, without restarting it on behalf of the user.
     func startPolling() {
+        startDiskWatch()
         guard statusObserver == nil else { return }
         statusObserver = Task { [weak self] in
             var delay = 5.0
@@ -322,6 +335,7 @@ import SwiftUI
     func pauseForDataMove() {
         statusObserver?.cancel()
         statusObserver = nil
+        stopDiskWatch()
     }
 
     func refreshVisibleProjects() async {
@@ -337,7 +351,7 @@ import SwiftUI
             }
             // Projects and folders changed outside the app (the engine's command line, another Mac's
             // restore) show up here too, not only after Ir › Recargar.
-            async let projects: Void = refreshProjects()
+            async let projects: Void = refreshDisk()
             async let health: Void = refreshHealth()
             async let git: Void = refreshGit()
             _ = await (projects, health, git)
