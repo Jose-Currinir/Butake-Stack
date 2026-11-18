@@ -1,7 +1,9 @@
 # Decisiones vigentes
 
-Decisiones de producto y de arquitectura que siguen en pie. Una línea por decisión, con su fecha y su
-motivo. Las más nuevas, arriba. Una decisión que cambia se reemplaza aquí, no se agrega otra.
+Decisiones de producto y de arquitectura. Una línea por decisión, con su fecha y su motivo. Las más
+nuevas, arriba. Las entradas no se reescriben: una decisión que cambia agrega una entrada nueva que dice
+a cuál reemplaza, y la vieja queda marcada «reemplazada por la del <fecha>» (sin borrar su texto). Antes
+de cambiar un texto, un lugar o una regla de la interfaz, se busca aquí si ya hay una decisión.
 
 | Fecha | Decisión | Motivo |
 |---|---|---|

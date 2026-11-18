@@ -64,6 +64,24 @@ fixed_size_vertical() { swift_lines 'fixedSize\(horizontal: *false, *vertical: *
 # A plain button is an action without the look of one; rows that open something are List rows
 # (List(selection:), NavigationLink) and the few custom ones use a style of Shared/.
 plain_button() { swift_lines 'buttonStyle\(\.plain\)|buttonStyle\(PlainButtonStyle\(\)\)' | count; }
+# System text styles (.font(.caption), .callout…) do not follow Stack's text size: the scale of
+# Shared/Typography.swift (.uiCaption, .uiSubheadline…) and ButakeDesign's does. The cap is per file.
+SYSTEM_STYLE='\.font\(\.(largeTitle|title[23]?|headline|subheadline|body|callout|footnote|caption2?)\b'
+system_font_style() { swift_lines "$SYSTEM_STYLE" | count; }
+# "file count" lines of the counters whose cap is per file (a fix in one file cannot pay for a new case in another).
+files_of() {
+    case "$1" in
+        system-font-style) swift_lines "$SYSTEM_STYLE" ;;
+        *) return 0 ;;
+    esac | cut -d: -f1 | sed "s|^$SOURCES/ButakeStack/||" | sort | uniq -c | awk '{print $2, $1}'
+}
+# Sheets whose fixed (or minimum) height is taller than the window's minimum, 600 pt (ButakeStackApp):
+# they do not fit it and lose their buttons. A sheet takes minHeight and scrolls.
+MIN_WINDOW_HEIGHT=600
+SHEET_HEIGHT='\.frame\([^)]*\b(minHeight|height): *[0-9]+'
+sheet_taller_than_window() {
+    swift_lines "$SHEET_HEIGHT" | grep -oE '\b(minHeight|height): *[0-9]+' | grep -oE '[0-9]+$' | awk -v max="$MIN_WINDOW_HEIGHT" '$1 > max' | count
+}
 # Swift files over 500 lines: one file per responsibility (rule 28, done definition §11).
 file_too_long() {
     find "$SOURCES" -name '*.swift' -print0 | xargs -0 wc -l | grep -v ' total$' | awk '$1 > 500' | count
@@ -78,14 +96,16 @@ raw_animation() { swift_lines 'withAnimation\(|\.animation\(|\.transition\(' | g
 # A corner radius written as a number: the scale is Radius (Shared/Styles.swift); one that isn't on
 # it keeps its number with a comment that says so, and counts here until it is decided.
 radius_literal() { swift_lines '(cornerRadius|\(radius): *[0-9]' | count; }
+icon_only_without_help() { blocks icononly | count; }
 exemptions() { grep -rn --include='*.swift' '// lint-ui: ' "$SOURCES" | count; }
 # Localizable.strings ordered by area (scripts/order-strings.py): keys out of their place.
 strings_order() { /usr/bin/python3 -I "$ROOT/scripts/order-strings.py" --count; }
 
-NAMES="fixed-font on-tap-gesture uppercased text-literal symbol-literal symbol-concept tinted-icon third-party old-product-name deprecated-containers fixed-size-vertical dialog-without-cancel plain-action-button toolbar-item-without-label file-too-long strings-order raw-animation radius-literal exemptions"
+NAMES="fixed-font system-font-style on-tap-gesture uppercased text-literal symbol-literal symbol-concept tinted-icon third-party old-product-name deprecated-containers fixed-size-vertical dialog-without-cancel plain-action-button toolbar-item-without-label icon-only-without-help sheet-taller-than-window file-too-long strings-order raw-animation radius-literal exemptions"
 current() {
     case "$1" in
         fixed-font) fixed_font ;;
+        system-font-style) system_font_style ;;
         on-tap-gesture) on_tap ;;
         uppercased) uppercased ;;
         text-literal) text_literal ;;
@@ -99,6 +119,8 @@ current() {
         dialog-without-cancel) dialog_without_cancel ;;
         plain-action-button) plain_button ;;
         toolbar-item-without-label) toolbar_item_without_label ;;
+        icon-only-without-help) icon_only_without_help ;;
+        sheet-taller-than-window) sheet_taller_than_window ;;
         file-too-long) file_too_long ;;
         strings-order) strings_order ;;
         raw-animation) raw_animation ;;
@@ -125,6 +147,23 @@ for name in $NAMES; do
     printf '%-28s %8s %8s%s\n' "$name" "$value" "${limit:--}" "$mark"
     updated="$updated$name=${limit:-$value}
 "
+    # A counter with a cap per file: each file against its own cap (`name:file=number`, 0 when absent).
+    while read -r file n; do
+        [ -n "$file" ] || continue
+        filecap="$(awk -F= -v k="$name:$file" '$1 == k { print $2; exit }' "$BASELINE" 2>/dev/null || true)"
+        if [ -z "$filecap" ]; then
+            if [ "$UPDATE" -eq 1 ]; then filecap="$n"; else filecap=0; fi
+        fi
+        if [ "$n" -gt "$filecap" ]; then
+            printf '  %-26s %8s %8s  SUPERA EL TOPE DEL ARCHIVO\n' "$file" "$n" "$filecap"; failed=1
+        elif [ "$UPDATE" -eq 1 ]; then
+            filecap="$n"
+        fi
+        updated="$updated$name:$file=$filecap
+"
+    done <<LISTEND
+$(files_of "$name")
+LISTEND
 done
 
 # Every exemption, with its file, line and reason.
@@ -137,6 +176,9 @@ fi
 if [ "${LINT_UI_VERBOSE:-0}" = "1" ]; then
     blocks dialogs | sed 's/^/  diálogo sin cancelar: /'
     blocks toolbar | sed 's/^/  barra sin Label: /'
+    blocks icononly | sed 's/^/  ícono solo: /'
+    swift_lines "$SYSTEM_STYLE" | sed -E "s|^$SOURCES/ButakeStack/||" | cut -c1-150 | sed 's/^/  fuente del sistema: /'
+    swift_lines "$SHEET_HEIGHT" | awk -v max="$MIN_WINDOW_HEIGHT" '{ if (match($0, /(minHeight|height): *[0-9]+/)) { v = substr($0, RSTART, RLENGTH); gsub(/[^0-9]/, "", v); if (v + 0 > max) print } }' | sed -E "s|$SOURCES/ButakeStack/||" | cut -c1-150 | sed 's/^/  hoja más alta que la ventana mínima: /'
 fi
 
 if [ "$UPDATE" -eq 1 ]; then

@@ -2,11 +2,13 @@
 
 Norma de diseño y de código de la app de Mac. Vale para todo código nuevo o modificado.
 `scripts/lint-ui.sh` comprueba las prácticas de interfaz que se pueden automatizar contra los topes de
-`scripts/lint-ui.baseline`, que solo bajan; hoy todos están en cero salvo `exemptions`:
+`scripts/lint-ui.baseline`, que solo bajan; hoy todos están en cero salvo `exemptions` y los tres de deuda
+conocida que siguen (`system-font-style`, `icon-only-without-help`, `sheet-taller-than-window`):
 
 | Contador | Qué cuenta |
 |---|---|
 | `fixed-font` | `.ui(size:)` o `.system(size:)` fuera de `Shared/Typography.swift` |
+| `system-font-style` | `.font(.caption)`, `.callout`, `.body`… (estilos del sistema que no siguen el tamaño de texto de Stack; va `.uiCaption`, `.uiSubheadline`…). Tope por archivo (`system-font-style:<archivo>=n` en la línea base): arreglar uno no paga uno nuevo en otro |
 | `on-tap-gesture` | `onTapGesture` |
 | `uppercased` | `.uppercased()` |
 | `text-literal` | `Text("…")` con letras escritas a mano |
@@ -20,11 +22,13 @@ Norma de diseño y de código de la app de Mac. Vale para todo código nuevo o m
 | `dialog-without-cancel` | `.confirmationDialog`/`.alert` sin `Button(L("common.cancel"), role: .cancel)` (un aviso de un solo botón pasa si ese botón es el `role: .cancel`) |
 | `plain-action-button` | `buttonStyle(.plain)` |
 | `toolbar-item-without-label` | control de un `ToolbarItem` cuya etiqueta es un `Text` o una `Image` sueltos en vez de `Label` |
+| `icon-only-without-help` | `.labelStyle(.iconOnly)` cuyo control no lleva `.help` ni `accessibilityLabel` (cadena de modificadores del `Label` y de quien lo contiene) |
+| `sheet-taller-than-window` | `.frame(… height:/minHeight: N)` con N mayor que 600, el alto de la ventana mínima: la hoja no cabe y pierde sus botones |
 | `file-too-long` | archivos Swift de `native/Sources` de más de 500 líneas |
 | `strings-order` | claves de `Localizable.strings` fuera del orden por área de `scripts/order-strings.py` (un prefijo nuevo se agrega a su tabla `AREAS`; `--write` reordena) |
 | `exemptions` | líneas con `// lint-ui: <motivo>` |
 
-Los contadores de bloque (diálogos y barra) los calcula `scripts/lint-ui-blocks.py`;
+Los contadores de bloque (diálogos, barra y botones de solo ícono) los calcula `scripts/lint-ui-blocks.py`;
 `LINT_UI_VERBOSE=1` muestra cada hallazgo.
 
 **Exenciones.** Un caso legítimo lleva `// lint-ui: <motivo>` en su misma línea: ningún contador lo
@@ -172,6 +176,9 @@ página del asunto.
 Mayúscula solo en la primera palabra. Los puntos suspensivos indican que la acción pide más
 datos. Sin textos explicativos de más de una línea: lo que sobra va a `.help`. El código puede
 seguir diciendo `engine` o `site` en identificadores internos; el glosario rige el texto visible.
+`GlossaryTests` lee `Localizable.strings` y falla con las palabras de la columna «No se dice»; un caso
+legítimo (el sitio web de un tercero, el «módulo» de Gradle, «se borra el portapapeles») va en su lista
+de excepciones con el motivo.
 
 ## Prácticas obligatorias
 
