@@ -30,10 +30,32 @@ import SwiftUI
 
     @ObservationIgnored private var sessions: [String: GitHostingSession] = [:]
 
+    /// A provider page was opened in the browser: back in Stack, the open repository is brought up
+    /// to date once (a pull request merged there with its branch deleted stops being listed).
+    @ObservationIgnored var awaitingReturn = false
+    @ObservationIgnored private var activation: NSObjectProtocol?
+
     init(endpoints: GitHostingEndpoints, vault: GitHostingVault) {
         self.endpoints = endpoints
         self.vault = vault
         client = GitHostingClient(endpoints: endpoints)
+        activation = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in await self?.returnedFromBrowser() }
+        }
+    }
+
+    /// Stack is in front again after a page of the provider: «Actualizar» (it prunes the branches
+    /// deleted there) and the pull requests read again. Once per page opened, never on its own.
+    func returnedFromBrowser(in repository: GitRepository? = GitTool.shared.repository) async {
+        guard awaitingReturn else { return }
+        awaitingReturn = false
+        guard let repository, repository.operation == nil else { return }
+        // `origin` as configured (the snapshot's address has Git's rewrites applied).
+        let session = session(for: repository)
+        await session.readRemote()
+        guard session.hosted != nil else { return }
+        await repository.perform(.fetch, notify: false)
+        await session.load()
     }
 
     // MARK: Accounts
@@ -107,6 +129,7 @@ import SwiftUI
     /// Opens a page of the provider in the browser.
     func open(_ url: URL?) {
         guard let url, url.scheme == "https" else { return }
+        awaitingReturn = true
         NSWorkspace.shared.open(url)
     }
 }

@@ -296,8 +296,11 @@ private struct Sandbox {
     defer { repository.stopWatching() }
     #expect(ids(repository).isEmpty)
 
-    // A branch only on this Mac: «Publicar rama».
+    // A branch only on this Mac: «Publicar rama». With a commit of its own, so that once deleted on
+    // the remote it is not one already merged (`everyMergedBranchIsDeletedFromItsButton`).
     #expect(await repository.createBranch("feature/sola"))
+    try commit(sandbox.mine, "sola.txt", "sola\n", "feat: sola")
+    await repository.refresh()
     #expect(ids(repository) == ["git.notPublished"])
     await problem(repository, "git.notPublished")?.action?.run()
     #expect(ids(repository).isEmpty && repository.snapshot.tracked)
@@ -340,6 +343,40 @@ private struct Sandbox {
     try FileManager.default.moveItem(at: moved, to: sandbox.remote)
     await problem(repository, "git.remoteAccess")?.action?.run()
     #expect(!ids(repository).contains("git.remoteAccess"))
+}
+
+/// Pull requests merged on the provider with «delete the branch»: the branches only left on this Mac
+/// are listed once and go with one button; one deleted there without merging stays.
+@MainActor @Test func everyMergedBranchIsDeletedFromItsButton() async throws {
+    let sandbox = try Sandbox()
+    defer { try? FileManager.default.removeItem(at: sandbox.root) }
+    for name in ["feature/a", "feature/b", "feature/c"] {
+        try run(sandbox.mine, "switch", "-q", "-c", name, "develop")
+        try commit(sandbox.mine, "\(name.dropFirst(8)).txt", "\(name)\n", "feat: \(name)")
+        try run(sandbox.mine, "push", "-q", "-u", "origin", name)
+    }
+    try run(sandbox.mine, "switch", "-q", "develop")
+    let store = StackStore(engine: StackEngine())
+    let repository = try await open(store, sandbox.mine)
+    defer { repository.stopWatching() }
+    #expect(ids(repository).isEmpty)
+
+    // The provider merges a and b into develop and deletes them; c is deleted without merging.
+    try run(sandbox.theirs, "fetch", "-q")
+    try run(sandbox.theirs, "merge", "-q", "--no-ff", "-m", "Merge pull request #1", "origin/feature/a")
+    try run(sandbox.theirs, "merge", "-q", "--no-ff", "-m", "Merge pull request #2", "origin/feature/b")
+    try run(sandbox.theirs, "push", "-q", "origin", "develop")
+    try run(sandbox.theirs, "push", "-q", "origin", "--delete", "feature/a", "feature/b", "feature/c")
+
+    // «Bajar» prunes them, as «Actualizar» does.
+    #expect(await repository.perform(.pull))
+    #expect(!repository.snapshot.remoteBranches.contains { $0.short.hasPrefix("feature/") })
+    let merged = try #require(problem(repository, "git.mergedBranches"))
+    #expect(merged.title == "2 ramas ya combinadas siguen en este Mac")
+    #expect(merged.items == ["feature/a", "feature/b"])
+    await merged.action?.run()
+    #expect(repository.snapshot.branches.map(\.name).sorted() == ["develop", "feature/c"])
+    #expect(problem(repository, "git.mergedBranches") == nil)
 }
 
 @MainActor @Test func everyProblemOfTheFolderIsSolvedFromItsButton() async throws {

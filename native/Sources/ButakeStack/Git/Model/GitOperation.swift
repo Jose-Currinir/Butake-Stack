@@ -7,6 +7,7 @@ enum GitAction: String, Sendable, CaseIterable {
     case pullMerge = "pull_merge", pullRebase = "pull_rebase", pullAutostash = "pull_autostash"
     case createBranch = "create_branch", switchBranch = "switch_branch", trackBranch = "track_branch"
     case renameBranch = "rename_branch", deleteBranch = "delete_branch", forceDeleteBranch = "force_delete_branch"
+    case deleteMergedBranch = "delete_merged_branch"
     case commitAmend = "commit_amend", undoCommit = "undo_commit", rebaseAbort = "rebase_abort", stashPop = "stash_pop"
     // Historial, Problemas and «Más…» (G-3).
     case revert, cherryPick = "cherry_pick", continueOperation = "continue_operation", abortOperation = "abort_operation"
@@ -22,7 +23,7 @@ enum GitAction: String, Sendable, CaseIterable {
     /// dialog or the pull assistant).
     var needsConfirmation: Bool {
         [.push, .pull, .pullMerge, .pullRebase, .pullAutostash, .merge, .rebase, .rebaseAbort, .stashPop, .discard,
-         .deleteBranch, .forceDeleteBranch, .revert, .cherryPick, .abortOperation, .deleteTag, .stashApply, .stashDrop,
+         .deleteBranch, .forceDeleteBranch, .deleteMergedBranch, .revert, .cherryPick, .abortOperation, .deleteTag, .stashApply, .stashDrop,
          .removeRemote, .removeWorktree].contains(self)
     }
     /// What the button says while it runs («Bajando cambios…»).

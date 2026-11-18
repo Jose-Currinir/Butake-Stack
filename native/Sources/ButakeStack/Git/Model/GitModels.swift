@@ -46,9 +46,14 @@ struct GitBranch: Decodable, Hashable, Sendable, Identifiable {
     var behind: Int
     /// Its upstream was deleted on the remote.
     var gone: Bool
+    /// Only when `gone`: all its commits are on a remote branch (its pull request was merged), so
+    /// deleting it here loses nothing. Optional: an engine before 0.1.5 does not say it.
+    var merged: Bool?
     /// Last commit (seconds since 1970, UTC).
     var updated: Int
     var id: String { name }
+    /// Merged on the remote and deleted there: it is only left on this Mac.
+    var mergedAndGone: Bool { gone && merged == true }
 }
 
 struct GitRemoteBranch: Decodable, Hashable, Sendable, Identifiable {

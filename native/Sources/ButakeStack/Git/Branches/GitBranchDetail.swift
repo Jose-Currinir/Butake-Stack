@@ -16,7 +16,8 @@ struct GitBranchDetail: View {
                     if let branch {
                         LabeledContent(L("git.branch.upstream"), value: branch.upstream.isEmpty ? L("git.branch.localOnly") : branch.upstream)
                         if !branch.upstream.isEmpty {
-                            LabeledContent(L("git.branch.tracking"), value: branch.gone ? L("git.branch.gone")
+                            LabeledContent(L("git.branch.tracking"), value: branch.mergedAndGone ? L("git.branch.mergedGone")
+                                           : branch.gone ? L("git.branch.gone")
                                            : String(format: L("git.aheadBehind"), branch.ahead, branch.behind))
                         }
                         if branch.updated > 0 {
