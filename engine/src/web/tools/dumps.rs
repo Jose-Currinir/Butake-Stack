@@ -690,6 +690,24 @@ pub fn clear() {
     }
 }
 
+/// Removes one dump by its id. Whether it was there (it may have been cleared or pushed out).
+pub fn remove(id: u64) -> bool {
+    let Ok(mut dumps) = DUMPS.lock() else {
+        return false;
+    };
+    let Some(position) = dumps
+        .items
+        .iter()
+        .position(|(value, _)| value["id"].as_u64() == Some(id))
+    else {
+        return false;
+    };
+    if let Some((_, size)) = dumps.items.remove(position) {
+        dumps.bytes -= size;
+    }
+    true
+}
+
 pub async fn serve(listener: TcpListener, events: tokio::sync::broadcast::Sender<Value>) {
     // Dropping the listener task also closes established connections to the receiver.
     let mut connections = tokio::task::JoinSet::new();
@@ -787,5 +805,25 @@ mod tests {
         }
         let nested = "a:1:{i:0;".repeat(600);
         assert!(unserialize(nested.as_bytes()).is_none());
+    }
+
+    #[test]
+    fn removes_one_dump_by_id_and_keeps_the_rest() {
+        clear();
+        keep(json!({"lines":["a"]}));
+        keep(json!({"lines":["b"]}));
+        keep(json!({"lines":["c"]}));
+        let ids: Vec<u64> = list(0).iter().map(|d| d["id"].as_u64().unwrap()).collect();
+        assert!(ids.len() >= 3);
+        let middle = ids[ids.len() - 2];
+        assert!(remove(middle));
+        let left: Vec<u64> = list(0).iter().map(|d| d["id"].as_u64().unwrap()).collect();
+        assert_eq!(left.len(), ids.len() - 1);
+        assert!(!left.contains(&middle));
+        // Gone already: nothing else changes.
+        assert!(!remove(middle));
+        assert!(!remove(u64::MAX));
+        assert_eq!(list(0).len(), left.len());
+        clear();
     }
 }

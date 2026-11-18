@@ -617,7 +617,7 @@ async fn request_read(request: &Value, supervisor: &SupervisorReader) -> Result<
 }
 
 /// The daemon's own requests. Some are asked only by the engine itself through `request_sync`,
-/// never by the app: `clearDumps` (from `dumpsClear`), `sharePublic` and `cloudflareLogin` (from
+/// never by the app: `clearDumps` (from `dumpsClear`), `deleteDump` (from `dumpsDelete`), `sharePublic` and `cloudflareLogin` (from
 /// `web/net/tunnels.rs`), `reload` (after any change of the configuration).
 async fn request_action(request: &Value, supervisor: &mut Supervisor) -> Result<Value> {
     let key = request["params"]["id"].as_str().unwrap_or("");
@@ -626,6 +626,15 @@ async fn request_action(request: &Value, supervisor: &mut Supervisor) -> Result<
             crate::web::tools::dumps::clear();
             let _ = supervisor.events.send(json!({"event":"dumps.changed"}));
             Ok(json!(true))
+        }
+        "deleteDump" => {
+            let removed = crate::web::tools::dumps::remove(
+                request["params"]["dump"].as_u64().unwrap_or(u64::MAX),
+            );
+            if removed {
+                let _ = supervisor.events.send(json!({"event":"dumps.changed"}));
+            }
+            Ok(json!(removed))
         }
         "share" => {
             let store = Store::from_environment()?;
