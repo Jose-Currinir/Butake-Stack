@@ -177,7 +177,8 @@ struct RestoreSheet: View {
             }
             .padding(14)
         }
-        .frame(width: 680, height: 640)
+        // Flexible: the content scrolls, so the sheet fits the minimum window (960×600) and still opens roomy.
+        .frame(minWidth: 520, idealWidth: 680, maxWidth: 760, minHeight: 360, idealHeight: 520, maxHeight: 640)
         .interactiveDismissDisabled(running)
         .onAppear { clones = Set(cloneable.map(\.id)) }
     }
