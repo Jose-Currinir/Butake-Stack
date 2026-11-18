@@ -169,8 +169,8 @@
 "palette.settings" = "Ajustes";
 "palette.settingsTab" = "Ajustes: %@";
 "palette.recent" = "Recientes";
-"palette.clearRecent" = "Borrar recientes";
-"palette.clearRecentHelp" = "Olvida las acciones usadas hace poco";
+"palette.clearRecent" = "Quitar recientes";
+"palette.clearRecentHelp" = "Quita de la lista las acciones usadas hace poco";
 "palette.pages" = "Páginas";
 "palette.actions" = "Acciones";
 "palette.empty" = "Nada coincide con la búsqueda.";
@@ -4939,8 +4939,8 @@
 "error.report.technical" = "Detalle técnico";
 "error.report.time" = "Hora";
 "error.report.note" = "Descripción";
-"error.report.failures" = "Últimos errores del motor";
-"error.report.log" = "Últimos errores del registro de Stack";
+"error.report.failures" = "Últimos errores de Stack";
+"error.report.log" = "Últimos errores del registro del sistema";
 "error.report.none" = "ninguno en esta sesión";
 "error.report.copied" = "Copiado";
 "error.report.save" = "Guardar…";
